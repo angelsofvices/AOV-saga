@@ -26169,6 +26169,10 @@ function sparZyrex(){
   const xpWin = roll(), xpLose = Math.max(1, Math.round(roll() * 0.6));
   try { awardZyrexXP(win, xpWin); awardZyrexXP(lose, xpLose); } catch(err){ console.warn('spar xp', err); }
   player._farmSpars = (player._farmSpars || 0) + 1;
+  // ★ v0.95.998 · sparring pays RIZER bond too, on its own cooldown. The ZXP
+  // above is the Zyrex's reward; this is yours, and it is deliberately the
+  // smallest of the four new routes — it is the one you can do standing still.
+  try { sparBondTick(); } catch(_){}
   try { playSFX('kick'); } catch(_){}
   showToast(`◈ SPAR · ${win.name} over ${lose.name} · +${xpWin} / +${xpLose} ZXP`, 3000);
   return true;
@@ -33630,7 +33634,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.997' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.998' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -39650,6 +39654,44 @@ const BOND_EVENTS = {
   // like the starter's 333; the starter had to place the first rung because
   // nothing was bondable at 0, whereas this is a step ALONG the climb to 666.
   rizerRaidcard:  { path:'rizer', pts:20,  label:'★ the Academy knows your name' },
+
+  // ═══ v0.95.998 · FOUR FARMABLE ROUTES ═════════════════════════════════════
+  // Creator: "implement new ways for rizer to gain bond points to be able to
+  // bond with higher tier zyrex at lower levels... I want there to be a few
+  // ways we can farm bond level."
+  //
+  // ★★ EVERY EVENT ABOVE IS INCIDENTAL — bond happens TO you while you play.
+  // None of it is a thing you can decide to go and do this afternoon. These
+  // four are, and each one is deliberately attached to a system that already
+  // exists rather than being a daily-quest board bolted on the side.
+
+  // ★★★ FIELD STUDY is the flagship, and it is the one that is most obviously
+  // this game. Rizer is the Rizing Athrenologist filling Dad's index; watching
+  // a species you have never recorded IS the job. Once per species, ~210 of
+  // them on the locked roster = 630 points, 38% of the Rizer path — a real
+  // route that cannot be the only one.
+  // ★ It costs no items and no combat. You stand near a wild thing and do not
+  // attack it, which is the same lesson Omniris' third trial teaches.
+  zyrexStudy:     { path:'rizer', pts:3,   label:'★ a species recorded in the field' },
+
+  // ★ HOMECOMING · walk a Zyrex through its OWN native district. Once per
+  // species. It costs travel rather than time, so it pulls against the portal
+  // network instead of rewarding standing still, and it only pays for species
+  // whose home you have actually reached.
+  zyrexHomecoming:{ path:'zyrex', pts:5,   label:'★ a Zyrex walked its home ground' },
+
+  // ★ SPARRING · the training post, repeatable, small. This is the grind route
+  // and it is priced like one: 1 point, and the post goes quiet for a while so
+  // it stays a farm rather than a printer.
+  zyrexSpar:      { path:'zyrex', pts:1,   label:'a session at the post' },
+
+  // ★★★ TRUST is the elegant one, and it only exists because of the obedience
+  // system below: when a Zyrex that OUTRANKS your standing chooses to obey you
+  // anyway, that is the single most bond-shaped thing that can happen in the
+  // game. Fielding a creature you have not earned is how you earn it.
+  // ★ Priced at 0.5 and only ever paid by an over-ranked Zyrex, so it cannot
+  // be farmed by a faction you already deserve.
+  zyrexTrust:     { path:'zyrex', pts:0.5, label:'it listened anyway' },
 };
 const BOND_PATH_CAP = RIZER_BOND_CAP / 2;   // 1665 each · neither path alone maxes you
 function bondLedger(){
@@ -39694,6 +39736,154 @@ function rizerBondTotal(){
   return Math.max(real, Math.min(RIZER_BOND_CAP, player.devBondFloor || 0));
 }
 function requiredBondForTier(tier){ return Math.max(1, (tier || 1)) * 333; }
+
+// ★★★ v0.95.998 · OBEDIENCE · Creator: "if the zyrex is higher rank than rizer,
+// it may bond but it might not listen (may wander off, not help in battle, etc.)"
+//
+// ★★ THE TIER GATE AND THIS ARE NOT THE SAME THING, and keeping them separate
+// is the whole design. The gate ([[aov-bond-tier-gate]], v0.95.887) decides
+// whether you may ATTEMPT a wild bond at all — it fires before the sphere is
+// spent, because refusing after a spin teaches nothing. Obedience is what
+// happens AFTER a Zyrex is already yours and outranks you, which the gate was
+// never able to describe:
+//   · it EVOLVED past your standing — the commonest case by far, and one no
+//     gate can catch because you earned the creature honestly at a lower tier
+//   · it was a gift, a quest reward, a Sanctuary withdrawal, a dev grant
+// ★ So nothing about the gate changes. This adds the consequence the Creator
+// asked for to the cases the gate deliberately lets through.
+//
+// ★★ ITS OWN BOND COUNTS FOR HALF. A creature that loves you listens even when
+// you are outranked — z.bond is the relationship with THAT individual, where
+// rizerBondTotal is your standing in the world. A T6 you raised from a T2 egg
+// at 100 bond obeys; a T6 handed to you this morning does not. That asymmetry
+// is the point, and it means the answer to disobedience is time spent together
+// rather than a stat check you cannot influence.
+// ★★★ v0.95.998 · THE THREE FARMABLE ROUTES.
+// Every bond event that existed before was INCIDENTAL — it happened to you
+// while you played something else. None of it was a thing you could decide to
+// go and do. These are, and each rides a system already in the world rather
+// than being a daily-quest board bolted on the side.
+
+// ── 1 · FIELD STUDY ─────────────────────────────────────────────────────────
+// ★★ Stand near a wild Zyrex of a species you have never recorded, do not
+// attack it, and hold still for three seconds. It fills Dad's index, which is
+// the job the whole game says Rizer has.
+// ★ ATTACKING CANCELS IT. That is the entire design: the one bond route you
+// can farm on purpose is the one that requires you not to fight — the same
+// lesson Omniris' third trial teaches, reachable from minute one.
+const STUDY_MS   = 3000;
+const STUDY_TILES = 4;
+function tickFieldStudy(){
+  if (game.scene !== 'overworld' || game.paused || game.zphoneOpen) { player._studyOf = null; return; }
+  const now = performance.now();
+  // ★ swinging voids it · so does moving off the subject
+  if ((player.attackUntil || 0) > now){ player._studyOf = null; return; }
+  const seen = notebookState().seen;
+  let subject = null;
+  for (const w of (WILD_ZYREX || [])){
+    if (!w || w.tileX == null || w.scene !== 'overworld') continue;
+    if (Math.abs(w.tileX - player.x) + Math.abs(w.tileY - player.y) > STUDY_TILES) continue;
+    if (seen[`zyrex:${w.speciesId}`]) continue;          // already recorded
+    subject = w; break;
+  }
+  if (!subject){ player._studyOf = null; return; }
+  if (player._studyOf !== subject.speciesId){
+    player._studyOf = subject.speciesId; player._studyT0 = now; player._studyX = player.x; player._studyY = player.y;
+    return;
+  }
+  if (player.x !== player._studyX || player.y !== player._studyY){
+    player._studyT0 = now; player._studyX = player.x; player._studyY = player.y; return;
+  }
+  if (now - (player._studyT0 || now) < STUDY_MS) return;
+  // ── recorded ──
+  seen[`zyrex:${subject.speciesId}`] = true;
+  player._studyOf = null;
+  const nm = (SPECIES[subject.speciesId] && SPECIES[subject.speciesId].name) || subject.speciesId;
+  try { bumpRizerBond('zyrexStudy'); } catch(_){}
+  try { awardRizerXP(120); } catch(_){}
+  try { showToast(`\u25c8 FIELD STUDY \u00b7 ${nm} recorded in the index`, 3000); playSFX('confirm'); } catch(_){}
+}
+
+// ── 2 · HOMECOMING ──────────────────────────────────────────────────────────
+// ★ Walk a Zyrex through its OWN native district. Once per species, so it pays
+// for travel rather than for standing still, and only for species whose home
+// you have actually reached — it pulls against the portal network instead of
+// rewarding a player who never leaves Malezor.
+function tickHomecoming(){
+  if (game.scene !== 'overworld') return;
+  const d = (typeof worldDistrictAt === 'function') ? worldDistrictAt(player.x, player.y) : null;
+  if (!d) return;
+  player.homecomings = player.homecomings || {};
+  for (const n of NPCS){
+    if (!n || !n._summoned || !n._summonSpeciesId) continue;
+    const sid = n._summonSpeciesId;
+    if (player.homecomings[sid]) continue;
+    // ★ its home is where the world PINS it, not a field on the species — the
+    // wild placement table is the only record of where a species belongs, and
+    // deriving it means a species moved in a later pass moves its home too.
+    const pinned = (WILD_ZYREX || []).some(w => w && w.speciesId === sid
+      && worldDistrictAt(w.tileX, w.tileY) === d);
+    if (!pinned) continue;
+    player.homecomings[sid] = true;
+    const nm = (SPECIES[sid] && SPECIES[sid].name) || sid;
+    try { bumpRizerBond('zyrexHomecoming'); } catch(_){}
+    try { showToast(`\u2605 HOMECOMING \u00b7 ${nm} knows this ground`, 3400); playSFX('levelUp'); } catch(_){}
+    return;                                    // one per frame · never a burst
+  }
+}
+
+// ── 3 · SPARRING · the grind route, priced like one ────────────────────────
+// ★ The post goes quiet for ninety seconds after a session. A farm the player
+// can stand at forever is a printer, and a printer devalues every other route
+// on this list — including the two above, which cost real effort.
+const SPAR_COOLDOWN_MS = 90000;
+function sparBondTick(){
+  const now = performance.now();
+  if ((player._sparNextAt || 0) > now){
+    const left = Math.ceil(((player._sparNextAt || 0) - now) / 1000);
+    try { showToast(`\u25c8 The post is still catching its breath \u00b7 ${left}s`, 2000); } catch(_){}
+    return false;
+  }
+  player._sparNextAt = now + SPAR_COOLDOWN_MS;
+  const alive = (player.party || []).filter(Boolean).length;
+  if (!alive){ try { showToast('\u25c8 Nothing deployed to spar with', 2200); } catch(_){} return false; }
+  try { bumpRizerBond('zyrexSpar'); } catch(_){}
+  try { awardRizerXP(60); } catch(_){}
+  try { showToast('\u25c8 SPARRING \u00b7 a session at the post', 2600); playSFX('confirm'); } catch(_){}
+  return true;
+}
+const OBEY_FLOOR = 0.12;          // never absolute · even a stranger sometimes helps
+function zyrexObedience(z){
+  if (!z) return 1;
+  const need = requiredBondForTier(z.tier || 1);
+  const have = rizerBondTotal();
+  if (have >= need) return 1;                       // you earned this rank
+  const standing = have / Math.max(1, need);        // 0..1 · how close you are
+  const personal = Math.min(1, (z.bond || 0) / 100) * 0.5;
+  return Math.max(OBEY_FLOOR, Math.min(1, standing + personal));
+}
+function zyrexOutranksYou(z){ return zyrexObedience(z) < 1; }
+// ★ One roll, one place. Returns true when the creature COOPERATES, and pays
+// the trust bond when an over-ranked one does — so every obeyed order on a
+// Zyrex you have not earned closes the gap that caused the roll.
+function zyrexObeys(z, what){
+  const o = zyrexObedience(z);
+  if (o >= 1) return true;
+  if (Math.random() < o){
+    try { bumpRizerBond('zyrexTrust'); } catch(_){}
+    return true;
+  }
+  // ★ the refusal has to be LEGIBLE or it reads as the game dropping inputs.
+  // It names the creature, the reason, and the number that fixes it.
+  const nm = (SPECIES[z.speciesId] && SPECIES[z.speciesId].name) || 'It';
+  const need = requiredBondForTier(z.tier || 1);
+  try {
+    showToast(`\u25c8 ${nm} ${what || 'ignores you'} \u00b7 T${z.tier} wants Bond `
+      + `${need} \u00b7 you are ${Math.floor(rizerBondTotal())}`, 2600);
+    playSFX('cancel');
+  } catch(_){}
+  return false;
+}
 // opts.bypassBondGate · for Zyrex EARNED by a specific ritual or quest rather
 // than caught in the field.  The tier gate exists to stop you fielding a T6 on
 // a T1 bond ([[aov-bond-tier-gate]]) — but when the game has just charged you
@@ -40091,6 +40281,11 @@ function saveGame(){
         // noticed because the bug only shows after a reload. Every flag the
         // eight trials read is written here in the same commit that reads it.
         omnirisStep:                Object.assign({}, player.omnirisStep || {}),
+        // ★★ v0.95.998 · the new bond routes. `homecomings` is once-per-species
+        // and `bondLedger` already persists, so losing this map would let a
+        // player re-farm the same 5 points on every reload — the one shape of
+        // bug that turns a designed route into an exploit.
+        homecomings:                Object.assign({}, player.homecomings || {}),
         elderLaddersDone:           Object.assign({}, player.elderLaddersDone || {}),
         kelthorFallen:              !!player.kelthorFallen,
         soulphishCaught:            player.soulphishCaught || 0,
@@ -46241,6 +46436,19 @@ function tickAggressiveZyrex(n){
     // Adjacent · strike
     // ★ v0.95.863 · THIS individual earns its own XP · uid first, species as the legacy fallback
     const partyMember = (n._summonUid && findPartyByUid(n._summonUid)) || (player.party || []).find(z => z && z.speciesId === n._summonSpeciesId);
+    // ★★★ v0.95.998 · "it may bond but it might not listen." A Zyrex whose tier
+    // outranks your standing rolls here, and a refusal costs it the swing.
+    // ★ The sulk window matters: without it the roll re-fires every frame the
+    // creature is adjacent, which reads as a stutter rather than a decision.
+    // 1.4s is long enough to be a moment and short enough that the fight goes
+    // on without you rewriting your plan.
+    if (partyMember && zyrexOutranksYou(partyMember)){
+      if ((n._sulkUntil || 0) > performance.now()) return;
+      if (!zyrexObeys(partyMember, 'looks away')){
+        n._sulkUntil = performance.now() + 1400;
+        return;
+      }
+    }
     // ★ v0.95.976 · the crowd falloff applies HERE and only here — to a
     // summoned companion swinging alongside Rizer.  A hostile wild strikes at
     // full value (it is alone and it is a threat), and the turn-based battle
@@ -47026,9 +47234,38 @@ function _claimFormationSlot(){
 // station tile for a follower · nudged to the nearest clear tile so a slot
 // landing on a tree/wall does not strand its owner pacing forever
 function _formationTile(n){
+  // ★★★ v0.95.998 · "it may wander off." An over-ranked Zyrex periodically
+  // decides its station is a suggestion. Rather than inventing a second
+  // movement mode, it simply gets given a DIFFERENT station for a few seconds
+  // — it still walks, still avoids walls, still comes back. The whole drift
+  // rides the formation code that already exists.
+  // ★ Rolled on a timer, not per frame: a creature re-deciding sixty times a
+  // second does not read as wilful, it reads as broken pathing.
+  try {
+    const _z = (n._summonUid && findPartyByUid(n._summonUid))
+            || (player.party || []).find(z => z && z.speciesId === n._summonSpeciesId);
+    if (_z && zyrexOutranksYou(_z)){
+      const now = performance.now();
+      if ((n._driftRollAt || 0) < now){
+        n._driftRollAt = now + 4000;
+        if (!zyrexObeys(_z, 'wanders off')){
+          n._driftUntil = now + 3200;
+          n._driftDx = (Math.random() * 6 - 3) | 0;
+          n._driftDy = (Math.random() * 6 - 3) | 0;
+        }
+      }
+      // ★ do NOT early-return a raw tile here. Everything below — the
+      // walkable nudge, the never-crowd-Rizer rule, the never-block-his-path
+      // rule — has to run for a drifting Zyrex too, or "wanders off" becomes
+      // "stands inside a tree". The drift is an OFFSET fed into the existing
+      // machinery, not a bypass of it.
+      if ((n._driftUntil || 0) > now){ n._driftOff = [n._driftDx || 2, n._driftDy || 2]; }
+      else n._driftOff = null;
+    }
+  } catch(_){}
   const F = SUMMON_FORMATION[(n._formSlot || 0) % SUMMON_FORMATION.length];
   const facing = _formationBasis();
-  const R = _formationRotate(F[0], F[1], facing);
+  const R = n._driftOff || _formationRotate(F[0], F[1], facing);
   let tx = player.x + R[0], ty = player.y + R[1];
   if (typeof walkable === 'function' && !walkable(tx, ty)
       && !(n.tileX === tx && n.tileY === ty)){
@@ -53002,6 +53239,8 @@ function frame(now){
   try { tickDreamland(); } catch(_){}   // v0.95.719 · the nap clock
   try { tickYaraRegen(dt); } catch(_){}  // ★ v0.95.916 · Yara's green-gem mend · +1 HP/s out of combat
   try { tickMeditation(dt); } catch(_){}
+  try { tickFieldStudy(); } catch(_){}   // ★ v0.95.998 · bond by observation
+  try { tickHomecoming(); } catch(_){}   // ★ v0.95.998 · bond by travel
   try { tickOmnirisStillness(); } catch(_){}  // ★ v0.95.990 · Omniris Trial 3  // ★ v0.95.990 · Omniris' meditation · +1 HP/s while guard is held undisturbed
   try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
   try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted

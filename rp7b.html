@@ -34063,7 +34063,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.4' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.5' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -40169,7 +40169,23 @@ function bumpRizerBond(eventKey, mult){
   if (gained > 0 && Math.floor(after / 100) > Math.floor(before / 100)){
     try { showToast(`◈ RIZER BOND · ${Math.floor(rizerBondTotal())}/${RIZER_BOND_CAP} · ${E.label}`, 2600); } catch(_){}
   }
-  return _bond;
+  // ★★★ v0.96.5 · WAS `return _bond;` — A NAME THAT DOES NOT EXIST IN THIS
+  // SCOPE. `_bond` is a local inside the SANCTUARY DONATION function 330 lines
+  // below; here it was a bare ReferenceError, thrown on EVERY SINGLE CALL.
+  //
+  // ★ That broke the entire bond ledger silently, because most call sites wrap
+  //   this in try/catch — the points were still credited (the write happens
+  //   above the return) but every caller got an exception instead of a number.
+  //
+  // ★★★ AND IT KILLED THE GAME. zyrexStrike / zyrexKill / zyrexDeploy fire from
+  //   inside the frame loop, where until v0.96.4 a throw meant rAF was never
+  //   re-requested. Deploy a Zyrex, walk, and the loop died with the last frame
+  //   still painted: "freezing after npc dialogue and walking".
+  //
+  // ★ verify_bondledger.js has been RED with exactly this ReferenceError and I
+  //   read it as a harness fault in the red-suite sweep. The suite was right.
+  //   A red test is a claim, not noise.
+  return gained;
 }
 function rizerBondTotal(){
   // ★ v0.95.862 · the LEDGER is the bond now.  Legacy saves (no ledger) get

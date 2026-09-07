@@ -1510,8 +1510,54 @@ function distanceToRouteSq(x,y,a,b){
   const dx=x-(a.cx+vx*t),dy=y-(a.cy+vy*t);
   return {d2:dx*dx+dy*dy,t};
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.23 · THE WORLD IS STATIC. STOP RE-DERIVING IT.
+//
+//   Creator's DevTools trace: a single 5,821 ms main-thread task at load ·
+//   irregularDistrictContains 935 ms SELF · sitePortals 2,781 ms ·
+//   seedMalezorWild 834 ms.
+//
+// ★★★ AND IT IS NOT ONLY A LOAD PROBLEM. Follow the chain:
+//
+//     walkable(x,y)
+//        -> isWorldLandTile      -> worldDistrictAt   (up to 10 districts
+//                                                      x 3 Math.sin = 30 sins)
+//        -> isWorldBorderTile    -> worldBorderDirections
+//                                -> isWorldLandTile x5 -> 150 MORE sins
+//
+//   So ONE walkable() call costs up to 180 Math.sin. npcPathDir calls
+//   walkable() up to 700 times for a single NPC step: 126,000 sins to move one
+//   character one tile. That is the other half of the freeze, and it is the
+//   SAME function the trace caught burning 935 ms during world generation.
+//
+// ★ A district boundary never changes at runtime. This is a pure function of
+//   (x,y) being recomputed millions of times, so it gets memoised — ONE byte
+//   per tile in a Uint8Array, not a Map of 800,000 string keys. 1020x800 is
+//   816 KB, allocated once, and every one of the 91 worldDistrictAt call sites
+//   gets the win for free: the load trace, the pathfinder, and collision.
+// ══════════════════════════════════════════════════════════════════════════
+const _WD_W = MAP_COLS - WORLD_MIN_COL, _WD_H = MAP_ROWS - WORLD_MIN_ROW;
+const _wdCache = new Uint8Array(_WD_W * _WD_H);   // 0 = not computed yet
+const _wdNames = [null];                          // index 1.. = district id
+const _wdIndex = new Map();                       // id -> slot
+function _wdSlot(id){
+  if (id == null) return 255;                     // 255 = computed, and it is WATER
+  let i = _wdIndex.get(id);
+  if (i === undefined){ _wdNames.push(id); i = _wdNames.length - 1; _wdIndex.set(id, i); }
+  return i;
+}
 function worldDistrictAt(x,y){
   if(x<WORLD_MIN_COL||y<WORLD_MIN_ROW||x>=MAP_COLS||y>=MAP_ROWS)return null;
+  // ★ integer key · no string building, no Map, no GC churn on the hot path
+  const _k = (y - WORLD_MIN_ROW) * _WD_W + (x - WORLD_MIN_COL);
+  const _c = _wdCache[_k];
+  if (_c === 255) return null;
+  if (_c !== 0) return _wdNames[_c];
+  const _r = _worldDistrictAtUncached(x, y);
+  _wdCache[_k] = _wdSlot(_r);
+  return _r;
+}
+function _worldDistrictAtUncached(x,y){
   // Preserve every existing Malezor/Zarvane tile and the original Andrannor shelf.
   const legacy=legacyDistrictAt(x,y);if(legacy)return legacy;
   let best=null,bestScore=Infinity;
@@ -14769,7 +14815,34 @@ function worldBorderDirections(x,y){
     ['up',x,y-1],['down',x,y+1],['left',x-1,y],['right',x+1,y]
   ].filter(([,nx,ny])=>!isWorldLandTile(nx,ny)).map(([dir])=>dir);
 }
-function isWorldBorderTile(x,y){ return worldBorderDirections(x,y).length>0; }
+// ★★★ v0.96.23 · BORDERS ARE STATIC TOO, and this one is the multiplier.
+//   Boot profile: isWorldBorderTile x365,777 — and EACH call runs
+//   worldBorderDirections, which is FIVE isWorldLandTile lookups. That is 1.8
+//   million of the 2.1 million land checks at boot, all re-deriving a fact
+//   about terrain that cannot change. Same Uint8Array trick as worldDistrictAt:
+//   0 = unknown, 1 = not a border, 2 = border.
+// ★★★ LAZILY ALLOCATED, and that is not a style choice. `const _wbCache = ...`
+//   at this line died at boot with "Cannot access '_wbCache' before
+//   initialization": isWorldBorderTile is called from inside the WORLD_PROPS
+//   array literal, ~8,000 lines ABOVE this declaration, so the const is still
+//   in its temporal dead zone when the world is built. Same trap that killed
+//   RAYGUN_CHEST_AT_X in v0.96.14, and caught the same way — by booting it in
+//   node rather than by reading it.
+// ★ `var`, not `let` — a `let` is temporal-dead-zoned exactly like the `const`
+//   was, so swapping one for the other fixed nothing. `var` hoists, which is
+//   the whole point when the only caller that matters runs 8,000 lines earlier.
+var _wbCache = null;
+function isWorldBorderTile(x,y){
+  if(x<WORLD_MIN_COL||y<WORLD_MIN_ROW||x>=MAP_COLS||y>=MAP_ROWS)
+    return worldBorderDirections(x,y).length>0;
+  if (!_wbCache) _wbCache = new Uint8Array(_WD_W * _WD_H);
+  const k = (y - WORLD_MIN_ROW) * _WD_W + (x - WORLD_MIN_COL);
+  const c = _wbCache[k];
+  if (c) return c === 2;
+  const r = worldBorderDirections(x,y).length>0;
+  _wbCache[k] = r ? 2 : 1;
+  return r;
+}
 
 // v0.95.365 · REVERTED · nature/enemy/stone extensions removed · each district must ship its own custom assets · see prior v0.95.361-363
 function nearestWorldInteriorTile(x,y,maxRadius=8){
@@ -21933,30 +22006,56 @@ function sitePortals(){
   PORTAL_NETWORK.length = 0;
   // one pass over the world builds a coarse occupancy grid · O(props), not
   // O(tiles x props), which at 27,000 props and 800,000 tiles matters
+  // ★★★ v0.96.23 · MEASURED AGAINST THE CREATOR'S OWN DEVTOOLS TRACE:
+  //   sitePortals · 1,856 ms SELF · 2,781 ms total · inside a 5,821 ms task
+  //   that blocks the main thread completely. Nothing renders, nothing responds.
+  //
+  // ★ TWO SEPARATE QUADRATICS, both fixed here without changing a single
+  //   score. The portals land on exactly the tiles they landed on before.
   const CELL = 8;
+  const GW = 4096;                          // integer cell keys · see below
+  const gkey = (gx, gy) => (gy + 2048) * GW + (gx + 2048);
   const grid = new Map();
   const bump = (x, y, w) => {
-    const k = `${Math.floor(x/CELL)},${Math.floor(y/CELL)}`;
+    const k = gkey(Math.floor(x/CELL), Math.floor(y/CELL));
     grid.set(k, (grid.get(k) || 0) + w);
   };
+  // ★★ THE SPATIAL BUCKETS · built in the SAME pass, so `exact()` below stops
+  //    being a scan of all 27,000 props.
+  const buckets = new Map();
+  const stash = (x, y, w) => {
+    const k = gkey(Math.floor(x/CELL), Math.floor(y/CELL));
+    let b = buckets.get(k); if (!b) buckets.set(k, b = []);
+    b.push(x, y, w);                        // flat triples · no per-item objects
+  };
+  const GRASSY = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:grass|grassblade|bush)/;
   for (const p of WORLD_PROPS){
     if (!p || p.tileX == null) continue;
     // a building or a chest is a landmark; a blade of grass is not
-    const w = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:grass|grassblade|bush)/.test(p.src || '') ? 0.15 : 1;
+    const w = GRASSY.test(p.src || '') ? 0.15 : 1;
     bump(p.tileX, p.tileY, w);
+    if (!p._portal) stash(p.tileX, p.tileY, w);
   }
   for (const n of NPCS){
     if (!n || n.tileX == null || n.scene !== 'overworld') continue;
     bump(n.tileX, n.tileY, 2);            // people are the loudest thing in a place
+    stash(n.tileX, n.tileY, 2);
   }
-  const near = (x, y) => {
-    let d = 0;
-    const r = Math.ceil(PORTAL_SITE_RADIUS / CELL);
-    const gx = Math.floor(x/CELL), gy = Math.floor(y/CELL);
-    for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++)
-      d += grid.get(`${gx+a},${gy+b}`) || 0;
-    return d;
-  };
+  // ★★★ PRE-BLUR THE GRID. `near()` used to sum a 5x5 block of cells and build
+  //   a TEMPLATE-LITERAL KEY FOR EACH — 25 string allocations per sampled tile,
+  //   across roughly 100,000 sampled tiles. That is the 1,856 ms of self time.
+  //   The radius is constant, so the sum is scattered into a second grid ONCE,
+  //   over the OCCUPIED cells only, and the lookup becomes one integer probe.
+  const R_CELL = Math.ceil(PORTAL_SITE_RADIUS / CELL);
+  const blur = new Map();
+  for (const [k, w] of grid){
+    const gx = (k % GW) - 2048, gy = Math.floor(k / GW) - 2048;
+    for (let a = -R_CELL; a <= R_CELL; a++) for (let b = -R_CELL; b <= R_CELL; b++){
+      const kk = gkey(gx + a, gy + b);
+      blur.set(kk, (blur.get(kk) || 0) + w);
+    }
+  }
+  const near = (x, y) => blur.get(gkey(Math.floor(x/CELL), Math.floor(y/CELL))) || 0;
   for (const D of ZYRAXIS_DISTRICTS){
     let best = null;
     // step 2 · a tile-exact sweep of every district is 400k samples and the
@@ -21982,16 +22081,22 @@ function sitePortals(){
     // sat a hair off it.  So re-measure precisely inside a small window around
     // the coarse pick, where an exact pass is cheap.
     const R = 14;
+    // ★★★ v0.96.23 · WAS A FULL SCAN OF EVERY PROP AND NPC IN THE WORLD, per
+    //   tile, over a 29x29 window, ten times: ~8,400 calls x 29,000 actors is
+    //   roughly 244 MILLION iterations. That is the rest of the 2,781 ms.
+    //   Identical arithmetic now, but only the buckets that can be within
+    //   PORTAL_SITE_RADIUS are visited — a few dozen actors instead of 29,000.
+    const _BR = Math.ceil(PORTAL_SITE_RADIUS / CELL) + 1;
     const exact = (x, y) => {
       let d = 0;
-      for (const p of WORLD_PROPS){
-        if (!p || p.tileX == null || p._portal) continue;
-        if (Math.abs(p.tileX - x) + Math.abs(p.tileY - y) > PORTAL_SITE_RADIUS) continue;
-        d += /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:grass|grassblade|bush)/.test(p.src || '') ? 0.15 : 1;
-      }
-      for (const n of NPCS){
-        if (!n || n.tileX == null || n.scene !== 'overworld') continue;
-        if (Math.abs(n.tileX - x) + Math.abs(n.tileY - y) <= PORTAL_SITE_RADIUS) d += 2;
+      const gx = Math.floor(x/CELL), gy = Math.floor(y/CELL);
+      for (let a = -_BR; a <= _BR; a++) for (let b = -_BR; b <= _BR; b++){
+        const arr = buckets.get(gkey(gx + a, gy + b));
+        if (!arr) continue;
+        for (let i = 0; i < arr.length; i += 3){
+          if (Math.abs(arr[i] - x) + Math.abs(arr[i+1] - y) > PORTAL_SITE_RADIUS) continue;
+          d += arr[i+2];
+        }
       }
       return d;
     };
@@ -36316,7 +36421,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.22' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.23' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -52283,7 +52388,40 @@ function mealuxSeed(){
 let _mealuxSeedUsed = null;
 // ★ every district · index 0 (Malezor) included
 function MEALUX_DISTRICTS(){ return ZYRAXIS_DISTRICTS.slice(); }
+// ★★★ v0.96.23 · TWO SCANS HOISTED OUT OF A 900-ITERATION LOOP.
+//   Boot profile: _mealuxTileFor x10 = 1,049 ms, the single largest remaining
+//   item. Each of the 900 samples per district ran `NPCS.some(...)` over 2,051
+//   NPCs AND a loop over all 27,000 WORLD_PROPS. That is ~18 million plus ~240
+//   million iterations to place ten creatures.
+//
+// ★ Neither list changes during the search — the function is documented as
+//   reading ONLY STATIC STATE, on purpose, so the Key cannot move between
+//   sessions. Both are therefore built once, outside the loop, and the sampling,
+//   the scoring and the early exits are untouched: the same tiles come out.
+// ★★ Only props with tileW >= 3 ever counted ("only real buildings"), and there
+//   are a few hundred of those, not 27,000 — the filter was simply inside the
+//   loop instead of before it.
+let _mealuxBigProps = null, _mealuxNpcTiles = null;
+function _mealuxStaticIndex(){
+  if (!_mealuxBigProps){
+    _mealuxBigProps = [];
+    for (const p of WORLD_PROPS){
+      if (!p || p.tileX == null || (p.tileW || 1) < 3) continue;
+      _mealuxBigProps.push(p.tileX, p.tileY);      // flat pairs · no objects
+    }
+  }
+  if (!_mealuxNpcTiles){
+    _mealuxNpcTiles = new Set();
+    for (const n of NPCS){
+      if (n && n.scene === 'overworld' && n.tileX != null)
+        _mealuxNpcTiles.add(n.tileX + ',' + n.tileY);
+    }
+  }
+  return true;
+}
 function _mealuxTileFor(d){
+  _mealuxStaticIndex();
+  const BP = _mealuxBigProps, NT = _mealuxNpcTiles;
   const rnd = _mealuxRng('mealux:' + mealuxSeed() + ':' + d.id);
   let best = null, bestScore = -1;
   for (let i = 0; i < 900; i++){
@@ -52294,7 +52432,7 @@ function _mealuxTileFor(d){
     if (typeof worldDistrictAt === 'function' && worldDistrictAt(x, y) !== d.id) continue;
     if (typeof isWorldBorderTile === 'function' && isWorldBorderTile(x, y)) continue;
     if (typeof _propBlocked !== 'undefined' && _propBlocked.has(`${x},${y}`)) continue;
-    if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === x && n.tileY === y)) continue;
+    if (NT.has(x + ',' + y)) continue;                          // ★ v0.96.23 · was O(NPCS)
     // ★★ READS ONLY STATIC STATE.  The first draft also skipped tiles held by
     // live WILD_ZYREX — which quietly destroyed the determinism it was built
     // for: the Aetherwing flocks scatter with Math.random(), so a flock landing
@@ -52305,9 +52443,8 @@ function _mealuxTileFor(d){
     if (MEALUX_FORBIDDEN_TILES().has(`${x},${y}`)) continue;
     // score = how far from the nearest thing anybody built or placed
     let near = 1e9;
-    for (const p of WORLD_PROPS){
-      if (p.tileX == null || (p.tileW || 1) < 3) continue;      // only real buildings
-      const dd = Math.max(Math.abs(p.tileX - x), Math.abs(p.tileY - y));
+    for (let bi = 0; bi < BP.length; bi += 2){                  // ★ v0.96.23 · pre-filtered
+      const dd = Math.max(Math.abs(BP[bi] - x), Math.abs(BP[bi+1] - y));
       if (dd < near) near = dd;
       if (near < 12) break;                                     // already too close · abandon early
     }

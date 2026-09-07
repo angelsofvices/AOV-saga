@@ -17308,9 +17308,22 @@ const INTERIOR_SEER_HQ_1F = {
   // 21 is the bottom floor row (8..21 are floor, 22 is the south wall), so you
   // now arrive INSIDE, at the back of the hall, facing up the length of it
   // toward the door.  Which is the shot the room was built for.
-  spawn: { x: 17, y: 21, dir: 'up' },
+  // ★★★ v0.95.980 · YOU CAN WALK OUT.  Creator: *"I cannot walk out of seer hq
+  // In malezor."*
+  //
+  // ★ THE SPAWN AND THE EXIT WERE THE SAME TILE, and autoExit was off. Arriving
+  // put you standing ON the way out, so there was nothing to walk ONTO — the
+  // only way back was an X-press on the tile under your own feet, which is not
+  // a thing any player thinks to try. Every other interior in the game is left
+  // by walking, so this one read as sealed.
+  //
+  // ★ autoExit could not simply be flipped on while the two coincided: you
+  // would have bounced straight back outside the instant you entered. So the
+  // spawn moves ONE TILE UP, off the threshold, and the tile you arrive facing
+  // away from becomes the door mat. Walk back down and you are out.
+  spawn: { x: 17, y: 20, dir: 'up' },
   exit:  { x: 17, y: 21 },
-  autoExit: false,                        // ★ the door is a door now, not a trapdoor
+  autoExit: true,                         // ★ walk onto the threshold to leave
   wallImg: 'seer',
   blocked: [],
   label: '◈ SEER HQ · 1F',
@@ -17358,13 +17371,26 @@ const INTERIOR_SEER_HQ_R2 = {
   cols: 35, rows: 25,
   tileImg: SEER_HQ_FLOOR_IMG,
   spawn: { x: 17, y: 20, dir: 'up' },
-  exit:  null,
+  exit:  null,                            // ★ never straight to the overworld from up here
   autoExit: false,
   wallImg: 'seer',
   blocked: [],
   label: '◈ SEER HQ · THE LANDING',
+  // ★★★ v0.95.980 · THE LANDING HAS NO DOOR.  Creator: *"when I walk in the
+  // door take me to another room with no door and the up and down stair case
+  // flush right and left."*
+  //
+  // ★ The 'D' is gone from the plan above — the north wall is solid now, so the
+  // room reads as what it is: a stair landing, not a corridor. The two
+  // staircases are the only things in it, which is the whole point.
+  //
+  // ★★ AND THAT MEANS THE WAY BACK CANNOT BE A DOOR EITHER. It is the tile you
+  // arrive on: step back down onto (17,21) and you are on the 1F hall floor
+  // again, the same gesture that leaves the hall itself. One rule for going
+  // back, learned once, used everywhere — and no door tile to contradict the
+  // room's own description.
   doorTargets: {
-    '17,7': { target: 'interior_seer_hq_1f', spawnAt: { x: 17, y: 9, dir: 'down' } },
+    '17,21': { target: 'interior_seer_hq_1f', spawnAt: { x: 17, y: 8, dir: 'down' } },
   },
   // ★★★ v0.95.967 · STAIRS FLUSH IN THE UPPER CORNERS.  Creator: "R2
   // staircases should be flush upper left and right, like rizer how stair
@@ -25109,17 +25135,9 @@ function enterInterior(sceneKey, cfg, toast){
   // _rearRecallTile widens backward instead, so the fallback can no longer be
   // the one tile Rizer is about to walk into.
   try { _resetFormationBasis(); } catch(_){}
-  for (const n of NPCS){
-    if (n && n._summoned && n.id && n.id.startsWith('_summon_')){
-      n.scene  = sceneKey;
-      try {
-        const t = _rearRecallTile(n);
-        n.tileX = t[0]; n.tileY = t[1];
-      } catch(_){}
-      n.moving = false;
-      n.moveCd = 200;
-    }
-  }
+  // ★ v0.95.980 · was an inline loop · now the shared helper, so buildings and
+  // staircases can never disagree about who follows you.
+  try { carrySummonsTo(sceneKey); } catch(_){}
   // v0.95 · Rizer Room · always show scene label as toast on entry
   const label = cfg.label || toast;
   if (label) showToast(label, 1800);
@@ -26338,6 +26356,36 @@ function interiorConfig(scene){
 }
 // Move the player from one interior to another via stairs.  NPCs stay put
 // (each NPC's `scene` field pins them · Mom on 1F, Dad on 2F).
+// ★★★ v0.95.980 · THE TEAM COMES WITH YOU · Creator: *"make zyrex go upstairs
+// with you the same way they go in buildings. they always follow when
+// deployed."*
+//
+// ★ enterInterior() has moved the summons since v0.95.535 and useStairs() never
+// has — so walking into a building took your faction and walking up a staircase
+// left it standing on the floor below, in a room you were no longer in. Two
+// transitions, one of them taught to carry the party and the other not, which
+// is why it felt arbitrary rather than like a rule.
+//
+// ★ Extracted rather than copied. A second inline loop is a second place for
+// "who follows" to drift, and the drift is invisible: the team simply is not
+// there, and nothing errors.
+function carrySummonsTo(sceneKey){
+  if (typeof NPCS === 'undefined') return 0;
+  let moved = 0;
+  try { _resetFormationBasis(); } catch(_){}
+  for (const n of NPCS){
+    if (!n || !n._summoned || !n.id || !n.id.startsWith('_summon_')) continue;
+    n.scene = sceneKey;
+    try {
+      const t = _rearRecallTile(n);
+      n.tileX = t[0]; n.tileY = t[1];
+    } catch(_){}
+    n.moving = false;
+    n.moveCd = 200;
+    moved++;
+  }
+  return moved;
+}
 function useStairs(s){
   if (!s || !s.target) return;
   // v0.95.384 · Realistic-teen check · leaving the Rizer Room requires BAG + PHONE
@@ -26375,6 +26423,9 @@ function useStairs(s){
   player.dir = spawn.dir || 'down';
   player.moving = false;
   player.animFrame = 0;
+  // ★ v0.95.980 · AFTER the player has landed, so the rear stations are
+  // measured from where he actually IS rather than where he was a floor down.
+  try { carrySummonsTo(s.target); } catch(_){}
 }
 
 function exitInterior(){
@@ -36297,11 +36348,12 @@ function handleZycellKey(k){
       else { try { playSFX('doorLock'); } catch(_){} }   // the edge answers, it does not teleport
       return true;
     }
-    if (k === 'arrowright' || k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
-      // v0.95.576 · RIGHT arrow interacts (mirrors X/A) since RIGHT can't
-      // enter a state we're already in.  Keeps arrow behavior meaningful.
-      // ★ v0.95.809 · except inside a grid row, where RIGHT is handled above
-      // as movement — there, activation is X/A/enter alone.
+    // ★★★ v0.95.980 · and the same retirement inside a panel · RIGHT is movement
+    // ONLY. The v0.95.809 note below already carved out grid rows as an
+    // exception "where RIGHT is handled above as movement" — that exception is
+    // now the rule, and the special case disappears with it.
+    if (k === 'arrowright'){ try { playSFX('cursor'); } catch(_){} return true; }
+    if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
       const el = items[game._zycellItemIdx];
       if (el) el.click();
       return true;
@@ -36368,9 +36420,25 @@ function handleZycellKey(k){
   if (k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
   if (k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
   if (k === 'arrowleft'){ /* already at nav · no-op */ playSFX('cancel'); return true; }
-  if (k === 'arrowright' || k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
-    // v0.95.578 · X/RIGHT on nav always moves focus to content · zycellEnterContent
-    // never rejects now, so every panel is reachable via controller.
+  // ★★★ v0.95.980 · RIGHT NAVIGATES, IT DOES NOT ENTER.  Creator: *"pressing
+  // dpad right arrow no longer brings u into a cell panel, it navigates only.
+  // retired old function. only x and o bring u in and out of rizer phone
+  // panels."*
+  //
+  // ★ v0.95.576/578 gave RIGHT the job of "interact" on the reasoning that
+  // RIGHT "can't enter a state we're already in", so the key was spare. It was
+  // not spare — it was AMBIGUOUS, and the ambiguity only shows once panels have
+  // rows in them: the same press means "move along this row" in one place and
+  // "commit to this thing" in another, and the player cannot tell which until
+  // after it happens.
+  // ★ Now the split is absolute and learnable in one go: ARROWS MOVE, X ENTERS,
+  // O BACKS OUT. The arrow keeps its meaning everywhere in the phone.
+  if (k === 'arrowright'){
+    // it still ANSWERS — a dead key reads as a dropped input
+    try { playSFX('cursor'); } catch(_){}
+    return true;
+  }
+  if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
     zycellEnterContent();
     return true;
   }

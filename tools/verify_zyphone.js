@@ -113,8 +113,14 @@ H('5 · ★★ CROSS ON A DUALSENSE ACTUALLY PRESSES IT');
   //   regex grabbed the FIRST arrowright line, which is now movement.  Widen
   //   the window and match the ACTIVATION line specifically.
   const h=src.slice(src.indexOf('function handleZycellKey'), src.indexOf('function handleZycellKey')+9000);
-  const line=h.match(/if \(k === 'arrowright' \|\| k === 'a'[^\n]*\n/);
+  // ★ v0.95.980 · the activation line no longer LEADS with arrowright — the
+  // Creator retired RIGHT-as-activate ("only x and o bring u in and out"), so
+  // the line to match starts at 'a'. The property being checked is unchanged
+  // and is the one that matters: X still activates.
+  const line=h.match(/if \(k === 'a' \|\| k === 'z'[^\n]*\n/);
   ok(!!line&&/'x'/.test(line[0]),"the content branch accepts 'x' as an activate key");
+  ok(!!line&&!/arrowright/.test(line[0]),
+     "★ ...and RIGHT is NOT on that line any more · arrows move, X enters, O backs out");
   ok(/const el = items\[game\._zycellItemIdx\];\s*\n\s*if \(el\) el\.click\(\);/.test(h),
      'and it clicks the focused item rather than doing something bespoke');
 }

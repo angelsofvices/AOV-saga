@@ -82,11 +82,17 @@ H('4 · ★★ UP/DOWN MOVE A ROW AT A TIME · ONLY THE LIST WRAPS');
 
 H('5 · ★ EVERYTHING ELSE IS UNTOUCHED');
 {
-  // RIGHT still activates on non-grid items · the v0.95.576 convenience lives
-  const i=body.indexOf("k === 'arrowright' || k === 'a'");
-  ok(i>0,'the activation branch survives for non-grid items');
-  ok(body.indexOf("k === 'arrowright' && _curRow") < i,
-     '★ and the grid branch is checked FIRST, so a grid RIGHT is movement, not a click');
+  // ★★ v0.95.980 · BOTH OF THESE ASSERTIONS ARE INVERTED, ON PURPOSE.
+  // They encoded the v0.95.576 convenience where RIGHT doubled as "activate",
+  // and the Creator has retired it: *"pressing dpad right arrow no longer
+  // brings u into a cell panel, it navigates only... only x and o bring u in
+  // and out."*  The grid carve-out this suite was built to protect has become
+  // the rule, so the special case it checked for no longer exists to check.
+  ok(!/k === 'arrowright' \|\| k === 'a'/.test(body),
+     '★ RIGHT is no longer wired into the activation branch anywhere');
+  ok(/if \(k === 'arrowright'\)\{ try \{ playSFX\('cursor'\) \}/.test(body)
+     || /if \(k === 'arrowright'\)\{/.test(body),
+     '★★ it answers with a cursor tick instead — movement only, and never a dead key');
   // no other panel grew row tags by accident
   const tags=[...src.matchAll(/data-zyrow="([a-z_]+)"/g)].map(m=>m[1]);
   ok(tags.every(t=>t.startsWith('attr_')||t==='presets'),

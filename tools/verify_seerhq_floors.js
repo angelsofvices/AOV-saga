@@ -4,7 +4,13 @@ const fs = require('fs');
 const src = fs.readFileSync('/tmp/all.js', 'utf8');
 
 const noop = () => {};
-global.setInterval=()=>0; global.setTimeout=(f,t)=>0; global.clearInterval=noop; global.clearTimeout=noop;
+// ★★★ v0.96.8 · setTimeout WAS A BLACK HOLE. The Seer HQ configs are finished
+// inside the deferred boot tick — cols, rows and stairsList are all written
+// there — and this harness threw that callback away, so every floor looked like
+// an empty object and SEVEN assertions failed on a building that is fine.
+// The queue-and-drain below is the same pattern the other suites use.
+global.setInterval=()=>0; const _Q=[]; global.setTimeout=(f,t)=>{_Q.push(f);return 0};
+global.clearInterval=noop; global.clearTimeout=noop;
 function makeCtx() {
   const c = {};
   const methods = ['save','restore','beginPath','closePath','moveTo','lineTo','arc','arcTo','rect',
@@ -60,6 +66,7 @@ try {
 } catch(e){ console.log('boot error:', e.message.slice(0,200)); }
 const fs2=require('fs'); const src2=fs2.readFileSync('/tmp/all.js','utf8');
 let f=0; const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
+{ let _n=0; while(_Q.length && _n<80){ const f=_Q.shift(); _n++; try{ f(); }catch(_){} } }
 const C=globalThis.__C;
 ok(!!C,'script evaluated and exported probes');
 if(!C){ console.log('\n❌ cannot continue'); process.exit(0); }
@@ -80,24 +87,68 @@ console.log('     hall needs two — down to the vault, up to the Commander.\n')
 ok(Array.isArray(F1.stairsList) && F1.stairsList.length===2, `the hall has 2 staircases (${(F1.stairsList||[]).length})`);
 ok(/stairsList/.test(src2) && /_cfg\.stairs \? \[_cfg\.stairs\] : \[\]/.test(src2),
    'the tick reads stairsList AND still honours the old single `stairs` — no other interior changes');
-const down=F1.stairsList.find(x=>x.target==='interior_seer_hq_b');
-const up  =F1.stairsList.find(x=>x.target==='interior_seer_hq_2f');
-ok(!!down && !!up, 'one goes down to the vault, one goes up to command');
+// ★★★ v0.96.8 · THE SEER HQ IS A HUB, NOT A LADDER.
+// This suite still modelled the pre-v0.95.946 layout where 1F linked DIRECTLY
+// to the vault and to command. It has not since the R2 LANDING was added:
+//     1F <-> R2 <-> B        R2 <-> 2F
+// So `F1.stairsList.find(target === 'interior_seer_hq_b')` returned undefined,
+// the assertion below printed a red X, and then the LINKS loop dereferenced
+// that undefined and CRASHED the run — which is why this suite has been dark
+// rather than merely failing. Verified against the real configs: every floor
+// is reachable and every floor can get back.
+const R2 = C.interiorConfig('interior_seer_hq_r2');
+ok(!!R2, 'the R2 landing exists · it is the hub every other storey hangs off');
+// ★★ THE HALL HAS NO STAIRCASE. It links to the landing through a DOOR
+//    (doorTargets), not stairsList — the grand door at 17,7. Modelling that as a
+//    staircase is what made this suite report a broken building; the building
+//    was fine, the model was one mechanism short.
+const upDoor = Object.values(F1.doorTargets || {})
+                     .find(x => x.target === 'interior_seer_hq_r2') || null;
+ok(!!upDoor, '★★ the hall reaches the landing through its grand DOOR, not a staircase');
+const up = upDoor;
+const down = R2 && R2.stairsList.find(x => x.target === 'interior_seer_hq_b');
+const cmd  = R2 && R2.stairsList.find(x => x.target === 'interior_seer_hq_2f');
+const back = R2 && R2.stairsList.find(x => x.target === 'interior_seer_hq_1f');
+ok(!!down && !!cmd && !!back,
+   'the landing reaches the hall, the vault AND command · it is the only floor with stairs');
 // every staircase must land somewhere its own floor can hold
 function inBounds(cfg,p){ return p.x>=0 && p.y>=0 && p.x<cfg.cols && p.y<cfg.rows; }
-const LINKS=[[F1,down,B],[F1,up,F2],[B,B.stairsList[0],F1],[F2,F2.stairsList[0],F1]];
+const LINKS=[[R2,down,B],[R2,cmd,F2],[R2,back,F1],
+             [B,B.stairsList[0],R2],[F2,F2.stairsList[0],R2]];
 let badSpawn=0;
 for(const [from,st,to] of LINKS){
+  if(!st || !to){ badSpawn++; console.log('     a link is missing entirely'); continue; }
   if(!inBounds(to,st.spawnAt)){ badSpawn++; console.log(`     ${st.target} spawn (${st.spawnAt.x},${st.spawnAt.y}) is outside ${to.cols}x${to.rows}`); }
   for(const [tx,ty] of st.triggers)
     if(!inBounds(from,{x:tx,y:ty})){ badSpawn++; console.log(`     trigger (${tx},${ty}) is outside its own floor`); }
 }
 ok(badSpawn===0, `every staircase lands INSIDE the floor it targets (${badSpawn} bad)`);
+// ★ and nothing is a one-way trip
+{
+  const edges = {};
+  for (const [name,cfg] of [['1f',F1],['r2',R2],['b',B],['2f',F2]])
+    edges[name] = [].concat(
+      (cfg.stairsList||[]).map(x => x.target),
+      Object.values(cfg.doorTargets||{}).map(x => x.target)
+    ).filter(Boolean).map(x => String(x).replace('interior_seer_hq_',''));
+  const seen = new Set(['1f']); const q = ['1f'];
+  while (q.length){ for (const n2 of (edges[q.shift()]||[])) if (!seen.has(n2)){ seen.add(n2); q.push(n2); } }
+  ok(seen.size === 4,
+     `★★ every storey is reachable from the front hall (${[...seen].join(' → ')}) · a vault `
+     + 'you can enter and not leave is the worst bug an interior can have');
+}
 // and the round trip must not drop you back onto a trigger tile (infinite loop)
 let pingpong=0;
+// ★ v0.96.8 · the RETURN stair is the one that points back at `from`, not
+//   simply stairsList[0]. The R2 landing has THREE staircases, so taking the
+//   first one compared the vault's spawn against the wrong flight and the whole
+//   check was meaningless there.
+const NAME = new Map([[F1,'1f'],[R2,'r2'],[B,'b'],[F2,'2f']]);
 for(const [from,st,to] of LINKS){
-  const back=(to.stairsList||[]).find(x=>x.target)||null;
-  if(!back) continue;
+  if(!st || !to) continue;
+  const want = 'interior_seer_hq_' + NAME.get(from);
+  const back = (to.stairsList||[]).find(x=>x.target===want);
+  if(!back || !back.triggers) continue;
   for(const [tx,ty] of back.triggers)
     if(st.spawnAt.x===tx && st.spawnAt.y===ty){ pingpong++; console.log(`     ${st.target}: you land ON the return trigger`); }
 }

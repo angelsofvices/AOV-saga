@@ -167,20 +167,42 @@ t((H.match(/requestAnimationFrame\(frame\)/g) || []).length === 2,
   //   1,300 lines earlier and reports the order backwards — the same
   //   occurs-more-than-once trap that has now bitten four suites in this repo.
   {
-    const f10 = H.indexOf("if (k === 'f10')");
-    const disp = H.indexOf('if (homeBuyConfirm){', f10);   // ★ search FROM f10
-    t(f10 > 0 && disp > f10 && disp - f10 < 400,
-      '★★ F10 is dispatched ABOVE every other branch in the real keydown handler · '
-      + 'the point of an escape hatch is that it works when something below has '
-      + 'taken input hostage');
-    // ★ and it is inside the MAIN handler, not some sub-menu's
-    // ★ walk back to the nearest listener registration and confirm it is the
-    //   top-level game handler, not a sub-menu's own temporary one.
-    const before = H.slice(0, f10);
+    // ★★ v0.96.8 · Cmd+Esc, not F10. Creator: "the force unstick is now cmd+esc
+    //    or hold L2 and touchpad for 5 seconds"
+    const esc = H.indexOf("if (k === 'escape' && (e.metaKey || e.ctrlKey)){");
+    const disp = H.indexOf('if (homeBuyConfirm){', esc);
+    t(esc > 0 && disp > esc && disp - esc < 700,
+      '★★ the unstick is dispatched ABOVE every other branch in the real keydown '
+      + 'handler · the point of an escape hatch is that it works when something '
+      + 'below has taken input hostage');
+    const before = H.slice(0, esc);
     const reg = before.lastIndexOf("addEventListener('keydown'");
     t(reg > 0 && /addEventListener\('keydown', e => \{\s*\n\s*const k = e\.key\.toLowerCase\(\);/
         .test(H.slice(reg, reg + 120)),
-      '  · registered on the main game keydown listener, right after the key is read');
+      '  · on the main game keydown listener, right after the key is read');
+    // ★★★ THE MODIFIER IS LOad-BEARING
+    t(/handleHomeBuyConfirmKey[\s\S]{0,2000}?k === 'b' \|\| k === 'escape'/.test(H)
+      || /k === 'b' \|\| k === 'escape'/.test(H),
+      '★★★ a BARE Escape is consumed by the modals themselves · so an unstick bound '
+      + 'to Escape alone would be eaten by the very panel it exists to clear. The '
+      + 'Cmd/Ctrl modifier is what lets it reach the floor');
+    t(!/'f10'/.test(H), '★ and F10 is gone · one binding, not two that drift');
+    // ── the controller half ──
+    t(/const UNSTICK_HOLD_MS = 5000;/.test(H)
+      && /if \(l2Held && tpPressed\)\{/.test(H)
+      && /prev\._unstickFired = true;/.test(H),
+      '★★ L2 + touchpad held five seconds also fires it · a DualSense has no F10 '
+      + 'and no Cmd, so a controller-only player had NO escape hatch at all and a '
+      + 'frozen game meant reloading the save');
+    t(/prev\._unstickSince = 0; prev\._unstickFired = false;/.test(H),
+      '  · latched once per hold · without it the toast would fire sixty times a second');
+    // ★ and it must not steal the existing tap chord
+    const tapIdx = H.indexOf('if (tpPressed && !prev[17]){');
+    const holdIdx = H.indexOf('if (l2Held && tpPressed){');
+    t(holdIdx > 0 && tapIdx > holdIdx,
+      '★★ the five-second hold is evaluated BEFORE the tap chord and does not '
+      + 'consume it · the tap is decided at the press (dev panel / send home), the '
+      + 'hold only exists after five continuous seconds, which no tap survives');
   }
   const again = C.forceUnstick();
   t(again.length === 0, '  · and it is a no-op when nothing is stuck');

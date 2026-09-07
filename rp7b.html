@@ -2651,6 +2651,12 @@ function emergencyReturnToRizer(){
   showToast(`◈ TOUCHPAD HOLD 5s · ${msg}`, 3000);
 }
 
+// ★★ v0.96.7 · per-contact companion bond gates · anyone unlisted needs 100.
+const COMPANION_BOND_GATE = { scrapjaw: 10 };
+function companionBondNeeded(id){
+  const v = COMPANION_BOND_GATE[id];
+  return (v == null) ? 100 : v;
+}
 function companionize(n){
   if (!n) return;
   // Named faction allies require an explicit faction grant. A grant unlocks
@@ -2661,11 +2667,21 @@ function companionize(n){
     showToast(`◈ ${n.name} · faction ally not granted.`, 2200);
     return;
   }
-  // v0.95.177 · Bond gate · needs 100/100 · dev "Max Bond" toggle bypasses
+  // v0.95.177 · Bond gate · dev "Max Bond" toggle bypasses.
+  // ★★ v0.96.7 · THE GATE IS PER CONTACT. Creator: "scrapjaw takes 10% bond to
+  // follow u. unlocked after restoring malezor tower. he will follow at 10. no
+  // longer 50."
+  //
+  // ★ 100 was one number for everybody, and it made the ONE companion the early
+  //   game is built around unreachable until long after he stops mattering.
+  //   Scrapjaw is the tutorial district's scrapper: his job is to walk with a
+  //   rookie. The rest of the roster keeps the full 100 — trust that costs
+  //   nothing is not trust.
   const bond = (player.bonds && player.bonds[n.id]) || 0;
-  if (!factionCfg && bond < 100 && !game.devMaxBond){
+  const need = companionBondNeeded(n.id);
+  if (!factionCfg && bond < need && !game.devMaxBond){
     playSFX('cancel');
-    showToast(`◈ ${n.name} · Bond ${bond}/100 · complete their quest to earn Companion trust.`, 3200);
+    showToast(`◈ ${n.name} · Bond ${bond}/${need} · complete their quest to earn Companion trust.`, 3200);
     return;
   }
   // Detach prior companion first
@@ -10891,6 +10907,15 @@ const NPCS = [
         // Base reward always fires · bonus reward stacks if extermination done
         player.items.scrap_metal -= 1;
         player.radioTowerFixed = true;
+        // ★★ v0.96.7 · Creator: "unlocked after restoring malezor tower."
+        // Was gated on SIX of ten towers — a mid-game milestone for a companion
+        // whose whole purpose is the first district. The 6/10 beat below still
+        // fires as the moment he says it out loud; this is what actually opens
+        // him up.
+        if (!player.scrapjawCompanion){
+          player.scrapjawCompanion = true;
+          try { showToast(`★ SCRAPJAW will walk with you · Bond ${companionBondNeeded('scrapjaw')}/100 and press Square`, 5000); } catch(_){}
+        }
         player.phoneBattery = true;
         try { awardRizerXP(750); } catch(_){}
         bumpBond(4);                                       // base bond bump for delivery
@@ -10981,9 +11006,9 @@ const NPCS = [
         const dark = TOWER_ORDER.filter(d => !towerRestored(d))
                                 .map(d => (TOWER_BY_DIST[d] || {}).label || d);
         showDialog({ speaker: 'SCRAPJAW', lines: [
-          bond >= 50
+          bond >= companionBondNeeded('scrapjaw')
             ? '*grins*  Bond\'s high enough · Square me to take me with you.  I\'ll gear you up wherever you stand.'
-            : `*sniff*  Bond ${bond}/50 · keep coming back · once we\'re tight I\'ll follow you and upgrade your gear on the road.`,
+            : `*sniff*  Bond ${bond}/${companionBondNeeded('scrapjaw')} · keep coming back · once we\'re tight I\'ll follow you and upgrade your gear on the road.`,
           dark.length
             ? `*taps a cracked signal map*  Grid's at ${done}/${TOWER_TOTAL}.  Still dark: ${dark.join(' · ')}.`
             : `*taps the signal map · every pin lit*  ${TOWER_TOTAL}/${TOWER_TOTAL}.  Whole planet's talking.  You did that.`,
@@ -16513,6 +16538,45 @@ DOORMAT_KEYS.forEach(k => {
 // [[image-never-stretch-console-fullscreen]] the draw derives its size from
 // the image's own aspect instead: fit inside the slot width, cap the height so
 // a mat stays mat-sized, then centre on the slot and sit it on the door row.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.7 · MALEZOR BUILDING DECOR · the Creator's 8 rugs + 8 floors
+//
+// ★ These are registered into DOORMAT_IMGS but deliberately NOT into
+//   DOORMAT_KEYS. pickDoormatKey() picks a random mat for every purchased
+//   Rizer Room out of DOORMAT_KEYS — adding the Town Hall's civic crest to that
+//   pool would eventually deal it to somebody's bedroom.
+// ★ They are AREA rugs, not doormats: the icon is the room's identity, so they
+//   sit in the middle of the floor and are allowed to be taller than the 1.6
+//   tiles a mat is capped at.
+const BUILDING_RUG_MAX_H = 2.6;
+const BUILDING_DECOR = {
+  'nurse':            { rug:'nurse',            floor:'nurse'            },
+  'zysphere-shop':    { rug:'zysphere-shop',    floor:'zysphere-shop'    },
+  'potion-shop':      { rug:'potion-shop',      floor:'potion-shop'      },
+  'town-hall':        { rug:'town-hall',        floor:'town-hall'        },
+  'beast-farm':       { rug:'beast-farm',       floor:'beast-farm'       },
+  'seer-hq-basement': { rug:'seer-hq-basement', floor:'seer-hq-basement' },
+  'cottage-lodge':    { rug:'cottage-lodge',    floor:'cottage-lodge'    },
+  // ★ Creator: "Research Lab (skip the floor tile)" · the lab keeps the floor
+  //   it already has; only the rug lands.
+  'research-lab':     { rug:'research-lab',     floor:null               },
+};
+Object.keys(BUILDING_DECOR).forEach(k => {
+  const im = new Image();
+  im.src = `assets/2D%20sprites/decor/rugs/building/rug-${k}.png`;
+  DOORMAT_IMGS['bld-' + k] = im;
+});
+// Apply a decor set to an interior config · one call site per building, so a
+// re-skin is one line and cannot half-apply.
+function applyBuildingDecor(cfg, key, rugBox){
+  const D = BUILDING_DECOR[key];
+  if (!cfg || !D) return false;
+  if (D.floor && cfg.tileImg)
+    cfg.tileImg.src = `assets/2D%20sprites/tiles/interior/floor-${D.floor}.png`;
+  if (rugBox) cfg.rug = Object.assign({ key: 'bld-' + D.rug, hMax: BUILDING_RUG_MAX_H }, rugBox);
+  cfg._decorKey = key;
+  return true;
+}
 const DOORMAT_MAX_H_TILES = 1.6;
 // v0.95.656 · HOUSES ONLY.  Official buildings (research lab, training farm,
 // academy, Seer HQ, cave, and the dev unlock-all-doors scenes) get no mat —
@@ -17801,6 +17865,10 @@ const INTERIOR_RESEARCH_LAB = {
              [6,1],[7,1] ],                         // v0.95.658 · Dad's bookshelf · solid, X-interact from row 2
 };
 INTERIOR_RESEARCH_LAB.tileImg.src = 'assets/2D%20sprites/tiles/research-lab-floor.png';
+// ★ v0.96.7 · rug ONLY · Creator: "Research Lab (skip the floor tile)".
+// BUILDING_DECOR['research-lab'].floor is null, so the src above stays the last
+// word and only the terminal rug lands.
+applyBuildingDecor(INTERIOR_RESEARCH_LAB, 'research-lab', { x: 8, y: 13, w: 4, h: 3 });
 
 // v0.95.309 · ZYREX TRAINING FARM · Kaizari's private practice arena
 // Same footprint as Dad's Research Lab (20×20) · wood plank + green trim floor
@@ -17820,7 +17888,8 @@ const INTERIOR_TRAINING_FARM = {
   ],
   label: '◈ ZYREX TRAINING FARM · press X on the door to leave',
 };
-INTERIOR_TRAINING_FARM.tileImg.src = 'assets/2D%20sprites/tiles/training-farm-floor.png';
+// ★ v0.96.7 · the Creator's Malezor decor pack · paw-shield rug + sandstone floor
+applyBuildingDecor(INTERIOR_TRAINING_FARM, 'beast-farm', { x: 8, y: 10, w: 4, h: 3 });
 
 // v0.95.325 · RIZER'S TREEHOUSE HIDEOUT · empty 5×5 wood floor room · autoExit
 // walk-through door mirrors player home · spawn on the rug tile, walk out
@@ -18210,6 +18279,12 @@ const INTERIOR_SEER_HQ_R2 = {
 // ★★ It was 14x10 before, an open box a third the size of the floor above it.
 // A basement that is smaller than the room you reached it from reads as a
 // cupboard; this one is the widest room in the building.
+// ★★★ v0.96.7 · THE BASEMENT GETS ITS OWN FLOOR IMAGE.
+// All FOUR Seer HQ storeys share SEER_HQ_FLOOR_IMG — the suite's own assertion
+// caught it at 4 occurrences, not 1. Re-pointing that one object's src would
+// have re-floored 1F, the landing and 2F in all TEN districts off a note that
+// said "use for basement".
+const SEER_HQ_B_FLOOR_IMG = new Image();
 const INTERIOR_SEER_HQ_B = {
   stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
   plan: [
@@ -18240,7 +18315,7 @@ const INTERIOR_SEER_HQ_B = {
     '                                   ',
   ],
   cols: 35, rows: 25,
-  tileImg: SEER_HQ_FLOOR_IMG,
+  tileImg: SEER_HQ_B_FLOOR_IMG,   // ★ v0.96.7 · its own, not the shared one
   // ★ v0.95.967 · arrive at the foot of the stair you came down
   spawn: { x: 7, y: 6, dir: 'down' },
   exit:  null,                       // no door to the street — the only way out is up
@@ -18261,6 +18336,10 @@ const INTERIOR_SEER_HQ_B = {
 // The Commander's room.  Deliberately the opposite shape to the basement so
 // the two do not read as the same box with different lighting — you come up
 // out of the widest room in the building into the tightest one.
+// ★ v0.96.7 · eye-and-gem rug + hex floor · rug centred in the vault, well
+// clear of the walls at cols 5/31 and rows 5/17.
+applyBuildingDecor(INTERIOR_SEER_HQ_B, 'seer-hq-basement', { x: 16, y: 10, w: 4, h: 3 });
+
 const INTERIOR_SEER_HQ_2F = {
   stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
   plan: [
@@ -29723,6 +29802,24 @@ addEventListener('keyup', e => {
       // an unpaired keyup('2') would strand keys['2'] and eat the next tap.
       const tp = pad.buttons[17];
       const tpPressed = tp && (tp.pressed || tp.value > 0.5);
+      // ★★★ v0.96.8 · HOLD L2 + TOUCHPAD FOR FIVE SECONDS = FORCE UNSTICK.
+      //
+      // ★ It does not fight the TAP chord below. That one is decided at the
+      //   PRESS (dev panel / send-companion-home); this one only exists after
+      //   five continuous seconds, which no tap survives. A controller-only
+      //   player had no escape hatch at all until now — F10 is not on a
+      //   DualSense, and a frozen game with a pad in your hands meant a reload.
+      // ★ Fires ONCE per hold. Without the latch it would re-fire every frame
+      //   for as long as the fingers stayed down, toasting sixty times a second.
+      if (l2Held && tpPressed){
+        if (!prev._unstickSince) prev._unstickSince = performance.now();
+        else if (!prev._unstickFired && performance.now() - prev._unstickSince >= UNSTICK_HOLD_MS){
+          prev._unstickFired = true;
+          try { forceUnstick(); } catch(_){}
+        }
+      } else {
+        prev._unstickSince = 0; prev._unstickFired = false;
+      }
       if (tpPressed && !prev[17]){
         if (l2Held){
           prev._tpChord = true;
@@ -29960,13 +30057,15 @@ function drawDialogOverlay(){
 // v0.95.710 · last tile the player stepped off, for the door bounce-back.
 // ★★ v0.96.4 · the stuck watchdog · see the note inside tryMove()
 const STUCK_WARN_MS = 2500;
+const UNSTICK_HOLD_MS = 5000;   // ★ v0.96.8 · L2 + touchpad, held
 function _movementRequested(){
   try {
     return !!(keys['w'] || keys['a'] || keys['s'] || keys['d']
            || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']);
   } catch(_){ return false; }
 }
-// ★★★ F10 · FORCE UNSTICK. Every modal in this game is a boolean on `game`
+// ★★★ FORCE UNSTICK · Cmd+Esc, or L2+touchpad held 5 seconds.
+// Every modal in this game is a boolean on `game`
 // plus a handful of module-level states, and any one of them left set is an
 // unrecoverable freeze with no way out but a reload — which costs the player
 // everything since the last save. This clears the whole set and NAMES what it
@@ -30079,7 +30178,7 @@ function tryMove(dt){
                  && (!tryMove._stuckTold || _now - tryMove._stuckTold > 10000)){
         tryMove._stuckTold = _now;                 // ★ repeat · one toast is easy to miss
         game._stuckBanner = { why: _why, at: _now };
-        try { showToast(`\u26a0 Movement blocked by: ${_why} \u00b7 press F10 to force-unstick`, 6000); } catch(_){}
+        try { showToast(`\u26a0 Movement blocked by: ${_why} \u00b7 hold L2+touchpad 5s (or Cmd+Esc) to force-unstick`, 6000); } catch(_){}
       }
     } else {
       tryMove._stuckSince = null; tryMove._stuckTold = 0;
@@ -33071,10 +33170,22 @@ addEventListener('keydown', e => {
   //   it runs. verify_homebuy now drives the real keydown listener from the
   //   overworld instead.
   // ═══════════════════════════════════════════════════════════════
-  // ★★★ v0.96.4 · F10 · FORCE UNSTICK · FIRST, ALWAYS.
+  // ★★★ v0.96.8 · CMD+ESC · FORCE UNSTICK · FIRST, ALWAYS.
+  //
+  //   Creator: "the force unstick is now cmd+esc or hold L2 and touchpad for 5
+  //   seconds"
+  //
   // Sits above every other branch on purpose: the whole point of an escape
   // hatch is that it still works when something below has taken input hostage.
-  if (k === 'f10'){ e.preventDefault(); try { forceUnstick(); } catch(_){} return; }
+  // ★ It must also out-rank the modals themselves — handleHomeBuyConfirmKey and
+  //   handleHqPanelKey both CONSUME a bare 'escape', so an unstick bound to
+  //   Escape alone would be eaten by the very panel it exists to clear. The
+  //   modifier is what makes it reach the floor.
+  if (k === 'escape' && (e.metaKey || e.ctrlKey)){
+    e.preventDefault();
+    try { forceUnstick(); } catch(_){}
+    return;
+  }
 
   if (homeBuyConfirm){
     if (handleHomeBuyConfirmKey(k)){ e.preventDefault(); return; }
@@ -34679,7 +34790,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.6' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.8' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

@@ -112,7 +112,14 @@ H('5 · ★★ CROSS ON A DUALSENSE ACTUALLY PRESSES IT');
   //   grid-movement one (checked first) and the activation one.  The original
   //   regex grabbed the FIRST arrowright line, which is now movement.  Widen
   //   the window and match the ACTIVATION line specifically.
-  const h=src.slice(src.indexOf('function handleZycellKey'), src.indexOf('function handleZycellKey')+9000);
+  // ★ v0.95.995 · was a fixed +9000 window. The handler grew (scroll-on-empty,
+  // the notebook pop) and the activate line fell outside it, so three checks
+  // went red over code that was working. A window measured in CHARACTERS
+  // shrinks every time somebody adds a line above what it is looking for —
+  // the same defect verify_notebook_errand had. Bound it to the function.
+  const _hs=src.indexOf('function handleZycellKey');
+  const _he=src.indexOf('\n}\n', _hs);
+  const h=src.slice(_hs, _he > _hs ? _he : _hs+20000);
   // ★ v0.95.980 · the activation line no longer LEADS with arrowright — the
   // Creator retired RIGHT-as-activate ("only x and o bring u in and out"), so
   // the line to match starts at 'a'. The property being checked is unchanged

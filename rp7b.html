@@ -24513,6 +24513,59 @@ function isFacingInteractable(fx, fy){
   return false;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.978 · DEPTH CAMERA · optional motion blur.  Creator: *"Add a depth
+// camera option (motion blur) in the home panel. toggle functionality."*
+//
+// ★ It is a FRAME TRAIL, not a per-sprite blur, and that is the only version
+// worth having here.  A real directional blur means sampling each sprite
+// several times per frame — on a canvas drawing ~16k props that is a frame-rate
+// cost paid on every tile whether anything moved or not.  Compositing the
+// PREVIOUS frame over the current one at low alpha costs one drawImage, and it
+// produces the same read: things that moved smear, things that sat still stay
+// sharp, because a static pixel is identical in both frames and blending a
+// value with itself changes nothing.  The effect is free where nothing happens
+// and strongest exactly where the motion is.
+//
+// ★ OFF BY DEFAULT.  It is a look, not a fix, and a player who never opens the
+// phone should get the crisp pixel art the rest of the game is drawn for.
+const DEPTH_CAM_ALPHA = 0.34;      // ghost strength · higher = longer tail
+let _depthCamBuf = null;
+function depthCameraOn(){ return !!player.depthCam; }
+function toggleDepthCamera(){
+  player.depthCam = !player.depthCam;
+  if (!player.depthCam) _depthCamBuf = null;      // drop the buffer, not just the flag
+  try { playSFX(player.depthCam ? 'confirm' : 'menuClose'); } catch(_){}
+  showToast(player.depthCam
+    ? '★ DEPTH CAMERA ON · motion blur'
+    : '◈ DEPTH CAMERA OFF', 2000);
+  try { paintZycellContent(); } catch(_){}        // repaint so the card flips immediately
+  try { saveGame(); } catch(_){}
+  return player.depthCam;
+}
+// Called at the END of the world paint: lay the previous frame over this one,
+// then keep this one for the next.  Order matters — blending BEFORE the HUD is
+// drawn is what keeps the interface sharp while the world smears.
+function applyDepthCamera(){
+  if (!depthCameraOn()) { _depthCamBuf = null; return; }
+  const W = canvas.width, H = canvas.height;
+  if (!W || !H) return;
+  if (_depthCamBuf && (_depthCamBuf.width !== W || _depthCamBuf.height !== H)) _depthCamBuf = null;
+  if (_depthCamBuf){
+    const a = ctx.globalAlpha;
+    ctx.globalAlpha = DEPTH_CAM_ALPHA;
+    ctx.drawImage(_depthCamBuf, 0, 0);
+    ctx.globalAlpha = a;
+  }
+  if (!_depthCamBuf){
+    _depthCamBuf = document.createElement('canvas');
+    _depthCamBuf.width = W; _depthCamBuf.height = H;
+  }
+  const g = _depthCamBuf.getContext('2d');
+  if (!g) return;
+  g.clearRect(0, 0, W, H);
+  g.drawImage(canvas, 0, 0);
+}
 // v0.95.4 · Sleep fade overlay · black flash triangle during nap
 function drawSleepFade(){
   if (!_sleepFade) return;
@@ -35842,6 +35895,30 @@ function renderZycellHome(){
       <div style="color:#8ff; font-size:11px; margin-top:6px; letter-spacing:.14em;">${_dateStr}</div>
       <div style="color:#c060ff; font-size:10px; margin-top:8px; letter-spacing:.08em;">Cycle · Day</div>
     </div>`;
+  // ★★ v0.95.978 · DEPTH CAMERA · the one card on this screen that is a SWITCH
+  // rather than a door.  Every other card opens a panel, so this one has to
+  // read differently or a player will tap it expecting to be taken somewhere:
+  // it carries its own ON/OFF pill and states the current setting in words.
+  // It is deliberately NOT a _zyWidget — those all navigate, and a widget that
+  // silently toggled instead would break the promise the other six make.
+  const _dcOn = (typeof depthCameraOn === 'function') && depthCameraOn();
+  const depthCam = `
+    <div onclick="try{toggleDepthCamera()}catch(_){}"
+         style="background:rgba(10,14,26,0.72); border:1px solid ${_dcOn ? '#c060ff' : '#2a3550'};
+                border-radius:10px; padding:12px 14px; cursor:pointer;
+                display:flex; align-items:center; justify-content:space-between; gap:10px;">
+      <div>
+        <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:11px;">◎ DEPTH CAMERA</div>
+        <div style="color:#8ff; font-size:10px; margin-top:5px; letter-spacing:.06em;">
+          ${_dcOn ? 'motion blur · on' : 'motion blur · off'}
+        </div>
+      </div>
+      <div style="min-width:52px; text-align:center; padding:5px 8px; border-radius:999px;
+                  font-size:10px; font-weight:bold; letter-spacing:.10em;
+                  background:${_dcOn ? 'rgba(192,96,255,0.22)' : 'rgba(120,140,180,0.14)'};
+                  border:1px solid ${_dcOn ? '#c060ff' : '#44506e'};
+                  color:${_dcOn ? '#e0b0ff' : '#8fa0c0'};">${_dcOn ? 'ON' : 'OFF'}</div>
+    </div>`;
   // ★★★ v0.95.952 · every card is now a door to its own panel.
   // The mapping is the obvious one in every case but two, and those two are
   // worth stating: CREDITS opens ZYCUBE because credits are counted items and
@@ -35866,6 +35943,7 @@ function renderZycellHome(){
         ${_zyWidget('expeditions', mission)}
         ${_zyWidget('map',         map)}
         ${dateTime}
+        ${depthCam}
       </div>
     </div>`;
 }
@@ -38266,6 +38344,7 @@ function saveGame(){
         // QOL patches (sprites, spawns, animations) don't wipe the player's run
         hasBackpack:                !!player.hasBackpack,
         raidCardGifted:             !!player.raidCardGifted,
+        depthCam:                   !!player.depthCam,           // ★ v0.95.978 · display preference
         momNotebookGiven:           !!player.momNotebookGiven,   // ★ v0.95.972 · the courier errand
         dadNotebookGifted:          !!player.dadNotebookGifted,
         // ★★ v0.95.972 · PRE-EXISTING BUG, found while wiring the errand:
@@ -50268,6 +50347,9 @@ function frame(now){
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }
   drawAoeImpactBursts();// all large AOE bursts · above tall/wild grass
+  // ★ v0.95.978 · depth camera · blends the previous frame in HERE, after the
+  // world and before the HUD, so the interface never smears with it.
+  try { applyDepthCamera(); } catch(_){}
   try { tickWildBond(now); } catch(err){ console.warn('[rp7b] wild bond tick', err); }   // ★ v0.95.866
   try { tickZorynCompanion(now); } catch(err){ console.warn('[rp7b] zoryn tick', err); }  // ★ v0.95.906
   try { drawWildBondOverlay(); } catch(err){ console.warn('[rp7b] wild bond draw', err); }

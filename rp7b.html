@@ -10083,7 +10083,12 @@ const NPCS = [
     //    the instant he broke into a run and pop back when he stopped.
     //    [[aov-refbh-yardstick-law]] — warned three times, broken four, and it
     //    is a test now. Measured here, not copied: idle col-0 max is 217, run
-    //    col-0 max is 224.
+    //    col-0 max is 230.
+    // ★ v0.96.20 · the prose said 224 while the value said 230. Re-measured by
+    //    connected component off the shipped PNG: col-0 heights are 229 (down),
+    //    215 (left), 219 (right), 230 (up) — so 230 is right and the COMMENT was
+    //    the stale one. Worth correcting rather than leaving: the next person to
+    //    trust the sentence over the number re-breaks the yardstick law.
     runSheet: (() => { const i = new Image(); i.src = 'assets/2D%20sprites/npcs/noot-run.png'; return i; })(),
     runSrc:   'assets/2D%20sprites/npcs/noot-run.png',
     runRefBh: 230,
@@ -30703,7 +30708,45 @@ addEventListener('keyup', e => {
     if (type === 'keydown') keys[_k] = true; else keys[_k] = false;
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ v0.96.20 · THE CONTROLLER LOOP CANNOT BE ALLOWED TO DIE.
+  //
+  //   Creator: "just froze in console"
+  //
+  // ★★★ THIS IS THE SAME BUG AS v0.96.4, IN A LOOP I NEVER LOOKED AT.
+  //   `requestAnimationFrame(poll)` was the LAST STATEMENT of poll(), with no
+  //   try/finally — so any throw anywhere inside it ended the loop forever and
+  //   THE CONTROLLER STOPPED RESPONDING PERMANENTLY. I found and fixed exactly
+  //   this shape in the game's own frame loop six builds ago and never asked
+  //   whether the file had other rAF loops. It has four.
+  //
+  // ★★★ AND THIS LOOP IS UNUSUALLY EXPOSED. It does not just read the pad — it
+  //   SYNTHESISES keydown/keyup events into the game (dispatchKey), so every
+  //   one of the game's key handlers runs INSIDE this try. A throw in any of
+  //   them — a menu, a dialogue advance, an interact — used to kill the pad
+  //   loop and nothing else. The world kept animating, the HUD kept updating,
+  //   and the controller was simply dead.
+  //
+  // ★★ WHICH IS WHY IT READS AS A FREEZE ON A CONSOLE AND NOWHERE ELSE. On a
+  //   desktop you would reach for the keyboard and carry on, and never file it.
+  //   On a TV the pad is the only input in the room, and there is no keyboard
+  //   there to press F10 or Cmd+Esc with either.
+  // ══════════════════════════════════════════════════════════════════════
   function poll(){
+    try { _pollBody(); }
+    catch(err){
+      poll._hits = (poll._hits || 0) + 1;
+      if (poll._hits === 1 || poll._hits % 300 === 0){
+        console.error(`[rp7b] ★★★ gamepad poll threw (${poll._hits}x) · the pad `
+          + 'used to go dead here and stay dead', err);
+        try { showToast('⚠ Controller error · recovered · see console', 6000); } catch(_){}
+      }
+      try { recordFlight(performance.now(), 'padthrow', String(err && err.message || err)); } catch(_){}
+      try { _writeCrumb(true); } catch(_){}
+    }
+    finally { requestAnimationFrame(poll); }   // ★ never not re-armed
+  }
+  function _pollBody(){
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     let pad = null;
     for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
@@ -30835,7 +30878,6 @@ addEventListener('keyup', e => {
         prev['ax_'+k] = on;
       }
     }
-    requestAnimationFrame(poll);
   }
   requestAnimationFrame(poll);
 })();
@@ -36065,7 +36107,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.19' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.20' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

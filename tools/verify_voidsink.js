@@ -22,6 +22,70 @@ t(ct===6, `★★ it is RGBA (colour type ${ct}) · it arrived as RGB on a baked
   + 'transparency checkerboard, so it needed keying before it could be drawn');
 console.log(`         ${W} x ${Hh}`);
 
+/* ── ★★★ NO WHITE OUTLINE · the Creator saw a halo and he was right ─── */
+//   Decoded properly rather than trusting the keyer that made the halo in the
+//   first place. Two independent failures produce a white edge and this checks
+//   for both.
+const zlib=require('zlib');
+function decodePNG(buf){
+  let i=8, w=0,h=0,bd=0,ct2=0, idat=[];
+  while(i<buf.length){
+    const len=buf.readUInt32BE(i), typ=buf.toString('ascii',i+4,i+8);
+    if(typ==='IHDR'){ w=buf.readUInt32BE(i+8); h=buf.readUInt32BE(i+12); bd=buf[i+16]; ct2=buf[i+17]; }
+    else if(typ==='IDAT') idat.push(buf.slice(i+8,i+8+len));
+    else if(typ==='IEND') break;
+    i+=12+len;
+  }
+  if(ct2!==6||bd!==8) return null;
+  const raw=zlib.inflateSync(Buffer.concat(idat));
+  const bpp=4, stride=w*bpp, px=Buffer.alloc(h*stride);
+  let pos=0;
+  for(let y=0;y<h;y++){
+    const ft=raw[pos++]; const line=raw.slice(pos,pos+stride); pos+=stride;
+    const cur=px.slice(y*stride,(y+1)*stride);
+    const prev=y? px.slice((y-1)*stride,y*stride) : Buffer.alloc(stride);
+    for(let x=0;x<stride;x++){
+      const a2=x>=bpp?cur[x-bpp]:0, b2=prev[x], c2=(x>=bpp&&y)?prev[x-bpp]:0;
+      let v=line[x];
+      if(ft===1)v+=a2; else if(ft===2)v+=b2; else if(ft===3)v+=((a2+b2)>>1);
+      else if(ft===4){const pp=a2+b2-c2,pa=Math.abs(pp-a2),pb=Math.abs(pp-b2),pc=Math.abs(pp-c2);
+        v+= (pa<=pb&&pa<=pc)?a2:(pb<=pc?b2:c2);}
+      cur[x]=v&255;
+    }
+  }
+  return {w,h,px,stride};
+}
+const P=decodePNG(b);
+t(!!P, '★ the sheet decodes · the halo check below is on real pixels');
+if (P){
+  const {w,h,px,stride}=P;
+  const A=(x,y)=>px[y*stride+x*4+3];
+  // ★ FAILURE 1 · a soft edge. Blurring alpha on a white matte turns the rim
+  //   into semi-transparent pixels that still carry white — that IS the halo,
+  //   and it is what my first key did.
+  let semi=0;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const a3=A(x,y); if(a3>0&&a3<255) semi++; }
+  t(semi===0,
+    `★★★ ZERO semi-transparent pixels (${semi}) · a soft edge on a white matte IS `
+    + 'the white outline. My first key blurred the alpha and manufactured one');
+  // ★ FAILURE 2 · opaque anti-aliased rim, art blended toward 255.
+  let rim=0, white=0;
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+    if(!A(x,y)) continue;
+    if(A(x-1,y)&&A(x+1,y)&&A(x,y-1)&&A(x,y+1)) continue;   // interior
+    rim++;
+    const o=y*stride+x*4, r=px[o],g=px[o+1],bl=px[o+2];
+    const lo3=Math.min(r,g,bl), hi3=Math.max(r,g,bl);
+    if(lo3>=185 && hi3-lo3<=40) white++;
+  }
+  const pct = rim ? (white/rim*100) : 0;
+  t(pct < 1.0,
+    `★★★ the silhouette rim is ${pct.toFixed(2)}% light-and-desaturated (${white} of `
+    + `${rim}) · the render anti-aliased the art against white, leaving a ring too `
+    + 'dark for the background test and far too light for a sheet outlined in '
+    + 'near-black. Those pixels are peeled');
+}
+
 /* ── 2 · the frames ────────────────────────────────────────────────── */
 const noop=()=>{};const _Q=[];let CLOCK=1000;
 global.setInterval=()=>0;global.setTimeout=fn=>{_Q.push(fn);return 0;};

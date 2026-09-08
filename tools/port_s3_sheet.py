@@ -63,9 +63,12 @@ def label(mask):
 
 def main():
     src, name = sys.argv[1], sys.argv[2]
+    # ★ v0.96.47 · optional 3rd arg = exact output stem, for sheets whose name
+    #   is not "<key>-luminary" (astralslam-luminary-mori, and the VFX sheets)
+    stem = sys.argv[3] if len(sys.argv) > 3 else f'{name}-luminary'
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    dst  = os.path.join(root, 'assets/2D sprites/rizer', f'{name}-luminary.png')
-    orig = os.path.join(root, 'assets/2D sprites/rizer/_orig', f'{name}-luminary-src.png')
+    dst  = os.path.join(root, 'assets/2D sprites/rizer', f'{stem}.png')
+    orig = os.path.join(root, 'assets/2D sprites/rizer/_orig', f'{stem}-src.png')
     os.makedirs(os.path.dirname(orig), exist_ok=True)
     Image.open(src).save(orig)
     alpha = key(src, dst)

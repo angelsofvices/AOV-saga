@@ -125,7 +125,9 @@ t(D.rizerBundleForSkin('dodge','luminary')===D.PLAYER_SKINS.power_upgrade.overri
   '★★★ an action with no S3 art (dodge) still falls back to S2, not S1');
 t(D.rizerBundleForSkin('idleJump','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.idleJump,
   '★★ and idleJump likewise');
-t(D.rizerBundleForSkin('death','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.death,'★★ death -> S2');
+// ★ v0.96.47 · death HAS S3 art now · re-anchored onto one that does not
+t(D.rizerBundleForSkin('doubleJump','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.doubleJump,
+  '★★ doubleJump (still no S3 art) falls back to S2, not to blue S1');
 // a key S2 does not have either -> S1 base
 const onlyS1=Object.keys(D.RIZER).find(k=>!D.PLAYER_SKINS.power_upgrade.overrides[k]);
 t(D.rizerBundleForSkin(onlyS1,'luminary')===D.RIZER[onlyS1],`★★ '${onlyS1}' has no S2 art either -> S1 base`);

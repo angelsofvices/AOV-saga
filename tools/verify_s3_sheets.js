@@ -65,7 +65,8 @@ for(const b of [D.RIZER_LUMINARY_IDLE,...Object.values(S)])
 t(allOk,`★★★ idle+walk+punch+kick all render their body at ${tgt.toFixed(1)}px · he cannot change size`);
 // ★ things with no S3 art still fall to S2
 t(!D.RIZER_LUMINARY_RUN._downScale,'★★ run carries NO _downScale · a measured table must not be overridden');
-t(D.rizerBundleForSkin('death','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.death,
-  '★ death still falls back to S2');
+// ★ v0.96.47 · death shipped · assert on one that has NOT
+t(D.rizerBundleForSkin('doubleJump','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.doubleJump,
+  '★ doubleJump still falls back to S2 (no S3 art yet)');
 LOG(`\n${pass} passed · ${fail} failed\n`);
 process.exit(fail?1:0);

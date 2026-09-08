@@ -60,7 +60,9 @@ t(/anchorLiveCount\(dist\) >= A\.floor/.test(CODE), '  · and it only grows back
     '★ and a full neighbourhood is a NO-OP with a retry, not a forced spawn');
 }
 t(/anchorNextAt:\s*Object\.assign/.test(CODE), '★ respawn timers persist · otherwise every reload resets the clock');
-t(/tickDistrictAnchors\(\); \} catch/.test(CODE), '★ and the tick actually runs');
+t(/tickDistrictAnchors\(\)/.test(CODE), '★ and the tick actually runs · anchored on the CALL, '
+  + 'not on the try/catch that wrapped it · v0.96.26 moved every frame tick into a named, '
+  + 'timed _step() and three suites went red over the wrapper while the behaviour was identical');
 
 console.log(`\n★ ${pass} passed · ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

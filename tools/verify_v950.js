@@ -78,9 +78,17 @@ t('the page overlay is native, not the parchment frame', () => {
 
 console.log('\n3 · looted Skellor corpses stop blocking');
 t('walkable() skips looted corpses', () => {
-  const w = H.slice(H.indexOf('function walkable('), H.indexOf('function walkable(') + 6000);
-  ok(/_skellorDead[\s\S]{0,200}_skellorLootedIds/.test(w),
-     'walkable() has no looted-corpse exemption · a horde still walls you in');
+  // ★ v0.96.22 moved this rule out of walkable()'s inline NPC scan and into
+  //   _npcOccBlocks, the occupancy index that replaced it. Reading walkable()'s
+  //   own source stopped finding it — so the check now proves the BEHAVIOUR,
+  //   which is what the Creator's rule was ever about:
+  //   "once a skellor body is looted, they lose collision."
+  ok(/_skellorDead[\s\S]{0,200}_skellorLootedIds/.test(H),
+     'the looted-corpse exemption still exists somewhere in the collision path');
+  ok(/function _npcOccBlocks\(n\)\{?[\s\S]{0,700}_skellorLootedIds\.has\(n\.id\)\) return false;/.test(H),
+     'and it lives in _npcOccBlocks · the ONE place the occupancy index decides '
+     + 'what is solid, so the rule cannot drift between the two branches that '
+     + 'used to carry their own copy');
 });
 t('_skellorLootedIds is declared BEFORE walkable (no temporal dead zone)', () => {
   const decl = H.indexOf('let _skellorLootedIds');

@@ -87,7 +87,7 @@ t(/_driftOff \|\| _formationRotate/.test(CODE),
 }
 
 /* ── 6 · the farms are called, and gated ────────────────────────────────── */
-t(/tickFieldStudy\(\); \} catch/.test(CODE) && /tickHomecoming\(\); \} catch/.test(CODE),
+t(/tickFieldStudy\(\)/.test(CODE) && /tickHomecoming\(\)/.test(CODE),   // ★ v0.96.26 · _step, not try/catch
   '★ both tickers run in the frame loop');
 {
   const i = CODE.indexOf('function tickFieldStudy');

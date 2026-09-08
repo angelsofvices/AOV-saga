@@ -321,8 +321,7 @@ const C = globalThis.__C;
   t(/case 'field_station': \{/.test(H) && /deployFieldStation\(\)/.test(H),
     '★ selecting the case in the ZyCube sets it down · a briefcase becomes a '
     + 'bench by being put down, which is the only verb it has');
-  t(/try \{ tickFieldStation\(\); \} catch\(_\)\{\}/.test(H)
-    && /try \{ tickFieldStationRaid\(\); \} catch\(_\)\{\}/.test(H),
+  t(/tickFieldStation\(\)/.test(H) && /tickFieldStationRaid\(\)/.test(H),   // ★ v0.96.26 · _step, not try/catch
     '★★ both ticks run in the frame loop · an animation nobody drives is a prop '
     + 'frozen in its closed frame forever');
   t(/_pressOnlyDoor: true,\s*\/\/ ★ and a footstep must not fold your bench up/.test(H),

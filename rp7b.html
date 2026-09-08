@@ -23086,7 +23086,59 @@ function astralthrowBreakAOE(b,skinId){
     try { playSFX('confirm'); } catch(_){}
   }
 }
-const VOID_SWALLOW_DUR=680;
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.31 · THE VOID SINK · a Mori going under, as art.
+//
+//   Creator: "play this animation for the mori when they are thrown into the
+//   void sea. sinking. learn the frame. single animation. sinking into the sea"
+//
+// ★ THE MECHANIC ALREADY EXISTED — startVoidSwallow fires when you Astralthrow
+//   a Mori past the shoreline, credits the kill at 2.00x, and flips the body to
+//   '__dead__' when the clock runs out. What it DREW was procedural: the Mori's
+//   own idle frame squashed on two axes, faded, with a violet ellipse widening
+//   under it. A sprite of a body being pulled under is not a squashed sprite of
+//   a body standing up.
+//
+// ★★ NINE FRAMES, MEASURED BY COLUMN RUN, NOT BY GRID. They are nowhere near a
+//   uniform cell — 228px wide down to 6px, and 451 tall down to 7 — because the
+//   sequence ends on a raised hand and then a ripple. Slicing this on an even
+//   grid would have cut the reaching arm off frame 3 and drawn empty air for
+//   the last two ([[aov-sprite-cc-extractor]]).
+//
+// ★★★ ANCHORED BY THE BOTTOM EDGE, which is the whole trick. Every frame's
+//   vortex sits at its own base, so pinning the bottoms to one water line keeps
+//   the whirlpool nailed to the surface while the body travels DOWN through it.
+//   Anchoring by the top, or centring, would make the sea slide up and down.
+//
+// ★ ONE SCALE FOR THE WHOLE SEQUENCE, derived from frame 0. Per-frame scaling
+//   would make the figure pulse as the bbox shrinks — the body must get smaller
+//   because it is sinking, not because the maths changed.
+const VOID_SINK_IMG = new Image();
+VOID_SINK_IMG.src = 'assets/2D%20sprites/vfx/mori-void-sink.png';
+const VOID_SINK_FRAMES = [
+  [   1,   1, 228, 298],   // 0 · thrown · still whole, still falling
+  [ 268,  40, 206, 317],   // 1 · feet take the surface
+  [ 487,  53, 186, 381],   // 2 · the spiral has him to the waist
+  [ 745,   8, 164, 451],   // 3 · one arm up · the last of the fight
+  [ 953,  88, 124, 372],   // 4 · shoulders under
+  [1178,  70,  91, 390],   // 5 · head going
+  [1371, 322,  84, 138],   // 6 · the hand alone
+  [1549, 413,  56,  47],   // 7 · fingers
+  [1606, 448,   6,   7],   // 8 · a ripple, and nothing
+];
+const VOID_SINK_TILES = 2.2;        // frame 0's height, in tiles
+// ★ a NAMED function rather than an expression buried in the draw, so the
+//   once-only rule is testable instead of merely written down.
+function voidSinkFrameAt(p){
+  const n = VOID_SINK_FRAMES.length;
+  const i = Math.floor(Math.max(0, Math.min(1, p)) * n);
+  return Math.min(n - 1, i);        // ★ CLAMPED · never modulo · this plays once
+}
+// ★★ 680 ms was tuned to a two-axis squash with no frames in it. Nine frames in
+//   680 ms is 75 ms each — fast enough that the hand and the ripple, which are
+//   the whole point of the ending, would flicker past unread. 990 ms gives each
+//   frame 110 ms and lets a body take a moment to go under.
+const VOID_SWALLOW_DUR=990;
 function startVoidSwallow(n,x,y){
   if(!n)return;
   n.tileX=x;n.tileY=y;n.hp=0;n.moving=false;
@@ -36677,7 +36729,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.30' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.31' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -55564,9 +55616,26 @@ function drawNPC(n){
   // whirlpool instead of playing its normal land death animation.
   if(n._voidSwallow){
     const p=Math.max(0,Math.min(1,(performance.now()-n._voidSwallow.t0)/n._voidSwallow.dur));
+    const cx=(n.tileX+.5)*TILE-_cam.x,waterY=(n.tileY+.72)*TILE-_cam.y;
+    // ★★★ v0.96.31 · the Creator's nine-frame sink. The art carries its own
+    //   whirlpool, so the procedural violet ring below is the FALLBACK only —
+    //   drawing both would put a second vortex around the first.
+    if(VOID_SINK_IMG.complete&&VOID_SINK_IMG.naturalWidth){
+      const F=VOID_SINK_FRAMES;
+      const fi=voidSinkFrameAt(p);
+      const [bx,by,bw,bh]=F[fi];
+      const scale=(TILE*VOID_SINK_TILES)/F[0][3];     // ★ one scale, all frames
+      const dw=Math.max(1,Math.round(bw*scale));
+      const dh=Math.max(1,Math.round(bh*scale));
+      // ★ BOTTOM-anchored · the vortex stays welded to the surface while the
+      //   body travels down through it
+      const dx=Math.round(cx-dw/2), dy=Math.round(waterY-dh);
+      ctx.save();
+      ctx.drawImage(VOID_SINK_IMG,bx,by,bw,bh,dx,dy,dw,dh);
+      ctx.restore();
+    } else {
     const row=n.rowMap?(n.rowMap[n.dir]??DIR_ROW_NPC[n.dir]):DIR_ROW_NPC[n.dir];
     const box=n.bboxes?.[row]?.[0];
-    const cx=(n.tileX+.5)*TILE-_cam.x,waterY=(n.tileY+.72)*TILE-_cam.y;
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.globalAlpha=(1-p)*.75;
@@ -55582,6 +55651,7 @@ function drawNPC(n){
       ctx.save();ctx.globalAlpha=1-p;
       ctx.drawImage(n.sheet,bx,row*n.cellH+by,bw,bh,dx,dy,dw,dh);
       ctx.restore();
+    }
     }
     return;
   }

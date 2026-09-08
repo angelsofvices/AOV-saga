@@ -114,9 +114,17 @@ t(D.isRizerPowered(),'★★ and isRizerPowered() · so S2 logic applies, not S1
 t(!D.isRizerS1()&&!D.isRizerS2(),'★ and it is neither S1 nor S2');
 // ── the fallback lineage ──
 t(D.rizerBundleForSkin('idle','luminary')===D.RIZER_LUMINARY_IDLE,'★★★ idle uses the S3 sheet');
-const s2walk=D.PLAYER_SKINS.power_upgrade.overrides.walk;
-t(D.rizerBundleForSkin('walk','luminary')===s2walk,'★★★ walk falls back to S2, NOT to blue S1');
-t(D.rizerBundleForSkin('run','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.run,'★★ run -> S2');
+// ★ v0.96.42 · RE-ANCHORED. These asserted walk and run FALL BACK to S2 — true
+//   when only the idle sheet existed, and false now that both have real S3 art.
+//   The property worth protecting was never "walk is S2's"; it was "a missing
+//   S3 action must not drop to blue S1". So the test now names an action that
+//   still HAS no S3 art, and separately proves the delivered sheets win.
+t(D.rizerBundleForSkin('walk','luminary')!==D.RIZER.walk,
+  '★★★ walk is NOT the blue S1 sheet');
+t(D.rizerBundleForSkin('dodge','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.dodge,
+  '★★★ an action with no S3 art (dodge) still falls back to S2, not S1');
+t(D.rizerBundleForSkin('idleJump','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.idleJump,
+  '★★ and idleJump likewise');
 t(D.rizerBundleForSkin('death','luminary')===D.PLAYER_SKINS.power_upgrade.overrides.death,'★★ death -> S2');
 // a key S2 does not have either -> S1 base
 const onlyS1=Object.keys(D.RIZER).find(k=>!D.PLAYER_SKINS.power_upgrade.overrides[k]);

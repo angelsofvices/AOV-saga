@@ -16960,6 +16960,102 @@ const RIZER_LUMINARY_IDLE = {
   bodyBh: [207, 189, 185, 194],
   key: 'idle-luminary', loaded: false,
 };
+// ★★★ v0.96.42 · S3 WALK · PUNCH · KICK.
+//
+// ★ ROWS ARE ASSIGNED BY CENTROID, NOT BY THE FEET — and the walk sheet is why.
+//   "The cell containing the feet" is the obvious rule and it broke on the very
+//   first sheet after idle: walk row 0's feet land at y=321, EIGHT PIXELS past
+//   the 313 boundary, so y//313 filed all four DOWN frames under row 1 and four
+//   cells collided. A centroid sits inside its own cell whether the art
+//   overflows UP (idle row 3, hair) or DOWN (walk row 0, feet).
+//
+// ★ Note row 3 on all three: by is NEGATIVE (-32 walk, -31 punch, -5 kick).
+//   The wings and crest are drawn past the top of the cell. Owned, not clipped.
+//
+// ★★ bodyBh measured the SAME way as idle — central 40% band, hair-wings
+//   excluded — so he cannot change size when he starts moving. Cross-checked by
+//   rendering all four sheets at final scale and measuring the FACE, which is
+//   pose-invariant: LEFT and RIGHT agree within 1.8-3.2%, and walk-vs-idle DOWN
+//   within 3.7%. Punch reads ~7% larger on DOWN, which is the one number to
+//   revisit if size-popping is visible in play — but punch is a constScale
+//   combo sheet, so the draw path treats it differently anyway.
+const RIZER_LUMINARY_WALK = {
+  img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+  bboxes: [
+    [[  79,  82, 219, 240],[  58,  81, 219, 241],[  36,  82, 227, 240],[  17,  81, 218, 239]],
+    [[  87,  53, 207, 217],[  71,  51, 201, 221],[  57,  52, 200, 218],[  33,  51, 199, 224]],
+    [[  78,  13, 191, 215],[  58,  13, 188, 216],[  34,  13, 194, 216],[  17,  13, 190, 219]],
+    [[  70, -32, 228, 237],[  51, -32, 229, 236],[  37, -34, 225, 238],[  20, -35, 219, 242]],
+  ],
+  bodyBh: [224, 214, 216, 209],
+  key: 'walk-luminary', loaded: false,
+};
+// ★★★ A COMBO SHEET, exactly like S1's and S2's: each COLUMN is a DIFFERENT
+//   strike held for one combo step, not four frames of one swing. comboSheet
+//   tells the draw to HOLD the step's column instead of walking all four, and
+//   constScale opts out of the forced-idle-height rule so the poses keep the
+//   height difference the artist drew in. Ship it without these two flags and
+//   the punch chain becomes a flurry.
+const RIZER_LUMINARY_PUNCH = {
+  img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+  comboSheet: true, constScale: true,
+  bboxes: [
+    [[  81,  75, 213, 241],[  58,  75, 222, 242],[  48,  75, 192, 242],[   5,  85, 243, 232]],
+    [[  71,  57, 232, 221],[  46,  56, 239, 223],[  68,  52, 184, 228],[  17,  52, 224, 227]],
+    [[  80,  26, 222, 214],[  70,  26, 231, 215],[  43,  20, 176, 223],[  15,  23, 250, 219]],
+    [[  52, -31, 248, 241],[  57, -31, 238, 244],[  45, -34, 201, 247],[  15, -31, 247, 244]],
+  ],
+  bodyBh: [230, 218, 216, 213],
+  key: 'punch-luminary', loaded: false,
+};
+const RIZER_LUMINARY_KICK = {
+  img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+  bboxes: [
+    [[  67,  76, 204, 223],[  60,  72, 206, 227],[  29,  72, 252, 227],[  47,  75, 199, 224]],
+    [[  72,  43, 200, 220],[  50,  45, 210, 218],[   9,  47, 284, 216],[  63,  44, 193, 219]],
+    [[  66,  22, 192, 220],[  59,  22, 199, 219],[  26,  22, 267, 220],[  51,  20, 180, 222]],
+    [[  67,  -5, 203, 216],[  59, -10, 214, 221],[  35,  -8, 242, 219],[  46,  -5, 205, 216]],
+  ],
+  bodyBh: [212, 213, 219, 189],
+  key: 'kick-luminary', loaded: false,
+};
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.42 · S3 RUN · HE FLIES.
+//   Creator: "s3 flies on his run animation."
+//
+// ★★★ AND THAT BREAKS THE MEASUREMENT, which is the whole reason this bundle
+//   has a comment. On the LEFT and RIGHT rows he is HORIZONTAL — a superman
+//   pose. "Head-to-feet height" is meaningless there: measured down the middle
+//   of the box it returns roughly TORSO THICKNESS, and since the engine scales
+//   by rizerTargetBodyPx()/bodyBh, a small number makes him render HUGE.
+//
+// ★★ So every S3 sheet's bodyBh is now anchored on the FACE instead — the one
+//   landmark that is pose-invariant and directly proportional to how large the
+//   art is drawn. Each row is set so its face renders at exactly the size
+//   idle's does. The naive silhouette measurement would have shipped:
+//        run · DOWN +4.3%  LEFT -1.9%  RIGHT +7.4%  UP -9.8%
+//   — seventeen points of spread, i.e. Rizer visibly changing size when he
+//   breaks into a run, and by a DIFFERENT amount per direction. That is
+//   byte-for-byte the defect the S1 locomotion tables were rewritten to fix
+//   ([[aov-refbh-yardstick-law]]).
+//
+// ★ Walk, punch and kick were re-anchored the same way at the same time; their
+//   naive numbers were off by up to 8% for the same reason in miniature.
+//
+// ★ No _downScale. S1/S2's RUN bundles carry one because they predate bodyBh;
+//   a bundle with a measured table must not also carry an override, or the
+//   override silently wins.
+const RIZER_LUMINARY_RUN = {
+  img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+  bboxes: [
+    [[  63,  78, 236, 227],[  44,  91, 245, 209],[  20, 113, 262, 188],[  18,  78, 235, 227]],
+    [[  42,  57, 268, 209],[  37,  93, 267, 172],[  23, 102, 278, 169],[  12,  59, 262, 203]],
+    [[  51,  31, 252, 193],[  37,  61, 253, 169],[  17,  66, 262, 170],[  15,  30, 248, 197]],
+    [[  67, -17, 232, 234],[  45,  -5, 240, 228],[  29,   1, 244, 223],[  17, -17, 232, 235]],
+  ],
+  bodyBh: [213, 201, 190, 194],
+  key: 'run-luminary', loaded: false,
+};
 const PLAYER_SKINS = {
   normal:        { name: 'Normal', damageMult: 1, overrides: {} },
   // ★★★ S3 · IDLE ART ONLY. damageMult deliberately INHERITS S2's 2 rather
@@ -16967,7 +17063,11 @@ const PLAYER_SKINS = {
   //   idle, not a combat rebalance. When the Creator sets S3's multiplier,
   //   weapons and moves, they change HERE and nowhere else.
   luminary:      { name: 'Luminary', damageMult: 2, overrides: {
-    idle: RIZER_LUMINARY_IDLE,
+    idle:  RIZER_LUMINARY_IDLE,
+    walk:  RIZER_LUMINARY_WALK,     // ★ v0.96.42
+    punch: RIZER_LUMINARY_PUNCH,    // ★ v0.96.42 · combo sheet
+    kick:  RIZER_LUMINARY_KICK,     // ★ v0.96.42
+    run:   RIZER_LUMINARY_RUN,      // ★ v0.96.42 · he FLIES
   } },
   power_upgrade: { name: 'Power Upgrade', damageMult: 2, overrides: {
     idle: RIZER_POWER_IDLE,
@@ -30821,6 +30921,10 @@ Promise.all([
   loadAsset(RIZER.idle,  'assets/2D%20sprites/rizer/idle.png'),
   loadAsset(RIZER_POWER_IDLE, 'assets/2D%20sprites/rizer/idle-power-upgrade.png'),
   loadAsset(RIZER_LUMINARY_IDLE, 'assets/2D%20sprites/rizer/idle-luminary.png'),   // ★ v0.96.40 · S3
+  loadAsset(RIZER_LUMINARY_WALK, 'assets/2D%20sprites/rizer/walk-luminary.png'),   // ★ v0.96.42
+  loadAsset(RIZER_LUMINARY_PUNCH,'assets/2D%20sprites/rizer/punch-luminary.png'),  // ★ v0.96.42
+  loadAsset(RIZER_LUMINARY_KICK, 'assets/2D%20sprites/rizer/kick-luminary.png'),   // ★ v0.96.42
+  loadAsset(RIZER_LUMINARY_RUN,  'assets/2D%20sprites/rizer/run-luminary.png'),    // ★ v0.96.42
   loadAsset(RIZER_POWER_WALK, 'assets/2D%20sprites/rizer/walk-power-upgrade.png'),
   loadAsset(RIZER_POWER_RUN,  'assets/2D%20sprites/rizer/run-power-upgrade.png'),
   loadAsset(RIZER_POWER_IDLE_JUMP, 'assets/2D%20sprites/rizer/idle-jump-power-upgrade.png'),
@@ -37872,7 +37976,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.41' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.42' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

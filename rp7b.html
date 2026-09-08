@@ -1994,6 +1994,14 @@ const AUDIO = {
     seeYaLater:   new Audio('audio/sfx-see-ya-later.mp3'),   // v0.95.539 · Rizer VO on NPC dialogue close ("see ya later")
     imOnIt:       new Audio('audio/sfx-im-on-it.mp3'),       // ★★ v0.95.896 · Rizer VO · REPLACES see-ya when that talk handed him a task
     levelUp:      new Audio('audio/sfx-level-up.mp3'),       // v0.95.540 · Rizer VO on every Rizer level-up (Lv 1-100)
+    // ★★ v0.96.35 · THE LEVEL-UP CHIME · Creator: "play this sound whenever the
+    //   level up banner plays. it is the chime for level up."
+    // ★ A NEW KEY, not a replacement. `levelUp` above is a VOICE line and ten
+    //   other events borrow it — the Omniris trial, a homecoming, every
+    //   evolution, the Zyrex level-ups. Overwriting that file would have put a
+    //   chime in all ten places and silently retired a VO the Creator recorded.
+    //   The banner has exactly one caller, so the chime rides the banner.
+    levelUpChime: new Audio('audio/sfx-level-up-chime.mp3'),
     kickVox:      new Audio('audio/sfx-kick-vox.mp3'),       // v0.95.540 · Rizer VO fires every 5th kick swing
     punchVox:     new Audio('audio/sfx-punch-vox.mp3'),      // v0.95.555 · Rizer VO on landed punch combo ("take this") · every 5th landed punch · pairs with kickVox rhythm to form combo banter
     astralthrowVox: new Audio('audio/sfx-astralthrow-vox.mp3'), // v0.95.541 · Rizer VO on every astralthrow lift
@@ -2188,7 +2196,7 @@ const RVOX_PRIORITY = {
   // 100 · CRISIS · HP warnings + death · these OVERRIDE everything
   ughGyat: 110, okayBuddy: 100, halfHp: 100, threeQuarterHp: 95,
   // 90 · milestone
-  levelUp: 90, gotBag: 90, gotPhone: 90, timeToShred: 88,
+  levelUp: 90, levelUpChime: 92, gotBag: 90, gotPhone: 90, timeToShred: 88,
   // 80 · KO callouts
   astralkickKo: 80, astralstrikeKo: 80, swordKillVox: 78,
   // 75 · sleep beat (rare but character-defining)
@@ -27263,7 +27271,13 @@ LEVELUP_BANNER_IMG.src = 'assets/2D%20sprites/ui/level-up-banner.png';
 const LEVELUP_HOLD_MS = 3000;    // ★ the Creator's three seconds · solid
 const LEVELUP_FADE_MS = 600;     // then out
 let _levelUpBanner = 0;          // performance.now() when it appeared, 0 = down
-function showLevelUpBanner(){ _levelUpBanner = performance.now(); }
+function showLevelUpBanner(){
+  _levelUpBanner = performance.now();
+  // ★ the chime belongs to the BANNER, so it fires here rather than at the ten
+  //   call sites that raise it — one place to be right, and it can never drift
+  //   out of sync with the thing it is announcing.
+  try { playSFX('levelUpChime'); } catch(_){}
+}
 function levelUpBannerUp(){
   return _levelUpBanner && (performance.now() - _levelUpBanner) < (LEVELUP_HOLD_MS + LEVELUP_FADE_MS);
 }
@@ -36747,7 +36761,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.34' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.35' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -42796,7 +42810,11 @@ const BOND_EVENTS = {
   // complete sanctuary is 3,310 against a 1,665 path cap. It maxes the Zyrex
   // half exactly and cannot touch the Rizer half — a complete route to HALF
   // your bond, never to all of it. (Was pts 1 = 662 = 40% of the path.)
-  zyrexSanctuary: { path:'zyrex', pts:5,   label:'★★ a Zyrex given sanctuary'    },
+  // ★★★ v0.96.35 · pts is 1 because sanctuaryBondValue now returns the FULL
+  //   bond, not the tier. ONE place computes the curve. Leaving pts at 5 while
+  //   the value function also carried the curve would have multiplied it twice —
+  //   a T10 rescue worth 688 instead of 138, and nothing would have complained.
+  zyrexSanctuary: { path:'zyrex', pts:1,   label:'★★ a Zyrex given sanctuary'    },
   // ── RIZER PATH · the athrenologist's half ──────────────────────────────
   rizerFind:      { path:'rizer', pts:1,   label:'a discovery recorded'            },
   rizerScroll:    { path:'rizer', pts:2,   label:"a page of Dad's book read"       },
@@ -43186,11 +43204,47 @@ function withdrawZyrexFromPC(pcIdx){
 const SANCTUARY_DUPLICATE_RATE = 0.25;
 function sanctuaryList(){ return (player.sanctuary = player.sanctuary || []); }
 function sanctuaryHasSpecies(id){ return sanctuaryList().some(z => z && z.speciesId === id); }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.35 · THE SANCTUARY CURVE · exponential, anchored on 500 x T1.
+//
+//   Creator: "give more bond points per tier for rizer cash in to farm
+//   sanctuary. lets say it would cost 500 tier 1 zyrex to hit 3330 bond. scale
+//   all other tiers to this baseline. exponential. span the whole game."
+//
+// ★ THE ANCHOR IS HIS: 3330 / 500 = 6.66 bond for a Tier 1 rescue. Everything
+//   else is that number carried up a curve, not a second set of invented values.
+//
+// ★★ k = 1.4 IS DERIVED FROM THE ROSTER, not chosen for feel. Roster V1 is 210
+//   species summing to 662 tiers, and at k=1.4 a COMPLETE sanctuary — every
+//   species in the game, donated once — comes to 3,927. That is just over the
+//   3,330 full bond, which is what "span the whole game" has to mean: the
+//   complete sanctuary IS the complete journey, with nothing left over.
+//     k=1.3 tops out at 2,943 and can never reach it. k=1.5 hits 5,325 and you
+//     finish long before the roster does. 1.4 is the one that lands on the game.
+//
+//     T1   6.7    T4  18.3    T7   50.2    T10  137.6
+//     T2   9.3    T5  25.6    T8   70.3
+//     T3  13.1    T6  35.9    T9   98.3
+//
+// ★★★ AND THE 1665 PATH CAP STANDS. The Creator's sentence reads as though the
+//   sanctuary alone reaches 3330, and I asked rather than assumed: the anchor is
+//   the RATE, the cap is the LAW. The Zyrex half still stops at 1,665, so a
+//   complete sanctuary is a complete route to HALF your bond and the Rizer path
+//   must supply the other half. Neither route alone reaches 3,330
+//   ([[aov-rizer-bond-formula]]). In practice ~250 T1 rescues already max the
+//   half — the curve is generous, the cap is what keeps it honest.
+const SANCTUARY_T1_BOND = 3330 / 500;      // ★ 6.66 · the Creator's anchor
+const SANCTUARY_TIER_K  = 1.4;             // ★ exponential base, fitted to the roster
+function sanctuaryTierBond(tier){
+  const t = Math.max(1, Math.min(10, tier || 1));
+  return SANCTUARY_T1_BOND * Math.pow(SANCTUARY_TIER_K, t - 1);
+}
 function sanctuaryBondValue(z){
   if (!z) return 0;
   const sp = SPECIES[z.speciesId] || {};
   const tier = Math.max(1, sp.tier || z.tier || 1);
-  return sanctuaryHasSpecies(z.speciesId) ? tier * SANCTUARY_DUPLICATE_RATE : tier;
+  const v = sanctuaryTierBond(tier);
+  return sanctuaryHasSpecies(z.speciesId) ? v * SANCTUARY_DUPLICATE_RATE : v;
 }
 // THE ONE DOOR IN.  Removes from the party, banks the bond, and records the
 // resident.  Returns the bond gained, or -1 if it refused.
@@ -43219,11 +43273,12 @@ function donateZyrexToSanctuary(partyIdx){
     hp: z.maxHp || z.hp || 1, maxHp: z.maxHp || z.hp || 1,
     donatedAt: Date.now(), uid: zyrexUid(z),
   });
-  // ★★ v0.95.999 · REPORT THE BOND, NOT THE MULTIPLIER. `gained` is the TIER
-  // (sanctuaryBondValue returns tier, or tier×¼ for a duplicate) and it is
-  // passed to bumpRizerBond as the multiplier against pts. While pts was 1
-  // those two numbers were identical and the toast was accidentally correct;
-  // the moment pts became 5 the toast started under-reporting by five times.
+  // ★★ v0.95.999 · REPORT THE BOND, NOT THE MULTIPLIER.
+  // ★ v0.96.35 · `gained` is now the BOND ITSELF — sanctuaryBondValue returns
+  // the point value off the exponential curve (or a quarter of it for a
+  // duplicate) and zyrexSanctuary.pts is 1, so the multiplier and the value are
+  // the same number again. Still read the RETURN of bumpRizerBond rather than
+  // `gained`, because only the return knows about the path cap.
   // ★ bumpRizerBond RETURNS what it actually banked, including any clamp at
   // the path cap, so that is what the player is told.
   let _bond = 0;

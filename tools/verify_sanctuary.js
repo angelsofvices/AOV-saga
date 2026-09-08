@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={sanctuaryList,sanctuaryHasSpecies,sanctuaryBondValue,donateZyrexToSanctuary,openSanctuaryPanel,closeSanctuaryPanel,populateSanctuaryResidents,SANCTUARY_VISIBLE,SANCTUARY_DUPLICATE_RATE,BOND_EVENTS,BOND_PATH_CAP,bondLedger,bumpRizerBond,rizerBondTotal,speciesJournalStage,journalCounts,depositZyrexToPC,SPECIES,NPCS,ATHRENOLOGY_INDEX,INTERIOR_TRAINING_FARM,player,game};')();}
+try{new Function(src+';globalThis.__C={sanctuaryList,sanctuaryHasSpecies,sanctuaryBondValue,sanctuaryTierBond,donateZyrexToSanctuary,openSanctuaryPanel,closeSanctuaryPanel,populateSanctuaryResidents,SANCTUARY_VISIBLE,SANCTUARY_DUPLICATE_RATE,BOND_EVENTS,BOND_PATH_CAP,bondLedger,bumpRizerBond,rizerBondTotal,speciesJournalStage,journalCounts,depositZyrexToPC,SPECIES,NPCS,ATHRENOLOGY_INDEX,INTERIOR_TRAINING_FARM,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -35,7 +35,14 @@ H('1 · ★★ THE LEDGER PAYS FOR THE RESCUE');
   // the rescue is still priced by what it cost — only the anchor moved, and the
   // whole Zyrex half was rescaled beneath it rather than the anchor being
   // trimmed to fit the old ladder.
-  ok(E.pts===5,'★★★ base 5 points · a T1 rescue is the biggest single bond action in the game');
+  // ★ v0.96.35 · pts is 1 now and that is NOT a nerf. sanctuaryBondValue returns
+  //   the full bond off the exponential curve, so the curve is computed in ONE
+  //   place. A T1 rescue went from 5 to 6.66 — bigger, not smaller.
+  ok(E.pts===1,'★★★ pts is 1 · the CURVE carries the value now, in one place, so it '
+    + 'cannot be applied twice');
+  ok(Math.abs(C.sanctuaryTierBond(1) - 3330/500) < 1e-9,
+    '★★★ a T1 rescue is 3330/500 = 6.66 bond · still the biggest single bond action '
+    + 'in the game, and now anchored on the Creator\'s own number');
   // ★ and the thing that actually makes 5/tier safe: the path cap. A complete
   // 210-species sanctuary is 3,310 against a 1,665 half — it maxes the Zyrex
   // path exactly and cannot touch the Rizer path.
@@ -49,19 +56,28 @@ H('2 · ★★★ FIRST OF A KIND IS WHAT PAYS');
   const p=C.player;
   const t5=Object.keys(C.SPECIES).find(k=>C.SPECIES[k].tier===5);
   const t1=Object.keys(C.SPECIES).find(k=>C.SPECIES[k].tier===1);
-  ok(C.sanctuaryBondValue(mk(t1))===1&&C.sanctuaryBondValue(mk(t5))===5,
+  // ★ v0.96.35 · EXPONENTIAL, not linear. T5 used to be 5x T1; it is now
+  //   1.4^4 = 3.84x, which is the point of the change the Creator asked for.
+  ok(Math.abs(C.sanctuaryBondValue(mk(t1)) - C.sanctuaryTierBond(1))<1e-9
+     && Math.abs(C.sanctuaryBondValue(mk(t5)) - C.sanctuaryTierBond(5))<1e-9,
      '★ a donation is worth its TIER · T1 = 1, T5 = 5');
   p.party=[mk(t1)];
   const first=C.donateZyrexToSanctuary(0);
   p.party=[mk(t1)];
   const dupe=C.donateZyrexToSanctuary(0);
-  ok(first===1,'first of its kind pays full');
-  ok(dupe===1*C.SANCTUARY_DUPLICATE_RATE,'★★ the SECOND of the same species pays a quarter ('+dupe+')');
+  ok(Math.abs(first - C.sanctuaryTierBond(C.SPECIES[t1].tier))<1e-9,'first of its kind pays full curve value');
+  ok(Math.abs(dupe - C.sanctuaryTierBond(C.SPECIES[t1].tier)*C.SANCTUARY_DUPLICATE_RATE)<1e-9,
+    '★★ the SECOND of the same species pays a quarter ('+dupe.toFixed(2)+')');
   // the farm-able case the Creator's own world creates
   reset();
   let total=0;
   for(let i=0;i<22;i++){ C.player.party=[mk('aetherwing')]; total+=C.donateZyrexToSanctuary(0); }
-  ok(total<7,'★★★ the 22 Aetherwing standing in Malezor are worth '+total+' bond TOTAL — not a farm');
+  // ★★★ THE ANTI-FARM CHECK SURVIVES THE REBALANCE, and it matters more now that
+  //   the numbers are bigger. 22 of one species is one full payment plus 21
+  //   quarters — the duplicate rate is what stops a common spawn being a bond mine.
+  const oneFull = C.sanctuaryTierBond(C.SPECIES[Object.keys(C.SPECIES).find(k=>C.SPECIES[k].tier===1)].tier);
+  ok(total < oneFull*7,'★★★ 22 of ONE species are worth '+total.toFixed(1)+' bond TOTAL '
+    + '(a full payment plus 21 quarters) — generous per rescue, useless as a farm');
   ok(C.sanctuaryList().length===22,'…and all 22 are still taken in · she never turns one away');
 }
 

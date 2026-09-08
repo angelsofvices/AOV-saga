@@ -38099,7 +38099,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.45' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.46' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -55444,7 +55444,49 @@ function topUpDistrictCollectibles(){
 // "Town" is not just the hub: it is the hub, every civic building AND every
 // home. A district's houses sprawl well past its centre, and a chest tucked
 // between two back gardens is not exploration.
-const WOOD_CHEST_PER_DISTRICT = 20;
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.46 · TREASURE, SCALED BY TIER.
+//
+//   Creator: "add more wooden silver and gold chests around the world. scale
+//   number of new additions by tier. it should feel full of treasure. chests
+//   lead the explorer to keep venturing outer rims of districts, luring them
+//   into the wild where enemies lurk."
+//
+// ★★★ THE LURE ALREADY EXISTED — that is the important part of this change.
+//   scatterWoodChests has weighted chests away from town since v0.95.761:
+//   CHEST_MIN_FROM_TOWN clears the built-up core outright, CHEST_MIN_FROM_ROAD
+//   keeps them off the carved trails, and the remoteness tilt makes the far
+//   country roughly three times likelier per candidate. The mechanic the
+//   Creator is describing was built. What it did NOT do was scale.
+//
+//   ★ So this is not a new placement system. My first attempt WAS one — 142
+//     hand-picked coordinates in three new tables — and it was wrong: it would
+//     have been a second, parallel scatterer competing with the real one,
+//     unaware of its 200 existing chests and duplicating a lure that already
+//     worked. Deleted. One system, now tier-aware.
+//
+// ★★ SILVER IS GENUINELY NEW. CHEST_LOOT_LADDER has carried a `silver` rung
+//   ("uncommon items · good weapons · quest items") since the ladder was
+//   written, CHEST_COIN_TIERS its 2-pile 80-240 band, CHEST_ARROW_ODDS its
+//   p:0.50/n:2, and silver-chest.png has been on disk since August — and there
+//   was not ONE silver chest anywhere in the world. Every part was built except
+//   the chest.
+//
+// ★ Counts per district, by DISTRICT_ORDER tier (malezor 1 -> korathen 10):
+//        wood    10 + 2*tier    12 -> 30
+//        silver   1 + ceil(t/2)  2 -> 6
+//        gold     ceil(tier/3)   1 -> 4
+//   The deeper you go the thicker it gets, which is the curve the danger
+//   already follows.
+const WOOD_CHEST_PER_DISTRICT = 20;   // ★ legacy · superseded by chestsForTier()
+function districtTierOf(dist){
+  const i = (typeof DISTRICT_ORDER !== 'undefined') ? DISTRICT_ORDER.indexOf(dist) : -1;
+  return i < 0 ? 1 : i + 1;
+}
+function chestsForTier(dist){
+  const t = districtTierOf(dist);
+  return { wood: 10 + 2 * t, silver: 1 + Math.ceil(t / 2), gold: Math.ceil(t / 3) };
+}
 const CHEST_MIN_FROM_ROAD = 4;     // eased from 6 — 20 per district needs room
 const CHEST_MIN_APART     = 18;
 const CHEST_MIN_FROM_TOWN = 40;    // hard floor · nothing in the built-up core
@@ -55466,7 +55508,9 @@ function scatterWoodChests(){
   const rng = _makeWorldRng(0xC4E57);
   const closed = new Image(); closed.src = 'assets/2D%20sprites/decor/chest.png';
   const open   = new Image(); open.src   = 'assets/2D%20sprites/decor/chest-open.png';
-  let made = 0;
+  const silverImg = new Image(); silverImg.src = 'assets/2D%20sprites/decor/silver-chest.png';
+  const goldImg   = new Image(); goldImg.src   = 'assets/2D%20sprites/decor/gold-chest.png';
+  let made = 0, madeSilver = 0, madeGold = 0;
   for (const w of DISTRICT_WHEEL){
     const dist = w.dist;
     const road = (game._trailRoad || {})[dist] || new Set();
@@ -55513,29 +55557,114 @@ function scatterWoodChests(){
     cand.sort((a, b) => a.remote - b.remote);
     const far = cand;
     const maxR = far[far.length-1].remote;
-    const placed = [];
-    let guard = 0;
-    while (placed.length < WOOD_CHEST_PER_DISTRICT && guard < 20000 && far.length){
-      guard++;
-      // Gentle linear tilt with a floor: even the closest legal tile keeps a
-      // 35% chance, so the mid-distance blocks stay populated while the far
-      // country is still roughly three times likelier per candidate.
-      const i = Math.floor(rng() * far.length);
-      const c = far[i];
-      if (rng() > 0.35 + 0.65 * (c.remote / maxR)) continue;
-      if (placed.some(q => Math.abs(q.x-c.x) + Math.abs(q.y-c.y) < CHEST_MIN_APART)) continue;
-      placed.push(c);
-      far.splice(i, 1);
+    // ★★ v0.96.46 · ONE candidate pool, THREE kinds drawn from it — so silver
+    //   and gold inherit the same away-from-town, off-road, remoteness-weighted
+    //   lure the wooden chests have always used, and no two chests of any kind
+    //   can land on top of each other.
+    // ★ RAREST FIRST. Gold draws before silver, silver before wood, so the
+    //   scarcest tier gets first refusal on the most remote sites. Draw wood
+    //   first and it eats the far country by sheer numbers, leaving the prize
+    //   chests in the near ring — the exact inversion of the point.
+    const want = chestsForTier(dist);
+    const takeSome = (n, sink) => {
+      let guard = 0;
+      while (sink.length < n && guard < 20000 && far.length){
+        guard++;
+        // Gentle linear tilt with a floor: even the closest legal tile keeps a
+        // 35% chance, so the mid-distance blocks stay populated while the far
+        // country is still roughly three times likelier per candidate.
+        const i = Math.floor(rng() * far.length);
+        const c = far[i];
+        if (rng() > 0.35 + 0.65 * (c.remote / maxR)) continue;
+        if (allPlaced.some(q => Math.abs(q.x-c.x) + Math.abs(q.y-c.y) < CHEST_MIN_APART)) continue;
+        sink.push(c); allPlaced.push(c);
+        far.splice(i, 1);
+      }
+    };
+    // ★★★ SEEDED WITH THE CHESTS THAT ARE ALREADY THERE. The hand-placed eight
+    //   wood, thirteen gold, five cosmic and the raygun chest all live in
+    //   WORLD_PROPS before this runs, and the candidate filter only excludes
+    //   their EXACT tile (via _propBlocked) — not the CHEST_MIN_APART radius
+    //   around them. Without this, a scattered chest can land a few tiles from
+    //   a hand-placed one; the drive found two such pairs. Spacing has to be
+    //   measured against every chest in the world, not just the ones this loop
+    //   happens to have made.
+    const allPlaced = [];
+    for (const q of WORLD_PROPS){
+      if (!q || q.tileX == null) continue;
+      if (!(q._woodChest || q._silverChest || q._goldChest || q._cosmicChest)) continue;
+      if (worldDistrictAt(q.tileX, q.tileY) !== dist) continue;
+      allPlaced.push({ x: q.tileX, y: q.tileY });
     }
+    const goldSpots = [], silverSpots = [], placed = [];
+    takeSome(want.gold,   goldSpots);
+    takeSome(want.silver, silverSpots);
+    takeSome(want.wood,   placed);
     for (const c of placed){
       const chest = makeWoodChest(`chest_${dist}_${made}`, c.x, c.y, closed, open, c.remote);
       WORLD_PROPS.push(chest);
       registerPropCollision(chest);
       made++;
     }
+    // ★ ids are namespaced per kind AND per district, so raising a count only
+    //   ever APPENDS within that namespace — a chest the player already looted
+    //   keeps its key. lootedChests stores these strings.
+    silverSpots.forEach((c, i) => {
+      const ch = makeTieredChest('silver', `chest_silver_${dist}_${i}`, c.x, c.y, silverImg, open);
+      WORLD_PROPS.push(ch); registerPropCollision(ch); madeSilver++;
+    });
+    goldSpots.forEach((c, i) => {
+      const ch = makeTieredChest('gold', `chest_gold_${dist}_${i}`, c.x, c.y, goldImg, open);
+      WORLD_PROPS.push(ch); registerPropCollision(ch); madeGold++;
+    });
   }
-  console.log(`[rp7b] wooden chests · ${made} scattered · ${WOOD_CHEST_PER_DISTRICT}/district · weighted away from town`);
+  console.log(`[rp7b] chests scattered · ${made} wood · ${madeSilver} silver · ${madeGold} gold `
+            + `= ${made+madeSilver+madeGold} · tier-scaled, weighted away from town`);
   return made;
+}
+// ★★ v0.96.46 · SILVER and GOLD factories, deliberate clones of makeWoodChest
+//   rather than fresh code: identical footprint, door and open/close rig, so
+//   they slot into the punch/kick, X-interact and PvP loot-trap pipelines
+//   without any of them learning a new case. Only the sprite, the coin tier and
+//   the RXP differ — which is exactly what the ladder says separates them.
+const SILVER_CHEST_BBOX = { closed: [149, 165, 944, 892], open: [290, 240, 673, 741] };
+const GOLD_CHEST_BBOX   = { closed: [143, 184, 968, 886], open: [290, 240, 673, 741] };
+function makeTieredChest(kind, id, tx, ty, closedImg, openImg){
+  const B = kind === 'gold' ? GOLD_CHEST_BBOX : SILVER_CHEST_BBOX;
+  const src = kind === 'gold' ? 'assets/2D%20sprites/decor/gold-chest.png'
+                              : 'assets/2D%20sprites/decor/silver-chest.png';
+  const chest = {
+    id, img: closedImg, src, bbox: B.closed,
+    tileX: tx, tileY: ty, tileW: 1, tileH: 1,
+    footprint: [[0,0]], door: [0,0], opened: false, looted: false,
+    _closedImg: closedImg, _openImg: openImg,
+    _closedBbox: B.closed, _openBbox: B.open,
+  };
+  if (kind === 'gold') chest._goldChest = true; else chest._silverChest = true;
+  chest.onInteract = () => {
+    if (chest.opened) return;
+    chest.opened = true;
+    chest.img = openImg;
+    chest.bbox = B.open;
+    if (chest.looted) return;
+    chest.looted = true;
+    const piles = spillChestCoins(chest, kind, 1);
+    try { spawnChestGems('overworld', chest.tileX, chest.tileY); } catch(_){}
+    try { awardRizerXP(kind === 'gold' ? 30 : 20); } catch(_){}   // wood is 10
+    if (kind === 'gold'){
+      // ★ the gemshard stays GOLD-ONLY · the ladder should be legible from what
+      //   comes out of the box, not from the colour of the box
+      const shardKey = rollGemshard();
+      const meta = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META[shardKey] : null;
+      addItems({ [shardKey]: 1 });
+      try { playSFX('confirm'); } catch(_){}
+      showToast(`★ GOLD CHEST · ${piles} coin piles scatter · ${meta ? meta.label : shardKey}`, 4200);
+    } else {
+      try { playSFX('confirm'); } catch(_){}
+      showToast(`★ SILVER CHEST · ${piles} coin piles scatter`, 3600);
+    }
+  };
+  return chest;
 }
 // Same loot rig as the eight hand-placed chests, factored out so both paths
 // stay in step: coins, gems, +25 RXP and one HP consumable, once only.

@@ -19684,8 +19684,24 @@ function _dreamRand(i){
 }
 function buildDreamlandDecor(){
   if (_dreamDecor.length) return _dreamDecor.length;
+  // ★★★ v0.96.37 · THE SIX GO DOWN FIRST, on their ring, before the random
+  //   scatter gets a vote. Placed after it, a random spire could already own a
+  //   tile the ring needs and an arch would silently fail to appear — and the
+  //   one thing worse than six doors is five.
+  //   ★ They are also EXCLUDED from the random pool below (see `pool`), so the
+  //     only arches in Dreamland are the six that lead somewhere. An anonymous
+  //     arch standing next to a real one is a promise the game cannot keep.
+  const ARCH_ART = DREAM_DECOR_ART.find(D => D.id === 'arch');
+  for (let i = 0; i < DRACOLORD_DOMAINS.length; i++){
+    const t = dracolordArchTile(i);
+    _dreamDecor.push({ id:'arch', art: ARCH_ART, x: t.x, y: t.y,
+                       domain: DRACOLORD_DOMAINS[i] });
+    for (let dx = -1; dx <= 1; dx++) _dreamBlocked.add((t.x + dx) + ',' + t.y);
+  }
   const pool = [];
-  DREAM_DECOR_ART.forEach(D => { for (let w = 0; w < D.weight; w++) pool.push(D); });
+  // ★ v0.96.37 · the arch is no longer scatterable · every arch means something
+  DREAM_DECOR_ART.forEach(D => { if (D.id === 'arch') return;
+                                 for (let w = 0; w < D.weight; w++) pool.push(D); });
   const sp = INTERIOR_DREAMLAND.spawn;
   let tries = 0;
   while (_dreamDecor.length < DREAM_DECOR_COUNT && tries < DREAM_DECOR_COUNT * 400){
@@ -19704,6 +19720,9 @@ function buildDreamlandDecor(){
     }
     if (!ok) continue;
     if (_dreamDecor.some(o => Math.abs(o.x - x) < 3 && Math.abs(o.y - y) < 3)) continue;
+    // ★ v0.96.37 · and never crowd a doorway · you must be able to WALK UP to one
+    if (DRACOLORD_DOMAINS.some((_, k) => { const t = dracolordArchTile(k);
+          return Math.abs(x - t.x) <= 3 && Math.abs(y - t.y) <= 2; })) continue;
     _dreamDecor.push({ id: D.id, art: D, x, y });
     if (D.blockW > 0){
       for (let dx = -half; dx <= half; dx++) _dreamBlocked.add((x + dx) + ',' + y);
@@ -27203,6 +27222,8 @@ function isFacingInteractable(fx, fy){
     if (fx === TREEHOUSE_GOLD_CHEST.tileX && fy === TREEHOUSE_GOLD_CHEST.tileY) return true;
     if (fx === TREEHOUSE_TELESCOPE.tileX  && fy === TREEHOUSE_TELESCOPE.tileY) return true;   // v0.95.719
   }
+  // ★ v0.96.37 · an archway is a door · X on it must not fire a jump
+  if (game.scene === DREAMLAND_SCENE && dracolordArchAt(fx, fy)) return true;
   if (seerChestAt(fx, fy)) return true;                       // ★ v0.95.966
   if (cfg.researchLab){
     if (fy === 2 && fx >= 9 && fx <= 11) return true;                       // Dad's workbench
@@ -28750,6 +28771,151 @@ const TELESCOPE_IMG = new Image();
 TELESCOPE_IMG.src = 'assets/2D%20sprites/decor/telescope.png';
 // Rizer is 2 tiles head-to-feet, so the telescope matches him at 2 tiles.
 const TELESCOPE_TILES_TALL = 2;
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.37 · THE SIX ARCHWAYS · Dreamland opens onto the Expanse.
+//
+//   Creator: "there should be 6 archways in dreamland. they will be interacted
+//   with to take rizer to the different parts of the dreamland. dreamland will
+//   extend to different parts of the cosmos of The Aethryx Expanse. the 6
+//   dracolords. each dracolord will sit at the end of each inner level."
+//
+// ★★ THEY ARE NOT SIX OF THE TWENTY-SEVEN PLANETS. They are the six DOMAINS
+//   the First Ancient War survivors hold ([[aov-dracolords-immortals]]) — which
+//   is why there are exactly six, and why they are reached from a dream rather
+//   than from a ship. Picking six planets out of twenty-seven would have needed
+//   a reason the canon does not have; the Dracolords supply one for free.
+//
+// ★ THE ART ALREADY EXISTED. dream-arch.png has been scattered through
+//   Dreamland as anonymous decor since v0.95.734 — five tiles tall, three wide,
+//   solid. Six of them become named doors and the art cost is nothing.
+//
+// ★★★ RULING 1 · THE CLOCK STOPS AT THE THRESHOLD.
+//   Seconds = Rizer level, so a level-40 Rizer has FORTY SECONDS. That cannot
+//   hold a realm crossing plus a Demigod, and pretending otherwise would have
+//   quietly made the whole feature unplayable until Lv 90. So the cloud plane
+//   stays timed exactly as it is, and past an arch you are on the DRACOLORD'S
+//   time. Stepping through is the only relief from the clock in the game.
+//
+// ★★★ RULING 2 · THEY JUDGE. THEY DO NOT FIGHT.
+//   A Dracolord is TIER 9 and Rizer's ceiling is Immortal, TIER 8 — he is
+//   permanently one tier below them BY LAW ([[aov-ranged-zyrex-combat-spec]]).
+//   So they are audiences, not health bars: you reach the end of an inner level
+//   and something older than your species looks at you and decides. The reward
+//   is RECOGNITION, not loot — which is what Dreamland already does, since it
+//   gates the Ultimate Amp Form ([[aov-dreamland]]). Six recognitions.
+//
+// ★ RULING 3 · NO SEVENTH ARCH. AE28 — the body that LEFT the Expanse after the
+//   Aenor Eruptions — was proposed as a dead arch that never opens. The Creator
+//   parked it. Not rejected; waiting on a ruling about what AE28 was. The ring
+//   below leaves the seventh position empty on purpose.
+// ══════════════════════════════════════════════════════════════════════════
+const DRACOLORD_DOMAINS = [
+  { id:'aetherion',  lord:'AETHERION',  types:'Divine/Aura',
+    realm:'THE UNSHADOWED',  tint:'#ffe9a8', order:1,
+    line:'Light with nothing behind it. There is no shadow here because there is nothing here to stand in the way.' },
+  { id:'abominalys', lord:'ABOMINALYS', types:'Divine/Beast',
+    realm:'THE BREATHING GROUND', tint:'#a8e07a', order:2,
+    line:'The ground rises and falls under your boots. It is not weather and it is not an earthquake. It is breathing.' },
+  { id:'aethravax',  lord:'AETHRAVAX',  types:'Divine/Aura/Draconic',
+    realm:'THE OPEN STORM', tint:'#8fc9ff', order:3,
+    line:'Sky above and sky below, and weather falling through both. Nothing here has ever needed a floor.' },
+  { id:'alphaea',    lord:'ALPHAEA',    types:'Divine/Aura/Spirit',
+    realm:'THE SOUL-SHALLOWS', tint:'#d7b8ff', order:4,
+    line:'Xilnar\'s dead pass THROUGH here. They do not stop. You are the only thing standing still.' },
+  { id:'azyrath',    lord:'AZYRATH',    types:'Divine/Unknown/Spirit',
+    realm:'THE UNWRITTEN', tint:'#9aa4b8', order:5,
+    line:'Half-drawn things. The Void Seas are somewhere close and this is the shore of them.' },
+  { id:'abyssion',   lord:'ABYSSION',   types:'Divine/Unknown/Draconic',
+    realm:'THE DEEP WAR', tint:'#6b5a8f', order:6,
+    line:'This is where it happened. The First Ancient War did not leave ruins. It left a shape in the dark.' },
+];
+// ★ A RING AROUND THE SPAWN, not a scatter. The six are the only navigable
+//   landmarks on a hundred-tile plane of identical cloud — a player who wakes
+//   at the centre must be able to pick a direction and find one, and a random
+//   scatter would make that luck. Radius 22: far enough that reaching one is a
+//   decision, close enough that a low-level Rizer with a short clock can still
+//   see one from spawn.
+const DRACOLORD_ARCH_RADIUS = 22;
+// ★★★ THE RING IS AN INTENTION, NOT A COORDINATE. Dreamland's terrain is
+//   PROCEDURAL — dreamlandSolid() carves gaps in the cloud — so a position
+//   computed straight off cos/sin can land on open air. Two of the six did:
+//   one arch standing over a hole, and one with no ground to walk up to.
+//   ★ So the ideal angle is a starting point and the tile SNAPS outward to the
+//     nearest spot that can actually hold a door: the full three-tile span on
+//     solid cloud, AND clear ground directly below to stand on. A door you
+//     cannot reach is worse than no door, because it is visible.
+//   ★ Memoised · the terrain is deterministic, so this resolves once and every
+//     later call is a lookup. Placement must also be IDENTICAL across naps.
+const _archTileCache = {};
+function _archSpotOK(x, y){
+  if (x < 2 || y < 2 || x >= DREAMLAND_SIZE - 2 || y >= DREAMLAND_SIZE - 2) return false;
+  for (let dx = -1; dx <= 1; dx++) if (!dreamlandSolid(x + dx, y)) return false;
+  return dreamlandSolid(x, y + 1);      // ★ somewhere to stand and press X
+}
+function dracolordArchTile(i){
+  if (_archTileCache[i]) return _archTileCache[i];
+  const c = Math.floor(DREAMLAND_SIZE / 2);
+  const a = (-Math.PI / 2) + (i * Math.PI * 2 / DRACOLORD_DOMAINS.length);
+  const ix = Math.round(c + Math.cos(a) * DRACOLORD_ARCH_RADIUS);
+  const iy = Math.round(c + Math.sin(a) * DRACOLORD_ARCH_RADIUS);
+  let best = { x: ix, y: iy };
+  if (!_archSpotOK(ix, iy)){
+    // spiral outward from the ideal spot · first legal tile wins, so the arch
+    // stays as close to its bearing as the terrain allows
+    outer:
+    for (let r = 1; r <= 14; r++){
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++){
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        if (_archSpotOK(ix + dx, iy + dy)){ best = { x: ix + dx, y: iy + dy }; break outer; }
+      }
+    }
+  }
+  _archTileCache[i] = best;
+  return best;
+}
+function dracolordArchAt(x, y){
+  for (let i = 0; i < DRACOLORD_DOMAINS.length; i++){
+    const t = dracolordArchTile(i);
+    // the arch art is three tiles wide · the whole span is the door
+    if (y === t.y && Math.abs(x - t.x) <= 1) return DRACOLORD_DOMAINS[i];
+  }
+  return null;
+}
+function dracolordRealmScene(id){ return `dreamland_realm_${id}`; }
+function dracolordSeen(id){
+  player.dracolordSeen = player.dracolordSeen || {};
+  return !!player.dracolordSeen[id];
+}
+// ★★ THE THRESHOLD. Entering stops the clock; leaving restarts it with the
+//   time the player had LEFT, not a fresh allowance — an arch is shelter, not
+//   a refill, and a refill would make the plane's timer meaningless the moment
+//   you learned to step in and out.
+function enterDracolordRealm(dom){
+  if (!dom) return false;
+  player._dreamClockHeld = Math.max(0, (player._dreamEndsAt || 0) - performance.now());
+  player._dreamEndsAt = 0;                       // ★ the clock stops
+  // ★ store the TILE THE PLAYER IS ON, and step back onto exactly that. My
+  //   first version stored this and then added 1 on the way out, which put you
+  //   one tile further from the arch every single time you used it.
+  player._dreamRealmFrom = { x: player.x, y: player.y };
+  game.scene = dracolordRealmScene(dom.id);
+  try { playSFX('menuOpen'); } catch(_){}
+  showToast(`☁ ${dom.realm} · the clock does not follow you here`, 3200);
+  return true;
+}
+function leaveDracolordRealm(){
+  const back = player._dreamRealmFrom || { x: Math.floor(DREAMLAND_SIZE/2), y: Math.floor(DREAMLAND_SIZE/2) };
+  game.scene = DREAMLAND_SCENE;
+  player.x = back.x; player.y = back.y;          // ★ exactly where you stepped in
+  player.moving = false; player.moveCd = 0;
+  // ★ the clock resumes where it stopped
+  player._dreamEndsAt = performance.now() + (player._dreamClockHeld || 1000);
+  player._dreamClockHeld = 0;
+  try { snapCameraToPlayer(); } catch(_){}
+  return true;
+}
+
 // ★ SECONDS = LEVEL.  "level 10 = 10 seconds in dreamland, level 80 = 80
 // seconds."  Taken literally, which has a consequence worth stating plainly:
 // at level 1 you get ONE SECOND.  That is not a bug and it is not padded —
@@ -28810,6 +28976,9 @@ function wakeFromDreamland(reason){
 // expiry: the Creator asked for timed exploration, and inventing a payout
 // would be putting a number on screen that no design has decided yet.
 function tickDreamland(){
+  // ★★★ v0.96.37 · the clock only runs on the CLOUD PLANE. Inside a Dracolord's
+  //   domain _dreamEndsAt is 0, so this returns early and the timeout can never
+  //   fire — which is the ruling, enforced in the one place that could break it.
   if (game.scene !== DREAMLAND_SCENE) return;
   if (!player._dreamEndsAt) return;
   if (performance.now() >= player._dreamEndsAt) wakeFromDreamland('timeout');
@@ -34810,6 +34979,21 @@ function tryInteract(){
         }
         return;
       }
+      // ★★★ v0.96.37 · AN ARCHWAY · six doors onto the Expanse
+      if (game.scene === DREAMLAND_SCENE){
+        const _dom = dracolordArchAt(fx, fy);
+        if (_dom){
+          const _known = dracolordSeen(_dom.id);
+          showDialog({ speaker: _dom.realm, lines: [
+            _dom.line,
+            _known
+              ? `*${_dom.lord} is still at the far end of it, and still knows you*`
+              : '*something is at the far end of it and it has not looked up yet*',
+            '*the clock does not follow you past an arch*',
+          ], onDone: () => { try { enterDracolordRealm(_dom); } catch(err){ console.warn('[rp7b] realm entry failed', err); } } });
+          return;
+        }
+      }
       // v0.95.516 · Treehouse silver chest · X on the chest tile opens it
       // ★ v0.95.719 · TELESCOPE · the way into Dreamland
       if (game.scene === 'interior_treehouse'
@@ -36785,7 +36969,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.36' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.37' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

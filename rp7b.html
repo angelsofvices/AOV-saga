@@ -17027,6 +17027,115 @@ function isRizerS1(){ return rizerFormId() === 'normal'; }
 function isRizerS2(){ return rizerFormId() === 'power_upgrade'; }
 function isRizerS3(){ return rizerFormId() === 'luminary'; }
 function isRizerPowered(){ return isRizerS2() || isRizerS3(); }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.41 · HOLDING A FORM COSTS ◆ SPECIAL.
+//
+//   Creator: "I want s2 and s3 forms to burn stamina at a fixed cost. once it
+//   runs out, rizer goes back to s1." — then chose the BLUE meter over stamina.
+//
+// ★★ WHY NOT STAMINA, since that was the first instinct. ⚡ pays for SPRINT
+//   (18/s) and DODGE (20/roll) — the two things you need most while
+//   transformed. Draining it would make the power form slow and unevasive,
+//   which is backwards. And it regenerates at 22/s after only 600ms idle, so
+//   standing still would refill the form forever; making it a real cost would
+//   mean suppressing that regen, i.e. no sprint and no dodge at all in form.
+//
+// ★★★ AND THE OBVIOUS OBJECTION TO BLUE TURNED OUT NOT TO EXIST. Voltstorm
+//   needs a FULL ◆ bar, so a constant drain looks like it would lock the
+//   ultimate out — except Voltstorm is already S1-ONLY (voltstormGate refuses
+//   when isRizerPowered()). There is no collision. Checked, not assumed.
+//
+// ★★ ◆ IS EARNED BY FIGHTING — astralslam +15, astralthrow +20, every kill.
+//   So the form is FUELLED BY COMBAT: it sustains through a fight and lapses
+//   when the fight ends, with no timer anywhere. That is the whole design, and
+//   it is why this is a better pool than a bespoke one.
+//
+// ★ Routed through changePlayerDiamond() rather than assigning player.diamond,
+//   which buys three things for free: the clamp, the ZERO-transition beat, and
+//   — the good one — negative deltas are divided by rizerSpecialFactor(), so a
+//   Rizer who has invested in SPECIAL simply holds his forms longer. A whole
+//   progression hook with no new system.
+const FORM_DRAIN_PER_SEC = { power_upgrade: 3, luminary: 6 };   // S3 costs double
+const FORM_WARN_FRAC     = 0.20;    // flash the warning once, on the way down
+// ★★ v0.96.41 · YOU CANNOT TRANSFORM ON FUMES. Without this, pressing R3 at
+//   ◆ 0 puts you in the form and the very next frame throws you out of it —
+//   a transformation cinematic followed immediately by a collapse toast. The
+//   floor is a fifth of the bar, which at S3's rate is a bit over three
+//   seconds: short, but a form you actually got to use.
+const FORM_ENTRY_MIN_FRAC = 0.20;
+function canEnterRizerForm(id){
+  const rate = FORM_DRAIN_PER_SEC[id] || 0;
+  if (!rate) return true;                                    // S1 is always free
+  const max = player.diamondMax || 100;
+  return (player.diamond || 0) >= max * FORM_ENTRY_MIN_FRAC;
+}
+function refuseFormEntry(id){
+  try { playSFX('disabled'); } catch(_){}
+  try {
+    const nm = (PLAYER_SKINS[id] && PLAYER_SKINS[id].name || id).toUpperCase();
+    showToast(`◆ NOT ENOUGH ◆ SPECIAL TO HOLD ${nm}`, 2400);
+  } catch(_){}
+}
+function formDrainPerSec(){ return FORM_DRAIN_PER_SEC[rizerFormId()] || 0; }
+function tickFormDrain(dt){
+  if (!dt || dt <= 0 || dt > 500) return;      // ignore tab-restore jumps
+  if (!isRizerPowered()) { player._formWarned = false; return; }
+  // ★ a frozen world does not burn the form · menus, phone, pause, dialogue.
+  //   Same discipline the proximity loop uses: if the player cannot act, the
+  //   cost of acting should not be running.
+  if (typeof worldFrozen === 'function' && worldFrozen()) return;
+  if (dialogState || battleState || _sleepFade) return;
+  const rate = formDrainPerSec();
+  if (!rate) return;
+  changePlayerDiamond(-rate * dt / 1000);
+  const max = player.diamondMax || 100;
+  const frac = (player.diamond || 0) / Math.max(1, max);
+  if (frac <= FORM_WARN_FRAC && !player._formWarned){
+    player._formWarned = true;
+    try { playSFX('disabled'); } catch(_){}
+    try { showToast(`◆ ${PLAYER_SKINS[rizerFormId()].name.toUpperCase()} FADING · ◆ SPECIAL LOW`, 2200); } catch(_){}
+  }
+  if ((player.diamond || 0) <= 0) dropRizerForm();
+}
+// The fall. Announced, because being dumped back to S1 mid-fight must never be
+// something the player discovers by noticing his hair changed colour.
+function dropRizerForm(){
+  if (!isRizerPowered()) return false;
+  const was = PLAYER_SKINS[rizerFormId()].name;
+  player._formWarned = false;
+  setPlayerSkin('normal', false);        // no transition cinematic on a collapse
+  try { playSFX('cancel'); } catch(_){}
+  try { showToast(`◈ ${was.toUpperCase()} SPENT · back to base form`, 2600); } catch(_){}
+  return true;
+}
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.41 · A FORM CHANGE MUST DISARM A WEAPON THAT FORM CANNOT HOLD.
+//
+//   applyPlayerSkin has never touched the weapon flags. That was survivable
+//   while the only way out of S2 was a deliberate toggle — but an AUTOMATIC
+//   drop makes the broken state reachable BY ACCIDENT: you run out of ◆ mid
+//   swing and land in S1 still holding the Rubypaw, an S2-only blade that 16
+//   sites read. The same hole exists going up: entering S2 with the Sapphire
+//   Tearsword equipped leaves an S1 blade in the powered form's hands.
+//
+// ★ So it is fixed in BOTH directions and at the class level, not just for the
+//   Rubypaw that happened to expose it.
+function syncFormWeapons(){
+  if (typeof player === 'undefined' || !player) return false;
+  let cleared = null;
+  if (isRizerPowered()){
+    // S1's ring is not available to a powered form
+    for (const W of (typeof S1_WEAPON_RING !== 'undefined' ? S1_WEAPON_RING : [])){
+      if (player[W.equipFlag]){ player[W.equipFlag] = false; cleared = W.name; }
+    }
+  } else if (player.rubypawEquipped){
+    player.rubypawEquipped = false; cleared = 'RUBYPAW LONGSWORD';
+  }
+  if (cleared){
+    try { showToast(`◈ ${cleared} stowed · it is not for this form`, 2400); } catch(_){}
+  }
+  return !!cleared;
+}
 // ★★★ v0.96.40 · THE LEVEL 100 GATE.
 //
 // ★ NOT `RIZER_LEVEL_CAP`. That const is declared ~25,000 lines BELOW this
@@ -17117,6 +17226,11 @@ function applyPlayerSkin(id, announce = true){
   if (!PLAYER_SKINS[id]) id = 'normal';
   player.cosmeticSkin = id;
   player.animFrame = 0;
+  // ★★ v0.96.41 · the form decides what he can hold · both directions
+  try { syncFormWeapons(); } catch(_){}
+  // ★ a fresh transformation gets a fresh warning · otherwise the "fading" beat
+  //   fires once per save rather than once per form
+  player._formWarned = false;
   const rizerHud = document.getElementById('rizerHud');
   if (rizerHud){
     rizerHud.style.backgroundImage = `url('${rizerHudAsset(id)}')`;
@@ -17194,7 +17308,10 @@ function togglePlayerSkin(announce = true){
   const order = ['normal', 'power_upgrade'];
   if (player.luminaryUnlocked || game.devUnlockAll) order.push('luminary');
   const i = order.indexOf(rizerFormId());
-  setPlayerSkin(order[(i + 1) % order.length] || 'normal', announce);
+  const next = order[(i + 1) % order.length] || 'normal';
+  // ★ v0.96.41 · refuse rather than transform-and-instantly-collapse
+  if (!canEnterRizerForm(next)){ refuseFormEntry(next); return; }
+  setPlayerSkin(next, announce);
 }
 // ★★★ v0.96.40 · STRAIGHT INTO LUMINARY · Creator: "double click R3 or hold for
 //   3 seconds to enact S3 form." A direct entry as well as the cycle, because
@@ -17209,6 +17326,7 @@ function enterLuminaryForm(){
     return false;
   }
   if (rizerFormId() === 'luminary') return false;    // already there · not an error
+  if (!canEnterRizerForm('luminary')){ refuseFormEntry('luminary'); return false; }
   setPlayerSkin('luminary', true);
   return true;
 }
@@ -37754,7 +37872,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.40' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.41' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -58277,6 +58395,7 @@ function _frameBody(now){
   _step('tickStamina', () => tickStamina(dt));
   _step('tickDreamland', () => tickDreamland());
   _step('tickDracolordRealm', () => tickDracolordRealm());   // ★ v0.96.38
+  _step('tickFormDrain', () => tickFormDrain(dt));           // ★ v0.96.41
   _step('tickYaraRegen', () => tickYaraRegen(dt));
   _step('tickMeditation', () => tickMeditation(dt));
   _step('tickFieldStudy', () => tickFieldStudy());

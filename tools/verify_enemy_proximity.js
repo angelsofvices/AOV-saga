@@ -78,14 +78,30 @@ global.document = { getElementById: () => el(), querySelector: () => el(), query
   hidden: false, visibilityState: 'visible', hasFocus: () => true };
 global.window = global;
 global.localStorage = { getItem: () => null, setItem: noop, removeItem: noop };
+// ★ v0.96.38 · this shim used `addEventListener: noop` and `pause: noop`, so a
+//   node could never report that it had finished. That was invisible until
+//   v0.96.38 added the one-voice-per-placed-sound cap, which waits for exactly
+//   those signals — every play after the first was then correctly dropped as
+//   quieter, and the suite read it as a gain failure. A shim that swallows a
+//   lifecycle is the same blind spot as a canvas that swallows a draw.
+const NODES = [];
 global.Audio = function (srcPath) {
   const node = {
-    src: srcPath, volume: 1, currentTime: 0, _src: srcPath,
-    play(){ PLAYED.push({ src: this._src, volume: this.volume }); return Promise.resolve(); },
-    pause: noop, addEventListener: noop, removeEventListener: noop,
-    cloneNode(){ return Object.assign(Object.create(Object.getPrototypeOf(this)), this); },
+    src: srcPath, volume: 1, currentTime: 0, _src: srcPath, ended: false, _l: {},
+    play(){ PLAYED.push({ src: this._src, volume: this.volume }); NODES.push(this); return Promise.resolve(); },
+    pause(){ this.ended = true; },
+    addEventListener(e, f){ (this._l[e] = this._l[e] || []).push(f); },
+    removeEventListener: noop,
+    cloneNode(){ return global.Audio(this._src); },
   };
   return node;
+};
+// end every live node · frees the game's placed-voice slot between gain cases
+global.__endAll = () => {
+  for (const n of NODES.splice(0)){
+    n.ended = true;
+    try { (n._l.ended || []).forEach(f => f()); } catch(_){}
+  }
 };
 global.Image = function () { return { addEventListener: noop, complete: true, naturalWidth: 1254, src: '' }; };
 global.requestAnimationFrame = () => 1; global.cancelAnimationFrame = noop;
@@ -121,14 +137,42 @@ t(g(C.SFX_FAR_TILES) === 0 && g(C.SFX_FAR_TILES + 50) === 0,
   t(mono, '  · and monotonically decreasing the whole way · no louder-when-further band');
 }
 t(g(-12) === g(12), '  · symmetric · direction does not change loudness (volume only, no panner)');
-t(g(14) < 0.5 && g(6) > 0.5,
-  '★★ the curve is SQUARED, not linear · at 14 tiles a Mori is under half volume '
-  + `(${g(14).toFixed(2)}) while at 6 it is still present (${g(6).toFixed(2)}). Linear `
-  + 'falloff leaves everything mid-range equally loud, which is the exact complaint');
+// ★★★ v0.96.38 · RE-ANCHORED. This asserted `g(6) > 0.5`, which was a value
+//   read off the v0.96.2 curve rather than a property of it — and v0.96.38
+//   replaced that curve with an inverse distance (dB) law precisely BECAUSE it
+//   was too flat close in. The old assertion was therefore defending the bug:
+//   the Creator's report was "make skellor proximity sound", and 76% volume at
+//   six tiles is what he was hearing.
+//
+// ★ So the test now pins the PROPERTY the original was reaching for — the
+//   falloff is convex, i.e. everywhere steeper than a straight line from full
+//   to silent — which is true of both curves and cannot be re-tuned away.
+{
+  const lin = d => Math.max(0, 1 - (d - C.SFX_NEAR_TILES) / (C.SFX_FAR_TILES - C.SFX_NEAR_TILES));
+  let convex = true, flattest = 1;
+  for (let d = C.SFX_NEAR_TILES + 1; d < C.SFX_FAR_TILES; d += 0.25){
+    if (g(d) > lin(d) + 1e-9) convex = false;
+    flattest = Math.min(flattest, lin(d) - g(d));
+  }
+  t(convex, '★★ the falloff is CONVEX · quieter than linear at every distance in the band '
+    + `(6 tiles: ${(g(6)*100).toFixed(0)}% vs linear ${(lin(6)*100).toFixed(0)}%). `
+    + 'A linear ramp leaves everything mid-range equally loud, which was the complaint');
+  t(g(6) < 0.55, `★★★ and six tiles — already off-screen — is genuinely down (${(g(6)*100).toFixed(0)}%)`);
+}
 
 /* ── 4 · ★★ DRIVEN THROUGH THE REAL playSFX ─────────────────────────────── */
 const base = C.AUDIO.sfx.moriDeath.volume;
-const fire = (name, at) => { PLAYED.length = 0; C.playSFX(name, at); return PLAYED.slice(); };
+// ★ v0.96.38 · RELEASE THE PREVIOUS VOICE FIRST.
+//   v0.96.38 caps placed sounds at one live instance, loudest-wins. These cases
+//   measure GAIN, and they fire the same sound repeatedly — so without ending
+//   the prior node the "fourteen tiles" case was correctly DROPPED as quieter
+//   than the "next to you" case still playing, and read as a failure.
+//   The cap was right; the helper was leaving voices open. Concurrency itself
+//   is covered in tools/verify_sfx_proximity.js.
+const fire = (name, at) => {
+  global.__endAll();          // ★ release the previous voice · see the shim note
+  PLAYED.length = 0; C.playSFX(name, at); return PLAYED.slice();
+};
 
 {
   const near = fire('moriDeath', { tileX: 101, tileY: 100 });
@@ -163,10 +207,23 @@ const fire = (name, at) => { PLAYED.length = 0; C.playSFX(name, at); return PLAY
     '★★ UI and player sounds are UNCHANGED with no position · confirm, footsteps, '
     + "the player's own sword all emit AT the player, and attenuating them by "
     + 'distance-from-the-player would silence the whole game');
-  const far = fire('confirm', { x: 400, y: 400 });
-  t(far.length === 1,
-    '★ and a non-enemy sound is never dropped for distance · only ENEMY_VOX keys '
-    + 'take the early return, so the cull cannot swallow a UI cue by accident');
+  // ★★★ v0.96.38 · RE-ANCHORED, and this one is a real design change.
+  //   The cull used to be gated on `ENEMY_VOX.has(name)`, so this asserted that
+  //   a non-enemy sound survives at any distance. It is gated on `at` now,
+  //   because a set of names is a thing you have to REMEMBER to update and
+  //   every new positional sound was one more chance to leave inaudible clones
+  //   playing forever.
+  //
+  // ★ The worry the original assertion encoded — "the cull must not swallow a
+  //   UI cue" — is still fully protected, just by a stronger mechanism: a UI
+  //   cue never passes a position, and a call with no position has gain 1 and
+  //   cannot reach the cull at all. That is what is asserted now.
+  const uiFar = fire('confirm');
+  t(uiFar.length === 1,
+    '★★ a UI cue is NEVER culled · it passes no position, so it cannot be distant');
+  const placedFar = fire('confirm', { x: 400, y: 400 });
+  t(placedFar.length === 0,
+    '★★★ but ANY sound placed 400 tiles away is culled · the guard is `at`, not a name list');
 }
 
 /* ── 6 · ★★ a missed call site is LOUD, so make it complain ─────────────── */

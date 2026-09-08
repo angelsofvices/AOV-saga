@@ -2059,20 +2059,43 @@ setInterval(() => {
   const moriReady    = now >= _moriNearbyCd;
   const skellorReady = now >= _skellorNearbyCd;
   if (!moriReady && !skellorReady) return;
+  // ★★★ v0.96.38 · ONE GROAN, FROM THE NEAREST ONE.
+  //
+  //   Creator: "normalize the volume output of skellor and all other enemies.
+  //   they should not get louder if there are many. they should just play the
+  //   sound."
+  //
+  // ★ THIS LOOP WAS THE BUG, and it is worth naming exactly. `moriReady` and
+  //   `skellorReady` were computed ONCE, above the loop, and never re-read
+  //   inside it. Setting the cooldown therefore did not stop the current pass —
+  //   so every Mori within ten tiles played its own clone on the SAME tick.
+  //   Six Mori in a tower squad meant six overlapping groans, which is six
+  //   times the amplitude, and it is why a crowd was deafening while a single
+  //   enemy was fine. The cooldown looked like it was doing this job and never
+  //   was.
+  //
+  // ★★ Picking the NEAREST rather than the first found also matters: NPCS is
+  //   in spawn order, so "the first one in range" was an arbitrary creature
+  //   that might be nine tiles off while one stood at your shoulder. The sound
+  //   is a proximity tell; it should come from the thing that is actually near.
+  let bestMori = null, bestMoriD = Infinity;
+  let bestSkel = null, bestSkelD = Infinity;
   for (const n of NPCS){
     if (n.scene !== 'overworld') continue;
     const dx = Math.abs(n.tileX - player.x);
     const dy = Math.abs(n.tileY - player.y);
-    if (Math.max(dx, dy) > 10) continue;
+    const cheb = Math.max(dx, dy);
+    if (cheb > 10) continue;
+    const d = Math.hypot(dx, dy);
     const nm = (n.name || '').toLowerCase();
     if (moriReady && nm === 'mori'){
-      playSFX('moriNearby', n);
-      _moriNearbyCd = now + 15000;
+      if (d < bestMoriD){ bestMoriD = d; bestMori = n; }
     } else if (skellorReady && n.mode === 'skellor' && !n._skellorDead){
-      playSFX('skellor', n);
-      _skellorNearbyCd = now + 12000;
+      if (d < bestSkelD){ bestSkelD = d; bestSkel = n; }
     }
   }
+  if (bestMori){ playSFX('moriNearby', bestMori); _moriNearbyCd    = now + 15000; }
+  if (bestSkel){ playSFX('skellor',    bestSkel); _skellorNearbyCd = now + 12000; }
 }, 500);
 
 Object.values(AUDIO.bgm).forEach(a => {
@@ -2287,21 +2310,88 @@ const _UI_SFX = new Set([
 const SFX_NEAR_TILES = 3;    // inside this, full volume · "on top of you"
 const SFX_FAR_TILES  = 26;   // beyond this, silent · ~1.5 viewport widths
 const SFX_MIN_GAIN   = 0.03; // below this we do not play at all
-// 1 at the player's feet, 0 at the far edge, curved so the drop is steep close
-// in and gentle far out — linear falloff makes everything mid-range sound
-// equally present, which is the problem being fixed.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.38 · THE FALLOFF IS A dB LAW NOW, NOT A CURVE I LIKED THE SHAPE OF.
+//
+//   Creator: "make skellor proximity sound. all enemies sound should be a
+//   proximity dB proximity volume gain."
+//
+// ★ I checked the wiring before changing anything, and the wiring was fine:
+//   all 30 enemy-sound call sites already pass a position, skellor's proximity
+//   loop already hands it the NPC, and the gain already reaches all three
+//   branches of playSFX. Nothing was unhooked. THE CURVE WAS JUST TOO FLAT.
+//
+//   v0.96.2 used (1-t)^2 over a normalised 3..26 band, which sounds reasonable
+//   written down and is far too generous in the range that matters:
+//
+//        distance     OLD (1-t)^2      NEW inverse-square-root dB
+//         3 tiles         100%              100%     (  0 dB)
+//         6 tiles          76%               47%     ( -6 dB)
+//        12 tiles          37%               20%     (-14 dB)
+//        20 tiles           7%                6%     (-24 dB)
+//
+//   A Skellor SIX TILES AWAY — already off the edge of the viewport — was
+//   playing at three-quarters volume. That is why it did not read as proximity:
+//   it was not, for any distance a player actually experiences.
+//
+// ★★ THE INVERSE DISTANCE LAW is what real sound does: −6 dB per doubling of
+//   distance, i.e. gain = near/d. It is not a taste decision, which is the
+//   point — the old curve was taste, and taste is what got this wrong.
+//
+// ★ A pure inverse law never reaches zero, so a window term folds it to exactly
+//   0 at SFX_FAR_TILES. Without it the cull threshold becomes the real cutoff
+//   and the far edge pops instead of fading.
+function sfxGainToDb(g){ return g > 0 ? 20 * Math.log10(g) : -Infinity; }
 function sfxProximityGain(x, y){
   if (x == null || y == null) return 1;
   const d = Math.hypot(x - player.x, y - player.y);
-  if (d <= SFX_NEAR_TILES) return 1;
+  if (d <= SFX_NEAR_TILES) return 1;      // inside the near field · full sfx
   if (d >= SFX_FAR_TILES)  return 0;
-  const t = (d - SFX_NEAR_TILES) / (SFX_FAR_TILES - SFX_NEAR_TILES);
-  return (1 - t) * (1 - t);
+  const inv = SFX_NEAR_TILES / d;                       // −6 dB per doubling
+  const w   = 1 - (d / SFX_FAR_TILES) * (d / SFX_FAR_TILES);   // → 0 at the edge
+  return Math.max(0, Math.min(1, inv * w));
 }
 // Enemy sounds. ★ Named explicitly rather than pattern-matched: 'skellor' does
 // not start with 'mori', and a rule like /mori|enemy/ would have missed it and
 // silently left one enemy at full volume forever.
 const ENEMY_VOX = new Set(['moriPoke', 'moriGrunt', 'moriDeath', 'moriNearby', 'skellor']);
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.38 · PROXIMITY VOLUME ON ZYREX ATTACK SFX
+//
+//   Creator: "add proximity volume to all zyrex attack sfx. u only hear the
+//   attack sfx from your rizer by ONE FACTOR. distance to the attack
+//   coordinate. the closer, it sounds regular sfx. the further, the quieter."
+//
+// One factor, and it is a distance — which is exactly sfxProximityGain, so the
+// curve, the near/far bands and the cull threshold are all shared with the
+// enemy vox rather than being a second system that can drift from the first.
+//
+// ★★★ THE COORDINATE IS THE TARGET, NOT THE ATTACKER. "distance to the attack
+//   coordinate" — where the blow LANDS. For a summoned Zyrex those are one tile
+//   apart and it makes no audible difference; for anything ranged it is the
+//   whole point, and picking the attacker now would have to be un-picked later.
+//
+// ★★★ AND IT CANNOT BE DONE BY SOUND NAME. 'astralstrike' and 'astralKill' are
+//   ALSO Rizer's own A3 and the UFO beam — five call sites between them. A rule
+//   keyed on the name would have quietly attenuated the player's own attacks by
+//   his distance from himself. So the conversion is per CALL SITE, through a
+//   named wrapper, and the wrapper REFUSES to be useful without a position:
+//   a Zyrex attack with no coordinate is a missed call site, not a design
+//   choice, and it warns exactly like the enemy-vox path does.
+const ZYREX_ATTACK_SFX = new Set(['astralstrike', 'astralKill']);
+// ★ v0.96.38 · one live instance per PLACED sound · see the cap in playSFX
+const _placedVoiceLive = new Map();
+function playZyrexAttackSFX(name, at){
+  if (!at){
+    if (!playZyrexAttackSFX._warned) playZyrexAttackSFX._warned = new Set();
+    if (!playZyrexAttackSFX._warned.has(name)){
+      playZyrexAttackSFX._warned.add(name);
+      console.warn(`[rp7b] playZyrexAttackSFX('${name}') · no attack coordinate `
+                 + `· playing at full volume`);
+    }
+  }
+  return playSFX(name, at);
+}
 // Accepts an NPC ({tileX,tileY}), a plain point ({x,y}), or nothing.
 function _sfxGainFor(name, at){
   if (!at) {
@@ -2347,7 +2437,15 @@ function playSFX(name, at){
   // cheaper than playing silently, and with the district anchors keeping ~200
   // enemies alive that difference is real.
   const _gain = _sfxGainFor(name, at);
-  if (_gain < SFX_MIN_GAIN && ENEMY_VOX.has(name)) return;
+  // ★★ v0.96.38 · CULL ON THE POSITION, NOT ON A LIST OF NAMES.
+  //   This used to read `_gain < MIN && ENEMY_VOX.has(name)`, which meant every
+  //   new positional sound had to be remembered into a set or it would keep
+  //   cloning inaudible audio elements forever — and a set you have to remember
+  //   to update is a set that is already out of date. `at` is the only thing
+  //   that actually matters: a call with no position has gain 1 and can never
+  //   reach this branch, and a call WITH one is by definition placed in the
+  //   world and should stop being played once it is too far to hear.
+  if (at && _gain < SFX_MIN_GAIN) return;
   const _vol = s.volume * _gain;
   // Rizer VOX priority hierarchy · only one voice at a time
   const prio = RVOX_PRIORITY[name];
@@ -2384,6 +2482,51 @@ function playSFX(name, at){
     node.addEventListener('ended', () => {
       if (_sfxExclusiveLive.get(name) === node) _sfxExclusiveLive.delete(name);
       _liveSfxClones.delete(node);
+    });
+    return;
+  }
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ v0.96.38 · ONE VOICE PER POSITIONAL SOUND · LOUDEST WINS.
+  //
+  //   Creator: "they should not get louder if there are many. they should just
+  //   play the sound."
+  //
+  // ★ Amplitude ADDS. Six Mori groaning together is not one groan at six
+  //   times the presence, it is six times the sample summed into the same
+  //   output — which clips, and which is why a crowd was painful while a lone
+  //   enemy sounded right. Attenuating each one by distance does not help:
+  //   six half-volume groans are still three groans loud.
+  //
+  // ★★ SO THE CAP IS ON CONCURRENCY, NOT ON GAIN. At most one live instance of
+  //   a given placed sound. The crowd is still there, still audible, still
+  //   attenuated by distance — it just does not multiply.
+  //
+  // ★★★ LOUDEST WINS rather than first-wins. A Mori dying forty tiles away
+  //   must not lock out the one dying at your feet for the length of its clip;
+  //   that would be a worse artefact than the stacking, because it silences the
+  //   one sound that carries information. So a nearer (louder) instance CUTS a
+  //   quieter one, and a quieter one is dropped.
+  //
+  // ★ Gated on `at`, exactly like the distance cull. A bare call — Rizer's own
+  //   A3, a UI cue, anything emitted at the player — is not placed in the world
+  //   and is never capped, so this cannot swallow the player's own feedback.
+  if (at){
+    const live = _placedVoiceLive.get(name);
+    if (live && !live.node.ended){
+      if (live.gain >= _gain) return;               // quieter · drop it
+      try { live.node.pause(); live.node.currentTime = 0; } catch(_){}
+      _liveSfxClones.delete(live.node);
+      _placedVoiceLive.delete(name);
+    }
+    const node = s.cloneNode();
+    node.volume = _vol;
+    _placedVoiceLive.set(name, { node, gain: _gain });
+    _liveSfxClones.add(node);
+    node.play().catch(() => { _liveSfxClones.delete(node); _placedVoiceLive.delete(name); });
+    node.addEventListener('ended', () => {
+      _liveSfxClones.delete(node);
+      const cur = _placedVoiceLive.get(name);
+      if (cur && cur.node === node) _placedVoiceLive.delete(name);
     });
     return;
   }
@@ -27224,6 +27367,8 @@ function isFacingInteractable(fx, fy){
   }
   // ★ v0.96.37 · an archway is a door · X on it must not fire a jump
   if (game.scene === DREAMLAND_SCENE && dracolordArchAt(fx, fy)) return true;
+  // ★ v0.96.38 · and the gate home from inside one
+  if (currentDracolordRealm() && dracolordGateAt(fx, fy)) return true;
   if (seerChestAt(fx, fy)) return true;                       // ★ v0.95.966
   if (cfg.researchLab){
     if (fy === 2 && fx >= 9 && fx <= 11) return true;                       // Dad's workbench
@@ -28899,7 +29044,16 @@ function enterDracolordRealm(dom){
   //   first version stored this and then added 1 on the way out, which put you
   //   one tile further from the arch every single time you used it.
   player._dreamRealmFrom = { x: player.x, y: player.y };
+  const cfg = dracolordRealmConfig(dom.id);
   game.scene = dracolordRealmScene(dom.id);
+  // ★★★ v0.96.38 · AND PUT HIM SOMEWHERE. v0.96.37 switched the scene and left
+  //   the player on his DREAMLAND tile — around (28,28) on a 100-tile plane,
+  //   which in a 15x44 corridor is outside the map entirely. The scene existed,
+  //   the arch worked, and stepping through dropped you into nothing.
+  player.x = cfg.spawn.x; player.y = cfg.spawn.y; player.dir = cfg.spawn.dir;
+  player.moving = false; player.animFrame = 0; player.moveCd = 0;
+  player._realmAudience = false;                 // one audience per crossing
+  try { snapCameraToPlayer(); } catch(_){}
   try { playSFX('menuOpen'); } catch(_){}
   showToast(`☁ ${dom.realm} · the clock does not follow you here`, 3200);
   return true;
@@ -28908,12 +29062,279 @@ function leaveDracolordRealm(){
   const back = player._dreamRealmFrom || { x: Math.floor(DREAMLAND_SIZE/2), y: Math.floor(DREAMLAND_SIZE/2) };
   game.scene = DREAMLAND_SCENE;
   player.x = back.x; player.y = back.y;          // ★ exactly where you stepped in
-  player.moving = false; player.moveCd = 0;
+  player.dir = 'down';
+  player.moving = false; player.animFrame = 0; player.moveCd = 0;
+  player._realmAudience = false;
   // ★ the clock resumes where it stopped
   player._dreamEndsAt = performance.now() + (player._dreamClockHeld || 1000);
   player._dreamClockHeld = 0;
   try { snapCameraToPlayer(); } catch(_){}
+  try { playSFX('menuClose'); } catch(_){}
   return true;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.38 · THE INNER LEVELS · six corridors, six presences at the end.
+//
+//   Creator: "each dracolord will sit at the END of each inner level."
+//
+// ★★ SO IT IS A CORRIDOR, NOT A SECOND PLANE. Dreamland is a hundred-tile
+//   field you wander; an inner level is a walk with a destination, and "the
+//   end" has to be a place rather than a direction. A causeway gives that for
+//   free: you arrive at one end, the Dracolord is at the other, and the only
+//   question the level asks is whether you keep walking.
+//
+// ★★★ AND IT IS CONNECTED BY CONSTRUCTION. The arch ring had to spiral-search
+//   for legal ground because procedural cloud carves holes wherever it likes.
+//   I am not repeating that here: the causeway is SOLID within
+//   DRACOLORD_REALM_SPINE of the centre line at every single row, and the noise
+//   is only ever ADDED to that width. There is no seed, no domain and no row
+//   that can sever the path — a Dracolord you cannot walk up to is a feature
+//   that silently does not exist, and it would look exactly like one that does.
+// ══════════════════════════════════════════════════════════════════════════
+const DRACOLORD_REALM_W     = 15;
+const DRACOLORD_REALM_H     = 44;   // ~40 tiles of walk · long enough to be a journey
+const DRACOLORD_REALM_SPINE = 2;    // half-width that is ALWAYS solid · the guarantee
+const DRACOLORD_THRONE_Y    = 3;    // the far end · he sits here
+const DRACOLORD_ARRIVE_Y    = DRACOLORD_REALM_H - 4;   // where you step in
+const DRACOLORD_GATE_Y      = DRACOLORD_REALM_H - 3;   // the way back · behind you
+const DRACOLORD_REALM_CX    = (DRACOLORD_REALM_W - 1) / 2;
+// how close you must get before he acknowledges you
+const DRACOLORD_AUDIENCE_Y  = DRACOLORD_THRONE_Y + 5;
+
+function dracolordDomain(id){ return DRACOLORD_DOMAINS.find(d => d.id === id) || null; }
+
+// The causeway's half-width at a given row. Never below the spine.
+function _realmHalfWidth(dom, y){
+  const wob = _dlNoise(dom.order * 61.7, y, 6) * 2.6;
+  // ★ both ends open into a floor. You need somewhere to arrive that is not a
+  //   ledge, and he needs somewhere to sit that is wider than the path to it —
+  //   the widening IS how you know you have got there, since there is no map.
+  const endOpen = Math.max(0, 1 - Math.abs(y - DRACOLORD_THRONE_Y) / 6) * 3.4
+                + Math.max(0, 1 - Math.abs(y - DRACOLORD_ARRIVE_Y)  / 5) * 2.6;
+  return DRACOLORD_REALM_SPINE + 1.0 + wob + endOpen;
+}
+// Density on the SAME scale dreamlandDensity uses, so the floor's feather mask,
+// its bright/dense ramp and its underside shadow all work unchanged.
+function dracolordRealmDensity(dom, x, y){
+  if (y < 0 || y >= DRACOLORD_REALM_H) return -1;
+  const inside = _realmHalfWidth(dom, y) - Math.abs(x - DRACOLORD_REALM_CX);
+  return DREAMLAND_SOLID + inside * 0.10;   // 0.10/tile · ~0.6 tile of feather
+}
+function dracolordRealmSolid(dom, x, y){
+  if (x < 0 || y < 0 || x >= DRACOLORD_REALM_W || y >= DRACOLORD_REALM_H) return false;
+  return dracolordRealmDensity(dom, x, y) > DREAMLAND_SOLID;
+}
+// The gate home is three tiles wide like the arch that brought you, and solid,
+// so you stand in front of it and press X — the same grammar as the outside.
+function dracolordGateAt(x, y){
+  return (y === DRACOLORD_GATE_Y && Math.abs(x - DRACOLORD_REALM_CX) <= 1.5);
+}
+// His footprint. Solid: he is not scenery you walk through.
+const DRACOLORD_THRONE_HALF = 3;
+function dracolordBodyAt(x, y){
+  return (y === DRACOLORD_THRONE_Y && Math.abs(x - DRACOLORD_REALM_CX) <= DRACOLORD_THRONE_HALF);
+}
+
+const _realmCfgCache = {};
+function dracolordRealmConfig(id){
+  if (_realmCfgCache[id]) return _realmCfgCache[id];
+  const dom = dracolordDomain(id);
+  if (!dom) return null;
+  const cfg = {
+    cols: DRACOLORD_REALM_W, rows: DRACOLORD_REALM_H,
+    tileImg: new Image(),               // never used · cloudFloor draws instead
+    spawn: { x: Math.round(DRACOLORD_REALM_CX), y: DRACOLORD_ARRIVE_Y, dir: 'up' },
+    exit: null,                         // you leave through the gate, not off an edge
+    autoExit: false,
+    cloudFloor: true,
+    wallImg: null,
+    blocked: [],
+    // ★ the floor renderer reads these instead of the Dreamland globals, which
+    //   is the whole of the change needed to reuse a hundred lines of masking.
+    densityFn: (x, y) => dracolordRealmDensity(dom, x, y),
+    solidFn:   (x, y) => dracolordRealmSolid(dom, x, y),
+    realmTint: dom.tint,
+    realmDomain: dom,
+    isBlocked: (x, y) => !dracolordRealmSolid(dom, x, y)
+                      || dracolordGateAt(x, y) || dracolordBodyAt(x, y),
+    label: `☁ ${dom.realm} · ${dom.lord} is at the far end`,
+  };
+  _realmCfgCache[id] = cfg;
+  return cfg;
+}
+// The scene the player is standing in, if it is one of the six.
+function currentDracolordRealm(){
+  const s = game.scene;
+  if (typeof s !== 'string' || !s.startsWith('dreamland_realm_')) return null;
+  return dracolordDomain(s.slice('dreamland_realm_'.length));
+}
+// ★ ONE PREDICATE FOR "ARE WE ASLEEP". Every place that had to ask used to test
+//   `game.scene === DREAMLAND_SCENE`, and every one of them became wrong the
+//   moment a second dream scene existed — most dangerously the save loader,
+//   which wakes a reloaded dreamer and would have left a player who saved
+//   inside a realm on a corridor with no clock and no telescope to return to.
+function isDreamScene(s){
+  return s === DREAMLAND_SCENE
+      || (typeof s === 'string' && s.startsWith('dreamland_realm_'));
+}
+
+// ── THE AUDIENCE ──────────────────────────────────────────────────────
+// ★★★ RULING 2, ENFORCED IN CODE: there is no battle call anywhere in this
+//   function and there is not meant to be one. He is TIER 9 and Rizer's ceiling
+//   is TIER 8 — a fight would either be unwinnable (pointless) or winnable
+//   (canon-breaking), so the encounter is a LOOK.
+//
+// ★★ AND IT PAYS NOTHING. Not gold, not XP, not an item. tickDreamland has
+//   refused to invent a payout since v0.95.719 on the grounds that no design
+//   has decided one, and that reasoning applies here with more force, not less:
+//   the reward is the FLAG, and the flag is what the Ultimate Amp Form gate
+//   will read ([[aov-dreamland]]). Six of them. Putting a number on screen here
+//   would be me deciding the economy of a Demigod's regard by myself.
+function dracolordAudience(dom){
+  if (!dom || player._realmAudience) return;
+  player._realmAudience = true;
+  const first = !dracolordSeen(dom.id);
+  player.dracolordSeen = player.dracolordSeen || {};
+  player.dracolordSeen[dom.id] = true;
+  const held = DRACOLORD_DOMAINS.filter(d => player.dracolordSeen[d.id]).length;
+  try { playSFX(first ? 'levelup' : 'confirm'); } catch(_){}
+  const lines = first
+    ? [ `*${dom.lord} does not stand · standing is for things that might have to leave*`,
+        dom.line,
+        `*it looks at you the way you would look at weather · and then, briefly, the way you would look at a person*`,
+        `*${dom.types.toUpperCase()} · TIER 9 · you are Tier 8 at your ceiling and both of you know it*`,
+        `*it has seen you now · that is the whole of what happens here*` ]
+    : [ `*${dom.lord} is where it was*`,
+        `*it already knows you · being known twice is not worth more than being known once*` ];
+  showDialog({ speaker: dom.lord, lines, onDone: () => {
+    if (first){
+      showToast(`☁ ${dom.lord} has seen you · ${held}/${DRACOLORD_DOMAINS.length} recognitions`, 3600);
+      // ★ the sixth is a threshold in its own right · the Amp Form gate reads
+      //   this flag, so it is set HERE and consumed wherever that ships.
+      if (held >= DRACOLORD_DOMAINS.length && !player.dracolordAllSeen){
+        player.dracolordAllSeen = true;
+        setTimeout(() => { try {
+          showToast('☁ ALL SIX HAVE SEEN YOU · something in the dream has changed', 5200);
+        } catch(_){} }, 1200);
+      }
+      try { saveGame({ quiet: true }); } catch(_){}
+    }
+  } });
+}
+// Called each tick while inside a realm · fires once when you reach the end.
+function tickDracolordRealm(){
+  const dom = currentDracolordRealm();
+  if (!dom){ return; }
+  if (dialogState) return;
+  if (player._realmAudience) return;
+  if (player.y <= DRACOLORD_AUDIENCE_Y) dracolordAudience(dom);
+}
+
+// ── THE GATE HOME ─────────────────────────────────────────────────────
+// The same arch art that brought you, standing behind where you arrive. You
+// came through a door; you leave through a door. Nothing new to learn.
+function drawDracolordGate(){
+  const A = DREAM_DECOR_ART.find(D => D.id === 'arch');
+  if (!A || !A.img || !A.img.complete || !A.img.naturalWidth) return;
+  const drawH = A.hTiles * TILE;
+  const drawW = Math.round(drawH * (A.img.naturalWidth / A.img.naturalHeight));   // never stretched
+  const dx = Math.round(DRACOLORD_REALM_CX * TILE + (TILE - drawW) / 2) - _cam.x;
+  const dy = Math.round((DRACOLORD_GATE_Y + 1) * TILE - drawH) - _cam.y;
+  ctx.drawImage(A.img, dx, dy, drawW, drawH);
+}
+
+// ── THE PRESENCE ──────────────────────────────────────────────────────
+// ★★ DRAWN, NOT IMPORTED — the same call the telescope made at v0.95.719, and
+//   for the same reason: asset generation is the Creator's, so a feature that
+//   waits on a sheet is a feature that does not ship. Replace this body with a
+//   drawImage when the art exists; nothing else refers to how he looks.
+//
+// ★★★ AND IT IS DELIBERATELY A SILHOUETTE. I could have built a dragon out of
+//   ellipses and it would have looked like a dragon built out of ellipses.
+//   What the scene needs is SCALE and ATTENTION — something far too big, mostly
+//   inside the cloud, with two lit eyes that track you. A shape you cannot
+//   quite resolve reads as older and larger than any polygon count I can reach
+//   here, and it is honest about being a placeholder instead of a bad model.
+function drawDracolordPresence(dom){
+  if (!dom) return;
+  const t = performance.now() / 1000;
+  const breathe = Math.sin(t * 0.42) * 0.5 + 0.5;          // slow · it is not in a hurry
+  const cx = (DRACOLORD_REALM_CX + 0.5) * TILE - _cam.x;
+  const groundY = (DRACOLORD_THRONE_Y + 1) * TILE - _cam.y;
+  const H = TILE * (8.6 + breathe * 0.35);                  // ~9 tiles · twice a spire
+  const W = TILE * 9.2;
+  ctx.save();
+  // 1 · the aura it sits in · the domain colour, before the body, so the body
+  //     reads as a hole punched in its own light
+  const halo = ctx.createRadialGradient(cx, groundY - H * 0.52, TILE * 0.6,
+                                        cx, groundY - H * 0.52, W * 0.95);
+  halo.addColorStop(0,   _hexA(dom.tint, 0.40));
+  halo.addColorStop(0.5, _hexA(dom.tint, 0.15));
+  halo.addColorStop(1,   _hexA(dom.tint, 0));
+  ctx.fillStyle = halo;
+  ctx.fillRect(cx - W, groundY - H * 1.35, W * 2, H * 1.6);
+  // 2 · the mass · layered ellipses from the ground up, darkening as they rise
+  const body = [
+    { y: 0.10, rx: 0.50, ry: 0.13, a: 0.55 },   // what is on the floor
+    { y: 0.30, rx: 0.42, ry: 0.22, a: 0.72 },
+    { y: 0.55, rx: 0.31, ry: 0.24, a: 0.84 },   // the shoulders
+    { y: 0.78, rx: 0.17, ry: 0.16, a: 0.92 },   // the head
+  ];
+  for (const b of body){
+    ctx.fillStyle = `rgba(9,11,26,${b.a})`;
+    ctx.beginPath();
+    ctx.ellipse(cx, groundY - H * b.y, W * b.rx, H * b.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // 3 · what might be wings, or might be the dark behind it · never resolved
+  ctx.fillStyle = 'rgba(9,11,26,0.46)';
+  for (const s of [-1, 1]){
+    ctx.beginPath();
+    ctx.moveTo(cx + s * W * 0.10, groundY - H * 0.58);
+    ctx.quadraticCurveTo(cx + s * W * 0.72, groundY - H * (0.98 + breathe * 0.06),
+                         cx + s * W * 0.46, groundY - H * 0.16);
+    ctx.quadraticCurveTo(cx + s * W * 0.30, groundY - H * 0.40,
+                         cx + s * W * 0.10, groundY - H * 0.58);
+    ctx.fill();
+  }
+  // 4 · horns · the only hard edges on it
+  ctx.strokeStyle = 'rgba(9,11,26,0.92)';
+  ctx.lineWidth = Math.max(2, TILE * 0.09);
+  ctx.lineCap = 'round';
+  for (const s of [-1, 1]){
+    ctx.beginPath();
+    ctx.moveTo(cx + s * W * 0.09, groundY - H * 0.86);
+    ctx.quadraticCurveTo(cx + s * W * 0.20, groundY - H * 1.02,
+                         cx + s * W * 0.12, groundY - H * 1.10);
+    ctx.stroke();
+  }
+  // 5 · THE EYES. The whole encounter is a look, so this is the one part of him
+  //     that is lit — and they open only when he has noticed you.
+  const near = player.y <= DRACOLORD_AUDIENCE_Y + 3;
+  const open = near ? 1 : 0.34;
+  const eyeY = groundY - H * 0.80;
+  const blink = (Math.sin(t * 0.31) > 0.985) ? 0.15 : 1;   // rare · slow
+  for (const s of [-1, 1]){
+    const ex = cx + s * W * 0.062;
+    const g2 = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, TILE * 0.62);
+    g2.addColorStop(0, _hexA(dom.tint, 0.95 * open));
+    g2.addColorStop(1, _hexA(dom.tint, 0));
+    ctx.fillStyle = g2;
+    ctx.fillRect(ex - TILE * 0.7, eyeY - TILE * 0.7, TILE * 1.4, TILE * 1.4);
+    ctx.fillStyle = _hexA(dom.tint, 0.98 * open * blink);
+    ctx.beginPath();
+    ctx.ellipse(ex, eyeY, TILE * 0.15, TILE * 0.11 * blink, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+// '#rrggbb' + alpha → rgba(). Kept local and tiny; the tints are the only
+// hex the realms use and a general colour utility would be more than is needed.
+function _hexA(hex, a){
+  const h = String(hex || '#ffffff').replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 // ★ SECONDS = LEVEL.  "level 10 = 10 seconds in dreamland, level 80 = 80
@@ -29844,6 +30265,10 @@ function interiorConfig(scene){
   if (scene === 'interior_training_farm')return INTERIOR_TRAINING_FARM;
   if (scene === 'interior_treehouse')return INTERIOR_TREEHOUSE;
   if (scene === DREAMLAND_SCENE)       return INTERIOR_DREAMLAND;   // v0.95.719
+  // ★ v0.96.38 · the six inner levels · built on demand, cached per domain
+  if (typeof scene === 'string' && scene.startsWith('dreamland_realm_')){
+    return dracolordRealmConfig(scene.slice('dreamland_realm_'.length));
+  }
   if (scene === 'interior_malezor_school') return INTERIOR_MALEZOR_SCHOOL;   // v0.95.590
   if (scene === 'interior_seer_hq_1f')     return INTERIOR_SEER_HQ_1F;       // v0.95.615
   if (scene === 'interior_seer_hq_r2')     return INTERIOR_SEER_HQ_R2;      // ★ v0.95.946 the landing
@@ -33122,6 +33547,21 @@ function drawDreamlandFloor(cfg){
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   // ★★★ and the real sky over the top of it · the Creator's four-frame star field
   try { drawDreamCosmos(); } catch(err){ console.warn('[rp7b] dream cosmos', err); }
+  // ★ v0.96.38 · a domain wash over the cosmos. Low alpha on purpose: the tint
+  //   is how you know WHOSE realm you are in at a glance, and the star field is
+  //   still the Expanse underneath it. Drown it and every domain looks like a
+  //   colour filter instead of a place.
+  if (cfg.realmTint){
+    ctx.save();
+    ctx.globalAlpha = 0.17;
+    ctx.fillStyle = cfg.realmTint;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+  // ★ the floor's own terrain · Dreamland's globals by default, the domain's
+  //   causeway inside an arch. One indirection buys the whole masking pipeline.
+  const _dens  = cfg.densityFn || dreamlandDensity;
+  const _solid = cfg.solidFn   || dreamlandSolid;
 
   const startCol = Math.max(0, Math.floor(_cam.x / TILE) - 1);
   const endCol   = Math.min(C, Math.ceil((_cam.x + canvas.width)  / TILE) + 2);
@@ -33152,7 +33592,7 @@ function drawDreamlandFloor(cfg){
   const img2 = m2ctx.createImageData(cols, rows);
   for (let j = 0; j < rows; j++){
     for (let i = 0; i < cols; i++){
-      const d = dreamlandDensity(startCol + i, startRow + j);
+      const d = _dens(startCol + i, startRow + j);
       const a = Math.max(0, Math.min(1, (d - (DREAMLAND_SOLID - DREAMLAND_FEATHER)) / DREAMLAND_FEATHER));
       const o = (j * cols + i) * 4;
       img.data[o] = 255; img.data[o+1] = 255; img.data[o+2] = 255;
@@ -33201,6 +33641,21 @@ function drawDreamlandFloor(cfg){
   lctx.drawImage(_dlMask, -TILE / 2, -TILE / 2, LW + TILE, LH + TILE);
   lctx.globalCompositeOperation = 'source-over';
 
+  // ★ v0.96.38 · tint the CLOUD, not the screen · source-atop paints only where
+  //   the layer already has pixels, so the domain colour lands on the causeway
+  //   and never on the void beside it. A plain fillRect here would fill in the
+  //   holes you are supposed to be able to fall through.
+  if (cfg.realmTint){
+    lctx.save();
+    lctx.globalCompositeOperation = 'source-atop';
+    lctx.globalAlpha = 0.44;
+    lctx.fillStyle = cfg.realmTint;
+    lctx.fillRect(0, 0, LW, LH);
+    lctx.restore();
+    lctx.globalCompositeOperation = 'source-over';
+    lctx.globalAlpha = 1;
+  }
+
   ctx.drawImage(_dlLayer, startCol * TILE - _cam.x, startRow * TILE - _cam.y);
 
   // 4 · underside shadow wherever an island stops · sells thickness
@@ -33209,7 +33664,7 @@ function drawDreamlandFloor(cfg){
   ctx.fillStyle = 'rgba(28,38,92,0.34)';
   for (let ty = startRow; ty < endRow; ty++){
     for (let tx = startCol; tx < endCol; tx++){
-      if (!dreamlandSolid(tx, ty) || dreamlandSolid(tx, ty + 1)) continue;
+      if (!_solid(tx, ty) || _solid(tx, ty + 1)) continue;
       ctx.fillRect(tx * TILE, ty * TILE + TILE - 6, TILE, 6);
     }
   }
@@ -34991,6 +35446,23 @@ function tryInteract(){
               : '*something is at the far end of it and it has not looked up yet*',
             '*the clock does not follow you past an arch*',
           ], onDone: () => { try { enterDracolordRealm(_dom); } catch(err){ console.warn('[rp7b] realm entry failed', err); } } });
+          return;
+        }
+      }
+      // ★★★ v0.96.38 · X ON THE GATE · the way out of an inner level.
+      //   v0.96.37 shipped leaveDracolordRealm() and bound it to NOTHING, so
+      //   the only exit from a Dracolord's domain was a page reload. This is
+      //   that binding, and it is why the gate is solid: you stand in front of
+      //   it and press X, exactly like the arch that put you here.
+      {
+        const _rdom = currentDracolordRealm();
+        if (_rdom && dracolordGateAt(fx, fy)){
+          showDialog({ speaker: _rdom.realm, lines: [
+            player._realmAudience
+              ? `*${_rdom.lord} does not watch you go · it did that already*`
+              : '*the way back is open · whatever is at the far end has not looked up*',
+            '*step through and your own clock starts again where it stopped*',
+          ], onDone: () => { try { leaveDracolordRealm(); } catch(err){ console.warn('[rp7b] realm exit failed', err); } } });
           return;
         }
       }
@@ -36969,7 +37441,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.37' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.38' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44087,6 +44559,87 @@ function resetSkellorBreadcrumbs(){
   if (n) console.log(`[rp7b] cleared ${n} Skellor breadcrumb(s) on load`);
   return n;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.38 · THE BLACK SCREEN ON LOAD.
+//
+//   Creator: "game is loading to straight black screen after load game."
+//
+// ★ REPRODUCED, not guessed: load a save written before v0.96.36 and the
+//   restored position is (15,20) in a room that is now TEN TILES SQUARE.
+//   The player is outside his own house, the camera dutifully follows him to
+//   (264,714) — 234px below a 480px room — and the frame draws four images of
+//   nothing. Everything works. There is simply nothing where he is standing.
+//
+// ★★★ THE BUG IS NOT THE TREEHOUSE, IT IS THE ASSUMPTION.
+//   v0.96.36 shrank one room 30x30 -> 10x10 and thereby invalidated every save
+//   ever taken inside it — and nothing anywhere checked. The same silent break
+//   is armed for every interior in the file the next time one is resized,
+//   re-planned, or renamed, and it would present the same way: not a crash, not
+//   an error, just black. So the guard goes on the CLASS — "a restored position
+//   must exist in the room it claims to be in" — rather than on the room that
+//   happened to catch me. [[aov-freeze-lock-deadman]]: fix the class.
+//
+// ★ OUT OF BOUNDS and BLOCKED are treated differently ON PURPOSE. Out of bounds
+//   cannot ever be correct, so it warps to the spawn. Blocked might merely be a
+//   prop that moved, so it looks for the nearest free tile first and only falls
+//   back to the spawn — a player standing one tile inside a new bookshelf
+//   should be nudged out of it, not teleported across the room.
+//
+// ★ The overworld is deliberately NOT clamped here. It has never resized, its
+//   coordinates are signed (WORLD_MIN_COL is negative), and inventing bounds
+//   for it would risk teleporting a player who is exactly where he should be.
+function rescueRestoredPosition(){
+  const scene = game.scene;
+  if (scene === 'overworld') return false;
+  const cfg = interiorConfig(scene);
+  // A scene id this build no longer knows. Falling through would render an
+  // interior with no config, which is the same black screen by another road.
+  if (!cfg){
+    console.warn(`[rp7b] loaded save names an unknown scene "${scene}" · returning home`);
+    game.scene = 'interior_home';
+    const h = INTERIOR_HOME.spawn;
+    player.x = h.x; player.y = h.y; player.dir = h.dir;
+    player.moving = false; player.moveCd = 0;
+    try { showToast('◈ That room no longer exists · you woke up at home.', 3600); } catch(_){}
+    return true;
+  }
+  const sp = cfg.spawn || { x: 1, y: 1, dir: 'down' };
+  const inBounds = player.x >= 0 && player.y >= 0
+                && player.x < cfg.cols && player.y < cfg.rows;
+  const warp = (msg) => {
+    player.x = sp.x; player.y = sp.y; player.dir = sp.dir || player.dir;
+    player.moving = false; player.animFrame = 0; player.moveCd = 0;
+    try { snapCameraToPlayer(); } catch(_){}
+    console.warn('[rp7b] ' + msg);
+    return true;
+  };
+  if (!inBounds){
+    try { showToast('◈ This room changed shape since you saved · moved you to the door.', 3800); } catch(_){}
+    return warp(`restored position (${player.x},${player.y}) is outside ${scene} `
+              + `(${cfg.cols}x${cfg.rows}) · moved to spawn (${sp.x},${sp.y})`);
+  }
+  let blocked = false;
+  try { blocked = !!(cfg.isBlocked && cfg.isBlocked(player.x, player.y)); } catch(_){}
+  if (!blocked) return false;
+  // nearest free tile first · keep the player where he chose to stand
+  for (let r = 1; r <= 4; r++){
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++){
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      const nx = player.x + dx, ny = player.y + dy;
+      if (nx < 0 || ny < 0 || nx >= cfg.cols || ny >= cfg.rows) continue;
+      let bad = true; try { bad = !!(cfg.isBlocked && cfg.isBlocked(nx, ny)); } catch(_){}
+      if (bad) continue;
+      console.warn(`[rp7b] restored position (${player.x},${player.y}) in ${scene} is solid `
+                 + `· nudged to (${nx},${ny})`);
+      player.x = nx; player.y = ny;
+      player.moving = false; player.moveCd = 0;
+      try { snapCameraToPlayer(); } catch(_){}
+      return true;
+    }
+  }
+  return warp(`restored position (${player.x},${player.y}) in ${scene} is solid `
+            + `and walled in · moved to spawn`);
+}
 function loadGame(){
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -44220,15 +44773,29 @@ function loadGame(){
     //
     // Waking them is both the safe answer and the right one: you do not resume
     // a dream you were pulled out of.
-    if (game.scene === DREAMLAND_SCENE){
+    //
+    // ★★★ v0.96.38 · AND THE SAME IS TRUE ONE ARCH DEEPER. This test read
+    //   `=== DREAMLAND_SCENE` and became wrong the moment v0.96.37 added six
+    //   more dream scenes: a save taken inside a Dracolord's realm sailed
+    //   straight past it and came back on a corridor with no clock, no
+    //   telescope and no gate coordinates — stranded exactly the way this
+    //   block exists to prevent. isDreamScene() is now the one predicate.
+    if (isDreamScene(game.scene)){
       game.scene = 'interior_treehouse';
       player.x = TREEHOUSE_TELESCOPE.tileX;
       player.y = TREEHOUSE_TELESCOPE.tileY + 1;
       player.dir = 'up';
       player._dreamEndsAt = 0;
+      player._dreamClockHeld = 0;
       player._dreamReturn = null;
+      player._dreamRealmFrom = null;
+      player._realmAudience = false;
       try { showToast('☁ You woke from the dream when the world reloaded.', 2800); } catch(_){}
     }
+    // ★★★ v0.96.38 · LAST, and after every warp above has had its say: prove
+    //   the player is standing somewhere that exists. This is the guard that
+    //   would have caught the v0.96.36 treehouse shrink.
+    try { rescueRestoredPosition(); } catch(err){ console.warn('[rp7b] position rescue failed', err); }
     try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
     try { pruneZyrexContacts(); } catch(_){}         // v0.95.652 · Zyrex are not callable
     try { pruneLootBagContacts(); } catch(_){}      // v0.95.701 · corpses are not people
@@ -49959,7 +50526,9 @@ function tickAggressiveZyrex(n){
     // species has no attack art yet — a missing sheet is a missing ANIMATION,
     // never a missing attack (the damage above has already landed).
     strikeZyrexAnim(n, partyMember && partyMember.speciesId);
-    try { playSFX('astralstrike'); } catch(_){}
+    // ★ v0.96.38 · at the TARGET tile · a companion fighting across the field
+    //   is now quieter than one swinging beside you
+    try { playZyrexAttackSFX('astralstrike', best); } catch(_){}
     // v0.95.487 · MEDIUM ZXP per HIT landed by the Zyrex · scales w/ enemy tier + level
     if (partyMember){
       const hitXp = (best.level || 1) * (2 + (best.tier || 1) * 2);   // Mori L2 T1 = 8
@@ -49967,7 +50536,7 @@ function tickAggressiveZyrex(n){
       try { bumpRizerBond('zyrexStrike'); } catch(_){}   // ★ v0.95.862 · SMALL · fighting side by side
     }
     if (best.hp <= 0){
-      try { playSFX('astralKill'); } catch(_){}
+      try { playZyrexAttackSFX('astralKill', best); } catch(_){}
       startMoriDeath(best);
       // v0.95.649 · Zyrex-owned kill · Rizer still banks RXP at 1.00x
       creditRizerKill(best, 'zyrex');
@@ -57390,6 +57959,7 @@ function _frameBody(now){
   // try so a stamina fault can never take the whole render loop down.
   _step('tickStamina', () => tickStamina(dt));
   _step('tickDreamland', () => tickDreamland());
+  _step('tickDracolordRealm', () => tickDracolordRealm());   // ★ v0.96.38
   _step('tickYaraRegen', () => tickYaraRegen(dt));
   _step('tickMeditation', () => tickMeditation(dt));
   _step('tickFieldStudy', () => tickFieldStudy());
@@ -57568,6 +58138,17 @@ function _frameBody(now){
     if (game.scene === DREAMLAND_SCENE){
       for (const d of _dreamDecor) rends.push({ kind:'dreamDecor', decor:d, footY: d.y });
     }
+    // ★ v0.96.38 · inside an arch · the same depth sort, for the same reason.
+    //   He is nine tiles tall and stands at row 3, so walking up to him has to
+    //   put you IN FRONT of him — drawn as a flat layer he would either be
+    //   pasted over Rizer or hidden behind the floor.
+    {
+      const _rdom = currentDracolordRealm();
+      if (_rdom){
+        rends.push({ kind:'dracolord', dom:_rdom, footY: DRACOLORD_THRONE_Y });
+        rends.push({ kind:'realmGate',            footY: DRACOLORD_GATE_Y });
+      }
+    }
     rends.sort((a,b) => a.footY - b.footY);
     for (const r of rends){
       // v0.95.730 · the interior path had NO orb branch at all, so even once
@@ -57576,6 +58157,8 @@ function _frameBody(now){
       if (r.kind === 'npc' && r.npc && r.npc._orbFollower) drawZyrexOrb(r.npc);
       else if (r.kind === 'npc') drawNPC(r.npc);
       else if (r.kind === 'dreamDecor') drawDreamDecor(r.decor);
+      else if (r.kind === 'dracolord')  drawDracolordPresence(r.dom);
+      else if (r.kind === 'realmGate')  drawDracolordGate();
       else if (r.kind === 'treehouseChest') drawTreehouseChest();
       else if (r.kind === 'schoolDesk') drawSchoolDesk();
       else if (r.kind === 'seerHqChest') drawSeerHqChest();

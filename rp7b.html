@@ -16238,9 +16238,6 @@ function walkable(x, y, flying){
     // Freshwater is physical terrain, not Void Sea: actors stop at the bank,
     // receive no void-death effect, and may cross later through bridge logic.
     if (isVeridanRiverTile(x,y)) return false;
-    // ★ v0.96.44 · inland water is terrain too · a pond stops you at the bank,
-    //   and S3 flight crosses it for the same reason it crosses the sea.
-    if (isInlandWaterTile(x,y)) return false;
   }
   if (_propBlocked.has(`${x},${y}`)) return false;
   if(_factionSoulSwitch&&player.activeActor!=='rizer'
@@ -17174,7 +17171,6 @@ function _terrainImpassable(x, y){
     if (!isWorldLandTile(x, y)) return true;
     if (isWorldBorderTile(x, y)) return true;
     if (isVeridanRiverTile(x, y)) return true;
-    if (isInlandWaterTile(x, y)) return true;   // ★ v0.96.44 · fly over lakes too
   } catch(_){}
   return false;
 }
@@ -17512,177 +17508,6 @@ const OCEAN_FLOW = new Image();
 OCEAN_FLOW.src = 'assets/2D%20sprites/tiles/ocean-flow-4x4.png';
 const VOID_OCEAN_FLOW = new Image();
 VOID_OCEAN_FLOW.src = 'assets/2D%20sprites/tiles/void-sea/void-ocean-flow-4x4.png';
-// ══════════════════════════════════════════════════════════════════════════
-// ★★★ v0.96.44 · THE HYDROPLANE · real water between the land and the Void.
-//
-//   Creator: "4 new types of water assets · I want to build more water spots
-//   around map · we also have to think of the best way to place them · I want
-//   there to be a way to blend the void sea into the hydroplane using the blue
-//   sea asset. up to a point, sea sail is stopped. due to the hydroplane
-//   turning into the void sea."
-//
-// ★★ BEFORE THIS, EVERYTHING OFF-LAND WAS VOID. drawOceanUnderlayer paints the
-//   Void Sea as a full-screen underlayer, and the only blue water in the entire
-//   game was the Veridan river. There was no ocean — you stepped off the grass
-//   and you were over the abyss.
-//
-// ★★★ THE BLEND IS A DISTANCE FIELD, which is what makes the sail limit a
-//   VISIBLE FACT rather than an invisible wall. Blue hugs the coast for
-//   SEA_SAIL_TILES, then fades to nothing over SEA_FADE_TILES. You can SEE the
-//   sea failing ahead of you and turn back before anything stops you — the
-//   boundary announces itself, which no hard limit can do.
-//
-// ★ The four tiles are the Creator's own names, and they resolve their own
-//   roles: SEA is the open water, POND and LAKE are inland, RIVER flows.
-//   All four measured seamless (edge-wrap delta well under the interior
-//   reference) and 512x512.
-const WATER_IMG = { sea:new Image(), pond:new Image(), lake:new Image(), river:new Image() };
-WATER_IMG.sea.src   = 'assets/2D%20sprites/tiles/water/sea.png';
-WATER_IMG.pond.src  = 'assets/2D%20sprites/tiles/water/pond.png';
-WATER_IMG.lake.src  = 'assets/2D%20sprites/tiles/water/lake.png';
-WATER_IMG.river.src = 'assets/2D%20sprites/tiles/water/river.png';
-// 8 game tiles per source repeat · 512/8 = 64px of source per tile, an exact
-// integer, so the pattern lands on tile boundaries and cannot shimmer.
-const WATER_TILES_PER_REPEAT = 8;
-const SEA_SAIL_TILES = 12;   // ★ blue reaches this far from any shore
-const SEA_FADE_TILES = 4;    // ★ then dissolves into the Void across this many
-const SEA_MAX_TILES  = SEA_SAIL_TILES + SEA_FADE_TILES;
-
-// ★★★ DISTANCE TO THE NEAREST LAND · a multi-source BFS, computed ONCE.
-//
-// ★ CAPPED AT SEA_MAX_TILES, and that cap is the whole reason this is cheap.
-//   The map is ~1100x800; flooding all of it would be ~880,000 tiles of work.
-//   Nothing past 16 tiles from land is ever drawn differently, so the flood
-//   stops there and only ever touches the thin shell around the coastline.
-//
-// ★ LAZY, like _wbCache — and `var`, like _wbCache, for the same reason: a
-//   `const` here is temporal-dead-zoned for anything that runs earlier in the
-//   file, which is the trap that has killed this boot twice already.
-var _seaDist = null;
-function ensureSeaDistance(){
-  if (_seaDist) return _seaDist;
-  const W = _WD_W, H = _WD_H;
-  const d = new Uint8Array(W * H).fill(255);      // 255 = beyond the cap
-  let frontier = [];
-  for (let y = 0; y < H; y++){
-    for (let x = 0; x < W; x++){
-      if (isWorldLandTile(x + WORLD_MIN_COL, y + WORLD_MIN_ROW)){
-        d[y * W + x] = 0; frontier.push(y * W + x);
-      }
-    }
-  }
-  for (let step = 1; step <= SEA_MAX_TILES && frontier.length; step++){
-    const next = [];
-    for (const k of frontier){
-      const x = k % W, y = (k / W) | 0;
-      if (x > 0     && d[k-1] === 255){ d[k-1] = step; next.push(k-1); }
-      if (x < W - 1 && d[k+1] === 255){ d[k+1] = step; next.push(k+1); }
-      if (y > 0     && d[k-W] === 255){ d[k-W] = step; next.push(k-W); }
-      if (y < H - 1 && d[k+W] === 255){ d[k+W] = step; next.push(k+W); }
-    }
-    frontier = next;
-  }
-  _seaDist = d;
-  return d;
-}
-function seaDistance(x, y){
-  if (x < WORLD_MIN_COL || y < WORLD_MIN_ROW || x >= MAP_COLS || y >= MAP_ROWS) return 255;
-  const d = ensureSeaDistance();
-  return d[(y - WORLD_MIN_ROW) * _WD_W + (x - WORLD_MIN_COL)];
-}
-// ★★ THE SAIL LIMIT, as one predicate. Nothing sails yet — no boat, raft or
-//   swim code exists — so this is the rule waiting for the system that will
-//   honour it, and it is deliberately the SAME number the art fades at. A
-//   limit you cannot see is a wall; a limit that matches the water is a coast.
-function canSailAt(x, y){
-  if (isWorldLandTile(x, y)) return false;
-  return seaDistance(x, y) <= SEA_SAIL_TILES;
-}
-// ══════════════════════════════════════════════════════════════════════════
-// ★★★ v0.96.44 · INLAND WATER · authored nodes, validated at build.
-//
-// ★ THE MODEL IS THE RIVER'S, GENERALISED. VERIDAN_RIVER_PATH is already a list
-//   of {x,y,r} circles rasterised into a tile Set — the right shape for this,
-//   and hand-listing tiles is the wrong one. So a body is a TYPE plus a spine
-//   of nodes, and one rasteriser turns every body into tiles.
-//
-// ★★★ AND THE COORDINATES WERE FOUND, NOT GUESSED. Each centre below is the
-//   largest genuinely clear disc in its district, located by flooding the map
-//   for tiles that are land, not border, not a prop footprint, not an NPC and
-//   not already river. Radii are pulled IN from the measured maximum so every
-//   body keeps a shoreline of open ground — a lake whose edge touches a wall is
-//   a lake nobody can walk around.
-//
-// ★★ The validator below then re-checks every rasterised tile at boot and
-//   REFUSES any that has since been claimed, reporting what it dropped. This
-//   file has already paid for the alternative once: v0.95.672 put 84 trees in
-//   the water because freshwater reads as land and nothing checked.
-const WATER_BODIES = [
-  { id:'malezor_lake',   type:'lake',  district:'malezor',   nodes:[{x:-19, y:182, r:7}] },
-  { id:'zarvane_lake',   type:'lake',  district:'zarvane',   nodes:[{x:183, y:278, r:7}] },
-  { id:'andrannor_pond', type:'pond',  district:'andrannor', nodes:[{x:401, y:338, r:7}] },
-  { id:'veridan_pond',   type:'pond',  district:'veridan',   nodes:[{x:550, y:273, r:5}] },
-  { id:'netharion_pond', type:'pond',  district:'netharion', nodes:[{x:501, y:421, r:4}] },
-  { id:'vorashil_pond',  type:'pond',  district:'vorashil',  nodes:[{x:336, y:563, r:3}] },
-  { id:'xilnar_lake',    type:'lake',  district:'xilnar',    nodes:[{x:334, y:646, r:6}] },
-  { id:'baelgor_lake',   type:'lake',  district:'baelgor',   nodes:[{x:625, y:640, r:6}] },
-  { id:'thardin_pond',   type:'pond',  district:'thardin',   nodes:[{x:737, y:590, r:5}] },
-  { id:'korathen_lake',  type:'lake',  district:'korathen',  nodes:[{x:917, y:683, r:7}] },
-];
-// ★★★ INTEGER KEYS, NOT STRINGS — because isInlandWaterTile is called from
-//   walkable(), and walkable() is called up to 700 TIMES for a single NPC
-//   pathfind. A 'x,y' template would allocate seven hundred short-lived strings
-//   per step, which is precisely the GC churn worldDistrictAt's own comment
-//   warns about ("integer key · no string building, no Map, no GC churn on the
-//   hot path"). Same encoding it uses, so negative world coordinates are fine.
-const _waterTiles = new Map();      // int key -> type
-var _waterBuilt = false;
-function _waterKey(x, y){
-  if (x < WORLD_MIN_COL || y < WORLD_MIN_ROW || x >= MAP_COLS || y >= MAP_ROWS) return -1;
-  return (y - WORLD_MIN_ROW) * _WD_W + (x - WORLD_MIN_COL);
-}
-function buildWaterBodies(){
-  if (_waterBuilt) return _waterTiles.size;
-  _waterBuilt = true;
-  let refused = 0; const dropped = [];
-  for (const B of WATER_BODIES){
-    for (const n of B.nodes){
-      const r = Math.max(1, n.r | 0);
-      for (let dy = -r; dy <= r; dy++){
-        for (let dx = -r; dx <= r; dx++){
-          if (dx*dx + dy*dy > r*r) continue;
-          const x = n.x + dx, y = n.y + dy, k = _waterKey(x, y);
-          // ★ THE VALIDATOR. Water may only replace open ground: never a prop
-          //   footprint, never the world border, never off-land, and never a
-          //   tile another body already owns.
-          if (k < 0 || !isWorldLandTile(x, y) || isWorldBorderTile(x, y)
-              || _propBlocked.has(x + ',' + y) || _waterTiles.has(k)){
-            refused++; if (dropped.length < 6) dropped.push(`${B.id}@${k}`);
-            continue;
-          }
-          _waterTiles.set(k, B.type);
-        }
-      }
-    }
-  }
-  console.log(`[rp7b] water bodies · ${WATER_BODIES.length} placed · ${_waterTiles.size} tiles`
-            + (refused ? ` · ${refused} refused (${dropped.join(', ')}${refused>6?'…':''})` : ' · none refused'));
-  return _waterTiles.size;
-}
-function waterTypeAt(x, y){
-  if (!_waterBuilt) buildWaterBodies();
-  if (!_waterTiles.size) return null;          // ★ nothing to look up · leave early
-  const k = _waterKey(x, y);
-  return k < 0 ? null : (_waterTiles.get(k) || null);
-}
-function isInlandWaterTile(x, y){ return waterTypeAt(x, y) !== null; }
-function seaAlphaAt(x, y){
-  const d = seaDistance(x, y);
-  if (d === 0 || d === 255) return 0;              // land, or far out in the Void
-  if (d <= SEA_SAIL_TILES) return 1;
-  const t = (d - SEA_SAIL_TILES) / SEA_FADE_TILES; // 0..1 across the fade band
-  return Math.max(0, 1 - t);
-}
 
 // ── VERIDAN FRESHWATER RIVER ────────────────────────────────────────────
 // A pure spring-fed river in northeast Veridan. It deliberately uses the
@@ -33976,83 +33801,6 @@ function spawnWildMori(tileX, tileY, dist, opts){
   NPCS.push(clone);
   return clone;
 }
-// ══════════════════════════════════════════════════════════════════════════
-// ★★★ v0.96.44 · THE WATER DRAW · one routine, both jobs.
-//
-// ★ Source sampling is anchored in WORLD space (x mod 8, y mod 8), never in
-//   screen space, so the surface cannot swim as the camera moves — the same
-//   discipline the Dreamland cloud plate needed.
-// ★ 512 / 8 tiles = exactly 64px of source per game tile. An integer, on
-//   purpose: a fractional step drifts sub-pixel per tile and puts a shimmering
-//   seam through open water.
-// ★ The tiles are STILL images, so the motion is a slow world-space drift of
-//   the sample point rather than an atlas. Costs nothing and reads as current.
-const WATER_DRIFT_PXPS = 5;      // source pixels per second
-function _drawWaterTiles(img, pick, alphaFor){
-  if (!img || !img.complete || !img.naturalWidth) return;
-  const cell = img.naturalWidth / WATER_TILES_PER_REPEAT;
-  const drift = (performance.now() / 1000) * WATER_DRIFT_PXPS;
-  const startCol = Math.floor(_cam.x / TILE) - 1;
-  const endCol   = Math.ceil((_cam.x + canvas.width) / TILE) + 1;
-  const startRow = Math.floor(_cam.y / TILE) - 1;
-  const endRow   = Math.ceil((_cam.y + canvas.height) / TILE) + 1;
-  const prev = ctx.globalAlpha;
-  for (let y = startRow; y < endRow; y++){
-    for (let x = startCol; x < endCol; x++){
-      if (!pick(x, y)) continue;
-      const a = alphaFor ? alphaFor(x, y) : 1;
-      if (a <= 0.01) continue;
-      // world-anchored sample, wrapped, plus the drift
-      let sx = (((x % WATER_TILES_PER_REPEAT) + WATER_TILES_PER_REPEAT) % WATER_TILES_PER_REPEAT) * cell + drift;
-      let sy = (((y % WATER_TILES_PER_REPEAT) + WATER_TILES_PER_REPEAT) % WATER_TILES_PER_REPEAT) * cell + drift * 0.6;
-      sx %= img.naturalWidth; sy %= img.naturalHeight;
-      const sw = Math.min(cell, img.naturalWidth - sx);
-      const sh = Math.min(cell, img.naturalHeight - sy);
-      ctx.globalAlpha = a;
-      // +0.5 on the destination closes the hairline gap between adjacent tiles
-      ctx.drawImage(img, sx, sy, sw, sh,
-                    x * TILE - _cam.x, y * TILE - _cam.y, TILE + 0.5, TILE + 0.5);
-    }
-  }
-  ctx.globalAlpha = prev;
-}
-// The ocean shelf · drawn OVER the Void underlayer, so the fade band literally
-// dissolves the sea and reveals the Void beneath it. That is the blend.
-// ★★★ v0.96.44 · NEVER BUILD THE FIELD ON A FRAME.
-//   Measured: the flood costs ~1.3s, and almost all of it is the seed pass —
-//   880,000 isWorldLandTile calls, each of which can run the irregular-district
-//   test (the same trig that made walkable() cost "up to 180 Math.sin"). It is
-//   memoised, so it is a ONE-TIME cost the game would pay anyway as the player
-//   explores; paying it in a single frame is what makes it a 1.3-SECOND FREEZE.
-//   So the draw REFUSES to trigger it and simply renders no sea until it is
-//   ready. The build is kicked off a timer at boot instead, which puts it under
-//   the title screen where nobody is looking.
-function drawHydroplane(){
-  if (game.scene !== 'overworld') return;
-  if (!_seaDist) return;                 // not ready · Void shows through, no hitch
-  _drawWaterTiles(WATER_IMG.sea,
-    (x, y) => !isWorldLandTile(x, y),
-    (x, y) => seaAlphaAt(x, y));
-}
-// Kicked once, off the frame loop. Wrapped because a fault here must cost the
-// sea and nothing else.
-setTimeout(() => {
-  try {
-    const t0 = performance.now();
-    ensureSeaDistance();
-    console.log(`[rp7b] hydroplane · sea distance field built in `
-              + `${Math.round(performance.now() - t0)}ms (cap ${SEA_MAX_TILES} tiles)`);
-  } catch(err){ console.warn('[rp7b] sea distance field failed', err); }
-}, 1200);
-// Inland bodies · drawn after the grass, so they cut into the land.
-function drawInlandWater(){
-  if (game.scene !== 'overworld') return;
-  if (!_waterBuilt) buildWaterBodies();
-  if (!_waterTiles.size) return;
-  for (const t of ['pond', 'lake', 'river']){
-    _drawWaterTiles(WATER_IMG[t], (x, y) => waterTypeAt(x, y) === t, null);
-  }
-}
 // Kept as a thin wrapper so the grass path reads the same as it always has.
 function spawnGrassMori(tileX, tileY){
   const dist = (typeof worldDistrictAt === 'function') ? worldDistrictAt(tileX, tileY) : null;
@@ -38293,7 +38041,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.44' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.43' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -59067,11 +58815,7 @@ function _frameBody(now){
     //   the single most likely place for a multi-second synchronous block, and
     //   it was the only major call in the frame with no instrumentation at all.
     _step('drawOceanUnderlayer', drawOceanUnderlayer);
-    // ★ v0.96.44 · the sea sits ON the Void, so its fade band reveals the Void
-    //   underneath rather than being composited against nothing.
-    _step('drawHydroplane', drawHydroplane);
     _step('drawGrass', drawGrass);
-    _step('drawInlandWater', drawInlandWater);   // ★ v0.96.44 · after grass · cuts into land
     _step('drawVeridanFreshwaterRiver', drawVeridanFreshwaterRiver);
     _step('drawDistrictWorldBorders', drawDistrictWorldBorders);
     _step('drawFootprints', drawFootprints);   // v0.87 · sand-trail overlay (Zarvane rows only)

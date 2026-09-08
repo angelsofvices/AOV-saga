@@ -3455,6 +3455,9 @@ const INVENTORY_META = {
   // Malezor.  Percent scales with tier forever.  Orders 32.5/33/33.5 sit them
   // literally adjacent to ale (32) in the bag, exactly as ordered.
   fresh_water:      { label: 'Fresh Water',            order: 32.5 },  // Zyrex 25% HP
+  // ★★ v0.96.30 · THE HARVEST SINK · bond feed. See HARVEST_RECIPES.
+  wild_treat:       { label: 'Wild Treat',             order: 33.7 },  // +5 bond to one Zyrex · caps at 60
+  sweet_cache:      { label: 'Sweet Cache',            order: 33.8 },  // +15 bond to one Zyrex · caps at 60
   berry_juice:      { label: 'Berry Juice',            order: 33   },  // Zyrex 50% HP
   fruit_bar:        { label: 'Fruit Bar',              order: 33.5 },  // Zyrex 100% HP
   zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
@@ -3579,6 +3582,7 @@ const ZYCUBE_CAT_OF = Object.freeze({
   evolution_catalyst:'relic', rare_item:'relic',
 
   berry:'harvest', fruit:'harvest', seed:'harvest', fae:'harvest', fairy:'harvest',
+  wild_treat:'harvest', sweet_cache:'harvest',            // ★ v0.96.30 · made FROM the harvest
 
   scrap_metal:'mat', life_stone:'mat', tower_battery:'mat', portal_chip:'mat',
   field_station:'gear',                                   // ★ v0.96.12
@@ -21459,6 +21463,13 @@ function fieldStationUse(prop){
   // ★ swap to the crafting pose while the panel is open · the art has a frame
   //   for exactly this and it costs one assignment to use it
   _fsApplyFrame(prop, 'crafting');
+  // ★ v0.96.30 · a save that already knew the bench never heard Noot say this,
+  //   so the bench itself back-fills. Idempotent — grantHarvestRecipes skips
+  //   anything already known.
+  try {
+    const n = grantHarvestRecipes();
+    if (n) showToast(`★ ${n} HARVEST RECIPES unlocked at the bench`, 3600);
+  } catch(_){}
   try { openExperimentPanel(); } catch(err){ console.warn('[rp7b] field bench panel failed', err); }
 }
 // SQUARE · fold it back into the case
@@ -25395,6 +25406,107 @@ if (!player.knownRecipes.find(r => r.id === 'verdant_elixir')){
   });
 }
 // ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.30 · THE HARVEST SINK.
+//
+//   Creator: "we collect berries and fruits and seeds easily so lets create
+//   something worth alot of them in harvest value to give us common but good
+//   items"
+//
+// ★★★ HE IS RIGHT AND THE NUMBERS SAY SO. Before this the ENTIRE game had one
+//   harvest sink: Kelthor's step 2, a ONE-TIME 5 berries + 5 seeds. Plus the
+//   Mythic Elixir recipe. Bushes give 1-3 berries and trees 2-6 fruits every
+//   time you pass one, forever, in ten districts — so the bag fills and nothing
+//   ever draws it down. A resource with no sink is not an economy, it is a
+//   counter.
+//
+// ★★ NO NEW MACHINERY. `player.knownRecipes` already supports multi-path costs
+//   (the Elixir takes 30 berries OR 15 fruits OR 250 seeds) and the craft
+//   handler already spends whichever path you click. And berry_juice/fruit_bar
+//   were ALREADY fully wired as Zyrex heals — 50% and 100% — they simply had no
+//   recipe and could only be bought at 140 and 320 coins. So the field kit is
+//   pure data: the items exist and work, they just had no way to be made.
+//
+// ★★★ THE BOND CAP IS THE WHOLE DESIGN. Companionship is `bond >= 100`
+//   (canCompanion), and the Trial gates above 80. A treat you can farm from
+//   bushes must NEVER reach either, or every recruitment in the game becomes a
+//   walk through a hedge. So treats stop at 60 — which is exactly where
+//   `astral_hymn`, the strongest guitar song, unlocks. Foraging carries a
+//   creature to 60; the last forty are earned the way they always were: fighting
+//   beside it, the Sanctuary, the bond ledger. [[aov-bond-tier-gate]]
+//
+// ★ PRICED AGAINST THE SHOP, not invented. Berry Juice sells for 140 coins and
+//   Fruit Bar for 320 — a bit over 2x — so the harvest costs hold the same
+//   ratio. Yields are 1-3 berries a bush and 2-6 fruits a tree, so a Fruit Bar
+//   is roughly a dozen trees: a walk, not an afternoon.
+const TREAT_BOND_CAP = 60;          // ★ below the Trial (80) and companionship (100)
+const HARVEST_RECIPES = [
+  { id: 'berry_juice_h', name: 'Berry Juice',
+    effect: 'Restores 50% HP to one Zyrex.',
+    ingredients: ['40× Berries', '  or  20× Fruits', '  or  200× Seeds'],
+    costOptions: [ { berry: 40 }, { fruit: 20 }, { seed: 200 } ],
+    output: { berry_juice: 1 } },
+  { id: 'fruit_bar_h', name: 'Fruit Bar',
+    effect: 'Restores ALL HP to one Zyrex.',
+    ingredients: ['60× Berries', '  or  30× Fruits', '  or  400× Seeds'],
+    costOptions: [ { berry: 60 }, { fruit: 30 }, { seed: 400 } ],
+    output: { fruit_bar: 1 } },
+  { id: 'wild_treat', name: 'Wild Treat',
+    effect: `+5 bond with one Zyrex · treats cap that bond at ${TREAT_BOND_CAP}.`,
+    ingredients: ['50× Berries', '  or  25× Fruits', '  or  250× Seeds'],
+    costOptions: [ { berry: 50 }, { fruit: 25 }, { seed: 250 } ],
+    output: { wild_treat: 1 } },
+  { id: 'sweet_cache', name: 'Sweet Cache',
+    effect: `+15 bond with one Zyrex · treats cap that bond at ${TREAT_BOND_CAP}.`,
+    ingredients: ['150× Berries', '  or  75× Fruits', '  or  600× Seeds'],
+    costOptions: [ { berry: 150 }, { fruit: 75 }, { seed: 600 } ],
+    output: { sweet_cache: 1 } },
+];
+// ★ Learned with the workstation, because that is where they are made. Noot
+//   teaches the bench; the bench teaches what a bench is for.
+function grantHarvestRecipes(){
+  player.knownRecipes = player.knownRecipes || [];
+  let added = 0;
+  for (const r of HARVEST_RECIPES){
+    if (player.knownRecipes.find(x => x.id === r.id)) continue;
+    player.knownRecipes.push(JSON.parse(JSON.stringify(r)));
+    added++;
+  }
+  return added;
+}
+// ★★ ONE creature, chosen deliberately — the summoned Zyrex you are FACING,
+//   else your leader. That is what separates a treat from the guitar: the songs
+//   lift the whole party at once, a treat is you crouching down in front of one
+//   animal. Same field, different verb.
+function feedZyrexTreat(key){
+  const gain = key === 'sweet_cache' ? 15 : 5;
+  let target = null;
+  try {
+    const f = (typeof facedNpc === 'function') ? facedNpc() : null;
+    if (f && f._summoned && f._summonSpeciesId){
+      target = (player.party || []).filter(Boolean)
+        .find(z => z && z.speciesId === f._summonSpeciesId) || null;
+    }
+  } catch(_){}
+  if (!target) target = ((player.party || []).filter(Boolean))[0] || null;
+  if (!target){
+    try { playSFX('cancel'); showToast('◈ No Zyrex to feed', 1800); } catch(_){}
+    return false;
+  }
+  const before = Math.max(0, target.bond || 0);
+  if (before >= TREAT_BOND_CAP){
+    try { playSFX('cancel'); } catch(_){}
+    try { showToast(`◈ ${target.name || 'It'} is already at ${before}/100 · treats only carry a bond to `
+      + `${TREAT_BOND_CAP}. The rest is earned — fight beside it, or play for it.`, 4200); } catch(_){}
+    return false;                       // ★ refuses · the item is NOT consumed
+  }
+  target.bond = Math.min(TREAT_BOND_CAP, before + gain);
+  const got = target.bond - before;
+  try { playSFX('confirm'); } catch(_){}
+  try { showToast(`◈ ${target.name || 'Your Zyrex'} eats it · +${got} bond `
+    + `(${target.bond}/100)${target.bond >= TREAT_BOND_CAP ? ' · treat cap reached' : ''}`, 2800); } catch(_){}
+  return true;
+}
+// ══════════════════════════════════════════════════════════════════════════
 // ★★ v0.96.12 · THE PORTABLE FIELD WORKSTATION
 //
 //   Creator: "rizer can craft a workstation from 20 scrapmetal parts at his home
@@ -25419,6 +25531,13 @@ function grantFieldStationRecipe(){
   player.knownRecipes.push(FIELD_STATION_RECIPE);
   try { showToast('★ RECIPE LEARNED · Portable Field Workstation · '
         + `${FIELD_STATION_SCRAP} scrap at the bench`, 4200); } catch(_){}
+  // ★★ v0.96.30 · and what the bench is FOR. Noot teaches the workstation;
+  //   the workstation comes with the four things worth carrying it for. A bench
+  //   granted with an empty recipe list is a prop.
+  try {
+    const n = grantHarvestRecipes();
+    if (n) showToast(`★ ${n} HARVEST RECIPES · juice, bars and treats from what you forage`, 4200);
+  } catch(_){}
   return true;
 }
 const FIELD_STATION_RECIPE = {
@@ -36558,7 +36677,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.29' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.30' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -46939,6 +47058,17 @@ function useZycubeItem(key){
     case 'fruit_bar': {
       if (qty <= 0){ showToast('◈ None left', 1600); playSFX('cancel'); return; }
       if (!feedZyrexConsumable(key)) return;   // owns its own refusal + SFX
+      player.items[key] = qty - 1;
+      return;
+    }
+    // ★★ v0.96.30 · THE BOND TREATS · same shape as the heals above: the helper
+    //   owns its own refusal, so a treat offered to a creature already at the
+    //   cap is NOT consumed. Spending an item to be told "no" is how a player
+    //   learns to distrust a menu.
+    case 'wild_treat':
+    case 'sweet_cache': {
+      if (qty <= 0){ showToast('◈ None left', 1600); playSFX('cancel'); return; }
+      if (!feedZyrexTreat(key)) return;
       player.items[key] = qty - 1;
       return;
     }

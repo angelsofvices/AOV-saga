@@ -5568,25 +5568,41 @@ const WORLD_PROPS = [
     id: 'haunted_ship',
     img: new Image(),
     src: 'assets/2D%20sprites/buildings/haunted-ship.png',
-    // ★ measured content box in the 1254 source · the sprite carries ~340px of
-    //   empty margin on the left and the mast tip reaches y=7
-    bbox: [343, 7, 642, 1234],
+    // ★★★ v0.96.45 · THE ASSET IS PRE-SCALED, and that is the sharpness fix.
+    //   Creator: "make the ship a bit smaller. it came out a little blurry."
+    //
+    //   The blur was NOT smoothing — ctx.imageSmoothingEnabled is false
+    //   globally (line ~1904), so this is nearest-neighbour. At 14 tiles the
+    //   1234px-tall source was being squeezed into 672px, which with smoothing
+    //   OFF means nearest-neighbour DISCARDS 46% of the rows outright. On art
+    //   whose detail is one-pixel chains, rigging and window mullions, that
+    //   does not soften — it eats them, and the result reads as mush.
+    //
+    //   ★ So the PNG is now stored at exactly TWICE the on-screen size
+    //     (550x1056 for a 275x528 draw). An exact 2:1 ratio makes
+    //     nearest-neighbour a clean every-other-pixel pick instead of a lossy
+    //     0.43 resample, and leaves headroom if the canvas is ever scaled up.
+    //     The 1254 master is kept untouched in _orig/.
+    //   ★ The margin is gone with it, so the bbox is simply the whole image —
+    //     no offset to drift out of sync with a future re-export.
+    bbox: [0, 0, 550, 1056],
     tileX: 266, tileY: 624,
-    // ★★ "large ship. scale like a building." Buildings here run 6-11 tiles and
-    //   the Gemlord caves — the biggest things in the world — are 11. A galleon
-    //   should out-mass all of them, so 14, which puts the mast tips two tiles
-    //   above the tallest cave. Width follows the source aspect (642/1234), so
-    //   nothing is stretched: 14 x 0.520 = 7.28.
-    tileW: Math.round(14 * (642 / 1234) * 100) / 100, tileH: 14,
+    // ★★ Now 11 tiles, not 14 — the same height as the Gemlord caves, which are
+    //   the largest structures in the world. Still reads as a big ship against
+    //   a 2-tile Rizer; 14 was overbearing AND was the thing forcing the lossy
+    //   downscale. Width follows the source aspect, so nothing is stretched.
+    tileW: 275 / 48, tileH: 11,
     // ★★★ THE FOOTPRINT IS THE HULL, NOT THE SILHOUETTE — and the alpha profile
     //   is why. Measured per tile-row, the WIDEST bands are rows 4-7 at 94-96%
     //   of the sprite... and those are the SAILS. The hull is rows 8-13, and it
     //   narrows to the bow. Blocking the widest rows would put an invisible wall
     //   four tiles out to each side, in open air under the canvas.
-    //   So: 5 tiles across, 6 deep, anchored at the keel. You walk under the
+    //   So: 4 tiles across, 5 deep, anchored at the keel. You walk under the
     //   rigging and you are stopped by the ship.
+    //   ★ v0.96.45 · pulled in one tile each way with the 14->11 shrink, so the
+    //     solid mass still tracks the hull rather than the old silhouette.
     footprint: (() => { const f = [];
-      for (let dy = -5; dy <= 0; dy++) for (let dx = -2; dx <= 2; dx++) f.push([dx, dy]);
+      for (let dy = -4; dy <= 0; dy++) for (let dx = -2; dx <= 1; dx++) f.push([dx, dy]);
       return f; })(),
     // sorts on the hull's middle, so Rizer passes behind the stern and in front
     // of the bow rather than the whole 14-tile mast deciding it
@@ -38083,7 +38099,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.44' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.45' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

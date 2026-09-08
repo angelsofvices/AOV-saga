@@ -16163,7 +16163,7 @@ function _npcOccMove(n, ox, oy){
   if (_npcOccBlocks(n)) _npcOcc.set(`${n.scene}|${n.tileX},${n.tileY}`, n);
 }
 
-function walkable(x, y){
+function walkable(x, y, flying){
   const cfg = interiorConfig(game.scene);
   if (cfg){
     if (!(x >= 0 && y >= 0 && x < cfg.cols && y < cfg.rows)) return false;
@@ -16213,13 +16213,32 @@ function walkable(x, y){
         && player.chairX === x && player.chairY === y) return false;
     return true;
   }
-  if (!isWorldLandTile(x,y)) return false;
-  // Every exterior district border is a full impassable buffer between its
-  // tiled landmass and the Void Sea.
-  if (isWorldBorderTile(x,y)) return false;
-  // Freshwater is physical terrain, not Void Sea: actors stop at the bank,
-  // receive no void-death effect, and may cross later through bridge logic.
-  if (isVeridanRiverTile(x,y)) return false;
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ v0.96.43 · THE TERRAIN TRIO · the only thing S3 flight ignores.
+  //
+  //   Creator: "flight is mechanical" · ruled: water and gaps only, still
+  //   blocked by buildings, props and NPCs.
+  //
+  // ★★★ AND `flying` IS AN OPT-IN PARAMETER, NOT A GLOBAL. walkable() has 77
+  //   callers and MOST OF THEM ARE NPC PATHFINDING — npcPathDir alone calls it
+  //   up to 700 times for a single step. Making it terrain-permissive whenever
+  //   Rizer happens to be airborne would send every Mori in the district
+  //   walking out onto the Void Sea. So the default is false, every existing
+  //   caller is byte-for-byte unaffected, and only the PLAYER's own move gate
+  //   passes it.
+  //
+  // ★ The split below is the existing order, not a new one: these three tests
+  //   are TERRAIN, and everything after them is an OBSTACLE. Flight crosses
+  //   terrain; it does not walk through a house.
+  if (!flying){
+    if (!isWorldLandTile(x,y)) return false;
+    // Every exterior district border is a full impassable buffer between its
+    // tiled landmass and the Void Sea.
+    if (isWorldBorderTile(x,y)) return false;
+    // Freshwater is physical terrain, not Void Sea: actors stop at the bank,
+    // receive no void-death effect, and may cross later through bridge logic.
+    if (isVeridanRiverTile(x,y)) return false;
+  }
   if (_propBlocked.has(`${x},${y}`)) return false;
   if(_factionSoulSwitch&&player.activeActor!=='rizer'
       &&_factionSoulSwitch.shell.x===x&&_factionSoulSwitch.shell.y===y)return false;
@@ -17127,6 +17146,42 @@ function isRizerS1(){ return rizerFormId() === 'normal'; }
 function isRizerS2(){ return rizerFormId() === 'power_upgrade'; }
 function isRizerS3(){ return rizerFormId() === 'luminary'; }
 function isRizerPowered(){ return isRizerS2() || isRizerS3(); }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.43 · S3 FLIES, AND IT IS MECHANICAL.
+//
+//   Creator: "s3 flies on his run animation" -> "flight is mechanical."
+//   Ruled: crosses WATER AND GAPS ONLY (still blocked by buildings, props and
+//   NPCs), active WHILE SPRINTING, and at no extra ◆ cost.
+//
+// ★ Flight IS the run state, so it needs no new input and no new art: the run
+//   sheet already draws him horizontal in the side rows. Sprint's own stamina
+//   cost is what stops it being free.
+//
+// ★★★ THE NEVER-STRAND RULE. If flight were only `running`, releasing sprint
+//   halfway across an ocean would drop him onto a tile he cannot stand on —
+//   and since the terrain is impassable in every direction, he would be
+//   permanently stuck in open water with no input that could save him. That is
+//   a soft-lock, and this file has paid for enough of those
+//   ([[aov-freeze-lock-deadman]]). So he STAYS airborne over any tile he could
+//   not stand on, whatever the sprint key is doing, and only truly lands once
+//   he is over ground that would hold him.
+function _terrainImpassable(x, y){
+  if (game.scene !== 'overworld') return false;
+  try {
+    if (!isWorldLandTile(x, y)) return true;
+    if (isWorldBorderTile(x, y)) return true;
+    if (isVeridanRiverTile(x, y)) return true;
+  } catch(_){}
+  return false;
+}
+function rizerFlying(){
+  if (!isRizerS3()) return false;
+  if (player.ufoFlying) return false;          // the UFO owns movement outright
+  if (game.scene !== 'overworld') return false;// an overworld state only
+  if (player.activeActor !== 'rizer') return false;
+  if (player.running) return true;
+  return _terrainImpassable(player.x, player.y);   // ★ cannot be stranded
+}
 // ══════════════════════════════════════════════════════════════════════════
 // ★★★ v0.96.41 · HOLDING A FORM COSTS ◆ SPECIAL.
 //
@@ -30002,11 +30057,17 @@ function drawTreehouseTelescope(){
     const drawH = Math.round(TILE * TELESCOPE_TILES_TALL);
     const drawW = Math.round(drawH * (TELESCOPE_IMG.naturalWidth / TELESCOPE_IMG.naturalHeight));
     ctx.save();
-    // ★ MIRRORED so the lens faces NORTH-WEST.  Translating to the object's
-    // centre first means the flip pivots on the telescope, not on the world
-    // origin — otherwise it would fly off to negative x.
+    // ★★ v0.96.43 · THE MIRROR IS GONE, and that is a preservation of intent
+    //   rather than a change of it. The flip existed to point the PLACEHOLDER
+    //   primitives north-west; the Creator's art already faces north-west as
+    //   drawn, so mirroring it now would aim the lens north-EAST — the exact
+    //   opposite of what the line was written to guarantee.
+    // ★ The PNG is also tight-cropped to its own ink now. drawH is pinned to
+    //   TELESCOPE_TILES_TALL and drawW follows the source aspect, so a canvas
+    //   with 130px of empty margin (which is how it arrived) rendered the
+    //   telescope ~10% short and off-centre, because the margin was being
+    //   scaled as if it were part of the object.
     ctx.translate(cx, baseY);
-    ctx.scale(-1, 1);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(TELESCOPE_IMG, -Math.round(drawW / 2), -drawH, drawW, drawH);
     ctx.restore();
@@ -33301,9 +33362,13 @@ function tryMove(dt){
   // answer than not being stuck.  Only YOUR followers move -- enemies, wilds,
   // townsfolk and props all still block, because those are the world, and being
   // stopped by the world is the game working.
-  if (!walkable(nx, ny) && _swapWithOwnFollower(nx, ny)){
+  // ★★★ v0.96.43 · THE ONLY SITE THAT PASSES `flying`. Every other walkable()
+  //   caller is an NPC, a wild or a follower, and none of them fly — see the
+  //   note on the parameter itself.
+  const _fly = (function(){ try { return rizerFlying(); } catch(_){ return false; } })();
+  if (!walkable(nx, ny, _fly) && _swapWithOwnFollower(nx, ny)){
     // the tile is ours now · fall through and take the step
-  } else if (!walkable(nx, ny)){ player.moveCd = 120; player.moving = false; return; }
+  } else if (!walkable(nx, ny, _fly)){ player.moveCd = 120; player.moving = false; return; }
 
   const wasMoving = player.moving;
   // v0.95.710 · remember where we stepped FROM, so a refused door can put us
@@ -37976,7 +38041,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.42' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.43' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

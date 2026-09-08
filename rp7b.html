@@ -2008,6 +2008,23 @@ const AUDIO = {
     swordKillVox: new Audio('audio/sfx-sword-kill-vox.mp3'),  // v0.95.543 · Rizer VO on every 3rd sword kill
     yawnBed:      new Audio('audio/sfx-yawn-bed.mp3'),        // v0.95.543 · Rizer VO on bed sleep (RR + owned homes) · "yawn time for a nap"
     corsunNewMsg: new Audio('audio/sfx-corsun-new-msg.mp3'),  // v0.95.544 · CORSUN phone AI VO on every new ZyPhone notification ("you have a new message captain rizer") · fires alongside toast card · draws attention to bottom-right
+    // ★★ v0.96.39 · THE NOTIFICATION TONE · Creator: "play this sound whenever
+    // a new message pops up on game · tied to the 'you have a new message
+    // rizer' vox · this is like the phone notification sound."
+    // ★ The TONE, not the voice. It fires with the CARD (see _firePhoneChime),
+    //   so it lands even on the notifications where CORSUN yields to a live
+    //   voice — a phone that chimes silently when someone is talking is a phone
+    //   you stop trusting.
+    newMessage: new Audio('audio/sfx-new-message.mp3'),
+    // ★★★ v0.96.39 · RIZER TAKES A HIT · the PHYSICAL impact of an enemy
+    // landing a blow. Creator: "these are impact sounds", explicitly NOT the
+    // hurt VO — Rizer's own grunts (damageTick, halfHp, threeQuarterHp) already
+    // exist and are untouched. These layer UNDER them: the impacts are generic
+    // SFX and the VO owns the exclusive voice slot, so they are on different
+    // paths and both are heard.
+    hurtLight:  new Audio('audio/sfx-hurt-light.mp3'),
+    hurtMedium: new Audio('audio/sfx-hurt-medium.mp3'),
+    hurtHeavy:  new Audio('audio/sfx-hurt-heavy.mp3'),
     zoryn:        new Audio('audio/sfx-zoryn.mp3'),           // v0.95.550 · Zoryn VO on interact ("what'd you forget your map again?")
     gemVox:       new Audio('audio/sfx-gem-vox.mp3'),         // v0.95.551 · Rizer VO on gem chest pickup · throttled to every 3rd gem
     heatingUp:    new Audio('audio/sfx-heating-up.mp3'),     // v0.95.500 · Rizer VO on 6-kill flawless streak
@@ -2116,6 +2133,36 @@ if (AUDIO.sfx.elzoran) AUDIO.sfx.elzoran.volume = 1.0;
 // v0.95.549 · bumped 0.68 → 1.0 · her cheetah-huntress delivery was still sitting under other NPCs.
 if (AUDIO.sfx.kaizari) AUDIO.sfx.kaizari.volume = 1.0;
 if (AUDIO.sfx.corsunUfo) AUDIO.sfx.corsunUfo.volume = 0.85;
+// ★★ v0.96.39 · MEASURED, not guessed. The three files, decoded and metered:
+//     sfx-new-message   RMS -20.6 dBFS  peak -0.3
+//     sfx-corsun-new-msg RMS -14.5 dBFS  peak -1.6   ← the voice over the top
+//     sfx-level-up-chime RMS -23.0 dBFS  peak -4.7   ← at the 0.55 default
+//   ★ The vox is already 6 dB hotter than the tone, so CORSUN reads over it
+//     with no ducking — nothing to solve there.
+//   ★ But the new tone is 2.4 dB hotter than the level-up chime, and two chimes
+//     in one game should sit at the same perceived level. 0.55 x 10^(-2.4/20)
+//     = 0.42. That is the whole reason for this number.
+if (AUDIO.sfx.newMessage) AUDIO.sfx.newMessage.volume = 0.42;
+// ★★★ v0.96.39 · THE THREE IMPACTS · metered, then STAGED at +2 dB per weight.
+//   Raw files:  light RMS -19.1 peak -0.4 · medium -20.0 peak -0.9
+//               heavy RMS -10.0 peak  0.0  ← nine dB hotter, and CLIPPING
+//
+//   ★ Left at the 0.55 default the heavy hit would arrive ~9 dB above the other
+//     two and peak at full scale. Some of that gap is wanted — a heavy blow
+//     SHOULD hit harder — but nine dB is not a design, it is whatever the three
+//     source files happened to be mastered at.
+//
+//   ★ So the ladder is deliberate: light -> medium -> heavy at +2 dB a step,
+//     computed as effective = RMS + 20*log10(volume).
+//        light  0.55 -> -24.3 dBFS
+//        medium 0.77 -> -22.3 dBFS   (+2)
+//        heavy  0.31 -> -20.3 dBFS   (+4, and the peak lands at -10 not 0)
+//   ★★ HEAVY CARRIES THE SMALLEST NUMBER AND IS STILL THE LOUDEST. That looks
+//     backwards on the page and is correct in the ear; it is only wrong-looking
+//     because the source file is hot. Do not "fix" it without re-metering.
+if (AUDIO.sfx.hurtLight)  AUDIO.sfx.hurtLight.volume  = 0.55;
+if (AUDIO.sfx.hurtMedium) AUDIO.sfx.hurtMedium.volume = 0.77;
+if (AUDIO.sfx.hurtHeavy)  AUDIO.sfx.hurtHeavy.volume  = 0.31;
 
 // v0.95.48 · Kill iOS native touch gestures that would otherwise steal
 // controller button presses.  Long-press callout, double-tap zoom,
@@ -2289,6 +2336,11 @@ const _UI_SFX = new Set([
   'mythicElixir', 'elixir', 'potion', 'aleReeks',
   'lifeSeedSour',                 // ★ v0.95.820 · eaten from the cube panel too
   'gemVox', 'gotcha',             // pickups can happen with the phone up too
+  // ★★ v0.96.39 · the notification tone. A message that arrives while the phone
+  //   or pause menu is open is EXACTLY when you need to be told — and the note
+  //   above is explicit that this set is the third-time-lucky home for anything
+  //   playSFX would otherwise drop by name while the world is frozen.
+  'newMessage',
 ]);
 // ══════════════════════════════════════════════════════════════════════════
 // ★★ v0.96.2 · PROXIMITY VOLUME ON ENEMY VOX/SFX
@@ -3461,6 +3513,38 @@ function cinematicPlaying(){
   } catch(_){}   // these are `let`s further down the file · TDZ before they run
   return null;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.39 · RIZER TAKES A HIT · three weights, banded by FRACTION OF MAX HP.
+//
+//   Creator: "play this sfx when rizer takes small damage. all enemies."
+//   then "rizer impact medium damage", then "heavy rizer take damage impact".
+//
+// ★★★ THE BAND IS A PERCENTAGE, NOT A DAMAGE NUMBER, and that is the whole
+//   design decision. Measured from the live build: Lv 1 hpMax is **50**, a Mori
+//   drains **4-5** and a Daemon **10**. Band on raw damage and a Mori is a
+//   HEAVY hit at level 1 and still a HEAVY hit at level 80 — the tier would
+//   encode the enemy's stat line instead of what the player actually felt.
+//
+//   As a fraction it behaves the way the fiction does: at Lv 1 a Daemon landing
+//   10 of your 50 HP is a HEAVY blow, and by the time hpMax is 500 that same
+//   Daemon is a LIGHT tap. The trash mobs stop sounding dangerous because they
+//   stop BEING dangerous, and nothing had to be re-tuned per enemy to get that.
+//
+// ★ Banded on damage ACTUALLY DEALT (post rizerIncomingDamage), not the raw
+//   request — armour and resistances are exactly the difference between the
+//   swing and the impact, and the impact is what you hear.
+const HURT_SFX_MEDIUM_FRAC = 0.08;   // 8% of max HP · above this it is a real hit
+const HURT_SFX_HEAVY_FRAC  = 0.20;   // 20% · a fifth of you in one blow
+function playRizerHurtImpact(dealt){
+  const d = Math.max(0, dealt || 0);
+  if (d <= 0) return;
+  const max = Math.max(1, player.hpMax || player.maxHp || 50);
+  const frac = d / max;
+  const key = frac >= HURT_SFX_HEAVY_FRAC  ? 'hurtHeavy'
+            : frac >= HURT_SFX_MEDIUM_FRAC ? 'hurtMedium'
+            : 'hurtLight';
+  try { playSFX(key); } catch(_){}
+}
 function hurtPlayer(amt, srcName){
   // ★ v0.95.913 · you cannot be hurt behind a movie you cannot skip.  The
   // world freeze below already stops the attacks; this is the second lock, so
@@ -3498,7 +3582,14 @@ function hurtPlayer(amt, srcName){
     }
     return;
   }
-  player.hp = Math.max(0, (player.hp || 0) - rizerIncomingDamage(amt));
+  const _dealt = rizerIncomingDamage(amt);
+  player.hp = Math.max(0, (player.hp || 0) - _dealt);
+  // ★★★ v0.96.39 · THE IMPACT · Creator: "play this sfx when rizer takes small
+  //   damage. all enemies." + medium + heavy.
+  // ★ Rizer took damage in SILENCE before this — the only impact sound in the
+  //   whole function was on a BLOCK. The hit-flash and the shake were carrying
+  //   the whole read.
+  try { playRizerHurtImpact(_dealt); } catch(_){}
   _checkRizerLowHpWarn();                                     // v0.95.494
   const now = performance.now();
   player._hurtFlashUntil  = now + 380;                   // v0.95.167 · longer red flash
@@ -35061,6 +35152,28 @@ function _anyVoiceLive(){
   } catch(_){}
   return false;
 }
+// ★★ v0.96.39 · THE NOTIFICATION TONE · fires with the CARD, not with the voice.
+//
+//   Creator: "play this sound whenever a new message pops up on game."
+//
+// ★ Deliberately NOT inside _fireCorsunCue(). That function yields to any live
+//   voice and holds a 3.2s cooldown — correct for a spoken line, wrong for a
+//   notification: the card still appears in all those cases, and a phone that
+//   pops a message silently because someone happened to be mid-sentence is a
+//   phone you stop trusting. Same reasoning as the level-up chime at v0.96.35,
+//   which belongs to the BANNER rather than to its ten call sites.
+//
+// ★ The short cooldown is only an anti-machine-gun floor. Cards are serialised
+//   (TOAST_STACK_MAX is 1) so genuine notifications are already seconds apart;
+//   this just stops a drain burst landing two tones on the same frame.
+let _phoneChimeLastAt = -1e9;
+function _firePhoneChime(){
+  try {
+    if (performance.now() - _phoneChimeLastAt < 450) return;
+    _phoneChimeLastAt = performance.now();
+    playSFX('newMessage');
+  } catch(_){}
+}
 function _fireCorsunCue(){
   try {
     if (_corsunLive) return;                         // already speaking · don't stack
@@ -35285,6 +35398,10 @@ function showToast(msg, ms, opts){
         try { _flushPendingPhoneToasts(); } catch(_){}
       }, 320);
     }, dur);
+    // ★★ v0.96.39 · the tone first, then the voice over it. The chime is
+    //   unconditional (the card is up, so the player is being notified); the
+    //   vox still yields to anything already speaking.
+    _firePhoneChime();
     // v0.95.548 · CORSUN cue only fires with the phone card · ★ toasts only.
     _fireCorsunCue();
   } catch(_){}
@@ -37441,7 +37558,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.38' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.39' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

@@ -3558,7 +3558,7 @@ function hurtPlayer(amt, srcName){
   // S1 (normal) absorbs 1 hit · S2 (power_upgrade) absorbs 2 · then break-stun
   // (can be leveled up later via a dedicated stat / RIZER upgrade)
   if (player.blocking && !(player._blockStunUntil > performance.now())){
-    const cap = (player.cosmeticSkin === 'power_upgrade') ? 2 : 1;
+    const cap = isRizerPowered() ? 2 : 1;
     player.blockHitsAbsorbed = (player.blockHitsAbsorbed || 0) + 1;
     player._blockHitFlashUntil = performance.now() + 220;         // sparkle frame col 3
     player._invulnUntil = performance.now() + 220;
@@ -16921,8 +16921,54 @@ const RIZER_S2_BLOCK = makeRizerSheet('block-power-upgrade', [
  [[45,24,234,240],[38, 8,240,257],[29, 8,247,257],[33,15,235,248]],
 ]);
 RIZER.block = RIZER_S1_BLOCK;
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.40 · S3 RIZER · THE LUMINARY FORM.
+//
+//   Unlocks at Rizer Level 100 — the cap, and TIER 8: MAXIMUM MORTAL. S3 looks
+//   nearly Divine and is not: he is the perfected, pure-light evolution of S2,
+//   one tier below a Dracolord by the same law that makes them audiences rather
+//   than health bars ([[aov-dracolords-immortals]]). "Dreamland God Form" is a
+//   development nickname, and the game never calls him a god.
+//
+// ★★★ bodyBh EXCLUDES THE HAIR-WINGS, AND THAT IS A MEASUREMENT, NOT A TASTE.
+//   rizerTargetBodyPx() is a GLOBAL 92.92px derived from S1's shipping idle,
+//   and every bundle is scaled so bodyBh[row] maps onto it. The wings are hair,
+//   so the largest connected component legitimately includes them — and feeding
+//   that full ink in scales the whole silhouette to 92.92px, which makes his
+//   BODY smaller than S1's. Measured, with the wings counted:
+//        DOWN 88.2px · LEFT 91.5 · RIGHT 91.9 · UP 83.1   (S1 is 92.9)
+//   The UP row loses ten percent. Measuring head-to-feet with the wings
+//   excluded puts every row at exactly 92.9 and lets the wings rise ABOVE the
+//   two-tile line, which is what a winged form should do.
+//   ★ Preview: the three-column S1 / full-ink / no-wings comparison render.
+//
+// ★ Row 3 (UP) carries a NEGATIVE by — the wings and crest are drawn past the
+//   top of the cell, exactly like S1's idle-UP by=-30. CC ownership keeps them
+//   ([[aov-sprite-cc-extractor]]); cell-clipping would behead him.
+//
+// ★ The 173 detached aura sparks ARE in the boxes. Including them costs at most
+//   +9px of width on one frame, and the handoff calls them out by name as the
+//   thing generic tooling deletes.
+const RIZER_LUMINARY_IDLE = {
+  img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+  bboxes: [
+    [[  96,  94, 205, 218],[  72,  90, 202, 222],[  29,  94, 228, 218],[  10, 100, 212, 212]],
+    [[ 124,  73, 173, 192],[  97,  74, 172, 191],[  70,  74, 180, 191],[  36,  78, 165, 187]],
+    [[ 103,  28, 152, 187],[  84,  30, 152, 185],[  41,  27, 165, 188],[  15,  30, 157, 185]],
+    [[  97, -21, 197, 217],[  61, -14, 215, 209],[  20, -19, 225, 215],[  10, -19, 194, 215]],
+  ],
+  bodyBh: [207, 189, 185, 194],
+  key: 'idle-luminary', loaded: false,
+};
 const PLAYER_SKINS = {
   normal:        { name: 'Normal', damageMult: 1, overrides: {} },
+  // ★★★ S3 · IDLE ART ONLY. damageMult deliberately INHERITS S2's 2 rather
+  //   than inventing a third number: this import authorises the form and its
+  //   idle, not a combat rebalance. When the Creator sets S3's multiplier,
+  //   weapons and moves, they change HERE and nowhere else.
+  luminary:      { name: 'Luminary', damageMult: 2, overrides: {
+    idle: RIZER_LUMINARY_IDLE,
+  } },
   power_upgrade: { name: 'Power Upgrade', damageMult: 2, overrides: {
     idle: RIZER_POWER_IDLE,
     walk: RIZER_POWER_WALK,
@@ -16944,9 +16990,97 @@ const PLAYER_SKINS = {
     doubleJump: RIZER_S2_DOUBLE_JUMP,
   } },
 };
+// ★★★ v0.96.40 · THE S3 -> S2 -> S1 LINEAGE.
+//   Only S3's IDLE sheet exists. Every other action — walk, run, punch, kick,
+//   the astral bank, death, capture — has no S3 art yet, and the honest
+//   fallback is S2 rather than S1: S3 is the perfected evolution OF S2, so a
+//   missing S3 action reads far better as the powered form than as the base
+//   one. Falling to S1 would make him revert to blue hair the instant he moved.
+//   ★ This is an interim BRIDGE, not permission to call S2's art finished S3
+//     art. Each S3 sheet that lands simply joins the overrides above.
 function rizerBundleForSkin(key, skinId){
   const skin = PLAYER_SKINS[skinId] || PLAYER_SKINS.normal;
-  return skin.overrides[key] || RIZER[key];
+  if (skin.overrides && skin.overrides[key]) return skin.overrides[key];
+  if (skinId === 'luminary'){
+    const s2 = PLAYER_SKINS.power_upgrade;
+    if (s2 && s2.overrides && s2.overrides[key]) return s2.overrides[key];
+  }
+  return RIZER[key];
+}
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.40 · NAMED FORM PREDICATES · the third form breaks every binary.
+//
+//   The file is full of `cosmeticSkin === 'power_upgrade'` and, far more
+//   dangerously, `!== 'power_upgrade'`. Every one of those NEGATIVE tests
+//   silently classifies S3 as S1 the moment a third form exists — weapon
+//   eligibility, capture banks, block bundles, HUD portraits, death sheets.
+//   That is the same shape as the freeze bug: a test that names one member of
+//   a family and rots when the family grows ([[aov-freeze-lock-deadman]]).
+//
+// ★ These are not a blanket find-and-replace. Each old branch had to be read
+//   and asked "does this mean EXACTLY S2, or ANY powered form?" — the two are
+//   different and mechanically swapping them would be its own bug.
+function rizerFormId(){
+  return PLAYER_SKINS[player.cosmeticSkin] ? player.cosmeticSkin : 'normal';
+}
+function isRizerS1(){ return rizerFormId() === 'normal'; }
+function isRizerS2(){ return rizerFormId() === 'power_upgrade'; }
+function isRizerS3(){ return rizerFormId() === 'luminary'; }
+function isRizerPowered(){ return isRizerS2() || isRizerS3(); }
+// ★★★ v0.96.40 · THE LEVEL 100 GATE.
+//
+// ★ NOT `RIZER_LEVEL_CAP`. That const is declared ~25,000 lines BELOW this
+//   point, and a const used before its declaration line is a TDZ ReferenceError
+//   that kills the boot — twice already this session. `typeof` does not save
+//   you either: on a TDZ binding it throws too. So the number lives here, and
+//   verify_luminary asserts it still equals RIZER_LEVEL_CAP so the two cannot
+//   drift apart silently.
+const LUMINARY_UNLOCK_LV = 100;
+// ★ R3 gesture windows · var, not const/let: these are read by the gamepad poll
+//   which lives ~15,000 lines below, and a TDZ binding read before its line is
+//   the boot-killer this file has already hit twice.
+var R3_DOUBLE_TAP_MS = 350, R3_HOLD_MS = 3000;
+var _r3LastTapAt = 0, _r3DownAt = 0, _r3HoldFired = false;
+// ★ the field is `rizerLvl`, not `rizerLv` — the handoff spelled it short and
+//   the codebase does not; a silent undefined here would have read as level 1
+//   and gated S3 shut forever.
+function rizerLevelNow(){ return player.rizerLvl || 1; }
+// ★★ IDEMPOTENT. Safe to call from boot, save-load, every level-up and the form
+//   selector. Earning the form is permanent: nothing in here can take it away,
+//   because a migration that normalises a level field must never repossess
+//   something the player already earned.
+function syncRizerForms(){
+  if (typeof player === 'undefined' || !player) return false;
+  let changed = false;
+  if (rizerLevelNow() >= LUMINARY_UNLOCK_LV && !player.luminaryUnlocked){
+    player.luminaryUnlocked = true;
+    changed = true;
+  }
+  // ★ a save that names a form it has not earned falls back rather than being
+  //   trusted — but dev mode may stand in the world as S3 on purpose.
+  if (player.cosmeticSkin === 'luminary' && !player.luminaryUnlocked && !game.devUnlockAll){
+    player.cosmeticSkin = 'normal';
+    changed = true;
+  }
+  // ★ an unknown form id (a deleted skin, a corrupted save) is S1, never a
+  //   crash and never a blank sprite
+  if (!PLAYER_SKINS[player.cosmeticSkin]) player.cosmeticSkin = 'normal';
+  return changed;
+}
+// The one-time reveal. Separate flag from the unlock so a save migration that
+// grants the unlock to an existing Lv100 character does not replay a ceremony
+// they never triggered — and so the ceremony cannot fire twice.
+function maybeRevealLuminary(){
+  if (!player.luminaryUnlocked || player.luminaryRevealSeen) return false;
+  player.luminaryRevealSeen = true;
+  try { playSFX('levelUpChime'); } catch(_){}
+  showDialog({ speaker: 'LUMINARY FORM', lines: [
+    '★ LEVEL 100 · LUMINARY FORM AWAKENED',
+    'The mortal limit has answered you.',
+    '*hold R3, or double-tap it, to take the form*',
+  ] });
+  try { saveGame({ quiet: true }); } catch(_){}
+  return true;
 }
 function activeRizerBundle(key){
   return rizerBundleForSkin(key, player.cosmeticSkin);
@@ -17047,9 +17181,36 @@ function setPlayerSkin(id, announce = true){
   if (announce) playCosmeticTransition(id);
   else applyPlayerSkin(id, false);
 }
+// ★★★ v0.96.40 · AN ORDERED CYCLE, NOT A BINARY.
+//   normal -> power_upgrade -> luminary (once earned) -> normal.
+//   The old body was `=== 'power_upgrade' ? 'normal' : 'power_upgrade'`, which
+//   with a third form would have bounced S3 straight to S2 and made Luminary
+//   unreachable by the everyday toggle.
+//   ★ The name is kept because four call sites use it (keyboard, mobile R2,
+//     the pad, and the portrait control) and they all want "next form".
 function togglePlayerSkin(announce = true){
   if(player.ufoFlying||player.activeActor!=='rizer'){playSFX('doorLock');return;}
-  setPlayerSkin(player.cosmeticSkin === 'power_upgrade' ? 'normal' : 'power_upgrade', announce);
+  try { syncRizerForms(); } catch(_){}
+  const order = ['normal', 'power_upgrade'];
+  if (player.luminaryUnlocked || game.devUnlockAll) order.push('luminary');
+  const i = order.indexOf(rizerFormId());
+  setPlayerSkin(order[(i + 1) % order.length] || 'normal', announce);
+}
+// ★★★ v0.96.40 · STRAIGHT INTO LUMINARY · Creator: "double click R3 or hold for
+//   3 seconds to enact S3 form." A direct entry as well as the cycle, because
+//   S3 is the earned form and having to tab past S2 to reach it every time
+//   would make the reward feel like a menu.
+function enterLuminaryForm(){
+  if (player.ufoFlying || player.activeActor !== 'rizer'){ try{playSFX('doorLock');}catch(_){} return false; }
+  try { syncRizerForms(); } catch(_){}
+  if (!player.luminaryUnlocked && !game.devUnlockAll){
+    try { playSFX('doorLock'); } catch(_){}
+    try { showToast(`◈ LUMINARY FORM · REACH RIZER LEVEL ${LUMINARY_UNLOCK_LV}`, 2600); } catch(_){}
+    return false;
+  }
+  if (rizerFormId() === 'luminary') return false;    // already there · not an error
+  setPlayerSkin('luminary', true);
+  return true;
 }
 // Right uses the actual right-facing cells (row 2).  The old cape-tail
 // float was fixed by the CC extractor · disconnected cape pixels are
@@ -18610,7 +18771,7 @@ function collectFaeAt(tx, ty){
   // S1 requires Kaizari's Fae Net. S2's amplified Astralite Matrix attracts
   // fae naturally and therefore bypasses the equipment gate.
   const hasFaenet = !!(player.items && player.items.faenet);
-  const matrixCatch = player.cosmeticSkin === 'power_upgrade';
+  const matrixCatch = isRizerPowered();
   if (!hasFaenet && !matrixCatch){
     // Only sound if a fae is actually here to collect (avoid noise while walking).
     for (const f of _fae){
@@ -23174,7 +23335,7 @@ function fireAstralslam(){
   if(player.dir==='up')ty--; if(player.dir==='down')ty++; if(player.dir==='left')tx--; if(player.dir==='right')tx++;
   const target = NPCS.find(n => n.scene===game.scene && n.isEnemy && !n._dying && !n._astralslamHeld && n.tileX===tx && n.tileY===ty);
   if(!target){ playSFX('meleeMiss'); return false; }
-  const s2 = player.cosmeticSkin === 'power_upgrade';
+  const s2 = isRizerPowered();
   const daemon = target.mode === 'daemon';
   player._astralslamBundle = s2 ? (daemon ? ASTRALSLAM_S2_DAEMON : ASTRALSLAM_S2_MORI)
                                : (daemon ? ASTRALSLAM_S1_DAEMON : ASTRALSLAM_S1_MORI);
@@ -25899,6 +26060,12 @@ const FIELD_STATION_RECIPE = {
 // ★ a save made before v0.96.14 already knows it · never take a recipe away
 if (player.nootTaughtBench) grantFieldStationRecipe();
 if (player.camps == null) player.camps = {};      // district → last camp site
+// ★★ v0.96.40 · S3 defaults. A new save has neither; an existing save that is
+//   already at the cap picks the unlock up on load via syncRizerForms(), and
+//   luminaryRevealSeen is a SEPARATE flag precisely so that migration does not
+//   replay a ceremony the player never triggered.
+if (player.luminaryUnlocked   == null) player.luminaryUnlocked   = false;
+if (player.luminaryRevealSeen == null) player.luminaryRevealSeen = false;
 if (player.ownedHomes == null)   player.ownedHomes   = [];   // ids of homes the player has bought
 if (player.mainQuestStep == null) player.mainQuestStep = 0;  // v0.95.1 · index into MAIN_QUESTS
 
@@ -27054,7 +27221,7 @@ function paintA5Charge(hudVisible){
   const el = document.getElementById('a5Charge');
   if (!el) return;
   const eligible = hudVisible && !!player.voltstormUnlocked
-                && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+                && isRizerS1();
   if (!eligible){ el.style.display = 'none'; return; }
   const ready = voltstormReady();
   // ★★★ v0.95.936 · THE BADGE DOES NOT FOLLOW RIZER ANY MORE.
@@ -27213,7 +27380,7 @@ function voltstormAdjacentEnemy(){
   return null;
 }
 function voltstormGate(){
-  const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';
+  const isS2 = isRizerPowered();
   if (isS2)                        return { ok:false, why:null };  // silent · S2's A5 is Rakoron's, not yet forged
   if (!player.voltstormUnlocked)   return { ok:false, why:null };  // silent · you cannot miss what you never met
   if (game.scene !== 'overworld')  return { ok:false, why:'◈ The storm needs open sky' };
@@ -30535,6 +30702,7 @@ function exitHomeInterior(){ exitInterior(); }
 Promise.all([
   loadAsset(RIZER.idle,  'assets/2D%20sprites/rizer/idle.png'),
   loadAsset(RIZER_POWER_IDLE, 'assets/2D%20sprites/rizer/idle-power-upgrade.png'),
+  loadAsset(RIZER_LUMINARY_IDLE, 'assets/2D%20sprites/rizer/idle-luminary.png'),   // ★ v0.96.40 · S3
   loadAsset(RIZER_POWER_WALK, 'assets/2D%20sprites/rizer/walk-power-upgrade.png'),
   loadAsset(RIZER_POWER_RUN,  'assets/2D%20sprites/rizer/run-power-upgrade.png'),
   loadAsset(RIZER_POWER_IDLE_JUMP, 'assets/2D%20sprites/rizer/idle-jump-power-upgrade.png'),
@@ -31027,7 +31195,7 @@ addEventListener('keydown', e => {
                  || game.nebulaPanelOpen || game.bagPanelOpen || game.dockPanelOpen
                  || game.posterViewOpen || _sleepFade || dialogState || battleState;
       if (!_anyM && game.scene !== 'title'){
-        const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';
+        const isS2 = isRizerPowered();
         if (isS2){
           const hasRuby = (player.items && player.items.rubypaw_sword) > 0
                        && !player.rubypawBroken;
@@ -31178,7 +31346,7 @@ addEventListener('keydown', e => {
                     || game.posterViewOpen || _sleepFade || game.scene === 'title';
       if (!blockedV){
         const armed = !!player.voltstormUnlocked
-                   && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+                   && isRizerS1();
         fireSapphireVoltstorm();
         keys[k] = true;
         // Only swallow once the move EXISTS for this player — before
@@ -31410,7 +31578,7 @@ addEventListener('keydown', e => {
         // v0.95.573 · Rubypaw swing SFX · fires on EVERY S2 punch swing (hit or miss)
         // so the weapon has audible presence separate from the on-hit contact clip.
         if (mode === 'punch' && player.rubypawEquipped && !player.rubypawBroken
-            && (player.cosmeticSkin || 'normal') === 'power_upgrade'){
+            && isRizerPowered()){
           try { playSFX('rubypawSwing'); } catch(_){}
         }
         // v0.95.184 · Heavy kick takeoff SFX · plays on every kick swing
@@ -31438,7 +31606,7 @@ addEventListener('keydown', e => {
         // to be standing in front of Rizer at the moment he loosed.
         const _bowShot = mode === 'punch'
           && !!player.bowEquipped && !player.bowBroken
-          && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+          && isRizerS1();
         if (_bowShot){
           hit = null;
           try { fireArrow(player.x, player.y, player.dir); } catch(_){}
@@ -31466,7 +31634,7 @@ addEventListener('keydown', e => {
         // applied AFTER the primary damage/kill block resolves.
         const _rubypawSweeper = mode === 'punch'
           && !!player.rubypawEquipped && !player.rubypawBroken
-          && (player.cosmeticSkin || 'normal') === 'power_upgrade';
+          && isRizerPowered();
         // v0.95.613 · SAPPHIRE TEARSWORD (S1 Sapphire) LIGHT SWEEP · 2-tile arc
         //   Front tile (existing) + tile directly BEHIND Rizer.  Downgrade of
         //   Rubypaw's 5-tile sweep · same S1 sword damage on both hits.
@@ -32067,14 +32235,42 @@ addEventListener('keyup', e => {
       const r3Pressed = r3 && (r3.pressed || r3.value > 0.5);
       const l2 = pad.buttons[6];   // L2 trigger (button 6 · dispatches 'shift' v0.95.569)
       const l2Held = l2 && (l2.pressed || l2.value > 0.35);
+      // ★★★ v0.96.40 · R3 · TAP cycles, DOUBLE-TAP or 3s HOLD takes Luminary.
+      //   Creator: "double click R3 or hold for 3 seconds to enact S3 form."
+      //
+      // ★ EDGE-TRIGGERED, and that is not a detail. v0.96.25 shipped a
+      //   LEVEL-triggered pad path that re-fired a held button every poll at
+      //   120Hz; it broke pause and the phone D-pad and had to be reverted
+      //   ([[aov-freeze-lock-deadman]]). So: the tap fires on the press edge
+      //   only, and the hold fires ONCE via _r3HoldFired, which is cleared on
+      //   release and nowhere else.
+      //
+      // ★ The first tap still swaps form IMMEDIATELY rather than waiting to see
+      //   whether a second one is coming. Making the everyday toggle wait 350ms
+      //   to serve the rarer gesture would be the wrong way round; a second tap
+      //   simply promotes straight to Luminary from wherever the first landed.
       if (r3Pressed && !prev[11]){
+        const _now = performance.now();
+        _r3DownAt = _now;
+        _r3HoldFired = false;
         if (l2Held){
           // ★ v0.95.974 · was a DUEL MODE toggle · now a straight recall
           if (typeof recallSummonedZyrex === 'function') recallSummonedZyrex();
+        } else if (_now - _r3LastTapAt < R3_DOUBLE_TAP_MS){
+          _r3LastTapAt = 0;                       // consume · no triple-fire
+          try { enterLuminaryForm(); } catch(_){}
         } else {
+          _r3LastTapAt = _now;
           togglePlayerSkin();
         }
       }
+      // hold · fires once, only while genuinely held, never from a stale edge
+      if (r3Pressed && prev[11] && !l2Held && !_r3HoldFired
+          && _r3DownAt && (performance.now() - _r3DownAt) >= R3_HOLD_MS){
+        _r3HoldFired = true;
+        try { enterLuminaryForm(); } catch(_){}
+      }
+      if (!r3Pressed && prev[11]){ _r3DownAt = 0; _r3HoldFired = false; }
       prev[11] = r3Pressed;
 
       // ★★ v0.95.813 · TOUCHPAD (17) · CHORD: L2 + touchpad = toggle the DEV
@@ -34574,7 +34770,7 @@ function drawPlayer(){
   // (skips attack because blocking cancels the swing).  Not over death/hurt/dodge/jump/fae/guitar.
   const _blocking = !!player.blocking && !inAttack;
   const blockCandidate = _blocking
-    ? (player.cosmeticSkin === 'power_upgrade' ? RIZER_S2_BLOCK : RIZER_S1_BLOCK)
+    ? (isRizerPowered() ? RIZER_S2_BLOCK : RIZER_S1_BLOCK)
     : null;
   const blockBundle = blockCandidate && blockCandidate.loaded ? blockCandidate : null;
   let bundle = deathBundle
@@ -36902,7 +37098,7 @@ addEventListener('keydown', e => {
           // S1 swings Kaizari's net. S2 needs no net: its Astralite Matrix
           // plays the five-fae attraction animation instead.
           const hasFaenet = !!(player.items && player.items.faenet);
-          const matrixCatch = player.cosmeticSkin === 'power_upgrade';
+          const matrixCatch = isRizerPowered();
           const catchBundle = activeRizerBundle('faeCatch');
           if ((hasFaenet || matrixCatch) && catchBundle && catchBundle.loaded){
             player.faeCatchStart = now;
@@ -37558,7 +37754,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.39' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.40' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44913,6 +45109,10 @@ function loadGame(){
     //   the player is standing somewhere that exists. This is the guard that
     //   would have caught the v0.96.36 treehouse shrink.
     try { rescueRestoredPosition(); } catch(err){ console.warn('[rp7b] position rescue failed', err); }
+    // ★★ v0.96.40 · S3 · an existing Lv100 save earns Luminary on load, and a
+    //   save naming a form it has not earned falls back to normal rather than
+    //   being trusted. Idempotent, so loading twice changes nothing.
+    try { syncRizerForms(); } catch(err){ console.warn('[rp7b] form sync failed', err); }
     try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
     try { pruneZyrexContacts(); } catch(_){}         // v0.95.652 · Zyrex are not callable
     try { pruneLootBagContacts(); } catch(_){}      // v0.95.701 · corpses are not people
@@ -45256,7 +45456,7 @@ function startWildBattle(){
   const speciesId=pool[Math.floor(Math.random()*pool.length)];
   const wildLv=wildLevelFor(player.x,player.y);
   const wild=createZyrex(speciesId,wildLv);
-  const pSkin=player.cosmeticSkin==='power_upgrade'?'power_upgrade':'normal';
+  const pSkin=isRizerPowered()?'power_upgrade':'normal';
   const wSkin=pSkin==='normal'?'power_upgrade':'normal';
   wildBattleState={
     district:districtAt(player.x,player.y),startedAt:performance.now(),introUntil:performance.now()+1050,
@@ -52552,7 +52752,7 @@ for (const k of Object.keys(CAPTURE_ART_S2)) CAPTURE_ART_S2[k].img.src = CAPTURE
 // animation already read, so the capture sheets cannot disagree with the rest
 // of the form about which Rizer is on screen.
 function captureArtBank(){
-  return (player.cosmeticSkin === 'power_upgrade') ? CAPTURE_ART_S2 : CAPTURE_ART;
+  return isRizerPowered() ? CAPTURE_ART_S2 : CAPTURE_ART;
 }
 function drawCaptureSprite(){
   const B = WILD_BOND.active; if (!B) return false;
@@ -60305,6 +60505,10 @@ function awardRizerXP(amount){
     try { playSFX('levelUp'); } catch(_){}
     // ★ v0.95.979 · and the banner that points at the unspent AP
     try { showLevelUpBanner(); } catch(_){}
+    // ★★ v0.96.40 · the LEVEL 100 gate · sync here rather than only on load, so
+    //   the form is earned the instant the level lands rather than on the next
+    //   reload. Both calls are idempotent, so the loop cannot double-fire them.
+    try { if (syncRizerForms()) maybeRevealLuminary(); } catch(_){}
     // v0.95.713 · every level hands over its share of the 33.3/level pool.
     // The number in the toast is MEASURED from the pool delta, never a literal
     // 33 — floor(L × 33.3) alternates 33/33/33/34, and a toast that claimed a

@@ -197,8 +197,16 @@ H('10 · ★★ S1 EQUIPS AZUREL\'S BLADE · S2 EQUIPS RAKORON\'S');
   // in the file — voltstormGate now opens with the identical line thousands of
   // lines earlier, and first-match scraped the wrong function (sixth sighting
   // of the fixed-window bug · the fix is a landmark inside the right block).
+  // ★★★ v0.96.40 · RE-ANCHORED, and the irony is not lost: the comment above
+  //   calls this the sixth sighting of the fixed-window bug, and the landmark
+  //   it chose was the CONDITION ITSELF — `=== 'power_upgrade'`. S3 arrived,
+  //   that comparison became isRizerPowered(), lastIndexOf returned -1, every
+  //   downstream slice came back empty and SIX checks failed at once from one
+  //   missing anchor. A landmark has to be the thing that does not change.
+  //   `const isS2 =` is the declaration; the condition on its right is exactly
+  //   the part that was always free to move.
   const eqAt=src.indexOf('No S2 weapon available');
-  const i=src.lastIndexOf("const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade'", eqAt);
+  const i=src.lastIndexOf('const isS2 =', eqAt);
   ok(i>0&&eqAt>0,'the equip toggle branches on S1 vs S2 form');
   const blk=src.slice(i,i+1400);
   const s2=blk.slice(0,blk.indexOf('} else {'));
@@ -228,6 +236,16 @@ H('10 · ★★ S1 EQUIPS AZUREL\'S BLADE · S2 EQUIPS RAKORON\'S');
   ok(new Set(bf).size===bf.length && new Set(df).size===df.length,
      `each S1 weapon tracks its own break and wear · ${bf.join(', ')}`);
   ok(/brokenFlag/.test(s1),'and the cycle consults that per-weapon flag rather than a shared one');
+  // ★★★ v0.96.40 · AND S3 MUST NOT FALL INTO THE S1 RING.
+  //   The handoff names this as a shipping risk in as many words: "S3 is not
+  //   accidentally routed through S1-only weapons or logic." With a plain
+  //   `=== 'power_upgrade'` the Luminary form is not S2, so it would drop
+  //   straight through to the S1 branch and be handed Azurel's Tearsword — the
+  //   blade of the form he evolved OUT of. isRizerPowered() is what stops that,
+  //   so the predicate is asserted rather than the string it replaced.
+  const cond=src.slice(i, src.indexOf('\n', i));
+  ok(/isRizerPowered\(\)/.test(cond),
+     '★★★ the weapon slot asks isRizerPowered() · S3 takes the S2 ring, never S1\'s');
 }
 
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));

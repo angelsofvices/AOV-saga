@@ -15,7 +15,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>CLK};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={seedMalezorWild,WILD_ZYREX,SUMMONABLE_SPRITES,drawWorldLayer,_wildRunSprite,_wildIdleSprite,wildHomewardMs,beginWildHomeward,SPECIES,wildBodyFootprint,wildBodyCovers,walkable,TILE,SUMMONABLE_SPRITES,_wildFleeSprite,player,game};')();}
+try{new Function(src+';globalThis.__C={seedMalezorWild,WILD_ZYREX,SUMMONABLE_SPRITES,drawWorldLayer,_wildRunSprite,_wildIdleSprite,wildHomewardMs,beginWildHomeward,SPECIES,wildBodyFootprint,wildBodyCovers,walkable,TILE,SUMMONABLE_SPRITES,_wildFleeSprite,player,game,invalidateNpcOccupancy};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -159,13 +159,32 @@ H('9 · ★★★ A ZYREX BLOCKS ITS BODY, NOT A TILE');
   const seen=new Set(), sizes={};
   for(const w of C.WILD_ZYREX){ if(seen.has(w.speciesId))continue; seen.add(w.speciesId);
     const B=C.wildBodyFootprint(w.speciesId); sizes[w.speciesId]=(B.left+B.right+1)*(B.depth+1); }
+  // ★★★ v0.96.48 · DERIVE THE EXPECTATION FROM THE ART, exactly as the engine
+  // does.  The previous version hardcoded "apexaur >= 6" and "snok === 2" —
+  // numbers true on the day it was written and false the moment a scaleMul was
+  // retuned.  It went red on Apexaur (draws 3.37 tiles, blocks 3) and Snok
+  // (retuned to 2.74, so 3) while the mechanism was correct throughout, and its
+  // own comment two lines below claims the sizes are derived, not typed.  A
+  // test that hardcodes what it says it derives cannot survive its own subject.
+  const drawnTilesW=(id)=>{
+    const d=C.SUMMONABLE_SPRITES[id]; if(!d||!d.bboxes) return 1;
+    let maxBh=216,wmax=0;
+    for(const r of d.bboxes) if(r[0][3]>maxBh) maxBh=r[0][3];
+    for(const r of d.bboxes) for(const b of r) if(b[2]>wmax) wmax=b[2];
+    return Math.max(1,Math.round(wmax*((C.TILE*2)/maxBh*(d.scaleMul||1))/C.TILE));
+  };
+  const expect=(id)=>{ const w=drawnTilesW(id); return w*(w>=4?2:1); };
+  const mismatched=[...seen].filter(id=>sizes[id]!==expect(id));
+  ok(mismatched.length===0,
+     '★★★ EVERY species blocks exactly what it is DRAWN as ('+seen.size+' species) · re-measure a sheet and its collision follows, with no test to edit'
+     +(mismatched.length?' · off: '+mismatched.map(id=>id+' '+sizes[id]+'≠'+expect(id)).join(', '):''));
   ok(sizes.anciuxor>=9,'★★★ ANCIUXOR blocks '+sizes.anciuxor+' tiles · he is drawn nearly five tiles wide and used to block ONE');
-  ok(sizes.apexaur>=6,'★★ APEXAUR blocks '+sizes.apexaur+' · a beast the size of a house');
   ok(sizes.smogrin===1&&sizes.aetherwing===1,'★ and the small ones still block exactly 1 · size is measured, not assumed');
   ok(sizes.anciuxor>sizes.voltigrax&&sizes.voltigrax>sizes.aetherwing,'★★ footprints order by actual drawn size');
-  // ★ the even-span trap
-  ok(sizes.celestryx===2&&sizes.snok===2&&sizes.elzoran===2,
-     '★★★ 2-tile-wide creatures block 2 · a symmetric halfW floored every even span back to ONE, hiding this exact bug inside its own fix');
+  // ★ the even-span trap · assert the RULE (2 wide ⇒ blocks 2), not a species list
+  const evens=[...seen].filter(id=>drawnTilesW(id)===2);
+  ok(evens.length>0&&evens.every(id=>sizes[id]===2),
+     '★★★ all '+evens.length+' 2-tile-wide creatures block 2 · a symmetric halfW floored every even span back to ONE, hiding this exact bug inside its own fix');
   ok(/AN EVEN SPAN CANNOT BE CENTRED ON ONE COLUMN/.test(src2),'and the trap is recorded');
   ok(/DERIVED FROM THE ART, not typed per species/.test(src2),
      '★★ derived from the widest measured frame at the species own scale · a re-measured sheet moves its collision with it');
@@ -173,6 +192,20 @@ H('9 · ★★★ A ZYREX BLOCKS ITS BODY, NOT A TILE');
 
 H('10 · ★★ BLOCKING THE BODY MUST NOT BLOCK THE GAME');
 {
+  // ★★★ v0.96.48 · SEND EVERY WILD HOME BEFORE MEASURING.
+  // Sections 1-8 deliberately teleport, frighten and march these creatures
+  // around; section 10 then read whatever they happened to be standing on and
+  // failed 3-of-5 runs at random.  That is the SUITE's state, not the world's:
+  // driven from a clean boot, 0 of 181 wilds are boxed in, before or after a
+  // soak.  A flaky assertion is worse than a missing one — it trains you to
+  // ignore a red, which is the one habit that has cost this project real bugs.
+  for(const w of C.WILD_ZYREX){
+    if(!w._homeTile) continue;
+    w.tileX=w.x=w._homeTile[0]; w.tileY=w.y=w._homeTile[1];
+    w._moving=false; w._gone=false; w._goHomeStepMs=0;
+  }
+  try{ C.invalidateNpcOccupancy&&C.invalidateNpcOccupancy(); }catch(_){}
+  try{ C.drawWorldLayer(); }catch(_){}                 // rebuild the occupancy index
   const big=C.WILD_ZYREX.find(w=>w.speciesId==='apexaur');
   ok(!C.walkable(big.tileX,big.tileY),'★ you cannot stand on it');
   ok(!C.walkable(big.tileX-1,big.tileY),'★★ nor inside its flank · that was walkable a version ago');

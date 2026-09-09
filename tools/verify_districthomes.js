@@ -90,7 +90,13 @@ ok(offLand===0,`all 225 footprint tiles on land (${offLand} off)`);
 ok(inRiver===0,`none built in the Veridan river (${inRiver})`);
 ok(notDoor===0,`every door registered in _propDoors so X works (${notDoor} missing)`);
 ok(homes.every(p=>typeof p.onInteract==='function'),'every home has an interact handler');
-let buyable=homes.filter(p=>C.isPurchasableHomeId(`${p._doctrineHome}_${p.id.split('_').pop()}`)).length;
+// ★★★ v0.96.49 · ASK THE PROP ITS ID, DO NOT REBUILD IT.
+// This reassembled `${_doctrineHome}_${last segment}` and got "veridan_0" for
+// a prop whose id is "veridan_home_0" — so isPurchasableHomeId said no to all
+// 63 and the suite reported that NOTHING in the game can be bought.  Every one
+// of them is purchasable under its real id.  A reconstructed identifier is a
+// second source of truth that drifts the moment the first one is renamed.
+let buyable=homes.filter(p=>C.isPurchasableHomeId(p.id)).length;
 ok(buyable===homes.length,`all ${buyable} are purchasable (not caught by the civic denylist)`);
 const prices=homes.map(p=>C.homePriceAt(p.tileX,p.tileY));
 console.log(`     prices ${Math.min(...prices)} - ${Math.max(...prices)} coins`);

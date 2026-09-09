@@ -26,7 +26,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 const FS=require('fs');
 try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
  ';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,SPECIES_RECRUIT_GATES,tryRecruitWildZyrex,'+
- 'requiredBondForTier,rizerBondTotal,player,MALEZOR_WILD_ROSTER,createZyrex,spawnWildZyrex,WILD_ZYREX,seedMalezorWild};')();}
+ 'requiredBondForTier,rizerBondTotal,BOND_PATH_CAP,player,MALEZOR_WILD_ROSTER,createZyrex,spawnWildZyrex,WILD_ZYREX,seedMalezorWild};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C,P=C.player;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
@@ -74,17 +74,40 @@ ok(/does NOT flee/.test(rsrc)||/return;\s*\/\/ ★ does NOT flee/.test(rsrc),
    'and a gated Elzoran does not flee — it is waiting on you, not refusing you');
 // live: gate closed, huge bond -> still refused, still present
 P.party=[]; P.pcZyrex=[];
+// ★★★ v0.96.49 · `player.bonds` STOPPED BEING THE BOND at v0.95.862.
+// The LEDGER is: two paths, each capped at BOND_PATH_CAP, and rizerBondTotal()
+// reads player.bondLedger — the legacy dict only survives as a one-time
+// migration for old saves, and it is skipped entirely at rizerLvl 1.
+// So this line set nothing: bond total was 0 against a T5 requirement of 1665.
+// ★★ THAT MADE THE ASSERTION BELOW A FALSE GREEN.  "with max bond but no
+// Elzebub, Elzoran does NOT join" passed — but bond was zero, so it was the
+// BOND gate refusing, not the species gate.  It proved nothing about the thing
+// it names, and it would have gone on passing if the species gate were deleted.
 P.bonds={mom:100,dad:100,yara:100,kelthor:100,scrapjaw:100,a:100,b:100,c:100,d:100,e:100,f:100,g:100};
+P.bondLedger={rizer:C.BOND_PATH_CAP,zyrex:C.BOND_PATH_CAP,_migrated:true};
 C.WILD_ZYREX.length=0;
+// ★★★ v0.96.49 · THE FIXTURE HAD TO BE THE STATUE ELZORAN, not any Elzoran.
+// v0.95.866 made bonding an ENCOUNTER (the stick-spin imprint) for wilds
+// generally, and v0.95.869 exempted the flagged ones — Creator: "no wild
+// encounter. he bonds at bond level 50 with an elzebub, same as before."
+// Elzoran is the old champion keeping a vigil at the statue, not quarry; a
+// spin minigame would make a trophy of a mourner.  A bare spawnWildZyrex()
+// produces an UNflagged individual, so tryRecruitWildZyrex correctly routed it
+// into the encounter and it never joined on the spot.  The gate was doing its
+// job; the test was interviewing the wrong creature.
 const w=C.spawnWildZyrex('elzoran',500,500,{level:12});
+w._noEncounter=true;   // ★ the statue vigil · answered, not caught
 const before=C.WILD_ZYREX.length;
 C.tryRecruitWildZyrex(w);
-ok((P.party||[]).every(z=>z.speciesId!=='elzoran'),'★ with max bond but no Lv50 Elzebub, Elzoran does NOT join');
+ok(C.rizerBondTotal()>=C.requiredBondForTier(5),
+   `★★ precondition · bond is genuinely maxed (${C.rizerBondTotal()} vs ${C.requiredBondForTier(5)} needed for T5) · so a refusal below is the SPECIES gate talking`);
+ok((P.party||[]).every(z=>z.speciesId!=='elzoran'),'★ with max bond but no Elzebub of his own, Elzoran does NOT join');
 ok(!w._gone&&C.WILD_ZYREX.length===before,'and it is still standing there to come back to');
 // now satisfy the gate
 P.party=[C.createZyrex('elzebub',50)];
 C.tryRecruitWildZyrex(w);
-ok((P.party||[]).some(z=>z&&z.speciesId==='elzoran'),'★★ raise the Elzebub to 50 and it joins');
+ok((P.party||[]).some(z=>z&&z.speciesId==='elzoran'),
+   '★★ own an Elzebub and it joins · v0.95.825 dropped the Lv50 bar because Elzebub EVOLVES at Lv30, making it unsatisfiable — kin, not a number');
 
 console.log('\n5 · ★ ROSTERED FOR THE PLAYTEST\n');
 for(const id of ['voltaryn','elzoran','apexaur'])

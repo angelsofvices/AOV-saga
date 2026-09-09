@@ -72,7 +72,7 @@ new Function(src+`;globalThis.__D={game,player,DRACOLORD_DOMAINS,dracolordRealmC
  leaveDracolordRealm,tickDracolordRealm,dracolordAudience,dracolordSeen,interiorConfig,
  DRACOLORD_REALM_W,DRACOLORD_REALM_H,DRACOLORD_REALM_CX,DRACOLORD_REALM_SPINE,
  DRACOLORD_THRONE_Y,DRACOLORD_ARRIVE_Y,DRACOLORD_GATE_Y,DRACOLORD_AUDIENCE_Y,
- DREAMLAND_SCENE,drawDracolordPresence,drawDracolordGate,
+ DREAMLAND_SCENE,drawDracolordPresence,drawDracolordGate,tickDreamland,wakeFromDreamland,
  dlg:()=>dialogState,clearDlg:()=>{dialogState=null;}};`)();
 let n=0;while(_Q.length&&n<400){const f=_Q.shift();n++;try{f();}catch(_){}}
 console.log=LOG;const D=globalThis.__D;
@@ -116,20 +116,39 @@ for(const d of D.DRACOLORD_DOMAINS){
 t(allLand,'★★★ all six arches land the player INSIDE the realm');
 t(allSolid,'★★★ all six land him on solid ground');
 
-/* ── 3 · ★★★ RULING 1 · THE CLOCK STOPS AT THE THRESHOLD ───────────── */
+/* ── 3 · ★★★ RULING 1 REVERSED · ONE CLOCK, AND IT NEVER PAUSES ─────
+   v0.96.37 stopped the clock at the arch: shelter, not a refill.  v0.96.57
+   overturns it — Creator: "same level timer ratio."  Dreamland runs at one
+   second per Rizer level and an inner level now spends from that SAME
+   allowance instead of opening a second one, so choosing a Dracolord means
+   not visiting the other five.                                          */
 const dom=D.DRACOLORD_DOMAINS[0];
 D.game.scene=D.DREAMLAND_SCENE;D.player.x=31;D.player.y=27;
 D.player._dreamEndsAt=CLOCK+9000;
 D.enterDracolordRealm(dom);drain();
-t(D.player._dreamEndsAt===0,'★★★ the clock STOPS past an arch');
-t(Math.abs(D.player._dreamClockHeld-9000)<50,`★ and 9000ms is HELD (${Math.round(D.player._dreamClockHeld)})`);
-CLOCK+=120000;                                   // two minutes inside
-t(D.game.scene===D.dracolordRealmScene(dom.id),'★★★ two minutes later · still inside · no timeout');
-const held=D.player._dreamClockHeld;
+t(Math.abs((D.player._dreamEndsAt-CLOCK)-9000)<50,
+  `★★★ the clock CARRIES past an arch · ${Math.round(D.player._dreamEndsAt-CLOCK)}ms still on it`);
+t(D.player._dreamClockHeld===0,'★★ nothing is held · the field is pinned at 0 so no save carries a stale freeze');
+CLOCK+=4000;                                     // four seconds walking the corridor
+t(D.game.scene===D.dracolordRealmScene(dom.id),'★ four seconds later · still inside, still walking');
+t(Math.abs((D.player._dreamEndsAt-CLOCK)-5000)<50,
+  `★★★ and those four seconds were SPENT · ${Math.round(D.player._dreamEndsAt-CLOCK)}ms left of 9000`);
 D.leaveDracolordRealm();drain();
 t(D.player.x===31&&D.player.y===27,`★★★ you come out on the EXACT tile you left (${D.player.x},${D.player.y})`);
-t(Math.abs((D.player._dreamEndsAt-CLOCK)-held)<50,
-  `★★★ shelter, NOT a refill · resumed with ${Math.round(D.player._dreamEndsAt-CLOCK)}ms of ${Math.round(held)}`);
+t(Math.abs((D.player._dreamEndsAt-CLOCK)-5000)<50,
+  `★★★ NOT A REFILL · back on the plane with ${Math.round(D.player._dreamEndsAt-CLOCK)}ms, the same number you walked out with`);
+/* ★★★ AND THE CLOCK CAN NOW KILL YOU IN A CORRIDOR · the whole point of the
+   reversal.  Two halves enforced this freeze in two functions 200 lines
+   apart — tickDreamland refused to run and wakeFromDreamland refused to
+   fire — so fixing only one would have looked right and changed nothing. */
+D.player._dreamEndsAt=CLOCK+1000;
+D.enterDracolordRealm(dom);drain();
+D.player.x=7;D.player.y=30;                      // halfway down, nowhere near the gate
+CLOCK+=1500;D.tickDreamland();drain();
+t(D.game.scene==='interior_treehouse',`★★★ running out mid-corridor WAKES you (${D.game.scene})`);
+t(!D.player._realmAudience&&!D.player._dreamRealmFrom&&!D.player._dreamClockHeld&&!D.player._dreamEndsAt,
+  '★★ and every scrap of realm state goes with it · nothing carries into the next nap');
+D.game.scene=D.DREAMLAND_SCENE;D.player.x=31;D.player.y=27;D.player._dreamEndsAt=CLOCK+9000;
 // ★ the +1 drift bug: v0.96.37 stored the tile then added one on the way out
 for(let i=0;i<5;i++){D.enterDracolordRealm(dom);drain();D.leaveDracolordRealm();drain();}
 t(D.player.x===31&&D.player.y===27,'★ five round trips · ZERO drift');
@@ -208,6 +227,32 @@ for(const d of D.DRACOLORD_DOMAINS){
 }
 t(drew,'★ all six presences draw without throwing');
 try{D.drawDracolordGate();ok('★ the gate draws without throwing');}catch(e){no('gate draw: '+e.message);}
+
+/* ── ★★★ THE RULING'S CONSEQUENCE · A DRACOLORD MUST STILL BE REACHABLE ──
+   One shared clock means the corridor is now paid for out of the seconds you
+   were using to cross the plane.  That is the POINT — it makes choosing a
+   Dracolord a decision instead of a free tour of all six.  But it also means
+   a corridor lengthened, or an arch ring widened, or the seconds-per-level
+   ratio touched, can silently put every lord out of reach at every level, and
+   the failure looks exactly like a feature nobody happened to walk to.
+   Measured from the constants, not guessed: walk 170ms/tile, sprint 90ms.  */
+{
+  const WALK_MS=170, SPRINT_MS=90;
+  const toArch = 22;                                   // DRACOLORD_ARCH_RADIUS
+  const cfg = D.dracolordRealmConfig('aetherion');
+  const corridor = cfg.spawn.y - D.DRACOLORD_AUDIENCE_Y;
+  const tiles = toArch + corridor;
+  const walkS = Math.ceil(tiles*WALK_MS/1000), sprintS = Math.ceil(tiles*SPRINT_MS/1000);
+  // dreamlandSeconds() is one second per Rizer level, so seconds ARE the level
+  t(walkS <= 100,
+    `★★★ a Lv100 Rizer can WALK it · ${tiles} tiles (${toArch} to the arch + ${corridor} down the corridor) = ${walkS}s of a 100s dream`);
+  t(sprintS <= 100, `★★ and sprint it in ${sprintS}s`);
+  t(walkS <= 40,
+    `★★★ and it opens LONG before the cap · reachable on foot from about Rizer ${walkS}, sprinting from about ${sprintS}`);
+  console.log(`     so the six doors become usable around Lv${sprintS}-${walkS} and stay usable · below that`);
+  console.log(`     the dream is simply too short to walk anywhere, which is the same`);
+  console.log(`     gate the plane already had.\n`);
+}
 
 console.log(`\n${pass} passed · ${fail} failed\n`);
 process.exit(fail?1:0);

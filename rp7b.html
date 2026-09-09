@@ -29789,14 +29789,30 @@ function dracolordSeen(id){
   player.dracolordSeen = player.dracolordSeen || {};
   return !!player.dracolordSeen[id];
 }
-// ★★ THE THRESHOLD. Entering stops the clock; leaving restarts it with the
-//   time the player had LEFT, not a fresh allowance — an arch is shelter, not
-//   a refill, and a refill would make the plane's timer meaningless the moment
-//   you learned to step in and out.
+// ★★★ v0.96.57 · THE THRESHOLD IS NOT SHELTER ANY MORE.
+//
+//   Creator: "same level timer ratio."
+//
+// v0.96.37 stopped the clock at the arch and resumed it on the way out, on the
+// reasoning that an arch is shelter and a refill would make the plane's timer
+// meaningless.  The ruling reverses that: ONE clock, and it never pauses.
+// Dreamland already runs at one second per Rizer level (dreamlandSeconds()),
+// and an inner level now spends from that same allowance rather than opening a
+// second one.
+//
+// ★★ WHICH IS WHAT MAKES THE SIX ARCHES A DECISION.  Under the freeze you
+//   could step through every door in one dream at no cost, because the only
+//   clock that existed was the one outside.  Now the corridor is 44 tiles long
+//   and the walk down it is paid for out of the same seconds you were using to
+//   cross the plane — so choosing a Dracolord means not visiting the others,
+//   and a low-level Rizer genuinely cannot reach the end of one yet.
+//
+// ★ _dreamClockHeld is left in the save shape and pinned at 0.  Removing the
+//   field outright would strand every save written while the freeze existed
+//   with a stale non-zero value that nothing clears.
 function enterDracolordRealm(dom){
   if (!dom) return false;
-  player._dreamClockHeld = Math.max(0, (player._dreamEndsAt || 0) - performance.now());
-  player._dreamEndsAt = 0;                       // ★ the clock stops
+  player._dreamClockHeld = 0;                    // ★ the clock KEEPS RUNNING
   // ★ store the TILE THE PLAYER IS ON, and step back onto exactly that. My
   //   first version stored this and then added 1 on the way out, which put you
   //   one tile further from the arch every single time you used it.
@@ -29812,7 +29828,10 @@ function enterDracolordRealm(dom){
   player._realmAudience = false;                 // one audience per crossing
   try { snapCameraToPlayer(); } catch(_){}
   try { playSFX('menuOpen'); } catch(_){}
-  showToast(`☁ ${dom.realm} · the clock does not follow you here`, 3200);
+  {
+    const _left = Math.max(0, Math.round(((player._dreamEndsAt || 0) - performance.now()) / 1000));
+    showToast(`☁ ${dom.realm} · ${_left}s of dream left`, 3200);
+  }
   return true;
 }
 function leaveDracolordRealm(){
@@ -29822,8 +29841,11 @@ function leaveDracolordRealm(){
   player.dir = 'down';
   player.moving = false; player.animFrame = 0; player.moveCd = 0;
   player._realmAudience = false;
-  // ★ the clock resumes where it stopped
-  player._dreamEndsAt = performance.now() + (player._dreamClockHeld || 1000);
+  // ★★ v0.96.57 · NOTHING TO RESUME · the clock ran the whole time you were
+  //   inside, so stepping back onto the plane simply continues it.  The old
+  //   line rebuilt _dreamEndsAt from the held value and would now hand back
+  //   a full allowance the moment the field is 0 — the exact refill the
+  //   original freeze existed to prevent.
   player._dreamClockHeld = 0;
   try { snapCameraToPlayer(); } catch(_){}
   try { playSFX('menuClose'); } catch(_){}
@@ -30138,26 +30160,48 @@ function startDreamlandNap(){
 }
 // ── Leave · the clock runs out, or you wake yourself ──────────────────
 function wakeFromDreamland(reason){
-  if (game.scene !== DREAMLAND_SCENE) return;
+  // ★★★ v0.96.57 · YOU CAN NOW WAKE FROM INSIDE A DOMAIN.  This refused unless
+  //   you stood on the cloud plane, so even once the clock ran in a corridor
+  //   the wake it asked for was silently declined and the dream ran forever.
+  //   Two halves of the same freeze, in two functions 200 lines apart — fixing
+  //   only the tick would have looked like it worked and changed nothing.
+  if (!isDreamScene(game.scene)) return;
+  const _fromRealm = !!currentDracolordRealm();
   const back = player._dreamReturn
             || { scene: 'interior_treehouse', x: TREEHOUSE_TELESCOPE.tileX, y: TREEHOUSE_TELESCOPE.tileY + 1, dir: 'up' };
   player._dreamEndsAt = 0;
   player._dreamReturn = null;
+  // ★★ AND EVERY SCRAP OF REALM STATE GOES WITH IT.  Waking out of a corridor
+  //   leaves _dreamRealmFrom pointing at a plane tile and _realmAudience armed;
+  //   carried into the next nap they would send the exit gate somewhere stale
+  //   and swallow the audience you had not had yet.
+  player._dreamRealmFrom = null;
+  player._dreamClockHeld = 0;
+  player._realmAudience  = false;
   game.scene = back.scene;
   player.x = back.x; player.y = back.y; player.dir = back.dir;
   player.moving = false; player.animFrame = 0; player.moveCd = 0;
   try { snapCameraToPlayer(); } catch(_){}
   try { playSFX('menuClose'); } catch(_){}
-  showToast(reason === 'timeout' ? '☁ You wake at the telescope.' : '☁ You pull yourself awake.', 2200);
+  // ★ waking OUT OF A DOMAIN reads differently from fading off the plane · you
+  //   were somewhere, walking toward someone, and the dream ended anyway
+  showToast(reason !== 'timeout'   ? '☁ You pull yourself awake.'
+          : _fromRealm             ? '☁ The domain lets go of you. You wake at the telescope.'
+          :                          '☁ You wake at the telescope.', 2600);
 }
 // One tick, called from frame().  Deliberately does NOT award anything on
 // expiry: the Creator asked for timed exploration, and inventing a payout
 // would be putting a number on screen that no design has decided yet.
 function tickDreamland(){
-  // ★★★ v0.96.37 · the clock only runs on the CLOUD PLANE. Inside a Dracolord's
-  //   domain _dreamEndsAt is 0, so this returns early and the timeout can never
-  //   fire — which is the ruling, enforced in the one place that could break it.
-  if (game.scene !== DREAMLAND_SCENE) return;
+  // ★★★ v0.96.57 · THE CLOCK RUNS IN THE REALMS TOO.
+  //   This read `!== DREAMLAND_SCENE` and was the single line enforcing the old
+  //   freeze — inside a domain the timeout could never fire.  isDreamScene()
+  //   covers the cloud plane AND all six corridors, so one clock now governs
+  //   the whole dream, which is the ruling.
+  // ★★ The 0-guard stays and matters more than it did: it is what keeps this
+  //   inert in the treehouse and every other scene, since isDreamScene is the
+  //   only thing standing between here and a wake() firing outside a dream.
+  if (!isDreamScene(game.scene)) return;
   if (!player._dreamEndsAt) return;
   if (performance.now() >= player._dreamEndsAt) wakeFromDreamland('timeout');
 }
@@ -38278,7 +38322,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.55' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.57' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

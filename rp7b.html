@@ -38544,7 +38544,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.62' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.63' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -53252,7 +53252,187 @@ function drawZyrexOrb(w){
 // Kept as a TABLE rather than an if-branch inside the recruit flow, because the
 // next one of these is a matter of time and the flow should not grow a limb per
 // species.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.63 · ANCIUXOR · THE GOD WHO WILL NOT BE APPROACHED
+//
+//   Creator: "when u approach an anciuxor under level 100, It flies away and
+//   spawns else where in the district.  it follows you during your expedition
+//   but you cannot interact with it until level 100 ... the first anciuxor
+//   sighting is the treehouse, then it goes away."
+//
+// ★★ HE IS ONE BEING, NOT A SPAWN TABLE.  The Anciuxor pinned beside the
+//   treehouse at (22,-19) since v0.95.818 IS the one enthroned at Korathen —
+//   he simply has not stopped running yet.  So this does not add a creature;
+//   it takes the one that was standing still and makes him leave, over and
+//   over, until the Rizer is finally worth staying for.
+//
+// ★★★ THE DEPARTURE IS A CINEMATIC, NOT A FLEE BANK.  The wild flee pipeline
+//   (fleeSrc/fleeBboxes) is row=DIRECTION, four facings of four frames.  This
+//   sheet is one continuous sixteen-frame flight INTO the camera, so forcing
+//   it through that path would read row 0 as "facing down" and play a quarter
+//   of the animation.  It is drawn as its own one-shot instead.
+//
+// ★ AND THE GROWTH IS OURS, NOT THE ART'S.  Measured, the delivered frames do
+//   not ramp monotonically (ink area 1.00x .. 1.42x, wandering) — they are
+//   sixteen flight POSES.  Creator: "it should grow in size to create a 3d
+//   effect each frame.  the first few frames keep its regular size then it
+//   flies away."  So the first ANCIUXOR_FLIGHT_HOLD frames sit at true size
+//   and the rest accelerate toward the lens on an ease-in curve.
+const ANCIUXOR_TAME_LV      = 100;   // ★ LOCAL · not RIZER_LEVEL_CAP · that const is
+                                     //   ~25k lines below and reading it here is the
+                                     //   TDZ boot-killer that cost v0.96.40 an evening
+const ANCIUXOR_FLEE_TILES   = 6;     // he is gone before you are ever adjacent
+const ANCIUXOR_FLIGHT_MS    = 1500;  // the whole sixteen-frame departure
+const ANCIUXOR_FLIGHT_HOLD  = 3;     // frames at true size before he launches
+const ANCIUXOR_FLIGHT_GROW  = 4.6;   // final scale · the rush past the camera
+const ANCIUXOR_RESPAWN_MIN  = 26;    // and he lands no nearer than this
+const ANCIUXOR_FLEE_IMG = new Image();
+ANCIUXOR_FLEE_IMG.src = 'assets/2D%20sprites/zyrex/anciuxor-flee.png';
+// ★ measured by connected component, cell-relative, overflow OWNED · seven of
+//   the sixteen run past their 313 cell because a full wing-spread is wider
+//   than the cell it was drawn in, and two (frames 3 and 8) are only ~100px
+//   wide because he is flying head-on with the wings folded.  Both looked
+//   like extraction failures and both are the art being correct.
+const ANCIUXOR_FLEE_BB = [
+    [[47,44,239,256],[60,28,224,253],[5,105,340,194],[105,50,114,244]],
+    [[9,82,370,167],[70,19,237,246],[50,13,259,265],[27,50,265,224]],
+    [[98,20,95,234],[-89,67,430,189],[47,6,258,240],[31,1,259,254]],
+    [[21,-13,272,276],[5,-7,313,255],[11,-24,306,267],[31,-24,269,264]]
+];
+let _anciuxorFlight = null;          // { t0, x, y } · one shot, then he is gone
+
+function anciuxorWild(){
+  if (typeof WILD_ZYREX === 'undefined') return null;
+  return WILD_ZYREX.find(w => w && w.speciesId === 'anciuxor' && !w._gone) || null;
+}
+// ★★ THE ONE PLACE THAT DECIDES WHETHER HE STAYS.  Every other check asks
+//   this, so raising or lowering the bar is a single edit.
+function anciuxorWillStay(){ return (player.rizerLvl || 1) >= ANCIUXOR_TAME_LV; }
+
+function beginAnciuxorFlight(w){
+  if (!w || _anciuxorFlight) return false;
+  _anciuxorFlight = { t0: performance.now(), x: w.tileX, y: w.tileY };
+  w._gone = true;                                  // he is not on the ground any more
+  try { invalidateNpcOccupancy(); } catch(_){}
+  try { playSFX('whoosh'); } catch(_){}
+  const first = !player.anciuxorSeen;
+  player.anciuxorSeen = (player.anciuxorSeen || 0) + 1;
+  showToast(first
+    ? '\u2609 Something enormous was watching the treehouse. It is gone.'
+    : '\u2609 It will not let you near. Not yet.', 3000);
+  return true;
+}
+
+// ★★★ HE LANDS SOMEWHERE ELSE IN THE DISTRICT YOU ARE IN · "it follows you
+//   during your expedition".  Not a fixed circuit: wherever the Rizer has
+//   wandered to, the God is already there ahead of him.
+function relocateAnciuxor(w){
+  if (!w) return false;
+  const dist = worldDistrictAt(player.x, player.y);
+  let best = null;
+  // ★★ TWO PASSES · the second reaches further.  Measured over 108 relocations
+  //   from ten districts, a tight ring found nothing 12 times — a coastline, a
+  //   mountain shelf, a corner of the map where 26-60 tiles in every direction
+  //   is water or rock.  One pass and he would have been GONE, permanently,
+  //   because the flight had already lifted him off the ground.
+  for (let pass = 0; pass < 2 && !best; pass++){
+  const reach = pass ? 90 : 34;
+  for (let tries = 0; tries < 400; tries++){
+    const a = Math.random() * Math.PI * 2;
+    const r = ANCIUXOR_RESPAWN_MIN + Math.random() * reach;
+    const x = Math.round(player.x + Math.cos(a) * r);
+    const y = Math.round(player.y + Math.sin(a) * r);
+    // ★★★ "IN THE DISTRICT" MEANS NOTHING IN THE INTERSTITIAL.  The Wild
+    //   March, the Green Divide, the shores of the Void Seas — worldDistrictAt
+    //   returns NULL out there, and requiring a match against null rejects
+    //   every real tile on the map.  Measured: standing at (430,180) he could
+    //   not land in 400 tries at any reach, twelve times running — the God
+    //   deleted from the save for the crime of being met off-district.
+    //   Off-district the rule is simply "somewhere legal near you", which is
+    //   what the Creator's sentence means once there is no district to be in.
+    if (dist && worldDistrictAt(x, y) !== dist) continue;
+    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+    if (!walkable(x, y)) continue;
+    // ★ and he needs ground beside him, or he is a sighting you can never reach
+    const open = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => walkable(x+dx, y+dy)).length;
+    if (open < 2) continue;
+    best = { x, y }; break;
+  }
+  }
+  if (!best) return false;                          // ★ nowhere legal · the tick retries
+  w.tileX = w.x = best.x; w.tileY = w.y = best.y;
+  w._homeTile = [best.x, best.y];
+  w._gone = false; w.moving = false;
+  try { invalidateNpcOccupancy(); } catch(_){}
+  return true;
+}
+
+function tickAnciuxor(){
+  if (game.scene !== 'overworld') return;
+  // 1 · a departure in progress
+  if (_anciuxorFlight){
+    if (performance.now() - _anciuxorFlight.t0 >= ANCIUXOR_FLIGHT_MS){
+      _anciuxorFlight = null;
+      const w = WILD_ZYREX.find(q => q && q.speciesId === 'anciuxor');
+      if (w) relocateAnciuxor(w);
+    }
+    return;
+  }
+  // ★★★ 1b · AND IF HE COULD NOT LAND, KEEP TRYING.  relocateAnciuxor can
+  //   legitimately fail — a coast, a ridge, a map corner — and the flight has
+  //   already taken him off the ground, so a single failure would delete the
+  //   Ultimate God from the save with no way back.  The Rizer is walking, so
+  //   the candidate ring is different every frame and this resolves itself
+  //   within a step or two.  Cheap: one array find on a world with one of him.
+  {
+    const lost = WILD_ZYREX.find(q => q && q.speciesId === 'anciuxor' && q._gone);
+    if (lost){ relocateAnciuxor(lost); return; }
+  }
+  // 2 · does he go?
+  const w = anciuxorWild();
+  if (!w || anciuxorWillStay()) return;             // ★ Lv100 · he finally holds his ground
+  const d = Math.max(Math.abs(player.x - w.tileX), Math.abs(player.y - w.tileY));
+  if (d <= ANCIUXOR_FLEE_TILES) beginAnciuxorFlight(w);
+}
+
+// ★★ THE SCALE RAMP · hold, then rush.  Ease-in so the last frames cover far
+//   more ground than the first, which is what selling depth on a flat sprite
+//   actually requires — a linear ramp reads as a balloon inflating.
+function anciuxorFlightScale(f){
+  if (f <= ANCIUXOR_FLIGHT_HOLD) return 1;
+  const t = (f - ANCIUXOR_FLIGHT_HOLD) / (15 - ANCIUXOR_FLIGHT_HOLD);
+  return 1 + (ANCIUXOR_FLIGHT_GROW - 1) * Math.pow(t, 1.7);
+}
+
+function drawAnciuxorFlight(){
+  if (!_anciuxorFlight || game.scene !== 'overworld') return;
+  const im = ANCIUXOR_FLEE_IMG;
+  if (!im.complete || !im.naturalWidth) return;     // ★ no art · he simply vanishes
+  const p = Math.min(1, (performance.now() - _anciuxorFlight.t0) / ANCIUXOR_FLIGHT_MS);
+  const f = Math.min(15, Math.floor(p * 16));
+  const bb = ANCIUXOR_FLEE_BB[f >> 2][f & 3];
+  const sx = (f & 3) * 313 + bb[0], sy = (f >> 2) * 313 + bb[1];
+  const k = anciuxorFlightScale(f) * 2.0;           // 2.0 = his GOD-scale multiplier
+  const dw = Math.round(bb[2] * k * (TILE / 156)), dh = Math.round(bb[3] * k * (TILE / 156));
+  const cx = (_anciuxorFlight.x + 0.5) * TILE - _cam.x;
+  const cy = (_anciuxorFlight.y + 0.5) * TILE - _cam.y;
+  ctx.save();
+  // ★ he fades only at the very end · vanishing early would read as a bug
+  ctx.globalAlpha = p > 0.86 ? Math.max(0, (1 - p) / 0.14) : 1;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(im, sx, sy, bb[2], bb[3], Math.round(cx - dw / 2), Math.round(cy - dh / 2), dw, dh);
+  ctx.restore();
+}
 const SPECIES_RECRUIT_GATES = {
+  // ★★★ v0.96.63 · he flees at six tiles so you should never reach this — but
+  //   "should never" is how a hole gets found.  A dev warp, a future mount, a
+  //   corner he relocates into: any of them puts you next to him under level,
+  //   and without this the Ultimate T10 God joins a Lv12 party.  NOT silent,
+  //   because unlike Elzoran his refusal is a PROMISE rather than a snub.
+  anciuxor: {
+    test(){ return anciuxorWillStay(); },
+    why(){ return `Not yet. Reach Rizer level ${ANCIUXOR_TAME_LV} and He will be waiting.`; },
+  },
   elzoran: {
     // ★ v0.95.818 · SILENT.  Creator: "you also need to have an elzebub to
     // make him happy. or he will just ignore you. no vox either."  Being
@@ -59196,6 +59376,7 @@ function _frameBody(now){
   _step('tickStamina', () => tickStamina(dt));
   _step('tickDreamland', () => tickDreamland());
   _step('tickDracolordRealm', () => tickDracolordRealm());   // ★ v0.96.38
+  _step('tickAnciuxor',       () => tickAnciuxor());         // ★ v0.96.63
   _step('tickFormDrain', () => tickFormDrain(dt));           // ★ v0.96.41
   _step('tickYaraRegen', () => tickYaraRegen(dt));
   _step('tickMeditation', () => tickMeditation(dt));
@@ -59467,6 +59648,10 @@ function _frameBody(now){
       try { showToast(`⚠ ${n} shadows built · ${Math.round(_silhouette._frameMs)}ms`, 9000); } catch(_){}
     }
     _step('drawFae', drawFae);          // v0.91 · fae collectibles float above ground
+  // ★★ v0.96.63 · the God's departure flies OVER everything · he is not on the
+  //    ground any more, he is between you and the sky, and the whole point of
+  //    the shot is that he passes the camera.
+  _step('drawAnciuxorFlight', drawAnciuxorFlight);
     drawElzebubEgg();   // v0.95.295 · rare 10-radius Elzebub egg spawn near home
     drawGems();         // v0.95.171 · chest-drop gem entities · shine pulse
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer

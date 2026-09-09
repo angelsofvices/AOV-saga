@@ -28,7 +28,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 
 try {
   new Function(src + ';globalThis.__C={isFacingInteractable,interiorConfig,roomItemAtTile,player,game,' +
-    'RIZER_ROOM_ITEMS,NPCS,WORLD_PROPS,TREEHOUSE_CHEST,TREEHOUSE_GOLD_CHEST,SEER_HQ_CHEST_TILE,' +
+    'RIZER_ROOM_ITEMS,NPCS,WORLD_PROPS,TREEHOUSE_CHEST,TREEHOUSE_GOLD_CHEST,SEER_HQ_CHEST_TILE,SEER_HQ_CHEST_SCENE,' +
     'DADS_BOOKSHELF_TILES,INTERIOR_HOME,INTERIOR_RESEARCH_LAB,_propDoors,walkable};')();
 } catch (e) { console.log('❌ BOOT FAILED:', e.message); process.exit(1); }
 const C = globalThis.__C;
@@ -87,8 +87,13 @@ console.log('\n4 · OTHER INTERIOR FIXTURES · "any other interactable tile asse
 C.game.scene = 'interior_treehouse';
 ok(C.isFacingInteractable(C.TREEHOUSE_CHEST.tileX, C.TREEHOUSE_CHEST.tileY), 'treehouse silver chest');
 ok(C.isFacingInteractable(C.TREEHOUSE_GOLD_CHEST.tileX, C.TREEHOUSE_GOLD_CHEST.tileY), 'treehouse gold chest (Rubypaw)');
-C.game.scene = 'interior_seer_hq_1f';
-ok(C.isFacingInteractable(C.SEER_HQ_CHEST_TILE.tileX, C.SEER_HQ_CHEST_TILE.tileY), 'Seer HQ chest (Ruby Vial)');
+// ★★ v0.96.49 · THE CHEST MOVED DOWNSTAIRS.  It was in the hall; since
+//    v0.95.966 it is in the VAULT, behind the basement key.  Read the scene
+//    from SEER_HQ_CHEST_SCENE rather than naming a floor, so the next time it
+//    is rehoused this check follows it instead of quietly testing empty air.
+C.game.scene = C.SEER_HQ_CHEST_SCENE;
+ok(C.isFacingInteractable(C.SEER_HQ_CHEST_TILE.tileX, C.SEER_HQ_CHEST_TILE.tileY),
+   `Seer HQ chest (Ruby Vial) · in ${C.SEER_HQ_CHEST_SCENE}`);
 C.game.scene = 'interior_research_lab';
 ok(C.isFacingInteractable(10, 2), "Dad's workbench");
 const B = C.DADS_BOOKSHELF_TILES;

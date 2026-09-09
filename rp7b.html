@@ -16256,7 +16256,7 @@ function walkable(x, y, flying){
     if (game.scene === 'interior_treehouse'
         && x === TREEHOUSE_GOLD_CHEST.tileX && y === TREEHOUSE_GOLD_CHEST.tileY) return false;
     // ★ v0.95.966 · either Seer chest blocks · X-interact from an adjacent tile
-    if (seerChestAt(x, y)) return false;
+    if (seerHqChestAt(x, y)) return false;
     // v0.95.600 · Professor's desk footprint blocks · 4 tiles wide × 2 tall
     //   footY at row 4 · body spans rows 3-4 · cols 13-16 (SCHOOL_DESK_TILE=15, W=4)
     if (game.scene === 'interior_malezor_school'
@@ -19537,7 +19537,25 @@ const SEER_HQ_CHESTS = [
 // never fired in the basement, and the Seer Key has been unobtainable ever
 // since.  tryOpenSeerHqChest guarded itself correctly and was simply never
 // called.  Four copies of one fact, updated in one place.
-function seerChestAt(x, y){
+// ★★★ v0.96.55 · RENAMED FROM seerChestAt · IT WAS SHADOWED, AND THE FIX
+// ABOVE NEVER TOOK EFFECT.  A SECOND `function seerChestAt(scene, x, y)` is
+// declared ~2,300 lines below for the OVERWORLD explosive chests, and a later
+// function declaration wins.  So every 2-argument call here was reaching the
+// 3-argument overworld version, which reads its first parameter as `scene`,
+// compared a tile NUMBER against 'overworld', and returned null every time.
+//
+// ★★ The comment directly above this describes the previous incarnation of
+// this same bug — "the Seer Key has been unobtainable ever since" — and the
+// repair for it was to introduce this helper.  The repair was silently
+// cancelled by the name collision, so the key stayed unobtainable, and the
+// suite that would have caught it was testing the wrong floor.
+//
+// Three call sites were affected: walkability (you could walk THROUGH the
+// chest), isFacingInteractable (X never lit it up) and the X handler itself
+// (which got null and fell through to the NPC scan).  Both HQ chests were
+// therefore unopenable, which blocks the basement key, the attic key, the
+// Commander, and the Ruby Vial.
+function seerHqChestAt(x, y){
   return SEER_HQ_CHESTS.find(c => c.scene === game.scene && c.tileX === x && c.tileY === y) || null;
 }
 function seerChestHere(){
@@ -28108,7 +28126,7 @@ function isFacingInteractable(fx, fy){
   if (game.scene === DREAMLAND_SCENE && dracolordArchAt(fx, fy)) return true;
   // ★ v0.96.38 · and the gate home from inside one
   if (currentDracolordRealm() && dracolordGateAt(fx, fy)) return true;
-  if (seerChestAt(fx, fy)) return true;                       // ★ v0.95.966
+  if (seerHqChestAt(fx, fy)) return true;                     // ★ v0.95.966 · v0.96.55 de-shadowed
   if (cfg.researchLab){
     if (fy === 2 && fx >= 9 && fx <= 11) return true;                       // Dad's workbench
     const B = DADS_BOOKSHELF_TILES;                                          // v0.95.658 bookshelf
@@ -36306,7 +36324,7 @@ function tryInteract(){
       // ★ v0.95.966 · either Seer chest · R2 gives the basement key, the
       // basement gives the attic key
       {
-        const _sc = seerChestAt(fx, fy);
+        const _sc = seerHqChestAt(fx, fy);
         if (_sc){
           if (_sc.key === 'basement' ? tryOpenSeerR2Chest() : tryOpenSeerHqChest()) return;
         }
@@ -38260,7 +38278,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.48' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.55' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

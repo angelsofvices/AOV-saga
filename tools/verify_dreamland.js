@@ -135,9 +135,18 @@ console.log('     stand on, or stand on sky. There is one field.\n');
 // ★ Pinned to the argument NAMES (tx, ty) first, and broke when the mask loop
 // renamed them to (startCol + i, startRow + j). The property under test is
 // "the renderer reads the same field", not "it uses these two variables".
-ok(/dreamlandDensity\(/.test(B.drawDreamlandFloor || ''),
+// ★★ v0.96.49 · THE RENDERER SPLIT IN TWO.  drawDreamlandFloor now takes a
+//    pattern fast-path and hands the per-tile work to drawDreamlandFloorFallback,
+//    so the density calls live one function further down.  The property is "the
+//    renderer reads the same field collision does" — ask both halves of it.
+const _floor=(B.drawDreamlandFloor||'')+(B.drawDreamlandFloorFallback||'');
+ok(/dreamlandDensity\(/.test(_floor),
    'the renderer calls dreamlandDensity — the same function collision uses');
-ok(/dreamlandSolid\(/.test(B.drawDreamlandFloor || ''),
+// ★★ v0.96.49 · and it is INDIRECTED now: `cfg.solidFn || dreamlandSolid`,
+//    a per-scene hook added with the six Dracolord realms so each can supply
+//    its own terrain field.  The default is still this function — the regex
+//    just demanded a '(' that a defaulted reference does not have.
+ok(/dreamlandSolid\s*[;(]/.test(_floor),
    '  and dreamlandSolid for the underside shadow, so shading follows the real edge');
 ok(/isBlocked: \(x, y\) => !dreamlandSolid\(x, y\)/.test(noC),
    'and the scene\'s isBlocked is literally !dreamlandSolid');
@@ -171,7 +180,11 @@ ok(/player\._dreamReturn = \{ scene: 'interior_treehouse'/.test(nap),
 ok(/player\._dreamEndsAt = performance\.now\(\) \+ secs \* 1000/.test(nap), 'and stamps the deadline');
 ok(/performance\.now\(\) >= player\._dreamEndsAt\) wakeFromDreamland\('timeout'\)/.test(tick),
    'the tick wakes you when the clock runs out');
-ok(/try \{ tickDreamland\(\); \} catch/.test(noC), 'and it runs every frame, guarded');
+// ★★★ v0.96.49 · THE GUARD GOT BETTER, so the grep for it stopped matching.
+//    `try { tickDreamland(); } catch` became `_step('tickDreamland', ...)` —
+//    the flight-recorder wrapper, which catches the same faults AND names the
+//    phase, so a freeze in here is reported by name instead of anonymously.
+ok(/_step\('tickDreamland'/.test(noC), 'and it runs every frame, guarded — and NAMED, so a fault here reports itself');
 ok(/player\._dreamReturn\s*\n?\s*\|\| \{ scene: 'interior_treehouse'/.test(wake),
    'waking falls back to the telescope if the return record is somehow missing');
 ok(/player\._dreamEndsAt = 0;/.test(wake), 'and clears the deadline so the tick cannot re-fire');
@@ -182,9 +195,22 @@ console.log('     RESETS TO ZERO on page load. So a save taken inside Dreamland'
 console.log('     came back with the scene set and no clock — and tickDreamland');
 console.log('     returns early on a falsy deadline, which would have left the');
 console.log('     player on the clouds with no timer and no exit.\n');
-const loadIdx = noC.indexOf("if (game.scene === DREAMLAND_SCENE){");
-ok(loadIdx > 0, 'load checks for the dream scene');
-const guard = noC.slice(loadIdx, loadIdx + 500);
+// ★★★ v0.96.49 · MY OWN CHANGE BROKE THIS ANCHOR, and the anchor was the
+// weaker claim.  v0.96.38 replaced `=== DREAMLAND_SCENE` with isDreamScene(),
+// because the literal comparison sailed straight past the six Dracolord realms
+// added at v0.96.37 — a save taken inside one came back on a corridor with no
+// clock and no telescope, stranded exactly the way this block exists to
+// prevent.  The guard is intact and now covers MORE; only the string moved.
+const loadIdx = noC.indexOf("if (isDreamScene(game.scene)){");
+ok(loadIdx > 0, 'load checks for the dream scene · via isDreamScene(), so every realm is covered, not just the cloud plane');
+// ★ SCOPED.  My first version of this asserted no literal `=== DREAMLAND_SCENE`
+//   survives anywhere — too strong, and wrong: four remain and all four are
+//   genuinely about the CLOUD PLANE alone (its interior config, its arches),
+//   not about "am I dreaming".  The claim is that the LOAD GUARD asks the
+//   general question, because that is the one that out-grew the literal.
+const guard = noC.slice(loadIdx, loadIdx + 700);
+ok(/function isDreamScene\(s\)/.test(noC) && !/=== DREAMLAND_SCENE/.test(guard),
+   '★★ the load guard asks the GENERAL question · every realm, not just the cloud plane');
 ok(/game\.scene = 'interior_treehouse'/.test(guard), '  and puts you back in the treehouse');
 ok(/player\._dreamEndsAt = 0/.test(guard), '  with the deadline cleared');
 ok(/TREEHOUSE_TELESCOPE\.tileY \+ 1/.test(guard), '  standing at the telescope');
@@ -196,7 +222,7 @@ ok(/if \(DREAMLAND_SHOW_TIMER\)\{/.test(noC.replace(/\s+/g,' ').replace('if (DRE
    /if \(DREAMLAND_SHOW_TIMER\)/.test(noC),
    'and the whole readout sits behind it');
 // the MECHANIC must be untouched
-ok(/try \{ tickDreamland\(\); \} catch/.test(noC), 'tickDreamland still runs every frame');
+ok(/_step\('tickDreamland'/.test(noC), 'tickDreamland still runs every frame');
 ok(/performance\.now\(\) >= player\._dreamEndsAt\) wakeFromDreamland\('timeout'\)/.test(noC),
    'and still wakes you when the clock runs out — hiding a readout must not stop the clock');
 ok(/player\._dreamEndsAt = performance\.now\(\) \+ secs \* 1000/.test(noC),
@@ -242,8 +268,21 @@ ok(/ctx\.scale\(-1, 1\)/.test(B.drawTreehouseTelescope || ''),
    'mirrored horizontally so the lens faces NORTH-WEST');
 ok(/ctx\.translate\(cx, baseY\);[\s\S]{0,80}ctx\.scale\(-1, 1\)/.test(B.drawTreehouseTelescope || ''),
    '  with the translate BEFORE the flip, so it pivots on the telescope rather than the world origin');
-ok((B.drawTreehouseTelescope || '').split('ctx.scale(-1, 1)').length === 3,
-   '  and the placeholder is mirrored too, so placement reads the same before and after the art swap');
+// ★★★ v0.96.49 · ONE MIRROR NOW, AND THAT IS THE POINT.
+// This wanted the flip in BOTH branches.  v0.96.43 removed it from the ART
+// branch on purpose: the flip only ever existed to point the PLACEHOLDER
+// primitives north-west, and the Creator's telescope already faces north-west
+// as drawn — mirroring it would aim the lens north-EAST, the exact opposite of
+// what the line was written to guarantee.  Preserving the INTENT required
+// deleting the code that used to express it.
+const _tel=B.drawTreehouseTelescope||'';
+const _artBranch=_tel.slice(0,_tel.indexOf('placeholder'));
+ok(_artBranch.indexOf('ctx.scale(-1, 1)')===-1,
+   '★★★ the ART is NOT mirrored · it already faces north-west, so a flip would aim the lens the wrong way');
+ok(_tel.split('ctx.scale(-1, 1)').length===2,
+   '  and exactly one flip survives, in the placeholder, so both read the same way round');
+ok(/mirroring it now would aim the lens north-EAST/.test(_tel),
+   '★★ and the reason is recorded at the deletion · the next reader sees a decision, not an omission');
 ok(/if \(!pat\)\{ drawDreamlandFloorFallback/.test(noC),
    'and the procedural plates survive as a FALLBACK, so a missing PNG degrades rather than blanking the sky');
 ok(/createLinearGradient/.test(B.drawDreamlandFloor || ''), '  the sky is still a gradient behind the plate');

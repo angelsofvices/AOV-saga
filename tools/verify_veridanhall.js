@@ -45,8 +45,22 @@ console.log('\n2 · REACHABLE · you can stand at the door\n');
 const nb=[[0,1],[0,2],[-1,1],[1,1]].filter(([dx,dy])=>C.walkable(P.tileX+dx,P.tileY+dy));
 ok(nb.length>0,`${nb.length} standable tiles in front of the door`);
 ok(C._propDoors.has(`${P.tileX},${P.tileY}`),'door registered in _propDoors so X interacts');
-let plaza=0; for(let dy=1;dy<=2;dy++)for(let dx=-5;dx<=5;dx++){ if(C.walkable(P.tileX+dx,P.tileY+dy))plaza++; }
-ok(plaza===22,`the full 11x2 plaza in front is walkable (${plaza}/22)`);
+// ★★★ v0.96.49 · walkable() ALSO ANSWERS "is somebody standing there".
+// Three halls reported 21/22 and the missing tile was never a building or the
+// ground — it was a stationary Foongus outside Veridan's hall and a wandering
+// Scanobot outside Vorashil's and Thardin's.  A citizen in the town square is
+// the world working, not a placement defect, and a wanderer makes the result
+// depend on WHEN you look.  Measure what the SITING controls: land, and no
+// structure built over it.
+let plaza=0, occupied=0;
+for(let dy=1;dy<=2;dy++)for(let dx=-5;dx<=5;dx++){
+  const x=P.tileX+dx, y=P.tileY+dy;
+  const clear=C.isWorldLandTile(x,y)&&!C.isWorldBorderTile(x,y)&&!C._propBlocked.has(x+','+y);
+  if(clear) plaza++;
+  if(clear&&!C.walkable(x,y)) occupied++;
+}
+ok(plaza===22,`the full 11x2 plaza in front is clear ground (${plaza}/22)`);
+if(occupied) console.log(`     (${occupied} of them currently has somebody standing on it — that is the town, not the siting)`);
 console.log('\n3 · NO COLLISION WITH ANYTHING ELSE\n');
 const fset=new Set(P.footprint.map(([dx,dy])=>`${P.tileX+dx},${P.tileY+dy}`));
 const clash=C.WORLD_PROPS.filter(q=>q&&q!==P&&typeof q.tileX==='number'&&fset.has(`${q.tileX},${q.tileY}`));
@@ -75,7 +89,10 @@ console.log('     its centre column and renders ~4 tiles tall at scaleMul 2.0.\n
 const P=C.WORLD_PROPS.find(p=>p&&p.id==='korathen_town_hall');
 const A=_npcGated('anciuxor_wild') ? {__gated:true} : C.NPCS.find(nn=>nn&&nn.id==='anciuxor_wild');
 ok(!!A,A&&A.__gated?'(anciuxor_wild is gated · displacement check skipped)':'anciuxor_wild still exists and was not displaced');
-if(P&&A){
+// ★★ v0.96.49 · the gated stub is TRUTHY, so every composition check below ran
+//    against {__gated:true} and produced NaN gaps and 0/NaN paths.  The God is
+//    held back on purpose; when He is, these questions have no answer to give.
+if(P&&A&&!A.__gated){
   const fset=new Set(P.footprint.map(([dx,dy])=>`${P.tileX+dx},${P.tileY+dy}`));
   ok(!fset.has(`${A.tileX},${A.tileY}`),`the God is NOT inside the hall footprint (He stands at ${A.tileX},${A.tileY})`);
   ok(A.tileX===895&&A.tileY===650,'He is exactly where canon put Him — the hall moved, not the God');
@@ -84,8 +101,13 @@ if(P&&A){
   console.log(`     hall base y=${P.tileY} · God feet y=${A.tileY} · gap ${gap} tiles · He renders ~${godTiles} tiles tall`);
   ok(gap>godTiles,`the gap (${gap}) clears His full ${godTiles}-tile height — no sprite overlap with the facade`);
   ok(P.tileX===A.tileX,'hall and God share the centre column, so He is framed dead-centre');
-  const chest=C.WORLD_PROPS.find(q=>q&&q.id==='chest_mythic_12');
-  ok(!!chest&&!fset.has(`${chest.tileX},${chest.tileY}`),'chest_mythic_12 is still reachable in the open square');
+  // ★ v0.96.49 · `_mythic` became `_goldChest` at v0.95.774 and the
+  //   chest_mythic_* ids survive only in comments.  Find the chest by WHERE it
+  //   stands, which is what the assertion was ever about.
+  const chest=C.WORLD_PROPS.find(q=>q&&(q._goldChest||/^chest_/.test(q.id||''))
+                 && Math.abs(q.tileX-A.tileX)<=2 && Math.abs(q.tileY-A.tileY)<=12);
+  ok(!!chest&&!fset.has(`${chest.tileX},${chest.tileY}`),
+     `the gold chest in the square is still reachable${chest?` (${chest.id})`:' — none found'}`);
   console.log(`     approach from the south: chest (895,${chest?chest.tileY:'?'}) -> God (895,650) -> Hall (895,${P.tileY})`);
   let path=0; for(let y=P.tileY+1;y<A.tileY;y++){ if(C.walkable(895,y)) path++; }
   ok(path===A.tileY-P.tileY-1,`the whole forecourt between hall and God is walkable (${path}/${A.tileY-P.tileY-1})`);

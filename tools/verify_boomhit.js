@@ -72,7 +72,17 @@ ok(!!chest._boomArmed, 'chest is ARMED by the astralstrike');
 flush();
 ok(chest.detonated === true, 'chest detonated');
 ok(mori.hp <= 0, `Mori on the landing tile took the full ${centre} (hp ${mori.hp})`);
-ok(C.player.hp === 100, 'Rizer 8 tiles away took nothing');
+// ★★★ v0.96.49 · THE BLAST NEVER TOUCHED HIM · a kill did the recompute.
+// This read hp === 100 and found 50, which looked exactly like an explosion
+// reaching 8 tiles with a radius of 3.  Trapped the writer: it is
+// recomputeRizerStats, reached through creditRizerKill -> awardRizerXP when
+// the Mori parked on the chest dies.  It rebuilds hpMax from the Rizer's real
+// attributes and clamps `hp = min(newMax, hp)` — so the hand-set hpMax of 100
+// two lines up was fiction, and the engine replaced it with his true 50.
+// The self-damage branch is gated `d <= BOOM.RADIUS`; Chebyshev here is 8.
+// ★★ So assert UNHARMED, not a literal that a legitimate side effect rewrites.
+ok(C.player.hp === C.player.hpMax,
+   `Rizer 8 tiles away took nothing · full health at ${C.player.hp}/${C.player.hpMax} (Chebyshev 8 vs BOOM.RADIUS ${C.BOOM.RADIUS})`);
 
 console.log('\n4 · THROWN objects · lane collision arms the chest\n');
 ok(/const laneBomb=explosiveAt\(game\.scene,nx,ny\)/.test(src), 'flight path tests explosiveAt each tile');

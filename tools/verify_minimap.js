@@ -175,7 +175,7 @@ H('5 · ★★ IT FOLLOWS THE PLAYER');
   ok(A.every(p=>p.dist<=C.MINIMAP.rangeMax),'nothing beyond the scope leaks in');
   // nearest-first, so the closest thing is always on screen
   ok(A.every((p,i)=>i===0||p.dist>=A[i-1].dist),'sorted nearest-first');
-  ok(/drawMinimap\(\)/.test(src)&&/try \{ drawMinimap\(\); \} catch/.test(src),
+  ok(/drawMinimap\(\)/.test(src)&&/_step\('drawMinimap'/.test(src),
      'drawn every frame from the render chain');
 }
 

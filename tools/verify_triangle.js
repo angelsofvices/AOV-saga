@@ -80,7 +80,12 @@ NOW=4000+C.ZY_HOLD_MS+1; C.zyTriangleHoldTick();
 ok(fireCount()===1,'and the full hold still works');
 
 console.log('\n4 · ★★ IT IS DRIVEN BY frame(), NOT BY KEY-REPEAT\n');
-ok(/try \{ zyTriangleHoldTick\(\); \} catch\(_\)\{\}/.test(HTML),'frame() calls zyTriangleHoldTick every tick');
+// ★★ v0.96.49 · `try { zyTriangleHoldTick(); } catch` became
+//    _step('zyTriangleHoldTick', ...) — the flight-recorder wrapper.  It
+//    catches the same faults AND names the phase, so a freeze in the hold tick
+//    reports itself by name instead of anonymously.  Same guard, more
+//    information; only the shape this grep wanted changed.
+ok(/_step\('zyTriangleHoldTick'/.test(HTML),'frame() calls zyTriangleHoldTick every tick · through the named flight-recorder step');
 ok(/zyTriangleArm\(\);\s*\/\/ v0\.95\.743 · press ARMS/.test(HTML)||/zyTriangleArm\(\)/.test(HTML),
    'both keydown sites now ARM instead of trying to time the hold themselves');
 const armCount=(HTML.match(/zyTriangleArm\(\)/g)||[]).length;

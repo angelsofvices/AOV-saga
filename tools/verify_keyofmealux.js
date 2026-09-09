@@ -68,8 +68,16 @@ H('4 · ★★ THE SHEET · MEASURED BY OWNERSHIP, NOT PROXIMITY');
   ok(seen.size===16,'★★ all 16 frames are distinct · no cell inherited another cell\'s body');
   let owned=true;
   SH.bboxes.forEach((row,r)=>row.forEach(b=>{
-    const cy=b[1]+b[3]/2;                 // the body's centre must live in its own row band
-    if (cy < r*313-40 || cy > (r+1)*313+40) owned=false;
+    // ★★★ v0.96.49 · THE CONVENTION WAS READ BACKWARDS.
+    // bboxes are CELL-RELATIVE.  The draw path is sy = row*cellH + by, so the
+    // engine adds the row offset itself and a stored by of ~20 means "20px
+    // down from the top of MY cell", not "20px down the sheet".  All 38
+    // registered species store it this way; none has a row-3 by above 700.
+    // This check added r*313 a second time, so rows 1-3 could only ever fail
+    // and row 0 could only ever pass — it was arithmetic, not a measurement,
+    // and it read as a damning red about the art for 30+ commits.
+    const cy=b[1]+b[3]/2;                 // the body's centre must live in its own CELL
+    if (cy < -40 || cy > 313+40) owned=false;
   }));
   ok(owned,'★★★ every body\'s centre lies in its OWN row band · ownership, not proximity');
   let overflow=false;
@@ -275,8 +283,8 @@ H('18 · ★★★ TRAVERSAL · it does not run, it HOVERS somewhere');
   ok(seen.size===16,'★★ all 16 traversal frames distinct · no cell inherited a neighbour');
   let owned=true;
   SH.runBboxes.forEach((row,r)=>row.forEach(b=>{
-    const cy=b[1]+b[3]/2;
-    if (cy < r*313-40 || cy > (r+1)*313+40) owned=false;
+    const cy=b[1]+b[3]/2;                 // ★ cell-relative · see the note in §4
+    if (cy < -40 || cy > 313+40) owned=false;
   }));
   ok(owned,'★★ every traversal body sits in its OWN row band · ownership, not proximity');
   ok(SH.levitate===true&&SH.runBobSame===true,

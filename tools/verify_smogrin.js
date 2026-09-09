@@ -52,8 +52,12 @@ H('2 · ★ GEARBYTE SIZE');
   ok(seen.size===16,'★★ all 16 frames distinct');
   let owned=true;
   SH.bboxes.forEach((row,r)=>row.forEach(b=>{
+    // ★★★ v0.96.49 · bboxes are CELL-RELATIVE · the draw path is
+    // sy = row*cellH + by, so adding r*313 here applies the row offset TWICE.
+    // Rows 1-3 could only fail and row 0 could only pass: arithmetic dressed
+    // up as a measurement.  Same line, same mistake, in verify_keyofmealux.
     const cy=b[1]+b[3]/2;
-    if (cy < r*313-40 || cy > (r+1)*313+40) owned=false;
+    if (cy < -40 || cy > 313+40) owned=false;
   }));
   ok(owned,'★★ every body centred in its OWN row band');
 }

@@ -20411,6 +20411,36 @@ DREAMLAND_TILE_IMG.src = 'assets/2D%20sprites/tiles/dreamland-cloud.png';
 // the solid, walkable ground look like the holes.
 const DREAMLAND_TILE_DENSE = new Image();
 DREAMLAND_TILE_DENSE.src = 'assets/2D%20sprites/tiles/dreamland-cloud-dense.png';
+// ★★★ v0.96.59 · SIX DOMAIN FLOORS · one per Dracolord.
+//
+// Each replaces the BRIGHT cloud on the plateaus — the solid causeway you
+// actually walk — while the dense cloud stays underneath for the feathered
+// edges.  One tile per domain buys a distinct floor without re-authoring the
+// masking pipeline, and the edge feather still reads as cloud falling away.
+//
+// ★★ All six measured seamless on delivery: wrap delta 0.00 on both axes at
+//   1254x1254.  They are kaleidoscopic, so the edges mirror-match rather than
+//   flow — which tiles as a continuous fold, not a hard seam.
+//
+// ★ LAZY, AND IT FALLS BACK.  A domain whose PNG has not decoded yet paints
+//   the ordinary Dreamland cloud instead of nothing, the same failsafe the
+//   traversal law uses: missing art is a missing SURFACE, never a missing
+//   floor you fall through.
+const DRACOLORD_FLOOR_IMGS = {};
+const _dracoFloorPat = {};
+function dracolordFloorImg(id){
+  if (DRACOLORD_FLOOR_IMGS[id]) return DRACOLORD_FLOOR_IMGS[id];
+  const im = new Image();
+  im.src = `assets/2D%20sprites/tiles/dracolord-floor-${id}.png`;
+  DRACOLORD_FLOOR_IMGS[id] = im;
+  return im;
+}
+function dracolordFloorPattern(id){
+  if (_dracoFloorPat[id]) return _dracoFloorPat[id];
+  const im = dracolordFloorImg(id);
+  if (!im.complete || !im.naturalWidth) return null;   // not decoded yet · fall back
+  return (_dracoFloorPat[id] = _mkDreamPattern(im));
+}
 // ★★★ v0.95.937 · THE DREAMLAND SKY IS A STAR FIELD NOW.
 // Creator, 2026-09-01: "the dark dreamworld cosmic background as a seamless
 // four-frame animation atlas for under the dreamword cloud region · 1254x1254 ·
@@ -29935,6 +29965,9 @@ function dracolordRealmConfig(id){
     solidFn:   (x, y) => dracolordRealmSolid(dom, x, y),
     realmTint: dom.tint,
     realmDomain: dom,
+    // ★ v0.96.59 · the domain's own floor · null until the PNG decodes, and the
+    //   painter falls back to the Dreamland cloud for exactly that long
+    patternFn: () => dracolordFloorPattern(dom.id),
     isBlocked: (x, y) => !dracolordRealmSolid(dom, x, y)
                       || dracolordGateAt(x, y) || dracolordBodyAt(x, y),
     label: `☁ ${dom.realm} · ${dom.lord} is at the far end`,
@@ -34421,7 +34454,9 @@ function drawDreamlandFloor(cfg){
   const endCol   = Math.min(C, Math.ceil((_cam.x + canvas.width)  / TILE) + 2);
   const startRow = Math.max(0, Math.floor(_cam.y / TILE) - 1);
   const endRow   = Math.min(R, Math.ceil((_cam.y + canvas.height) / TILE) + 2);
-  const pat = dreamlandPattern();
+  // ★★ v0.96.59 · a domain paints its OWN plateau surface; the cloud plane and
+  //    any domain still decoding paint the shared Dreamland cloud.
+  const pat = (cfg.patternFn && cfg.patternFn()) || dreamlandPattern();
   if (!pat){ drawDreamlandFloorFallback(cfg, startCol, endCol, startRow, endRow); return; }
 
   const cols = endCol - startCol, rows = endRow - startRow;
@@ -38322,7 +38357,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.57' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.59' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

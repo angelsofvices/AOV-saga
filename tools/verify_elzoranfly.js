@@ -35,24 +35,45 @@ H('2 · ★★ SCALED TO HIS IDLE SIZE · measured, not eyeballed');
 {
   ok(/companionScaleMul: 1\.10/.test(src),'★ companion mul 1.30 → 1.10 · idle DOWN 268 / fly DOWN 244');
   const F=C.SUMMONABLE_SPRITES.elzoran;
-  ok(!!F.flyAll&&/elzoran-fly/.test(F.flyAll.src),'★ flyAll bank on the species def');
+  // ★★★ v0.96.49 · flyAll -> runSrc.  Elzoran carried its flight on a `flyAll`
+  // bank (ONE sheet for idle AND travel).  It has since moved onto the general
+  // TRAVERSAL LAW — src = idle, runSrc = the moving sheet — so `F.flyAll` was
+  // undefined and reading .bboxes off it killed the run before assertion two.
+  // The sheet never changed; the field holding it did.
+  ok(!!F.runSrc&&/elzoran-fly/.test(F.runSrc),'★ the flight sheet rides the runSrc traversal bank · one law for every gait');
+  ok(Array.isArray(F.runBboxes),'★ and it carries its own measured table');
   const idleH=Math.round(268*((C.TILE*2)/268)*1.15);
-  const flyMaxBh=Math.max(...F.flyAll.bboxes.map(r=>r[0][3]));
+  const flyMaxBh=Math.max(...F.runBboxes.map(r=>r[0][3]));
   const flyH=Math.round(244*((C.TILE*2)/flyMaxBh)*1.15);
   ok(Math.abs(idleH-flyH)<=3,`follower body ${flyH}px vs idle ${idleH}px · the 2-tile law does the matching`);
-  ok(F.flyAll.bboxes.length===4&&F.flyAll.bboxes.every(r=>r.length===4),'4x4 measured table');
+  ok(F.runBboxes.length===4&&F.runBboxes.every(r=>r.length===4),'4x4 measured table');
 }
 
 H('3 · ★★ HE ACCOMPANIES ON THE WING · the wild stays perched');
 {
+  const D2=C.SUMMONABLE_SPRITES;
   const fol=C.makeZyrexFollower({speciesId:'elzoran',name:'Elzoran',level:50});
-  ok(/elzoran-fly/.test(fol.src),'★ summoned follower uses the FLY bank');
-  ok(fol.walkSheet===fol.sheet&&fol.walkBboxes===fol.bboxes,'one bank serves idle AND walk · he never sets foot down');
+  // ★★★ v0.96.49 · "HE NEVER SETS FOOT DOWN" IS RETIRED CANON.
+  // These two defended the v0.95.831 flyAll reading — ONE sheet for idle AND
+  // walk, a recruited Elzoran permanently airborne.  v0.95.970 overturned it.
+  // Creator: "elzon should stand when idle. only fly with running."  So the
+  // follower's src is now the PERCHED sheet and the flight bank is his
+  // traversal art, which is the opposite of what was asserted here.  The bank
+  // did not go missing; the behaviour was deliberately inverted.
+  ok(/elzoran\.png/.test(fol.src)&&!/elzoran-fly/.test(fol.src),
+     '★★★ the follower STANDS when idle · his src is the perched sheet, not the wing');
+  ok(/elzoran-fly/.test(D2.elzoran.runSrc),
+     '★★ and he takes to the wing only while crossing ground · the flight sheet is TRAVERSAL art');
+  // ★ the quote wraps across two comment lines · match it the way it is written
+  ok(/elzon should stand\s*\n?\s*\/\/ when idle\. only fly with running/.test(src),
+     '★ and the ruling that inverted it is recorded at the bank, in the Creator\'s words');
   ok(!fol._orbFollower,'no orb fallback · he has a body');
   ok(fol.scaleMul===1.15,'keeps the T5 presence multiplier');
   // the statue wild + generic wild draw keep the perched idle sheet
-  ok(/WILD at the statue keeps the idle sheet/.test(src)&&/^ {4}src: 'assets\/2D%20sprites\/zyrex\/elzoran\.png',$/m.test(src),
-     '★ SUMMONABLE.elzoran src is still the IDLE sheet — perched at the statue, flying beside you');
+  // ★ the grep'd comment was rewritten by v0.95.970 · assert the STATE, which
+  //   is what actually keeps the statue vigil perched, not one phrasing of it
+  ok(/elzoran\.png/.test(D2.elzoran.src)&&!/elzoran-fly/.test(D2.elzoran.src),
+     '★★ SUMMONABLE.elzoran src is the IDLE sheet · the vigil at the statue is perched, and now so is a still follower');
 }
 
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');

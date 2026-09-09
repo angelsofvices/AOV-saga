@@ -254,5 +254,44 @@ try{D.drawDracolordGate();ok('★ the gate draws without throwing');}catch(e){no
   console.log(`     gate the plane already had.\n`);
 }
 
+/* ── ★★★ v0.96.60 · THE DOMAIN IS A PLACE, AND THREE THINGS KEEP IT SAFE ──
+   Creator: "make the dracolord domains larger. they seem too skinny and
+   linear."  The cause was measurable — the viewport is 20 tiles and the realm
+   was 15, so both edges sat on screen at once and the camera could never pan.
+   Now 41 wide with a meandering route and three chambers per domain.
+   Widening is free on the shared clock; the height is untouched at 44 so the
+   Lv10 gate is exactly where it was.                                       */
+{
+  const W = D.DRACOLORD_REALM_W, Hh = D.DRACOLORD_REALM_H, CX = D.DRACOLORD_REALM_CX;
+  t(W >= 2 * 20, `★★★ ${W} tiles wide · more than the 20-tile viewport, so the walls leave the screen and the camera can move`);
+  t(Hh === 44, `★★ height still ${Hh} · the walk is unchanged, so the level gate did not move`);
+  let axisGaps = 0, edgeTouch = 0, stranded = [], narrow = 99, broad = 0, plans = new Set();
+  for (const dom of D.DRACOLORD_DOMAINS){
+    const widths = [];
+    for (let y = D.DRACOLORD_THRONE_Y; y <= D.DRACOLORD_ARRIVE_Y; y++){
+      if (!D.dracolordRealmSolid(dom, Math.round(CX), y)) axisGaps++;
+      if (D.dracolordRealmSolid(dom, 0, y) || D.dracolordRealmSolid(dom, W - 1, y)) edgeTouch++;
+      let row = 0; for (let x = 0; x < W; x++) if (D.dracolordRealmSolid(dom, x, y)) row++;
+      widths.push(row);
+    }
+    narrow = Math.min(narrow, ...widths); broad = Math.max(broad, ...widths);
+    plans.add(widths.join(','));
+    // hold UP from the arrival tile · the naive player
+    let y = D.DRACOLORD_ARRIVE_Y;
+    while (y > D.DRACOLORD_AUDIENCE_Y && D.dracolordRealmSolid(dom, Math.round(CX), y - 1)) y--;
+    if (y > D.DRACOLORD_AUDIENCE_Y) stranded.push(`${dom.id}@y${y}`);
+  }
+  t(axisGaps === 0,
+    `★★★ THE AXIS IS SOLID ON EVERY ROW OF EVERY DOMAIN (${axisGaps} gaps) · the meander yields to the width, never the other way round`);
+  t(stranded.length === 0,
+    `★★★ and holding UP from the arrival tile REACHES him in all six${stranded.length? ' · stranded: '+stranded.join(', '):''} · a route that can strand you is a Dracolord who silently does not exist`);
+  t(edgeTouch === 0,
+    `★★ no chamber touches the map edge (${edgeTouch} rows) · a room cut flat by the boundary reads as an invisible wall, and a straight line is the one thing that looks wrong in a dream`);
+  t(narrow <= 12 && broad >= 28,
+    `★★★ it BREATHES · narrows down to ${narrow} tiles, chambers up to ${broad} · one width for the whole length is a hallway however wide you make it`);
+  t(plans.size === D.DRACOLORD_DOMAINS.length,
+    `★★ all ${plans.size} floor plans are different · no two lords live in the same room`);
+}
+
 console.log(`\n${pass} passed · ${fail} failed\n`);
 process.exit(fail?1:0);

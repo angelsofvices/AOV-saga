@@ -29901,9 +29901,24 @@ function leaveDracolordRealm(){
 //   that can sever the path — a Dracolord you cannot walk up to is a feature
 //   that silently does not exist, and it would look exactly like one that does.
 // ══════════════════════════════════════════════════════════════════════════
-const DRACOLORD_REALM_W     = 15;
+// ★★★ v0.96.60 · 15 -> 37 · IT WAS NARROWER THAN THE WINDOW.
+//   Creator: "make the dracolord domains larger. they seem too skinny and
+//   linear."  The cause was measurable: the viewport is 960px = 20 tiles, and
+//   the realm was 15 — so both edges were on screen at all times with empty
+//   space beyond them, and the camera could never pan sideways.  A space you
+//   can see the whole width of is a corridor, whatever you put in it.
+//   41 tiles (1968px) is more than double the window: the walls leave the screen
+//   and the camera finally has somewhere to go.
+// ★★ HEIGHT IS UNCHANGED AT 44, DELIBERATELY.  One shared clock at a second
+//   per Rizer level pays for the walk, so lengthening would raise the level
+//   gate — and length is what makes a corridor a corridor.  Widening is free
+//   on the clock and fixes the actual complaint.
+const DRACOLORD_REALM_W     = 41;
 const DRACOLORD_REALM_H     = 44;   // ~40 tiles of walk · long enough to be a journey
 const DRACOLORD_REALM_SPINE = 2;    // half-width that is ALWAYS solid · the guarantee
+const DRACOLORD_MEANDER_AMP   = 5.0;  // ★ v0.96.60 · how far the route bends off the axis
+const DRACOLORD_CHAMBER_SWELL = 9.5;  // ★ v0.96.60 · how far a chamber opens past the pass
+const DRACOLORD_CHAMBERS      = 3;    // ★ v0.96.60 · rooms along the route
 const DRACOLORD_THRONE_Y    = 3;    // the far end · he sits here
 const DRACOLORD_ARRIVE_Y    = DRACOLORD_REALM_H - 4;   // where you step in
 const DRACOLORD_GATE_Y      = DRACOLORD_REALM_H - 3;   // the way back · behind you
@@ -29914,20 +29929,81 @@ const DRACOLORD_AUDIENCE_Y  = DRACOLORD_THRONE_Y + 5;
 function dracolordDomain(id){ return DRACOLORD_DOMAINS.find(d => d.id === id) || null; }
 
 // The causeway's half-width at a given row. Never below the spine.
-function _realmHalfWidth(dom, y){
-  const wob = _dlNoise(dom.order * 61.7, y, 6) * 2.6;
-  // ★ both ends open into a floor. You need somewhere to arrive that is not a
-  //   ledge, and he needs somewhere to sit that is wider than the path to it —
-  //   the widening IS how you know you have got there, since there is no map.
-  const endOpen = Math.max(0, 1 - Math.abs(y - DRACOLORD_THRONE_Y) / 6) * 3.4
-                + Math.max(0, 1 - Math.abs(y - DRACOLORD_ARRIVE_Y)  / 5) * 2.6;
-  return DRACOLORD_REALM_SPINE + 1.0 + wob + endOpen;
+// ★★★ v0.96.60 · THE CENTRE LINE WANDERS NOW.
+//   A constant-width ribbon down a fixed axis is a hallway no matter how wide
+//   you make it, so the axis itself meanders — the route bends through the
+//   domain instead of pointing at the exit.
+//
+// ★★★ AND HERE IS THE GUARANTEE THAT MAKES THAT SAFE.  A wandering path can
+//   strand a player who simply holds UP: they walk off the edge of the route,
+//   stop on the void, and the shared clock kills them — and it would look
+//   exactly like a Dracolord nobody happened to reach.  So the meander is
+//   CLAMPED to stay inside its own walkable width: at every row,
+//
+//        halfWidth(y)  >=  |centre(y) - CX|  +  SPINE
+//
+//   which means the tile column at x = CX is solid on EVERY row of every
+//   domain.  Walking dead north from the arrival tile always works.  The
+//   route bends; the floor under the axis never disappears.  Enforced below
+//   and asserted in tools/verify_dracolord_realms.js.
+// ★★ THREE ROOMS AND THE PASSES BETWEEN THEM.  A single noise term gave a
+//   wobbly column, not chambers — the width never actually pinched, so every
+//   domain read as one wide band with untidy edges.  These are explicit: three
+//   rooms at deliberate positions down the route, each with its own size and
+//   spread, offset per domain so no two lords have the same floor plan.
+function _realmChambers(dom, y){
+  const span = DRACOLORD_ARRIVE_Y - DRACOLORD_THRONE_Y;
+  let s = 0;
+  for (let i = 0; i < DRACOLORD_CHAMBERS; i++){
+    const jitter = (_dlNoise(dom.order * 7.1,  i * 2.3, 3) - 0.5) * 0.55;
+    const at  = DRACOLORD_THRONE_Y + span * ((i + 0.5 + jitter) / DRACOLORD_CHAMBERS);
+    const rad = 4.0 + _dlNoise(dom.order * 13.3, i * 3.7, 3) * 3.2;      // how long the room runs
+    const amp = DRACOLORD_CHAMBER_SWELL * (0.65 + _dlNoise(dom.order * 23.9, i * 5.1, 3) * 0.7);
+    const t   = Math.max(0, 1 - Math.abs(y - at) / rad);
+    s += t * t * (3 - 2 * t) * amp;                                       // smoothstep walls
+  }
+  return s;
 }
-// Density on the SAME scale dreamlandDensity uses, so the floor's feather mask,
-// its bright/dense ramp and its underside shadow all work unchanged.
+// ★ the width BEFORE the route is allowed to bend · narrows can pinch right
+//   down to the spine here, which is what makes a chamber feel like one
+function _realmBaseHalf(dom, y){
+  const wob     = _dlNoise(dom.order * 61.7, y, 6) * 1.9;
+  const endOpen = Math.max(0, 1 - Math.abs(y - DRACOLORD_THRONE_Y) / 7) * 7.0
+                + Math.max(0, 1 - Math.abs(y - DRACOLORD_ARRIVE_Y)  / 6) * 5.0;
+  return DRACOLORD_REALM_SPINE + 1.4 + wob + _realmChambers(dom, y) + endOpen;
+}
+// ★★★ THE MEANDER YIELDS TO THE WIDTH · this is the guarantee, by construction.
+//   My first version clamped the WIDTH UP to fit the bend, which quietly
+//   erased every narrow — the domains came out as one fat column because the
+//   clamp was fighting the shape.  Inverted: the route may only bend as far as
+//   its own floor allows, so a wide room lets the path wander and a narrow
+//   pass runs straight.  Consequence: x = CX is solid on EVERY row, so walking
+//   dead north from the arrival tile always reaches him and nothing can strand
+//   a player who simply holds UP.
+function _realmMeander(dom, y){
+  const span = DRACOLORD_ARRIVE_Y - DRACOLORD_THRONE_Y;
+  const t    = Math.max(0, Math.min(1, (y - DRACOLORD_THRONE_Y) / Math.max(1, span)));
+  const ends = Math.sin(t * Math.PI);                        // 0 at both ends
+  const wander = (_dlNoise(dom.order * 17.3, y * 0.55, 5) - 0.5) * 2;
+  const room   = Math.max(0, _realmBaseHalf(dom, y) - DRACOLORD_REALM_SPINE - 0.5);
+  return wander * ends * Math.min(DRACOLORD_MEANDER_AMP, room);
+}
+function _realmCentreX(dom, y){
+  return DRACOLORD_REALM_CX + _realmMeander(dom, y);
+}
+// ★★★ AND IT NEVER TOUCHES THE MAP EDGE.  A chamber wide enough to reach the
+//   last column gets cut off flat by the boundary, which reads as an invisible
+//   wall rather than as the room ending — the one place in a dream where a
+//   straight line looks WRONG.  Bounded so at least ~1.5 tiles of void always
+//   remain outboard of the floor: the room is ended by the domain, not by the
+//   edge of the array.  Measured: 0 edge contact across all six.
+function _realmHalfWidth(dom, y){
+  const room = DRACOLORD_REALM_CX - Math.abs(_realmMeander(dom, y)) - 1.5;
+  return Math.max(DRACOLORD_REALM_SPINE + 0.5, Math.min(_realmBaseHalf(dom, y), room));
+}
 function dracolordRealmDensity(dom, x, y){
   if (y < 0 || y >= DRACOLORD_REALM_H) return -1;
-  const inside = _realmHalfWidth(dom, y) - Math.abs(x - DRACOLORD_REALM_CX);
+  const inside = _realmHalfWidth(dom, y) - Math.abs(x - _realmCentreX(dom, y));
   return DREAMLAND_SOLID + inside * 0.10;   // 0.10/tile · ~0.6 tile of feather
 }
 function dracolordRealmSolid(dom, x, y){
@@ -38357,7 +38433,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.59' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.60' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,KEY_OF_MEALUX,MEALUX_CANON,PRISMSHARD_REGISTRY,prismshard,relicClass,RELIC_CLASS,INVENTORY_META,spawnWildZyrex,WILD_ZYREX,gemlordCavesOpen,tryEnterGemlordCave,GEMLORD_CAVE_INTERIORS,addZyrexToRoster,WORLD_PROPS,rizerBondTotal,seedMalezorWild,ZYRAXIS_DISTRICTS,_mealuxTileFor,MEALUX_DISTRICTS,MEALUX_FORBIDDEN_TILES,worldDistrictAt,isWorldBorderTile,walkable,WORLD_PROPS,NPCS,requiredBondForTier,makeZyrexFollower,player,game};')();}
+try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,MEALUX_CANON,PRISMSHARD_REGISTRY,prismshard,relicClass,RELIC_CLASS,INVENTORY_META,spawnWildZyrex,WILD_ZYREX,gemlordCavesOpen,tryEnterGemlordCave,GEMLORD_CAVE_INTERIORS,addZyrexToRoster,WORLD_PROPS,rizerBondTotal,seedMalezorWild,ZYRAXIS_DISTRICTS,_mealuxTileFor,MEALUX_DISTRICTS,MEALUX_FORBIDDEN_TILES,worldDistrictAt,isWorldBorderTile,walkable,WORLD_PROPS,NPCS,requiredBondForTier,makeZyrexFollower,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -22,11 +22,12 @@ const H=t=>console.log('\n'+t);
 global.showToast=noop; global.playSFX=noop; global.saveGame=noop; global.showDialog=noop;
 C.game.scene='overworld';
 const ROOT='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
-const SP=C.SPECIES.key_of_mealux, SH=C.SUMMONABLE_SPRITES.key_of_mealux;
+const src2=fs.readFileSync(ROOT+'rp7b.html','utf8');
+const SP=C.SPECIES.mealux, SH=C.SUMMONABLE_SPRITES.mealux;
 
 H('1 · ★★★ A SENTIENT WILD ZYREX, NOT AN ITEM');
 {
-  ok(!!SP,'key_of_mealux is a SPECIES');
+  ok(!!SP,'mealux is a SPECIES');
   ok(SP.tier===8,'★ Tier 8');
   ok(SP.immortal===true,'★★ IMMORTAL class · "rare immortal from kyrathos"');
   ok(SP.sentient===true,'★★★ SENTIENT · the Creator\'s word · it is aware, not a pickup');
@@ -80,7 +81,6 @@ H('5 · ★★★ IT BOBS LIKE A PORTAL');
 {
   ok(SH.levitate===true,'★★ the sheet declares levitate');
   ok(SH.bobAmp===4&&SH.bobMs===500,'★★★ ±4px on a 500ms sine · the SAME wave the levitating props ride, so the two read as one world');
-  const src2=fs.readFileSync(ROOT+'rp7b.html','utf8');
   ok(/Math\.sin\(performance\.now\(\) \/ 500\) \* 4/.test(src2),'the prop bob it is matching is still there, unchanged');
   ok(/_bobPhase/.test(src2),'★★ phase-offset per individual · two Keys in two caves do not pulse in lockstep');
   ok(/d\.levitate[\s\S]{0,200}bobMs/.test(src2),'the wild draw path reads the bob from the sheet');
@@ -89,45 +89,66 @@ H('5 · ★★★ IT BOBS LIKE A PORTAL');
 
 H('6 · IT IS A WILD, AND THE WILD LAWS APPLY');
 {
-  const w=C.spawnWildZyrex('key_of_mealux',60,60,{temperament:'Calm'});
+  const w=C.spawnWildZyrex('mealux',60,60,{temperament:'Calm'});
   ok(!!w,'it spawns as a wild');
   ok(w.level===80,'★★ level = tier × 10 = 80 · the wild level law takes no exception for a legendary');
   ok(typeof w._bobPhase==='number','★ and it gets its own bob phase at spawn');
   ok(C.requiredBondForTier(8)===8*333,'★ bond gate = 8 × 333 = '+C.requiredBondForTier(8)+' · 80% of the cap · an endgame find');
 }
 
-H('7 · ★★ THE KEY LINE IS RECORDED · one Anciuxor, few Mealux');
+H('7 · ★★★ IT WAS NEVER A RELIC · the retired reading must stay retired');
 {
-  const K=C.KEY_OF_MEALUX;
-  ok(!!K,'KEY_OF_MEALUX is recorded');
-  ok(K.descendsFrom===16,'★ two removes from Prismshard XVI · Key → Mealux → Keys of Mealux');
-  ok(K.count===null,'★★★ count is NULL · "few" is not a number he gave, and three invented coordinates would be invented canon');
-  ok(Array.isArray(K.found)&&K.found.length===0,'★★ and the placement table is EMPTY on purpose · hidden things are placed at tiles he names');
-  ok(K.opens===null,'★ what a lesser key OPENS is left open · the Key of Anciuxor opens the Four Realms; this one is unstated');
-  ok(C.prismshard(16).livingTrace==='mealux','★ and XVI still records only what its remnants BECAME');
-  ok(C.MEALUX_CANON.isPrismshard===false,'★★ the species is still not the relic · descent, not identity');
+  // ★★★ v0.96.49 · THIS SUITE HAD BEEN DEAD SINCE v0.95.959.
+  // It named KEY_OF_MEALUX in its boot export list.  b2c46df deleted that
+  // const on purpose — "a Mealux in every district ... and it was never a
+  // relic" — so every run since has died at BOOT FAILED and all 88 assertions,
+  // the whole Mealux feature, have been silently unchecked for 30+ commits.
+  // ★★ A suite that cannot boot reports nothing, and reporting nothing looks
+  // exactly like passing in a sweep that greps for the word FAILED.
+  // The six assertions here defended the OLD canon (a lesser key descending
+  // from the Key of Anciuxor).  Rewritten to defend the CORRECTION instead,
+  // so the retyping can never quietly come back.
+  ok(!('KEY_OF_MEALUX' in C) || C.KEY_OF_MEALUX===undefined,
+     '★★★ there is no KEY_OF_MEALUX · a Mealux is a SPECIES, not a lesser key, and the relic reading is retired');
+  const M=C.MEALUX_CANON;
+  ok(!!M,'MEALUX_CANON is recorded');
+  ok(M.isPrismshard===false,'★★ the species is not the relic · descent, not identity');
+  ok(M.tracesOf===16,'★ its progenitor is still Prismshard XVI · '+M.origin);
+  ok(M.relicClass==='DERIVATIVE','★★ DERIVATIVE · the living branch of §3 descent, which is a lineage and not a relic class it belongs to');
+  ok(M.tier===8&&M.immortalClass===true,'★ T8 Immortal of Kyrathos · the Creator retyped it from the codex T3');
+  ok(M.types===null&&M.family===null,'★★★ typing is STILL NULL · unanswered is recorded as unanswered, never guessed');
+  ok(C.prismshard(16).livingTrace==='mealux','★ and XVI records only what its remnants BECAME');
+  ok(/\['key_of_mealux', *'mealux'\]/.test(src2),
+     '★★ and an old save that stored the relic id migrates to the species · the rename cannot orphan an inventory');
 }
 
-H('8 · ★★★ FIVE ON THE MAP · every other district, Zarvane to Korathen');
+H('8 · ★★★ ONE PER DISTRICT · all ten, re-rolled each playthrough');
 {
   C.seedMalezorWild();
   // ★ the SEEDED ten only.  §6 spawns a Key by hand at (60,60) to prove the
   // wild laws apply to it; that individual is a test fixture, not one of the
   // ten on the map, and counting it made this read 11 with a NaN remoteness.
   // Measure the population you mean.
-  const M=C.WILD_ZYREX.filter(w=>w.speciesId==='key_of_mealux'&&w._malezorWild==='MEALUX');
-  // ★★ v0.95.883 · INVERTED from ten.  Creator: "lets do 5 spawn, theyre in
-  // every other districts starting at zarvane ending at korathen."
-  ok(M.length===5,'★★★ '+M.length+' Keys of Mealux on the map · every other district, as ruled');
-  ok(new Set(M.map(w=>w._mealuxDistrict)).size===5,'★★ five DISTINCT districts · none doubled up');
-  const D=C.MEALUX_DISTRICTS().map(d=>d.id);
-  ok(D.join()==='zarvane,veridan,vorashil,baelgor,korathen',
-     '★★★ the stride lands exactly: '+D.join(' · '));
-  ok(D[0]==='zarvane','★★ STARTS at Zarvane, as ruled');
-  ok(D[D.length-1]==='korathen','★★ and ENDS at Korathen · both endpoints are the check that the rule IS the rule');
+  const M=C.WILD_ZYREX.filter(w=>w.speciesId==='mealux'&&w._malezorWild==='MEALUX');
+  // ★★★ v0.96.49 · REWRITTEN FROM THE FIVE-DISTRICT STRIDE.
+  // v0.95.883 ruled five, on every other district, Zarvane to Korathen, and
+  // this section defended that stride down to "MALEZOR gets none".  v0.95.959
+  // superseded it — Creator: "place one key of mealux in a random spawn point
+  // in EACH district.  randomized each game play."  The game has done exactly
+  // that ever since; only the test still argued for the old rule, and because
+  // the suite could not boot, it never got to lose the argument.
+  // ★★ The header still read FIVE while the first assertion had been hand-
+  // patched to 10 — a test disagreeing with itself, which is what a suite
+  // nobody can run decays into.
   const all=C.ZYRAXIS_DISTRICTS.map(d=>d.id);
-  ok(D.every((id,i)=>all.indexOf(id)===1+i*2),'★ every other district · stride 2 from index 1, derived not typed');
-  ok(!D.includes('malezor'),'★★ and MALEZOR gets none · the rarest creature in the game is not in the tutorial town');
+  ok(M.length===all.length,'★★★ '+M.length+' Mealux on the map · ONE PER DISTRICT, all '+all.length+', as ruled');
+  const D=C.MEALUX_DISTRICTS().map(d=>d.id);
+  ok(new Set(M.map(w=>w._mealuxDistrict)).size===all.length,'★★ '+all.length+' DISTINCT districts · none doubled up, none skipped');
+  ok(D.join()===all.join(),
+     '★★★ the district list IS the district list · derived from ZYRAXIS_DISTRICTS, not a typed stride that has to be re-edited when a district is added');
+  ok(D.includes('malezor'),
+     '★★ and MALEZOR gets one · the old rule spared the tutorial town, the Creator\'s "each district" does not');
+  ok(D.includes('korathen'),'★ through to Korathen · both ends of the world covered');
   ok(M.every(w=>C.worldDistrictAt(w.tileX,w.tileY)===w._mealuxDistrict),
      '★★ and every one actually STANDS in the district it was assigned · the label is not a promise, it is measured');
   // ★ v0.95.895 · SELF-OCCLUSION.  This asked walkable() about the creature's
@@ -145,7 +166,7 @@ H('8 · ★★★ FIVE ON THE MAP · every other district, Zarvane to Korathen')
 
 H('9 · ★★ HIDDEN MEANS REMOTE, AND IT IS MEASURED');
 {
-  const M=C.WILD_ZYREX.filter(w=>w.speciesId==='key_of_mealux'&&w._malezorWild==='MEALUX');
+  const M=C.WILD_ZYREX.filter(w=>w.speciesId==='mealux'&&w._malezorWild==='MEALUX');
   ok(M.every(w=>w._remoteness>=12),'★★ every Key is at least 12 tiles from the nearest building · min was '+Math.min(...M.map(w=>w._remoteness)));
   // independently recompute distance-to-building rather than trusting the stored score
   let worst=1e9;
@@ -197,7 +218,7 @@ H('12 · ★★ ONE CATCH, ALL TEN DOORS');
   const p=C.player;
   p.party=[]; p.pcZyrex=[]; p.sanctuary=[]; p.gemlordCavesOpen=false;
   p.bondLedger={zyrex:1665,rizer:1665,_migrated:true};        // enough for a T8
-  const z={speciesId:'key_of_mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k1'};
+  const z={speciesId:'mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k1'};
   C.addZyrexToRoster(z);
   ok(p.gemlordCavesOpen===true,'★★★ catching ONE grants access · the flag is set at the roster door');
   const doors=C.WORLD_PROPS.filter(x=>/_cave$/.test(x.id||'')&&typeof x.onSquare==='function');
@@ -216,12 +237,12 @@ H('13 · ★★★ ACCESS SURVIVES GIVING THE KEY AWAY');
   const p=C.player;
   p.party=[]; p.pcZyrex=[]; p.sanctuary=[]; p.gemlordCavesOpen=false;
   p.bondLedger={zyrex:1665,rizer:1665,_migrated:true};
-  const z={speciesId:'key_of_mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k2'};
+  const z={speciesId:'mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k2'};
   C.addZyrexToRoster(z);
-  const idx=(p.party||[]).findIndex(q=>q&&q.speciesId==='key_of_mealux');
+  const idx=(p.party||[]).findIndex(q=>q&&q.speciesId==='mealux');
   if (idx>=0 && typeof donateZyrexToSanctuary==='function') donateZyrexToSanctuary(idx);
-  else { p.party=[]; p.sanctuary=[{speciesId:'key_of_mealux',name:'Key of Mealux',level:80,tier:8}]; }
-  ok(!(p.party||[]).some(q=>q&&q.speciesId==='key_of_mealux'),'the Key is out of the party');
+  else { p.party=[]; p.sanctuary=[{speciesId:'mealux',name:'Key of Mealux',level:80,tier:8}]; }
+  ok(!(p.party||[]).some(q=>q&&q.speciesId==='mealux'),'the Key is out of the party');
   ok(C.gemlordCavesOpen()===true,
      '★★★ and the doors STILL know you · access is granted on the CATCH, not derived from what you currently hold');
   const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
@@ -235,7 +256,7 @@ H('14 · ★ GRANTED BEFORE THE BOND GATE CAN DIVERT IT');
   const p=C.player;
   p.party=[]; p.pcZyrex=[]; p.sanctuary=[]; p.gemlordCavesOpen=false;
   p.bondLedger={zyrex:0,rizer:0,_migrated:true};              // far below a T8 gate
-  const z={speciesId:'key_of_mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k3'};
+  const z={speciesId:'mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k3'};
   const res=C.addZyrexToRoster(z);
   ok(res.location==='pc','★ a low-bond Rizer has the Key bounced to the PC, as the tier gate demands');
   ok(p.gemlordCavesOpen===true,
@@ -244,7 +265,7 @@ H('14 · ★ GRANTED BEFORE THE BOND GATE CAN DIVERT IT');
 
 H('18 · ★★★ TRAVERSAL · it does not run, it HOVERS somewhere');
 {
-  const SH=C.SUMMONABLE_SPRITES.key_of_mealux;
+  const SH=C.SUMMONABLE_SPRITES.mealux;
   const ROOT3='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
   ok(!!SH.runSrc,'★ a traversal sheet is registered');
   ok(fs.existsSync(ROOT3+decodeURIComponent(SH.runSrc)),'★ and it is on disk');
@@ -281,7 +302,7 @@ H('18 · ★★★ TRAVERSAL · it does not run, it HOVERS somewhere');
      '★★★ each bank normalises by ITS OWN tallest body · the float draws at idle size');
   ok(/Preserve the SIZE, not the divisor/.test(src2),'★★ and the reason is recorded as a correction, not a tweak');
   // measure it
-  const SHm=C.SUMMONABLE_SPRITES.key_of_mealux;
+  const SHm=C.SUMMONABLE_SPRITES.mealux;
   const idleMax=Math.max(216,SHm.bboxes[0][0][3]), runMax=Math.max(216,SHm.runBboxes[0][0][3]);
   const idleH=SHm.bboxes[0][0][3]/idleMax, runH=SHm.runBboxes[0][0][3]/runMax;
   ok(Math.abs(idleH-runH)<0.02,

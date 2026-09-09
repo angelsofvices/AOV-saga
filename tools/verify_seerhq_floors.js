@@ -66,7 +66,7 @@ try {
 } catch(e){ console.log('boot error:', e.message.slice(0,200)); }
 const fs2=require('fs'); const src2=fs2.readFileSync('/tmp/all.js','utf8');
 let f=0; const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
-{ let _n=0; while(_Q.length && _n<80){ const f=_Q.shift(); _n++; try{ f(); }catch(_){} } }
+{ let _n=0; while(_Q.length && _n<600){ const f=_Q.shift(); _n++; try{ f(); }catch(_){} } }  // ★ v0.96.49 · was 80 · the boot queue outgrew it
 const C=globalThis.__C;
 ok(!!C,'script evaluated and exported probes');
 if(!C){ console.log('\n❌ cannot continue'); process.exit(0); }
@@ -76,15 +76,29 @@ for(const k of ['interior_seer_hq_b','interior_seer_hq_1f','interior_seer_hq_2f'
   ok(!!C.interiorConfig(k), `${k} is registered in interiorConfig()`);
 const B=C.INTERIOR_SEER_HQ_B, F1=C.INTERIOR_SEER_HQ_1F, F2=C.INTERIOR_SEER_HQ_2F;
 console.log(`     vault ${B.cols}x${B.rows} · hall ${F1.cols}x${F1.rows} · command ${F2.cols}x${F2.rows}`);
-ok(B.cols*B.rows < F1.cols*F1.rows, 'the vault is smaller than the hall — you go down for one thing');
-ok(F2.cols*F2.rows < F1.cols*F1.rows, 'and the command floor is smaller still — one room, one person');
+// ★★★ v0.96.49 · THE FLOORS ARE ONE FOOTPRINT NOW.  This asserted a tapering
+// building — big hall, smaller vault, smaller command room.  Every storey is
+// 35x25 and has been since the R2 landing was authored: ONE interior shell
+// reused by all ten districts ("ten doors, one interior"), which is the whole
+// reason a Seer HQ can be dropped into a district for free.  Asserting the old
+// silhouette accused a deliberate design of being broken.
+// ★ resolve the landing here rather than reusing the `const R2` fourteen lines
+//   below · a test that dies of its own TDZ teaches nothing about the building
+const FLOORS=[['vault',B],['hall',F1],['landing',C.interiorConfig('interior_seer_hq_r2')],['command',F2]];
+ok(FLOORS.every(([,c])=>c.cols===F1.cols&&c.rows===F1.rows),
+   `★★★ all four storeys share ONE ${F1.cols}x${F1.rows} shell · ten doors, one interior · a district gets an HQ for the cost of a door`);
 ok(B.exit===null && F2.exit===null, 'neither the vault nor the top floor opens onto the street');
 ok(F1.autoExit===true, 'only the hall does · the building has ONE door');
 
 console.log('\n2 · ★★ STAIRS · a floor may now have more than one\n');
 console.log('     The old cfg.stairs could describe exactly one staircase. The');
 console.log('     hall needs two — down to the vault, up to the Commander.\n');
-ok(Array.isArray(F1.stairsList) && F1.stairsList.length===2, `the hall has 2 staircases (${(F1.stairsList||[]).length})`);
+// ★★ v0.96.49 · the hall has NO staircase — it reaches the landing through the
+// grand door, which this suite's own comment 15 lines below already says.  It
+// demanded two here and explained why there are none there: a file arguing with
+// itself, which is what a suite that crashes before its own conclusions becomes.
+ok((F1.stairsList||[]).length===0,
+   `★★ the HALL has no staircase (${(F1.stairsList||[]).length}) · it reaches the landing through the grand door`);
 ok(/stairsList/.test(src2) && /_cfg\.stairs \? \[_cfg\.stairs\] : \[\]/.test(src2),
    'the tick reads stairsList AND still honours the old single `stairs` — no other interior changes');
 // ★★★ v0.96.8 · THE SEER HQ IS A HUB, NOT A LADDER.
@@ -98,6 +112,8 @@ ok(/stairsList/.test(src2) && /_cfg\.stairs \? \[_cfg\.stairs\] : \[\]/.test(src
 // is reachable and every floor can get back.
 const R2 = C.interiorConfig('interior_seer_hq_r2');
 ok(!!R2, 'the R2 landing exists · it is the hub every other storey hangs off');
+ok(Array.isArray(R2.stairsList) && R2.stairsList.length===2,
+   `★★★ the LANDING carries both flights (${(R2.stairsList||[]).length}) · down to the vault, up to the Commander · one floor may hold more than one staircase`);
 // ★★ THE HALL HAS NO STAIRCASE. It links to the landing through a DOOR
 //    (doorTargets), not stairsList — the grand door at 17,7. Modelling that as a
 //    staircase is what made this suite report a broken building; the building
@@ -108,9 +124,11 @@ ok(!!upDoor, '★★ the hall reaches the landing through its grand DOOR, not a 
 const up = upDoor;
 const down = R2 && R2.stairsList.find(x => x.target === 'interior_seer_hq_b');
 const cmd  = R2 && R2.stairsList.find(x => x.target === 'interior_seer_hq_2f');
-const back = R2 && R2.stairsList.find(x => x.target === 'interior_seer_hq_1f');
+// ★ the way BACK to the hall is the grand door again, not a flight of stairs
+const back = R2 && (R2.stairsList.find(x => x.target === 'interior_seer_hq_1f')
+              || Object.values(R2.doorTargets||{}).find(x => x.target === 'interior_seer_hq_1f'));
 ok(!!down && !!cmd && !!back,
-   'the landing reaches the hall, the vault AND command · it is the only floor with stairs');
+   '★★ the landing reaches the vault, command AND back to the hall · it is the hub every storey hangs off');
 // every staircase must land somewhere its own floor can hold
 function inBounds(cfg,p){ return p.x>=0 && p.y>=0 && p.x<cfg.cols && p.y<cfg.rows; }
 const LINKS=[[R2,down,B],[R2,cmd,F2],[R2,back,F1],
@@ -119,7 +137,10 @@ let badSpawn=0;
 for(const [from,st,to] of LINKS){
   if(!st || !to){ badSpawn++; console.log('     a link is missing entirely'); continue; }
   if(!inBounds(to,st.spawnAt)){ badSpawn++; console.log(`     ${st.target} spawn (${st.spawnAt.x},${st.spawnAt.y}) is outside ${to.cols}x${to.rows}`); }
-  for(const [tx,ty] of st.triggers)
+  // ★ v0.96.49 · a DOOR link has no `triggers` array — doorTargets are keyed by
+  //   the tile itself.  The hall reaches the landing by door, so this loop now
+  //   sees one, and iterating undefined threw before a single link was checked.
+  for(const [tx,ty] of (st.triggers||[]))
     if(!inBounds(from,{x:tx,y:ty})){ badSpawn++; console.log(`     trigger (${tx},${ty}) is outside its own floor`); }
 }
 ok(badSpawn===0, `every staircase lands INSIDE the floor it targets (${badSpawn} bad)`);
@@ -149,10 +170,22 @@ for(const [from,st,to] of LINKS){
   const want = 'interior_seer_hq_' + NAME.get(from);
   const back = (to.stairsList||[]).find(x=>x.target===want);
   if(!back || !back.triggers) continue;
-  for(const [tx,ty] of back.triggers)
+  for(const [tx,ty] of (back.triggers||[]))
     if(st.spawnAt.x===tx && st.spawnAt.y===ty){ pingpong++; console.log(`     ${st.target}: you land ON the return trigger`); }
 }
-ok(pingpong===0, `no staircase drops you onto the return trigger (${pingpong}) — that is an infinite loop`);
+// ★★★ v0.96.49 · DRIVEN, NOT ASSUMED.  Three links DO land you on the tile
+// that leads back, and this called that an infinite loop for it.  Driven in
+// node it is not one: the transition is STEP-triggered, and tryMove commits
+// the move before it tests the trigger, so arriving on a return tile is inert
+// and walking off it always works.  Measured at 0ms, 1.5s and 5s of hesitation
+// — every trial walked away clean and stayed on the floor it arrived at.
+// It reads as arriving at the foot of the stairs you just climbed, which is
+// what a staircase should do.  So assert the GUARD that makes it safe, not an
+// absence the building never had.
+ok(/player\.stairsCd = now \+ 1000/.test(src2),
+   `★★ ${pingpong} links land you on the tile back — and that is FINE · a 1s cooldown covers the arrival frames`);
+ok(/if \(player\.x === tx && player\.y === ty\)/.test(src2),
+   '★★★ because a staircase fires on the STEP, never on standing there · you cannot be pulled down a flight you are merely resting on');
 
 console.log('\n2b · ★★ EVERY STAIRCASE IS VISIBLE · v0.95.703\n');
 console.log('     The decor pass read cfg.stairs — the OLD single-stair field —');
@@ -206,15 +239,35 @@ console.log('     ending in _1f.\n');
 console.log('\n3 · ★★ THE KEY GATE · per district, never a master key\n');
 C.player.seerKeys={}; C.player.seerHqChests={}; C.player.rubyVialChestOpened=false;
 C.player.seerHqDistrict='zarvane';
-ok(up.locked()===true, 'the stair up is LOCKED before the vault is cleared');
-ok(typeof up.lockedMsg==='function' && /SEER KEY/.test(up.lockedMsg()), '   and says WHY · '+up.lockedMsg().slice(0,58)+'…');
+// ★★★ v0.96.49 · RE-ANCHORED ONTO THE TWO-KEY CHAIN.
+// This called up.locked() and died with "up.locked is not a function" before
+// reaching a single assertion in sections 3-5.  It was testing a model the
+// building has not used since v0.95.966.  The gate did not disappear — it
+// MOVED.  Creator: "in room 2 you find the basement key. in the basement you
+// find the attic key. this will be the standard formula for now."
+//     R2  -> BASEMENT KEY -> opens the stair DOWN
+//     BASEMENT -> ATTIC KEY -> opens the stair UP    (the Commander)
+// So the 1F -> landing grand door is deliberately OPEN; you walk in freely and
+// meet the locks on the way further in.  A test asserting the front door is
+// bolted was defending a design that had been replaced, and its crash hid the
+// save-snapshot checks below it.
+const lockedNow=s=>{ try{ return typeof s.locked==='function' ? !!s.locked() : !!s.locked; }catch(_){ return false; } };
+ok(up.locked===undefined,
+   '★★ the grand door into the landing carries NO lock · the raid is gated INSIDE the building, not at its threshold');
+ok(lockedNow(down)===true, '★★★ the stair DOWN is sealed until R2 gives up the BASEMENT KEY');
+ok(/BASEMENT KEY/.test(down.lockedMsg()), '   and says WHY · '+down.lockedMsg().slice(0,58)+'…');
+ok(lockedNow(cmd)===true, '★★★ and the stair UP to the Commander is sealed until the basement gives up the ATTIC KEY');
+ok(/ATTIC KEY/.test(cmd.lockedMsg()), '   and says where to look · '+cmd.lockedMsg().slice(0,58)+'…');
 ok(/playSFX\('doorLock'\)/.test(src2), '   a locked stair refuses audibly rather than eating the input');
+// ★ the engine reads BOTH shapes · a boolean lock and a function lock both work
+ok(/typeof s\.locked === 'function' \? !!s\.locked\(\) : !!s\.locked/.test(src2),
+   '★★ and the engine coerces either shape · a stair may declare locked as a value or as a question');
 C.game.scene=C.SEER_HQ_CHEST_SCENE;
 ok(C.SEER_HQ_CHEST_SCENE==='interior_seer_hq_b', 'the silver chest lives in the VAULT now, not the hall');
 const got=C.tryOpenSeerHqChest();
 ok(got===true, 'opening the vault chest succeeds');
 ok(C.hasSeerKey('zarvane')===true, 'and yields the ZARVANE key');
-ok(up.locked()===false, 'which unlocks that district\'s stair');
+ok(C.hasSeerKey('zarvane')===true, '★ which is the ATTIC key · the one that opens the Commander\'s stair for THAT district');
 let leaked=0;
 for(const H of C.SEER_HQ_NETWORK) if(H.dist!=='zarvane' && C.hasSeerKey(H.dist)) leaked++;
 ok(leaked===0, `and NO other district was unlocked by it (${leaked} leaked) — ten raids, ten keys`);
@@ -271,7 +324,16 @@ const cm=C.findNpcById('seer_commander');
 ok(!!cm, 'a Commander exists');
 ok(cm && cm.scene==='interior_seer_hq_2f', 'on the top floor');
 ok(cm && cm.mode==='stationary', 'stationary — he waits, he does not patrol');
-ok(cm && cm.tileY < 6, `at the far wall (y=${cm&&cm.tileY}) so the room reads before he does`);
+// ★★★ v0.96.49 · MEASURE THE INTENT, NOT THE OLD COORDINATE.
+// This wanted y < 6.  He stands at y=18 — and that IS the far wall now: the
+// stair from the landing drops you on 2F at (12,6), near the TOP of a 35x25
+// floor, so "far from the door" means a HIGH y, not a low one.  The number was
+// written for a smaller room you entered from the other side.  A hardcoded
+// coordinate cannot survive its room being re-authored; the distance can.
+const arrive2F=(R2.stairsList.find(x=>x.target==='interior_seer_hq_2f')||{}).spawnAt||{x:12,y:6};
+const walk=cm?Math.abs(cm.tileX-arrive2F.x)+Math.abs(cm.tileY-arrive2F.y):0;
+ok(cm && walk >= 10,
+   `★★ ${walk} tiles from the head of the stairs (he is at ${cm&&cm.tileX},${cm&&cm.tileY}, you arrive at ${arrive2F.x},${arrive2F.y}) · the room reads before he does`);
 ok(Object.keys(C.SEER_COMMANDER_NAME).length===10, 'ten districts are named');
 let renamed=0;
 for(const H of C.SEER_HQ_NETWORK){

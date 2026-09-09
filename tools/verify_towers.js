@@ -32,7 +32,7 @@ try {
     'TOWER_COMPANION_GATE,WORLD_PROPS,NPCS,player,game,towerRestored,towersRestoredCount,' +
     'heldTowerBatteries,towerSquadCleared,buildTowerGuardPacks,recordTowerGuardKill,' +
     'syncTowerNetworkFromSave,findNpcById,toggleContactCall,drawProp,saveGame,loadGame,' +
-    'worldDistrictAt,recordMoriKill};')();
+    'worldDistrictAt,recordMoriKill,contactCallBondOk};')();   // ★ v0.96.49 · the gate the suite asks about was never exported
 } catch (e) { console.log('❌ eval', e.message.split('\n')[0]); process.exit(1); }
 const C = globalThis.__C;
 const flush = () => { const q = pending.splice(0); q.sort((a,b)=>a.ms-b.ms); q.forEach(t => { try { t.f(); } catch(_){} }); };

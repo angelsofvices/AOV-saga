@@ -157,6 +157,14 @@ const env = {
   // (v0.95.827/833) · stubbed here — the sandbox tests roster logic, not geometry
   _claimFormationSlot: () => 0,
   _formationTile: (n) => [3, 3],
+  // ★★★ v0.96.49 · toggleFactionSummon grew a call to _rearRecallTile and this
+  // sandbox never grew the stub, so the suite died with a ReferenceError before
+  // its first assertion.  It looked like a missing function in the GAME; the
+  // function is defined and hoisted, it is this harness that had not kept up.
+  // ★★ That is the cost of a hand-stubbed sandbox: every new dependency in the
+  // three extracted functions is a silent break here.  Mirrors _formationTile,
+  // which is what the real one returns when the slot tile is walkable.
+  _rearRecallTile: (n) => [3, 3],
   zyrexHomeTile: () => [20, -14],
   // ★ v0.95.863 · per-individual follower identity
   zyrexUid: (z) => (z.uid || (z.uid = `${z.speciesId}#1`)),

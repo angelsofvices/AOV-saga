@@ -2642,9 +2642,28 @@ const CAM_SWAY_AMP_Y = 1.6;                 // px · subtle vertical drift
 const CAM_SWAY_PERIOD = 8200;               // ms · slow breathing cadence
 let   _camDt = 16;                          // updated each frame from frame()
 let   _camSwayEase = 0;                     // v0.95.196 · 0..1 · gates sway to moving state
+// ★★★ v0.96.62 · THE AUDIENCE SHOT.
+//   A Dracolord is NINE TILES TALL and the viewport is eleven, so with the
+//   camera locked to Rizer his face sits far above the frame — you walk the
+//   whole domain to be looked at by something whose eyes you never see.
+//   Crossing the audience line hands the shot to HIM: the camera lifts off
+//   Rizer and frames the bust, and the existing lerp makes that a pan rather
+//   than a cut.  Walk back and it hands the shot quietly back.
+// ★ Returns null when it does not apply, so every other scene in the game is
+//   untouched by this and reads exactly one extra comparison per frame.
+function _dracolordAudienceCamY(){
+  const dom = (typeof currentDracolordRealm === 'function') ? currentDracolordRealm() : null;
+  if (!dom || player.y > DRACOLORD_AUDIENCE_Y) return null;
+  const feetPx = (DRACOLORD_THRONE_Y + 1) * TILE;      // where he stands
+  const topPx  = feetPx - DRACOLORD_BUST_TILES * TILE; // and the top of his head
+  // centre the whole bust in frame · he is the subject now, not the Rizer
+  return Math.round(topPx - (canvas.height - DRACOLORD_BUST_TILES * TILE) / 2);
+}
 function updateCamera(){
   const targetX = player.x * TILE + TILE / 2 - canvas.width  / 2;
-  const targetY = player.y * TILE + TILE / 2 - canvas.height / 2;
+  const _audY   = _dracolordAudienceCamY();
+  const targetY = _audY !== null ? _audY
+                                 : player.y * TILE + TILE / 2 - canvas.height / 2;
   if (game.cameraMode !== 'gba'){
     _cam.fx = targetX; _cam.fy = targetY;
     _cam.x = Math.floor(targetX);
@@ -30025,6 +30044,14 @@ function _realmHalfWidth(dom, y){
 }
 function dracolordRealmDensity(dom, x, y){
   if (y < 0 || y >= DRACOLORD_REALM_H) return -1;
+  // ★★★ v0.96.62 · THE CAUSEWAY ENDS AT THE THRONE · beyond it is the Expanse.
+  //   Creator: "the dracolord should sit under the tile map."  He is drawn
+  //   BENEATH the floor now, so if the cloud ran on past him it would simply
+  //   cover him and the whole approach would end at an empty room.  Ending the
+  //   floor at his row turns its far edge into a HORIZON: he rises out of the
+  //   void behind it, and the ground cuts across his lower body.  That is what
+  //   makes "under the tile map" read as enormous rather than as hidden.
+  if (y < DRACOLORD_THRONE_Y) return -1;
   const inside = _realmHalfWidth(dom, y) - Math.abs(x - _realmCentreX(dom, y));
   return DREAMLAND_SOLID + inside * 0.10;   // 0.10/tile · ~0.6 tile of feather
 }
@@ -30066,6 +30093,8 @@ function dracolordRealmConfig(id){
     // ★ v0.96.59 · the domain's own floor · null until the PNG decodes, and the
     //   painter falls back to the Dreamland cloud for exactly that long
     patternFn: () => dracolordFloorPattern(dom.id),
+    // ★★ v0.96.62 · and HE draws here · after the star field, under the ground
+    underFloor: () => drawDracolordPresence(dom),
     isBlocked: (x, y) => !dracolordRealmSolid(dom, x, y)
                       || dracolordGateAt(x, y) || dracolordBodyAt(x, y),
     label: `☁ ${dom.realm} · ${dom.lord} is at the far end`,
@@ -34591,6 +34620,18 @@ function drawDreamlandFloor(cfg){
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
   }
+  // ★★★ v0.96.62 · THE SKY IS DOWN, THE GROUND IS NOT YET UP · draw between.
+  //   Creator: "use the cosmic space tile that sits under dreamland to fill
+  //   the space under the dracolords and their domain."  The cosmos is painted
+  //   full-screen above, so anything drawn before this function was ERASED by
+  //   it — which is exactly what happened when I first moved the Dracolord
+  //   under the tile map: he was rendered, then the sky painted over him, and
+  //   the domain came up empty.  This hook is the only moment that is after
+  //   the Expanse and before the causeway, which is precisely where something
+  //   rising from beneath the floor belongs.
+  if (typeof cfg.underFloor === 'function'){
+    try { cfg.underFloor(); } catch(err){ console.warn('[rp7b] underFloor', err); }
+  }
   // ★ the floor's own terrain · Dreamland's globals by default, the domain's
   //   causeway inside an arch. One indirection buys the whole masking pipeline.
   const _dens  = cfg.densityFn || dreamlandDensity;
@@ -38503,7 +38544,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.61' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.62' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -59303,6 +59344,17 @@ function _frameBody(now){
     drawTitleScreen();
     drawNewGameConfirm();   // v0.95.662 · overwrite prompt paints on top of the title
   } else if (interiorConfig(game.scene)){
+    // ★★★ v0.96.62 · THE DRACOLORD SITS UNDER THE TILE MAP.
+    //   Creator: "the dracolord should sit under the tile map."  He is drawn
+    //   inside drawDreamlandFloor via cfg.underFloor — after the star field,
+    //   before the causeway — because the sky is painted full-screen and
+    //   anything drawn out here would simply be erased by it.  The floor's far
+    //   edge becomes his horizon, and he rises from the Expanse behind it.
+    //
+    // ★★ This reverses the v0.96.38 reasoning that put him in the depth sort
+    //   so Rizer could stand in front of him.  He is no longer sorted at all —
+    //   he is scenery BELOW the world, and Rizer, drawn after the floor, is
+    //   unconditionally in front.  Same outcome, one less thing to get wrong.
     drawInteriorFloor();
     // Depth-sort NPCs in this scene + player + treehouse chest by feet-Y
     const rends = [{ kind:'player', footY: player.y }];
@@ -59334,16 +59386,12 @@ function _frameBody(now){
     if (game.scene === DREAMLAND_SCENE){
       for (const d of _dreamDecor) rends.push({ kind:'dreamDecor', decor:d, footY: d.y });
     }
-    // ★ v0.96.38 · inside an arch · the same depth sort, for the same reason.
-    //   He is nine tiles tall and stands at row 3, so walking up to him has to
-    //   put you IN FRONT of him — drawn as a flat layer he would either be
-    //   pasted over Rizer or hidden behind the floor.
+    // ★ v0.96.62 · the GATE still depth-sorts — you walk through it, so being
+    //   in front of or behind it is the whole point.  The Dracolord no longer
+    //   does: he is drawn under the tile map above, not sorted with the props.
     {
       const _rdom = currentDracolordRealm();
-      if (_rdom){
-        rends.push({ kind:'dracolord', dom:_rdom, footY: DRACOLORD_THRONE_Y });
-        rends.push({ kind:'realmGate',            footY: DRACOLORD_GATE_Y });
-      }
+      if (_rdom) rends.push({ kind:'realmGate', footY: DRACOLORD_GATE_Y });
     }
     rends.sort((a,b) => a.footY - b.footY);
     for (const r of rends){

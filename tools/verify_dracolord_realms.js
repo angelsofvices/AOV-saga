@@ -92,10 +92,21 @@ for(const d of D.DRACOLORD_DOMAINS){
   t(seen.has(CX+','+(D.DRACOLORD_THRONE_Y+1)),
     `★★★ ${d.lord.padEnd(11)} · you can WALK from the gate to the throne (${seen.size} tiles)`);
   // the guarantee that makes the above true by construction, not by luck
-  let spine=true;
-  for(let y=0;y<H;y++)for(let dx=-D.DRACOLORD_REALM_SPINE;dx<=D.DRACOLORD_REALM_SPINE;dx++)
-    if(!D.dracolordRealmSolid(d,CX+dx,y))spine=false;
-  t(spine,`    ${d.lord.padEnd(11)} · spine solid at all ${H} rows`);
+  // ★★★ v0.96.62 · THE SPAN IS THRONE..ARRIVE, NOT THE WHOLE ARRAY.
+  //   This swept all 44 rows and now fails on every domain — correctly, and
+  //   for a change I made on purpose: the causeway ENDS at the throne so the
+  //   Dracolord has open Expanse to rise out of behind it.  Rows above him are
+  //   void by design.  The guarantee was never "every row of the array is
+  //   floor", it was "every row you can WALK has floor under its middle".
+  let spine=true, voidAbove=0;
+  for(let y=D.DRACOLORD_THRONE_Y;y<=D.DRACOLORD_ARRIVE_Y;y++)
+    for(let dx=-D.DRACOLORD_REALM_SPINE;dx<=D.DRACOLORD_REALM_SPINE;dx++)
+      if(!D.dracolordRealmSolid(d,CX+dx,y))spine=false;
+  for(let y=0;y<D.DRACOLORD_THRONE_Y;y++)
+    for(let x=0;x<W;x++) if(D.dracolordRealmSolid(d,x,y)) voidAbove++;
+  t(spine,`    ${d.lord.padEnd(11)} · spine solid on every WALKABLE row (${D.DRACOLORD_THRONE_Y}..${D.DRACOLORD_ARRIVE_Y})`);
+  t(voidAbove===0,
+    `    ${d.lord.padEnd(11)} · and OPEN EXPANSE behind the throne (${voidAbove} stray floor tiles) · he rises out of it, and the floor's far edge is his horizon`);
   // and there IS void beside it · a corridor with no edge is just a room
   let anyVoid=false;
   for(let y=2;y<H-2;y++){if(!D.dracolordRealmSolid(d,0,y)||!D.dracolordRealmSolid(d,W-1,y))anyVoid=true;}

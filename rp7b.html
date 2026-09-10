@@ -14193,6 +14193,18 @@ const MORI_BBOXES = [
       { x: 95, y: 170 },                     // was (18, 72) · east in wild arm near life stone
       { x:108, y: 180 },                     // was (35, 130) · east in wild arm near life stone
       { x:  8, y: 152 },
+      // ★★ v0.96.72 · Creator: "up vilerok to 10".  MALEZOR's set, 5 → 10 —
+      //   "up" cannot mean the total, which was already 13 and would have been
+      //   a cut.  These five fill the gaps in the district's own ring so the
+      //   Purge rung is findable without walking the same corridor twice.
+      //   ★ None placed south of y=190: that is the wild-arm approach the
+      //   Auraxion and life-stone fetches use, and a 500 HP drainer parked on a
+      //   fetch route is a wall, not an encounter.
+      { x:  62, y:  36 },                    // N ridge, east of the tower plaza
+      { x:  88, y:  92 },                    // mid-east scrub
+      { x:  30, y: 118 },                    // west of the school band
+      { x:  74, y: 140 },                    // central stem, south side
+      { x: 120, y: 122 },                    // far east shoulder
       // ── ZARVANE · wild set · v0.95.497 · 3 → 8 Vileroks (Andrannor's 2 moved out) ──
       // Zarvane is now the mid-tier boss district (no Daemon here per user 2026-08-16)
       // Spread across NW, mid, SE bands · avoids overlap with Satyrbeast pack anchors
@@ -14243,6 +14255,104 @@ const MORI_BBOXES = [
       _towerBoss: !!s.towerBoss,          // v0.95.470 · Radio Tower quest boss (NE spawn only)
       onInteract: (n) => {
         showToast('◈ VILEROK · "The Warden\'s bane returns..."', 2600);
+      },
+    }));
+  })(),
+  // ══════════════════════════════════════════════════════════════════
+  // ★★★ v0.96.72 · VORUGATH · stone-knuckled miniboss · 2x a Vilerok.
+  // Creator: "Add 5 vorugath around the map and up vilerok to 10.
+  // vorugath 2x stronger than vilerok"
+  //
+  // ★★ IT RIDES THE _vSheets CONTRACT, NOT A COPY OF VILEROK'S AI.  The
+  //   multi-bank strike system (line ~58348) is generic: give an NPC
+  //   { idle, run, light, heavy } and the adjacency tick fires light/heavy
+  //   frames on its own.  So Vorugath needed no new AI at all.
+  //
+  // ★★★ AND IT DELIBERATELY DOES NOT SET `_vilerok`.  That flag is not a
+  //   species marker — it is the KILL COUNTER for Kelthor's Vilerok Purge
+  //   (line ~58319).  Copying the Vilerok block wholesale would have made
+  //   every Vorugath kill tick the purge, so a rung that asks for five
+  //   Vileroks could be finished without meeting one.  Its own counter is
+  //   `_vorugath` / player.vorugathKills.
+  ...(function(){
+    const VORUGATH_WALK_BBOXES = [
+      [[20,33,289,270],[19,32,285,271],[13,32,288,271],[8,30,290,273]],
+      [[26,7,267,275],[23,7,273,277],[29,7,265,277],[18,7,272,277]],
+      [[30,5,260,308],[15,5,271,308],[12,5,276,308],[23,5,269,308]],
+      [[17,0,287,286],[15,0,283,281],[13,0,288,286],[13,0,283,281]],
+    ];
+    const VORUGATH_RUN_BBOXES = [
+      [[22,37,269,251],[18,40,282,251],[17,32,282,241],[18,48,282,243]],
+      [[14,43,286,232],[21,36,275,245],[24,31,265,240],[24,49,279,239]],
+      [[14,33,283,237],[15,29,268,246],[43,27,242,235],[4,37,289,240]],
+      [[19,13,267,274],[24,18,269,269],[20,17,279,247],[22,23,278,268]],
+    ];
+    const VORUGATH_LIGHT_BBOXES = [
+      [[9,48,289,246],[21,27,270,269],[15,49,288,245],[12,38,296,257]],
+      [[35,23,239,263],[21,23,292,259],[0,40,312,246],[55,23,218,272]],
+      [[44,17,227,261],[3,18,270,295],[5,30,308,283],[0,14,288,263]],
+      [[13,28,285,255],[2,0,290,283],[28,0,274,283],[16,22,287,261]],
+    ];
+    const VORUGATH_HEAVY_BBOXES = [
+      [[13,89,286,216],[15,8,298,305],[0,100,313,213],[0,101,311,212]],
+      [[17,76,265,222],[37,0,276,313],[0,0,313,313],[0,0,305,313]],
+      [[18,68,261,226],[28,1,285,312],[0,0,313,313],[0,0,303,311]],
+      [[11,53,277,218],[11,0,302,280],[0,0,313,293],[0,59,298,232]],
+    ];
+    const vRun   = new Image(); vRun.src   = 'assets/2D%20sprites/enemies/vorugath-run.png';
+    const vLight = new Image(); vLight.src = 'assets/2D%20sprites/enemies/vorugath-light.png';
+    const vHeavy = new Image(); vHeavy.src = 'assets/2D%20sprites/enemies/vorugath-heavy.png';
+    // ★ FIVE, AND NOT IN MALEZOR.  Two Vileroks' worth of health and damage
+    //   standing in the tutorial district would end the tutorial.  One per band
+    //   from Zarvane outward instead — the aov-rp7-enemy-mapping ladder — so
+    //   meeting one always means you have walked somewhere new.
+    const SPOTS = [
+      { x: 128, y: 262, band: 'zarvane'   },
+      { x: 332, y: 308, band: 'andrannor' },
+      { x: 536, y: 240, band: 'veridan'   },
+      { x: 470, y: 452, band: 'netharion' },
+      { x: 288, y: 566, band: 'vorashil'  },
+    ];
+    return SPOTS.map((s, i) => ({
+      id: `vorugath_${i + 1}`,
+      name: 'Vorugath',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/enemies/vorugath-walk.png',   // ★ walk IS its idle · the delivery has no idle sheet
+      bboxes: VORUGATH_WALK_BBOXES,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      uniformScale: true,
+      scaleMul: 1.85,                              // ★ reads bigger than Vilerok's 1.45 · it is the heavier thing
+      tileX: s.x, tileY: s.y,
+      homeX: s.x, homeY: s.y,
+      homeScene: 'overworld',
+      scene: 'overworld',
+      wanderRadius: 4,                             // slower to roam · it holds ground
+      dir: 'down',
+      mode: 'drainer',
+      moving: false,
+      animFrame: 0,
+      idleFrame: 0,
+      moveCd: 520 + Math.random() * 400,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      detectR: 14,
+      // ★★ TWO TIMES A VILEROK, on both axes that matter · 500→1000, 15→30
+      hpMax: 1000, hp: 1000,
+      drainAmt: 30,
+      tier: 6,                                     // one above Vilerok's 5
+      level: (s.y < 305 ? 50 : s.y < 470 ? 66 : 80),
+      _vorugath: true,
+      _vSheets: {
+        idle:  { img: null,   bboxes: VORUGATH_WALK_BBOXES  },
+        run:   { img: vRun,   bboxes: VORUGATH_RUN_BBOXES   },
+        light: { img: vLight, bboxes: VORUGATH_LIGHT_BBOXES },
+        heavy: { img: vHeavy, bboxes: VORUGATH_HEAVY_BBOXES },
+      },
+      // 3 tiles wide · it is broader than a Vilerok and should block like it
+      footprint: [[0, 0], [-1, 0], [1, 0]],
+      interactHitbox: [[-1, 0], [0, 0], [1, 0], [2, 0]],
+      onInteract: () => {
+        showToast('◈ VORUGATH · the ground answers before it does', 2600);
       },
     }));
   })(),
@@ -38563,7 +38673,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.71' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.72' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45435,6 +45545,7 @@ function saveGame(){
         eggZorynMap:                !!player.eggZorynMap,
         eggElzoranMeet:             !!player.eggElzoranMeet,
         zorynKills:                 player.zorynKills         || 0,
+        vorugathKills:              player.vorugathKills      || 0,   // ★ v0.96.72 · its own books, not the Vilerok purge's
         zorynHp:                    player.zorynHp,
         zorynDown:                  !!player.zorynDown,
         bookshelfTaken:             player.bookshelfTaken     || {},   // ★ Dad's bookshelf scrolls
@@ -58315,6 +58426,13 @@ function startMoriDeath(n){
       if (typeof recordMoriKill === 'function') recordMoriKill('kill', n);
     }
   } catch(_){}
+  // ★ v0.96.72 · VORUGATH keeps its OWN books.  Deliberately separate from the
+  //   Vilerok counter below: a purge that asks for five Vileroks must mean five
+  //   Vileroks, and a miniboss twice their size is not a substitute for one.
+  if (n._vorugath){
+    player.vorugathKills = (player.vorugathKills || 0) + 1;
+    showToast(`◈ VORUGATH felled · ${player.vorugathKills} total`, 2800);
+  }
   // v0.95.442 · Vilerok kill tracker · counts toward Kelthor's Vilerok Purge quest
   if (n._vilerok){
     player.vilerokKills = (player.vilerokKills || 0) + 1;

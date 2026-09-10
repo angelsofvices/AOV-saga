@@ -38544,7 +38544,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.63' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.64' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45375,6 +45375,66 @@ function saveGame(){
         // loadGame does Object.assign(player, s.player), so putting them in the
         // snapshot is the whole fix.
         seerHqChests:               player.seerHqChests       || {},
+        // ══════════════════════════════════════════════════════════════
+        // ★★★ v0.96.64 · TWENTY-ONE FIELDS THE SAVE WAS THROWING AWAY.
+        //
+        //   Creator: "once a chest is opened and looted, it stays looted. no
+        //   refill on load game.  also make sure all completed quests and
+        //   expeditions stay complete.  load game should just pick up where
+        //   player left off."
+        //
+        // ★★ FOUND BY DIFFING, NOT BY READING.  Every `player.X =` in the file
+        //   is the real surface of the save — 73 of them look like progress,
+        //   and 22 were absent from the snapshot.  Reading saveGame() would
+        //   never have shown this: the fields it DOES carry are all correct,
+        //   and what is missing is invisible by definition.
+        //
+        // ★★★ THREE SEPARATE CHEST LEDGERS EXIST and only one was saved.
+        //   lootedChests was (v0.95.760).  towerChestsLooted and
+        //   zorynChestsTaken were not — so every Scrapjaw tower chest and
+        //   every chest in the Zoryn race refilled on load, exactly the
+        //   refill the Creator is describing.
+        //
+        // loadGame does Object.assign(player, s.player), so putting them in
+        // the snapshot is the whole fix — the same one-line lesson as the
+        // v0.95.699 Seer HQ block directly above.
+        towerChestsLooted:          player.towerChestsLooted  || {},   // ★ chests · Scrapjaw towers
+        zorynChestsTaken:           player.zorynChestsTaken   || 0,    // ★ chests · the Zoryn race
+        bookshelfTaken:             player.bookshelfTaken     || {},   // ★ Dad's bookshelf scrolls
+        // ── quests and expeditions · "stay complete" ──────────────────
+        auraxionMissionComplete:    !!player.auraxionMissionComplete,
+        kelthorMet:                 !!player.kelthorMet,
+        kelthorStep:                player.kelthorStep        || {},   // the 8-step Bond Mentor
+        rakoronMet:                 !!player.rakoronMet,
+        rakoronCaveFound:           !!player.rakoronCaveFound,
+        gearbagGifted:              !!player.gearbagGifted,
+        gemlordCavesOpen:           !!player.gemlordCavesOpen,
+        prismshardOwned:            !!player.prismshardOwned,
+        rxpUnlocked:                !!player.rxpUnlocked,               // loadGame already READ this
+        // ── who you have met, where you have been, what you have found ─
+        metNpcs:                    player.metNpcs            || {},   // the contact registry
+        visitedDistricts:           player.visitedDistricts   || {},
+        stepsExploring:             player.stepsExploring     || 0,
+        zyrexEverOwned:             player.zyrexEverOwned     || {},   // the dex · "ever", so never unlearn it
+        moviesCollected:            player.moviesCollected    || [],
+        ownedCosmetics:             player.ownedCosmetics     || {},
+        // ── and the two the Dreamland work added this session ─────────
+        dracolordSeen:              player.dracolordSeen      || {},   // ★ v0.96.38 · which lords judged you
+        dracolordAllSeen:           !!player.dracolordAllSeen,
+        anciuxorSeen:               player.anciuxorSeen       || 0,    // ★ v0.96.63 · mine, and I forgot it
+        // ★★★ AND THREE MORE THE SUITE CAUGHT AFTER THE FIRST PASS — two of
+        //   them mine.  luminaryUnlocked is the S3 LUMINARY FORM, earned at
+        //   Rizer 100 and described in its own commit as "forever": it was
+        //   never in the snapshot, so the hardest unlock in the game evaporated
+        //   on reload.  luminaryRevealSeen is its ceremony flag, and without it
+        //   a returning player would be shown the transformation again.
+        //   ★ This is exactly why the check is generated from the source rather
+        //   than hand-listed: I wrote both fields, I wrote the commit calling
+        //   one of them permanent, and I still did not notice.
+        luminaryUnlocked:           !!player.luminaryUnlocked,   // ★ v0.96.40 · S3 · Lv100, forever
+        luminaryRevealSeen:         !!player.luminaryRevealSeen, // ★ and the ceremony plays once
+        unlocks:                    player.unlocks            || {},
+        // ══════════════════════════════════════════════════════════════
         // v0.95.709 · farm gate · a 15-minute cooldown that resets on reload
         // is not a cooldown, it is a loading screen away from being free.
         farmLastEntry:              player.farmLastEntry      || 0,

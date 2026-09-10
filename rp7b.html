@@ -22832,11 +22832,25 @@ function minimapVisible(px, py){
     .sort((a, b) => a.dist - b.dist)
     .slice(0, MINIMAP.maxPOI);
 }
+// ★★★ v0.96.68 · THE MINIMAP COLOUR LAW.  Creator: "SEER HQ RED. RIZER HOMES
+// PURPLE STAR. LANDMARKS BLUE. VISITED LANDMARKS GREEN. EXPEDITIONS/QUESTS
+// YELLOW (DISAPPEAR WHEN COMPLETE)."
+//
+// Five meanings, and every pin on the map is exactly one of them:
+//   blue    a place you have not been          green  a place you have
+//   red     a Seer HQ · ALWAYS, found or not   purple your own front door
+//   yellow  something asked of you, right now
+//
+// ★ RED OUTRANKS FOUND, deliberately.  Every other static POI turns green once
+//   you have been there, but a Seer HQ you have already visited is not "done" —
+//   it is still the enemy's building, and it is the one pin you want to read at
+//   a glance while deciding where NOT to walk.  Discovery changes its LABEL
+//   (??? → SEER HQ) but never its colour.
 const MINIMAP_KIND_COLOR = {
   landmark:'#7ad4ff', cave:'#c060ff', tower:'#ffd66b',
   portal:'#4ee07a', seer:'#ff5b5b', cosmic:'#ff9cf0',
   rumor:'#ffe9a8', anomaly:'#ff9cf0',
-  home:'#c77dff',
+  home:'#c77dff', quest:'#ffd93d',
 };
 // ★★ v0.96.2 · OWNED PROPERTY PINS.  Creator: "owned properties show up on
 // minimap as purple star blip."
@@ -22871,6 +22885,71 @@ function ownedHomePins(){
   return out;
 }
 function invalidateHomePins(){ _mmHomePins = null; _mmHomePinsN = -1; }
+
+// ★★★ v0.96.68 · QUEST PINS · yellow, and gone the moment you finish.
+// Creator: "EXPEDITIONS/QUESTS YELLOW (DISAPPEAR WHEN COMPLETE)."
+//
+// ★ WHERE THE COORDINATE COMES FROM.  buildQuestLog() entries carry a title, a
+//   giver and steps — but never had a POSITION, so there was nothing to pin.
+//   Rather than duplicate coordinates into the quest log (two copies of a tile
+//   that drift the first time a building moves), each entry names an ANCHOR:
+//   an NPC id, a prop id, a tower district, or a literal tile.  The world stays
+//   the single source of the number.
+//
+// ★★ AND THEY BYPASS THE 3-6 RULE, like the home pins and for a stronger
+//   reason: an ACTIVE OBJECTIVE is the one thing the map exists to point at.
+//   Slicing it to maxPOI would evict "go see Dad" in favour of a radio tower
+//   whenever you stood somewhere crowded — which is most of Malezor.
+function _questAnchor(a){
+  if (!a) return null;
+  try {
+    if (Array.isArray(a)) return { x: a[0], y: a[1] };
+    if (a.tile)  return { x: a.tile[0], y: a.tile[1] };
+    if (a.npc && typeof NPCS !== 'undefined'){
+      const n = NPCS.find(N => N && N.id === a.npc);
+      if (n && n.tileX != null) return { x: n.tileX, y: n.tileY };
+    }
+    if (a.prop && typeof WORLD_PROPS !== 'undefined'){
+      const p = WORLD_PROPS.find(P => P && P.id === a.prop);
+      if (p && p.tileX != null) return { x: p.tileX, y: p.tileY };
+    }
+    if (a.tower && typeof TOWER_BY_DIST !== 'undefined'){
+      const t = TOWER_BY_DIST[a.tower];
+      if (t) return { x: t.tower[0], y: t.tower[1] };
+    }
+  } catch(_){}
+  return null;                       // ★ unresolvable = no pin · never a guess at (0,0)
+}
+let _mmQuestPins = null, _mmQuestAt = 0;
+function questPins(){
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  // ★ 1.5s, not the POI feed's 2s — a quest can complete mid-step, and the pin
+  //   vanishing late reads as a bug where a landmark appearing late does not.
+  if (_mmQuestPins && now - _mmQuestAt < 1500) return _mmQuestPins;
+  const out = [];
+  try {
+    const log = (typeof buildQuestLog === 'function') ? buildQuestLog() : null;
+    for (const q of [...(log?.expeditions || []), ...(log?.quests || [])]){
+      // ★ THE DISAPPEARING RULE.  'complete' is the only terminal status; every
+      //   other value ('active', 'active·return', 'available') is still asking.
+      if (!q || String(q.status || '').startsWith('complete')) continue;
+      const at = _questAnchor(q.at);
+      if (!at) continue;
+      out.push({ id: `quest:${q.title}`, name: String(q.title).split('·').pop().trim().toUpperCase(),
+                 x: at.x, y: at.y, kind: 'quest' });
+    }
+  } catch(_){}
+  _mmQuestPins = out; _mmQuestAt = now;
+  return out;
+}
+function invalidateQuestPins(){ _mmQuestPins = null; _mmQuestAt = 0; }
+// A four-point diamond, centred on (x,y) — distinct from the POI dot and the
+// home star at a glance, so shape carries the meaning even before colour does.
+function _mmDiamond(g, x, y, r){
+  g.beginPath();
+  g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y);
+  g.closePath();
+}
 // A five-pointed star, point-up, centred on (x,y).
 function _mmStar(g, x, y, r){
   const inner = r * 0.42;
@@ -22943,7 +23022,11 @@ function drawMinimap(){
     // instead of six kind-colours nobody was taught.  Rumors and anomalies
     // keep their own colours; they are events, not places.
     const live = P.kind === 'rumor' || P.kind === 'anomaly';
-    const c = live ? (MINIMAP_KIND_COLOR[P.kind] || '#7ad4ff')
+    // ★ v0.96.68 · a Seer HQ is red whether or not you have found it · see the
+    //   colour law above MINIMAP_KIND_COLOR.  Checked BEFORE `found`, because
+    //   `found` is what would otherwise repaint it green.
+    const c = P.kind === 'seer' ? MINIMAP_KIND_COLOR.seer
+            : live ? (MINIMAP_KIND_COLOR[P.kind] || '#7ad4ff')
                    : (P.found ? '#4ee07a' : '#7ad4ff');
     // blink when CLOSE · the blip that is almost underfoot pulses to say "here"
     const near = P.dist <= 20;
@@ -22966,6 +23049,25 @@ function drawMinimap(){
     // the text ON the dot
     g.fillText(label.slice(0, 22), x, y - 10);
   }
+  // ★★ v0.96.68 · ACTIVE OBJECTIVES · yellow diamonds, above the POI dots and
+  // below the home stars.  They pulse always, not just when near: a quest pin
+  // is a call to action, and the whole point is that it catches the eye from
+  // across the map.
+  try {
+    for (const QP of questPins()){
+      if (Math.abs(QP.x - px) > R || Math.abs(QP.y - py) > R) continue;
+      const x = toX(QP.x), y = toY(QP.y);
+      const nearQ = Math.max(Math.abs(QP.x - px), Math.abs(QP.y - py)) <= 20;
+      g.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(_blinkNow / 300));
+      g.fillStyle = MINIMAP_KIND_COLOR.quest;
+      _mmDiamond(g, x, y, nearQ ? 8 : 6.5);
+      g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.8)'; g.lineWidth = 1.5; g.stroke();
+      g.globalAlpha = 1;
+      g.fillStyle = '#ffeaa0';
+      g.fillText(QP.name.slice(0, 22), x, y - 12);
+    }
+  } catch(_){}
   // ★★ v0.96.2 · OWNED PROPERTY · purple stars, drawn LAST so they sit on top
   // of any POI they share a tile with. A home is usually inside a settlement,
   // so overlapping a landmark blip is the normal case, not the edge case.
@@ -38546,7 +38648,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.67' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.68' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -49510,6 +49612,7 @@ function buildQuestLog(){
   if (zc){
     expeditions.push({
       title: 'Malezor · Ch 1 · The First Morning',
+      at: [22, 106],
       giver: 'Mom · Kitchen · Malezor home',
       status: zc ? 'complete' : (bp ? 'active' : 'active·return'),
       steps: [
@@ -49526,6 +49629,7 @@ function buildQuestLog(){
   if (player.yaraMet || raid){
     expeditions.push({
       title: 'Malezor · Ch 2 · Walk Yara to School',
+      at: { prop:'malezor_school' },
       giver: 'Yara · upstairs · Malezor home',
       status: raid ? 'complete' : 'active',
       steps: [
@@ -49543,6 +49647,7 @@ function buildQuestLog(){
     const dad = !!player.dadStarterQuestGiven;
     expeditions.push({
       title: 'Malezor · Ch 3 · Your First Bond',
+      at: { prop:'malezor_research_facility' },
       giver: 'Dad · Research Facility 2F',
       status: st ? 'complete' : (dad ? 'active' : 'available'),
       steps: [
@@ -49563,6 +49668,7 @@ function buildQuestLog(){
     if (hasEgg || eg){
       expeditions.push({
         title: 'Malezor · Ch 4 · An Egg by the Path',
+        at: [22, 106],
         giver: 'World event · outside Malezor home',
         status: eg ? 'complete' : (hasEgg ? 'active·return' : 'active'),
         steps: [
@@ -49605,6 +49711,7 @@ function buildQuestLog(){
     const stat = allDone ? 'complete' : (anyProg ? 'active' : 'available');
     expeditions.push({
       title: 'Malezor · Kelthor\'s 8-Step Ladder',
+      at: { npc:'kelthor' },
       giver: 'Warden Kelthor · Beastwarden\'s Hall',
       status: stat,
       steps: [
@@ -49669,6 +49776,7 @@ function buildQuestLog(){
     const fixed    = !!player.radioTowerFixed;
     quests.push({
       title: 'Radio Tower · Scrap Run',
+      at: { tower:'malezor' },
       giver: 'Scrapjaw · Malezor Gear Shop',
       status: fixed ? 'complete' : 'active',
       steps: [
@@ -49687,6 +49795,7 @@ function buildQuestLog(){
       const bonusDone = !!player.scrapjawFullClear;
       quests.push({
         title: 'Radio Tower · Plaza Clear (bonus)',
+        at: { tower:'malezor' },
         giver: 'Scrapjaw · Malezor Gear Shop',
         status: bonusDone ? 'complete' : 'active',
         steps: [
@@ -49706,6 +49815,7 @@ function buildQuestLog(){
     const done    = !!player.auraxionMissionComplete;
     quests.push({
       title: 'Auraxion · Astralcore Fetch',
+      at: { npc:'auraxion' },
       giver: 'Auraxion · Malezor wild arm',
       status: done ? 'complete' : 'active',
       steps: [
@@ -49722,6 +49832,7 @@ function buildQuestLog(){
     const done = !!player.nurseReinAllied;
     quests.push({
       title: 'Nurse Rein · Life Stone Delivery',
+      at: { prop:'malezor_hospital' },
       giver: 'Nurse Rein · Malezor Hospital',
       status: done ? 'complete' : 'active',
       steps: [
@@ -49738,6 +49849,7 @@ function buildQuestLog(){
     const cnt  = Math.min(10, player.orrenGruntDodges || 0);
     quests.push({
       title: 'Albert Orren · Dodge Trial',
+      at: { npc:'albert_orren' },
       giver: 'Albert Orren · outside his home',
       status: done ? 'complete' : 'active',
       steps: [
@@ -49751,6 +49863,7 @@ function buildQuestLog(){
   if (player.faenetGifted){
     quests.push({
       title: 'Fill the Faenet',
+      at: { npc:'kaizari' },
       giver: 'Kaizari',
       status: (player.faeCollected||0) >= 5 ? 'complete' : 'active',
       steps: [ { done: (player.faeCollected||0) >= 5, label: `Catch 5 fae (${player.faeCollected||0}/5)` } ],

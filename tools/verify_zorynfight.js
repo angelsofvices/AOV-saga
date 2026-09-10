@@ -1,3 +1,6 @@
+// ★ v0.96.70 · retargeted from the two deleted constants to zorynHpMax() /
+//   zorynHitDmg().  Zoryn now GROWS with Rizer, so his ceiling is a
+//   function of level and a fixed number could only have been right at one.
 const fs = require('fs');
 const src = fs.readFileSync('/tmp/all.js', 'utf8');
 const noop = () => {};
@@ -16,7 +19,7 @@ global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
 global.Image=function(){return{addEventListener:noop,complete:true,naturalWidth:1254,naturalHeight:1254,src:''}};
 let CLK=300000; global.performance={now:()=>CLK};
-try{new Function(src+';globalThis.__C={hurtZoryn,reviveZoryn,zorynHp,zorynIsDown,tickZorynRest,_zorynTakeReturnFire,ZORYN_HP_MAX,ZORYN_ENEMY_DMG,ZORYN_REVIVE_ITEM,ZORYN_REST_HEAL_MS,INVENTORY_META,TRANSIENT_PLAYER_KEYS,findNpcById,tickZorynFight,tickZorynCompanion,zorynEnemyNearRizer,attachZorynCombatBank,zorynNpc,zorynIsCompanion,ZORYN_SHEETS,ZORYN_FIGHT_RANGE,ZORYN_LEASH,ZORYN_STRIKE_MS,ZORYN_HIT_DMG,NPCS,player,game,WORLD_PROPS};')();}
+try{new Function(src+';globalThis.__C={hurtZoryn,reviveZoryn,zorynHp,zorynIsDown,tickZorynRest,_zorynTakeReturnFire,zorynHpMax,zorynHitDmg,ZORYN_ENEMY_DMG,ZORYN_REVIVE_ITEM,ZORYN_REST_HEAL_MS,INVENTORY_META,TRANSIENT_PLAYER_KEYS,findNpcById,tickZorynFight,tickZorynCompanion,zorynEnemyNearRizer,attachZorynCombatBank,zorynNpc,zorynIsCompanion,ZORYN_SHEETS,ZORYN_FIGHT_RANGE,ZORYN_LEASH,ZORYN_STRIKE_MS,NPCS,player,game,WORLD_PROPS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -59,7 +62,7 @@ H('2 · ★★★ HE FIGHTS ON HIS OWN BODY');
   CLK+=10;
   const engaged=C.tickZorynFight(z,CLK);
   ok(engaged===true,'★ he engages');
-  ok(e.hp===hp0-C.ZORYN_HIT_DMG,'★★ and lands '+C.ZORYN_HIT_DMG+' · hp '+hp0+' → '+e.hp);
+  ok(e.hp===hp0-C.zorynHitDmg(),'★★ and lands '+C.zorynHitDmg()+' · hp '+hp0+' → '+e.hp);
   ok(!!z.attackSheet && !!z.attackBboxes,'★★★ an attack BANK on his body · the v0.95.907 rule, not a decal at the enemy');
   ok(z._atkStart===CLK && z._atkUntil>CLK,'★★ _atkStart/_atkUntil · the same window Rizer and the Seer Grunts use');
   ok(z.dir==='left','★★★ and he FACED it before swinging · dir '+z.dir);
@@ -107,7 +110,7 @@ H('5 · ★★★ COMBAT OUTRANKS THE CHEST RACE');
 H('6 · ★★ THE RIVALRY KEEPS ITS OWN BOOKS');
 {
   const e=C.zorynEnemyNearRizer();
-  P.zorynKills=0; e.hp=C.ZORYN_HIT_DMG;
+  P.zorynKills=0; e.hp=C.zorynHitDmg();
   z.tileX=e.tileX+1; z.tileY=e.tileY; z._zoStrikeAt=0;
   CLK+=C.ZORYN_STRIKE_MS+10; C.tickZorynFight(z,CLK);
   ok((P.zorynKills||0)===1,'★★★ his kills are COUNTED beside his chests · the scoreboard predates the word "rival"');
@@ -131,12 +134,12 @@ H('8 · ★★★ HE CAN BE HURT');
 {
   ok(/NOTHING IN THIS GAME HAD EVER DAMAGED AN NPC/.test(src2),
      '★★★ every hostile in RP7 called hurtPlayer and only hurtPlayer · Rizer was the only thing on the field with a health bar');
-  P.zorynDown=false; P.zorynHp=C.ZORYN_HP_MAX;
-  ok(C.zorynHp()===C.ZORYN_HP_MAX,'starts at '+C.ZORYN_HP_MAX);
+  P.zorynDown=false; P.zorynHp=C.zorynHpMax();
+  ok(C.zorynHp()===C.zorynHpMax(),'starts at '+C.zorynHpMax());
   C.hurtZoryn(C.ZORYN_ENEMY_DMG);
-  ok(C.zorynHp()===C.ZORYN_HP_MAX-C.ZORYN_ENEMY_DMG,'★ a blow lands · '+C.zorynHp());
+  ok(C.zorynHp()===C.zorynHpMax()-C.ZORYN_ENEMY_DMG,'★ a blow lands · '+C.zorynHp());
   ok(!C.zorynIsDown(),'★ and he is still up');
-  const blows=Math.ceil(C.ZORYN_HP_MAX/C.ZORYN_ENEMY_DMG);
+  const blows=Math.ceil(C.zorynHpMax()/C.ZORYN_ENEMY_DMG);
   ok(blows>=10 && blows<=16,'★★ '+blows+' blows to drop him · long enough to be a fight, short enough that ignoring it costs you');
 }
 
@@ -167,7 +170,7 @@ H('10 · ★★★ THE MYTHIC ELIXIR BRINGS HIM BACK');
   P.items[C.ZORYN_REVIVE_ITEM]=2;
   ok(C.reviveZoryn()===true,'★★★ with one in the bag, he gets up');
   ok(P.items[C.ZORYN_REVIVE_ITEM]===1,'★★ and it COSTS one · the cure has to cost something you would rather keep');
-  ok(!C.zorynIsDown() && C.zorynHp()===C.ZORYN_HP_MAX,'★★ back up at full');
+  ok(!C.zorynIsDown() && C.zorynHp()===C.zorynHpMax(),'★★ back up at full');
   const zz=C.zorynNpc();
   ok(zz.bboxes===C.ZORYN_SHEETS.idle.bboxes,'★★ and his body is back to the idle bank');
   ok((P.zorynRevives||0)===1,'★ revives are counted, like his chests and his kills');
@@ -186,12 +189,12 @@ H('11 · ★★ THE REVIVE IS THE ONLY THING HE ANSWERS');
 
 H('12 · ★★ HE CATCHES HIS BREATH, BUT ONLY WHILE UP');
 {
-  P.zorynDown=false; P.zorynHp=C.ZORYN_HP_MAX-5; P._zoRestAcc=0;
+  P.zorynDown=false; P.zorynHp=C.zorynHpMax()-5; P._zoRestAcc=0;
   for (const e of C.NPCS){ if(e){ e._chasing=false; e._aggroUntil=0; } }
   P._lastHurtAt=-999999;
   C.tickZorynRest(C.ZORYN_REST_HEAL_MS*3+10);
-  ok(C.zorynHp()>C.ZORYN_HP_MAX-5,'★★ out of combat he recovers · '+C.zorynHp()+'/'+C.ZORYN_HP_MAX);
-  ok(C.zorynHp()<=C.ZORYN_HP_MAX,'★ never past full');
+  ok(C.zorynHp()>C.zorynHpMax()-5,'★★ out of combat he recovers · '+C.zorynHp()+'/'+C.zorynHpMax());
+  ok(C.zorynHp()<=C.zorynHpMax(),'★ never past full');
 }
 
 H('13 · ★ WHAT PERSISTS');

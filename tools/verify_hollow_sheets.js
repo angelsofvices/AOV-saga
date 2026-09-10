@@ -93,7 +93,16 @@ const BANKS = [
 //   shape as a crashed suite reporting nothing: when the defect is the
 //   majority, an average-based test calls it normal.  The most solid sibling
 //   is the only reading in the bank that cannot have been hollowed.
-const TOLERANCE = 0.75;   // ★ no sheet may be under 75% as solid as its bank's best
+//
+// ★★ AND THE NUMBER IS MEASURED, NOT PICKED.  v0.96.66 guessed 0.75.  When the
+//   re-keyed sheets landed in v0.96.70 the honest ones scored 92 / 88 / 86 / 75
+//   — skate at exactly 75, because a skate pose is genuinely airy: the board and
+//   the spray trail widen its bounding box without filling it.  The four
+//   BLACK-KEYED sheets had scored 65 / 60 / 59 / 56.  So the two populations are
+//   separated by a ten-point gap between 65 and 75, and the cut belongs in the
+//   middle of it.  0.70 still catches every member of the damage class with
+//   margin, and stops calling a skateboard a defect.
+const TOLERANCE = 0.70;
 
 H('★ HOLLOW-SHEET GUARD · no sheet may be far emptier than its own siblings');
 for (const [label, dir] of BANKS){

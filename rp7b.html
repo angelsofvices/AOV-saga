@@ -27977,13 +27977,13 @@ function paintCompanionStrip(hudVisible){
       rows.push(`<div style="color:#ff6b6b;border:1px solid #ff6b6b;background:rgba(0,0,0,0.6);padding:3px 8px;margin-top:3px;">`
               + `✖ ZORYN DOWN · MYTHIC ELIXIR ×${n}${n ? ' · face him, press X' : ' · you have none'}</div>`);
     } else {
-      const hp = zorynHp(), pct = Math.max(0, Math.min(1, hp / ZORYN_HP_MAX));
+      const hp = zorynHp(), _zmax = zorynHpMax(), pct = Math.max(0, Math.min(1, hp / _zmax));
       const col = pct > 0.5 ? '#8fe36b' : pct > 0.25 ? '#ffd66b' : '#ff6b6b';
       rows.push(`<div style="color:${col};border:1px solid ${col}66;background:rgba(0,0,0,0.55);padding:3px 8px;margin-top:3px;">`
               + `ZORYN <span style="display:inline-block;width:54px;height:5px;background:rgba(0,0,0,0.6);`
               + `border:1px solid ${col}88;vertical-align:middle;margin:0 5px;">`
               + `<span style="display:block;height:100%;width:${(pct*100).toFixed(0)}%;background:${col};"></span></span>`
-              + `${hp}/${ZORYN_HP_MAX}</div>`);
+              + `${hp}/${_zmax}</div>`);
     }
   }
   // Yara only shows while the mend is actually TICKING -- a permanent badge for
@@ -32653,6 +32653,12 @@ addEventListener('keydown', e => {
             || (_axeSweepHits     && _axeSweepHits.length     > 0)){   // ★ v0.95.788
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           recordHitLanded(mode);                        // v0.95.134 · achievement tracker
+          // ★★ v0.96.70 · "fights when u fight."  One timestamp, set where a
+          //   blow LANDS, is all Zoryn needs to know you have started something.
+          //   Written here rather than on the keypress on purpose: a swing at
+          //   empty air is not a fight, and a companion who charges in every
+          //   time you mash the button reads as twitchy rather than alert.
+          player._zoSawSwingAt = performance.now();
           // v0.95.555 · Rizer punch-combo VO ("take this") every 5th landed
           // punch · matches kickVox's 5-swing cadence so kicks + punches
           // interleave into combo banter.  Sword-mode punches are excluded
@@ -32797,6 +32803,10 @@ addEventListener('keydown', e => {
             chargePlant(plantHit, mode === 'kick');
           }
           if (chestHit){
+            // ★ v0.96.70 · his chest is not yours to punch open OR to re-close
+            //   as trap bait · the claim outranks the whole toggle
+            if (typeof zorynClaimedChest === 'function' && zorynClaimedChest(chestHit)){ /* his */ }
+            else
             // v0.95.221 · Punch/kick toggles a chest · open on first hit (drops loot once)
             // then close on subsequent hits to disguise it as untouched (PvP trap bait).
             if (!chestHit.opened){
@@ -36968,6 +36978,9 @@ function tryInteract(){
   // v0.95.232 · autoEnter props (player home + future purchased property) are walk-through only ·
   // pressing X on them is a no-op so nothing feels blocked · they enter automatically when stepped on
   if (doorProp && doorProp.autoEnter) { /* no-op · use walk-through path instead */ }
+  // ★ v0.96.70 · before anything else this prop might do · a chest Zoryn took
+  //   answers in his voice and stops here
+  else if (typeof zorynClaimedChest === 'function' && zorynClaimedChest(doorProp)){ return; }
   else if (doorProp && doorProp.onInteract){
     try { notebookNotePropInteract(doorProp); } catch(_){}     // ★ v0.95.778
     // v0.95.313 · Fire the prop's REAL onInteract first · if that opens a real
@@ -38675,7 +38688,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.69' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.70' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45367,11 +45380,18 @@ function markChestLooted(id){
 }
 function restoreLootedChests(){
   const ids = new Set(player.lootedChests || []);
-  if (!ids.size) return 0;
+  // ★ v0.96.70 · WHOSE it was has to survive the reload too.  lootedChests
+  //   alone would reopen his chests as ordinary spent ones — you would press X
+  //   on a chest Zoryn took and get silence instead of him, which is exactly
+  //   the "did the game break?" reading the claim line exists to prevent.
+  const his = new Set(player.zorynTookChests || []);
+  if (!ids.size && !his.size) return 0;
   let n = 0;
   for (const p of WORLD_PROPS){
-    if (!p || !(p._woodChest || p._cosmicChest) || !ids.has(p.id)) continue;   // ★ v0.95.822 · + cosmic
+    if (!p || !(p._woodChest || p._cosmicChest)) continue;   // ★ v0.95.822 · + cosmic
+    if (!ids.has(p.id) && !his.has(p.id)) continue;
     p.opened = true; p.looted = true;
+    if (his.has(p.id)) p._zorynTook = true;
     if (p._openImg)  p.img  = p._openImg;
     if (p._openBbox) p.bbox = p._openBbox;
     n++;
@@ -45531,6 +45551,13 @@ function saveGame(){
         // v0.95.699 Seer HQ block directly above.
         towerChestsLooted:          player.towerChestsLooted  || {},   // ★ chests · Scrapjaw towers
         zorynChestsTaken:           player.zorynChestsTaken   || 0,    // ★ chests · the Zoryn race
+        // ★ v0.96.70 · WHICH chests were his, not just how many · the count is a
+        //   scoreboard, this is the claim, and only the claim can answer you
+        //   when you walk back and press X on one of them
+        zorynTookChests:            player.zorynTookChests    || [],
+        zorynKills:                 player.zorynKills         || 0,
+        zorynHp:                    player.zorynHp,
+        zorynDown:                  !!player.zorynDown,
         bookshelfTaken:             player.bookshelfTaken     || {},   // ★ Dad's bookshelf scrolls
         // ── quests and expeditions · "stay complete" ──────────────────
         auraxionMissionComplete:    !!player.auraxionMissionComplete,
@@ -56643,6 +56670,22 @@ const ZORYN_BOND_TO_FOLLOW = 50;     // ★ Creator · "his bond is at 50"
 const ZORYN_CHEST_RADIUS   = 12;     // tiles · he notices what is near the pair of you
 const ZORYN_CHEST_GRACE_MS = 9000;   // your head start · long enough to be YOUR fault
 const ZORYN_CHEST_STEP_MS  = 260;    // he walks · he does not teleport to it
+// ★★★ v0.96.70 · "u cannot get it after him, its his."
+// A chest Zoryn reached is closed to you for good — not silently (a chest that
+// does nothing when you press X reads as a bug), but with him saying so.  Both
+// player routes to a chest go through here: the X-interact path and the
+// punch/kick path.  Two doors, one rule, or the rule is only half true.
+const ZORYN_TAKEN_LINES = [
+  '◈ Empty · Zoryn got here first. "Told you to keep up."',
+  '◈ Already cleaned out · "Finders, Rizer."',
+  '◈ Nothing left · Zoryn grins. "You snooze."',
+];
+function zorynClaimedChest(p){
+  if (!p || !p._zorynTook) return false;
+  try { showToast(ZORYN_TAKEN_LINES[(Math.random()*ZORYN_TAKEN_LINES.length)|0], 2200); } catch(_){}
+  try { playSFX('disabled'); } catch(_){}
+  return true;
+}
 function zorynBond(){ return (player.bonds && player.bonds.zoryn) || 0; }
 function zorynIsCompanion(){ return zorynBond() >= ZORYN_BOND_TO_FOLLOW; }
 function zorynNpc(){ return NPCS.find(n => n && n.id === 'zoryn') || null; }
@@ -56684,7 +56727,9 @@ const ZORYN_FIGHT_RANGE = 5;      // measured from RIZER · what threatens you
 const ZORYN_LEASH       = 8;      // never further from you than this
 const ZORYN_STRIKE_MS   = 620;    // between his blows · deliberately slower than yours
 const ZORYN_STEP_MS     = 190;
-const ZORYN_HIT_DMG     = 18;
+// ★ v0.96.70 · ZORYN_HIT_DMG and ZORYN_HP_MAX deleted rather than left
+//   sitting unread beside their replacements · a constant nothing
+//   references is the next person's wrong answer
 // ★★★ HIS SHEETS ARE FRAGMENTED, so the bboxes above are per-cell UNIONS, not
 // connected components -- one punch cell holds 192 separate opaque islands
 // because his legs are not joined to his torso in the alpha.  A
@@ -56741,13 +56786,30 @@ function attachZorynCombatBank(n, kind){
 //
 // ★ He catches his breath out of combat but a KO does NOT heal itself.  Losing
 // him has to be a state you have to act on, or it is just a pause.
-const ZORYN_HP_MAX        = 120;
+// ★★★ v0.96.70 · HE GROWS WITH YOU.  Creator: "make zoryn feel alive like a
+// real player 2 that grows with rizer."
+//
+// Flat 120 HP and a flat 18-damage fist meant he was a real partner at Lv 10
+// and a mascot by Lv 60 — the exact arc that makes a companion stop mattering.
+// Both now ride rizerLevelNow(), so at Lv 100 he is a 520 HP ally hitting for
+// 63.  ★ But the RATIO to you is deliberately not preserved: your own damage
+// grows faster than his, because the v0.95.922 rule still holds — if he could
+// clear rooms you would stop playing.  He scales enough to survive the fights
+// you are actually in, not enough to win them for you.
+const ZORYN_HP_BASE       = 120, ZORYN_HP_PER_LV  = 4;
+const ZORYN_DMG_BASE      = 18,  ZORYN_DMG_PER_LV = 0.45;
+function zorynLevel(){
+  const lv = (typeof rizerLevelNow === 'function') ? rizerLevelNow() : 1;
+  return Math.max(1, Math.min(100, lv | 0));
+}
+function zorynHpMax(){ return ZORYN_HP_BASE + Math.round(zorynLevel() * ZORYN_HP_PER_LV); }
+function zorynHitDmg(){ return ZORYN_DMG_BASE + Math.round(zorynLevel() * ZORYN_DMG_PER_LV); }
 const ZORYN_ENEMY_DMG     = 9;      // per enemy blow · ~13 hits to drop him
 const ZORYN_ENEMY_HIT_MS  = 1100;   // each enemy's own cadence on him
 const ZORYN_REST_HEAL_MS  = 2500;   // +1 while nothing is hunting you
 const ZORYN_REVIVE_ITEM   = 'verdant_elixir';   // storage key · label "Mythic Elixir"
 function zorynHp(){
-  if (player.zorynHp == null) player.zorynHp = ZORYN_HP_MAX;
+  if (player.zorynHp == null) player.zorynHp = zorynHpMax();
   return player.zorynHp;
 }
 function zorynIsDown(){ return !!player.zorynDown; }
@@ -56799,7 +56861,7 @@ function reviveZoryn(){
   }
   player.items[ZORYN_REVIVE_ITEM] = have - 1;
   player.zorynDown = false;
-  player.zorynHp = ZORYN_HP_MAX;
+  player.zorynHp = zorynHpMax();
   player.zorynRevives = (player.zorynRevives || 0) + 1;
   n._zoStrikeAt = 0; n._zoHurtUntil = 0;
   _zorynUseBank(n, 'idle');
@@ -56825,22 +56887,50 @@ function _zorynTakeReturnFire(n, now){
 }
 function tickZorynRest(dt){
   if (!zorynIsCompanion() || zorynIsDown()) return;
-  if (zorynHp() >= ZORYN_HP_MAX) { player._zoRestAcc = 0; return; }
+  if (zorynHp() >= zorynHpMax()) { player._zoRestAcc = 0; return; }
   if (typeof rizerInCombat === 'function' && rizerInCombat()){ player._zoRestAcc = 0; return; }
   player._zoRestAcc = (player._zoRestAcc || 0) + dt;
   while (player._zoRestAcc >= ZORYN_REST_HEAL_MS){
     player._zoRestAcc -= ZORYN_REST_HEAL_MS;
-    player.zorynHp = Math.min(ZORYN_HP_MAX, zorynHp() + 1);
+    player.zorynHp = Math.min(zorynHpMax(), zorynHp() + 1);
   }
 }
-function zorynEnemyNearRizer(){
+// ★★ v0.96.70 · "fights when u fight."
+// He already engaged anything that came within 5 tiles of YOU — which covers
+// being ambushed, but not the case the Creator is naming: you pick the fight.
+// Walk up to a Mori at 7 tiles and start swinging and he used to stand there.
+//
+// So a landed blow of yours widens his engagement window for 2.5 seconds, and
+// inside that window he prefers THE ONE YOU ARE HITTING.  ★ Still measured from
+// Rizer, never from Zoryn — the v0.95.922 rule that keeps him a companion
+// rather than a liability is that he cannot pick his own targets, and "he
+// fights when you fight" is not a reason to hand him that.  It widens WHOSE
+// fight it is, not who chooses it.
+const ZORYN_SWING_WINDOW_MS = 2500;
+const ZORYN_ENGAGED_RANGE   = 9;
+function zorynYourFightIsOn(now){
+  return (now - (player._zoSawSwingAt || -1e9)) < ZORYN_SWING_WINDOW_MS;
+}
+function zorynEnemyNearRizer(now){
+  const t = now || performance.now();
+  const engaged = zorynYourFightIsOn(t);
+  const reach = engaged ? ZORYN_ENGAGED_RANGE : ZORYN_FIGHT_RANGE;
   let best = null, bestD = Infinity;
+  // ★ the tile you are FACING · your target, when you have one
+  const fv = (typeof _DIR_VEC !== 'undefined' && _DIR_VEC[player.dir]) || { dx:0, dy:0 };
   for (const e of NPCS){
     if (!e || !e.isEnemy || e._dying) continue;
     if (e.scene !== game.scene) continue;
     if ((e.hp != null && e.hp <= 0) || e.scene === '__dead__') continue;
     const d = Math.abs(e.tileX - player.x) + Math.abs(e.tileY - player.y);
-    if (d <= ZORYN_FIGHT_RANGE && d < bestD){ best = e; bestD = d; }
+    if (d > reach) continue;
+    // yours first: bias the one in front of you hard enough that he joins the
+    // blow you are already throwing rather than peeling to something nearer
+    const facing = engaged
+      && Math.sign(e.tileX - player.x) === Math.sign(fv.dx || (e.tileX - player.x))
+      && Math.sign(e.tileY - player.y) === Math.sign(fv.dy || (e.tileY - player.y));
+    const score = d - (facing ? 100 : 0);
+    if (score < bestD){ best = e; bestD = score; }
   }
   return best;
 }
@@ -56850,7 +56940,7 @@ function tickZorynFight(n, now){
   if (zorynIsDown()) return true;   // ★ v0.95.923 · down is down · and it also
                                     // stands the chest race down, since a body
                                     // on the ground is not racing you anywhere
-  const target = zorynEnemyNearRizer();
+  const target = zorynEnemyNearRizer(now);
   if (!target){ n._zoFighting = false; return false; }
   n._zoFighting = true;
   // ★ the leash is measured to RIZER · he defends your ground, not the map
@@ -56873,7 +56963,7 @@ function tickZorynFight(n, now){
     }
     n._zoStrikeAt = now + ZORYN_STRIKE_MS;
     if (target.hp == null) target.hp = target.hpMax || 125;
-    target.hp -= ZORYN_HIT_DMG;
+    target.hp -= zorynHitDmg();
     try { playSFX(kind === 'kick' ? 'kick' : 'punchHit'); } catch(_){}
     if (target.hp <= 0){
       try { startMoriDeath(target); } catch(_){}
@@ -56903,6 +56993,17 @@ function tickZorynCompanion(now){
   if (game.scene !== 'overworld') return;
   const n = zorynNpc();
   if (!n || n.scene !== 'overworld' || !zorynIsCompanion()) return;
+  // ★★ v0.96.70 · HE RIDES WHEN YOU RIDE.  The skate sheet has existed since
+  //   v0.95.370 and nothing ever used it — he kept pace on the board by
+  //   sliding along in his idle pose, which is the uncanny half of a companion
+  //   that "keeps up" without looking like he is moving.  Guarded on a change
+  //   so the bank swap (which clears _downScale and forces a re-measure) does
+  //   not run every frame.
+  const wantSkate = !!player.skating && !zorynIsDown() && !n._zoFighting;
+  if (wantSkate !== !!n._zoSkating){
+    n._zoSkating = wantSkate;
+    try { _zorynUseBank(n, wantSkate ? 'skate' : 'idle'); } catch(_){}
+  }
   // ★★ v0.95.922 · a friend does not loot while you are being hit
   if (tickZorynFight(n, now)){ n._zoRaceId = null; n._zoRaceAt = 0; return; }
   const chest = _zorynChestNear(n);
@@ -56916,8 +57017,29 @@ function tickZorynCompanion(now){
   n._zoStepAt = now + ZORYN_CHEST_STEP_MS;
   const dx = chest.tileX - n.tileX, dy = chest.tileY - n.tileY;
   if (Math.abs(dx) + Math.abs(dy) <= 1){
-    // ★ he takes it, and he is CHARMING about it · this is a friend, still
-    try { chest.onInteract && chest.onInteract(); } catch(_){}
+    // ★★★ v0.96.70 · IT IS HIS.  Creator: "he loots chests before u if u wait
+    //   too long though. u cannot get it after him, its his."
+    //
+    //   This called chest.onInteract() — which is the PLAYER's loot function.
+    //   Coins spilled to you, gems spawned for you, awardRizerXP(12) went to
+    //   you, a potion went in your bag, and the chest's own toast fired
+    //   ("◈ Chest · coins spill out") — and THEN Zoryn's line printed on top of
+    //   it claiming he had taken the lot.  The entire rivalry was theatre: you
+    //   were being needled by a friend who was handing you the loot.
+    //
+    //   So he opens it HIMSELF: the visual state changes, the chest joins the
+    //   looted list so it stays open across saves, and nothing whatsoever
+    //   reaches the player.  _zorynTook is what lets the interact path answer
+    //   you afterwards instead of the chest silently doing nothing.
+    chest.opened = true;
+    chest.looted = true;
+    chest._zorynTook = true;
+    if (chest._openImg)  chest.img  = chest._openImg;
+    if (chest._openBbox) chest.bbox = chest._openBbox;
+    try { markChestLooted(chest.id); } catch(_){}
+    player.zorynTookChests = player.zorynTookChests || [];
+    if (!player.zorynTookChests.includes(chest.id)) player.zorynTookChests.push(chest.id);
+    try { playSFX('chest'); } catch(_){}
     player.zorynChestsTaken = (player.zorynChestsTaken || 0) + 1;
     const lines = ['◈ Zoryn got there first · "Slow today?"',
                    '◈ Zoryn cracks it open · "You were THINKING about it."',
@@ -59046,8 +59168,21 @@ function seerPatrolStep(n){
     if (Math.abs(dx0) >= Math.abs(dy0)) dir = dx0 > 0 ? 'right' : 'left';
     else                                dir = dy0 > 0 ? 'down'  : 'up';
     const v = _DIR_VEC[dir];
+    // ★★★ v0.96.70 · HE KEEPS UP, WHATEVER YOU ARE DOING.
+    // Creator: "make sure zoryn runs when you run when following."
+    //
+    // This matched `player.running` but not `player.skating` — and the board
+    // nearly HALVES your cadence (55/95 against 90/170), so the moment you
+    // stepped on it your companion was left standing.  The follow now reads the
+    // player's OWN moveCd formula rather than a copy of half of it, so any
+    // future movement mode he has never heard of still keeps him at your
+    // shoulder.  ★ And the blocked-axis branch below used a hardcoded 170,
+    // which meant he fell behind every time he rounded a bush while you
+    // sprinted — the one moment the gap is most visible.
+    const pace = () => (player.skating ? (player.running ? 55 : 95)
+                                       : (player.running ? 90 : 170));
     if (stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
-      n.moveCd = player.running ? 90 : 170;   // match player pace roughly
+      n.moveCd = pace();
     } else {
       // Try the OTHER axis if primary is blocked
       const altDir = (dir === 'left' || dir === 'right')
@@ -59055,7 +59190,7 @@ function seerPatrolStep(n){
         : (dx0 > 0 ? 'right' : 'left');
       const av = _DIR_VEC[altDir];
       if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, altDir)){
-        n.moveCd = 170;
+        n.moveCd = pace();
       } else if (npcNavigateAround(n, target.x, target.y)){
         // ★★ v0.95.956 · THE ONE THE CREATOR HIT.  A bush or rock on the axis
         // he is on, with anything solid on the fallback axis, used to end the

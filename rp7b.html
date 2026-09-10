@@ -3729,6 +3729,7 @@ const INVENTORY_META = {
   life_seed_pure:   { label: 'Pure Life Seed',             order: 56 },  // ★ v0.95.817 · Spirit Tree of Xilnar stock · 25% HP · never spoils
   voltshard:        { label: 'Voltshard · singular relic',  order: 57 },   // ★ class disputed · see RELIC_CLASS_MAP
   evolution_catalyst:{ label:'Evolution Catalyst',        order: 58 },   // ★ v0.95.865 · TRANSFORMATION Core synthesis · one free evolution  // ★★ v0.95.822 · Malezor cosmic chest · CONSUME from ZyCube to attune SAPPHIRE VOLTSTORM (first A5)
+  rubypaw_fang:     { label: 'Rubypaw Fang',            order: 7 },   // ★ v0.96.73 · Rakoron's shed tooth · S1 dagger · the Longsword is forged FROM it at S2
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
   // ★★ v0.95.872 · THE ZYREX HALF OF THE CONSUMABLE LADDER.  Creator: "fresh
   // water, berry juice, and fruit bars ... these will be adjacent to rizer
@@ -10417,17 +10418,35 @@ const NPCS = [
         try { awardRizerXP(2200); } catch(_){}
         showToast('★ Trial 7 · The Pearl Road · +2 Bond', 3600);
         return say('Zarvane can hear the rest of the world again. That was never a small thing.',
-          'One trial left. Bring me a PRISMSHARD.',
-          'You already have one. Kelthor put it in your hand and told you it could reshape anything worthy.',
-          'He was right. He did not tell you it could reshape YOU.');
+          'One trial left. Bring me a piece of a Prismshard.',
+          'Not the Warden — he deals in doors, not relics. Find the creature that opens the Gemlord caves.',
+          'It is a remnant of the sixteenth. It can reshape anything worthy. It did not tell you it could reshape YOU.');
       }
       // ── s8 · THE THIRD EYE OPENS · meditation unlocked ───────────────────
       if (!OS.s8){
         if (gate()) return;
+        // ★★★ v0.96.73 · THE TRIAL LOST ITS ONLY SOURCE.
+        //   Kelthor used to hand you a Prismshard at the end of his ladder, and
+        //   this trial's own dialogue says so out loud: "Kelthor put it in your
+        //   hand."  The Creator ruled that grant out — correctly, per
+        //   aov-five-relic-definitions, where a Prismshard IS the Aenor
+        //   Eruption, uncraftable, one of the sixteen.  But nothing else in the
+        //   game grants one, so this trial became unreachable outside dev mode.
+        //
+        //   ★★ The fix is ADDITIVE and comes from canon rather than invention:
+        //   aov-mealux says a MEALUX is a REMNANT TRACE of Prismshard XVI.  A
+        //   bonded Mealux is therefore a piece of the same thing, and it is what
+        //   the newly-locked Gemlord caves already send you to find.  The
+        //   Prismshard path is untouched for anyone who has one.
+        //   ★ Flagged for the Creator's ruling in data/RULING_NEEDED_TRIAL8.md —
+        //   this keeps the trial reachable, it does not settle the canon.
         const shards = (player.items && player.items.prismshard) || 0;
-        if (shards < 1 && !player.prismshardOwned)
-          return say('The Third Eye Opens · bring the Prismshard.',
-            'If you spent it, earn another. I have waited longer than that.');
+        const traced = !!player.gemlordCavesOpen
+                    || (player.party || []).some(z => z && z.speciesId === 'mealux');
+        if (shards < 1 && !player.prismshardOwned && !traced)
+          return say('The Third Eye Opens · bring me a piece of a Prismshard.',
+            'A whole one, if you have been given one. Or the living trace of one —',
+            'the creature that opens the Gemlord doors. It is the same substance wearing a smaller shape.');
         OS.s8 = true; bump(2);
         if (player.items && player.items.prismshard > 0) player.items.prismshard -= 1;
         player.meditationUnlocked = true;
@@ -13193,6 +13212,33 @@ const NPCS = [
       // 100% Warden bond after Korathen · returning-to-catch-Gemlords loop).
       // Early-game players get a taunt-lock dialog · no auto-add to party.
       player.rakoronMet = true; try{pingNextObjective()}catch(_){}
+      // ★★★ v0.96.73 · THE FANG, AND THE DOOR.  Creator: "maybe he sends you and
+      //   zoryn on a mission to actually meet rakoron for the first time and
+      //   then the cave locks like the rest until rizer has a mealux."
+      //
+      //   Kelthor gives the introduction; RAKORON gives the only thing you
+      //   pocket — a tooth he sheds, not the Longsword forged from it.  That is
+      //   what keeps the Rubypaw reserved for S2 while still paying the moment
+      //   off now: you leave holding the sword's raw material for twenty hours
+      //   before you understand what it is.
+      if (!player.rubypawFangGiven){
+        player.rubypawFangGiven = true;
+        try { addItems({ rubypaw_fang: 1 }); } catch(_){}
+        try { _armWeapon('rubypaw_fang'); } catch(_){}
+        try { playItemGain('rubypaw_fang'); } catch(_){}
+        // ★ the caves shut BEHIND you · gemlordCavesOpen() already gates on a
+        //   bonded Mealux, so this needs no new lock — it just stops being open
+        player.gemlordCavesOpen = false;
+        showToast('★ RUBYPAW FANG · a shed tooth, warm as a coal · equip it from ZyPhone → Weapons', 5200);
+        showDialog({ speaker: 'RAKORON', lines: [
+          '*the crimson Fathergem turns · something the size of a hill decides you are worth looking at*',
+          '"Two of you. Good. The ones who come alone do not come back."',
+          '*a tooth drops onto the stone between you · it is still warm*',
+          '"Take it. It is not the sword. The sword is what a smith makes of it, and you are not yet the shape that carries one."',
+          '"Come back when you have found what opens my door. It is small. It is alive. It will not be where you look first."',
+        ]});
+        return;
+      }
       const alreadyOwned = (player.party || []).some(z => z && z.speciesId === 'rakoron');
       if (alreadyOwned){
         showDialog({ speaker: 'RAKORON', lines: [
@@ -19104,7 +19150,11 @@ function spawnWeaponDrop(chest, spot){
 // ★ v0.95.788 · the axe is HEAVY. It clears a 3x3 in one swing, so it buys that
 // reach with the shortest life of the three — 60 swings. Tune here if it reads
 // as too brittle in play; that number is a first guess, not a measurement.
-const WEAPON_MAX_DUR = { sapphire_sword: 100, rubypaw_sword: 200, emerald_axe: 60, pearlbow: 40 };
+const WEAPON_MAX_DUR = { sapphire_sword: 100, rubypaw_sword: 200, emerald_axe: 60, pearlbow: 40,
+  // ★★ v0.96.73 · RUBYPAW FANG · 300, the longest-lived of the five, because
+  //   it is not forged.  It is a tooth Rakoron shed, and the thing a Gemlord
+  //   grows is harder than anything Malezor can hammer.
+  rubypaw_fang: 300 };
 const SWORD_MAX  = WEAPON_MAX_DUR.sapphire_sword;   // 100
 const RUBY_MAX   = WEAPON_MAX_DUR.rubypaw_sword;    // 200
 const AXE_MAX    = WEAPON_MAX_DUR.emerald_axe;      // 60
@@ -19112,6 +19162,7 @@ const AXE_MAX    = WEAPON_MAX_DUR.emerald_axe;      // 60
 // the only one that spends durability on a MISS — an arrow that sails past
 // its target is still an arrow gone.
 const BOW_MAX    = WEAPON_MAX_DUR.pearlbow;         // 40
+const FANG_MAX   = WEAPON_MAX_DUR.rubypaw_fang;     // 300
 // ★★ v0.95.792 · S1's L1/R1 ring, in cycle order.  Every weapon Rizer can hold
 // in the base skin declares its four state flags here ONCE, and the cycle, the
 // weapons panel, the HUD and the save all read this instead of each keeping
@@ -19124,6 +19175,16 @@ const S1_WEAPON_RING = [
     durFlag:'axeDurability',     max:AXE_MAX,   name:'EMERALD AXE',        blurb:'Square = 3x3 sweep' },
   { key:'bow',   item:'pearlbow',       equipFlag:'bowEquipped',     brokenFlag:'bowBroken',
     durFlag:'bowDurability',     max:BOW_MAX,   name:'PEARLBOW',           blurb:() => `Square = arrow, up to ${PEARLBOW_RANGE} tiles, ${PEARLBOW_AOE*2+1}x${PEARLBOW_AOE*2+1} blast on contact` },
+  // ★★★ v0.96.73 · THE RUBYPAW FANG · Rakoron's, given not found.
+  //   Declared HERE rather than as a fifth pile of if-branches: this ring is
+  //   the single place S1 weapons exist, and the cycle, the weapons panel, the
+  //   HUD and the save all read it.  Adding a weapon anywhere else would mean
+  //   adding it in four places and forgetting one.
+  //   ★ LAST in cycle order on purpose — a dagger loses every tie.  It is the
+  //   fastest and the least committing thing you can hold, which is exactly
+  //   what a tooth should be next to a longsword.
+  { key:'fang',  item:'rubypaw_fang',   equipFlag:'fangEquipped',    brokenFlag:'fangBroken',
+    durFlag:'fangDurability',    max:FANG_MAX,  name:'RUBYPAW FANG',       blurb:'Square = quick jab · fast, light, and it does not tire' },
 ];
 // Each blade tracks its OWN durability so S1's sword and S2's never share HP.
 function _armWeapon(item){
@@ -19131,6 +19192,7 @@ function _armWeapon(item){
   if (item === 'rubypaw_sword'){  player.rubypawDurability = RUBY_MAX;  player.rubypawBroken = false; }
   if (item === 'emerald_axe'){    player.axeDurability     = AXE_MAX;   player.axeBroken     = false; }
   if (item === 'pearlbow'){       player.bowDurability     = BOW_MAX;   player.bowBroken     = false; }
+  if (item === 'rubypaw_fang'){   player.fangDurability    = FANG_MAX;  player.fangBroken    = false; }
 }
 // ★ A blade left lying on the ground has to still be there next session.
 function _rememberWeaponDrops(){
@@ -32684,6 +32746,17 @@ addEventListener('keydown', e => {
             const dmgMult = (mode === 'kick') ? 2 * kickComboMult() : punchComboMult();
             const _swordSwing = mode === 'punch' && player.swordEquipped && !player.swordBroken
                              && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+            // ★★★ v0.96.73 · THE FANG · fast and light, and it does NOT escalate.
+            //   The sword and the fist both grow through a combo multiplier; the
+            //   fang is a flat x1.6 forever.  That is the trade the weapon exists
+            //   to offer — it out-damages a bare fist on the FIRST hit and loses
+            //   to everything by the fourth, so it rewards hit-and-move rather
+            //   than standing in front of something.  ★ And it is checked AFTER
+            //   the sword, matching currentWeaponKey's order, so the two can
+            //   never both claim a swing.
+            const _fangSwing = mode === 'punch' && !_swordSwing
+                             && player.fangEquipped && !player.fangBroken
+                             && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
             // v0.95.568 · Rubypaw swing gate · S2 punch with rubypaw equipped
             const _rubypawSwing = mode === 'punch' && player.rubypawEquipped && !player.rubypawBroken
                              && (player.cosmeticSkin || 'normal') === 'power_upgrade';
@@ -32706,6 +32779,22 @@ addEventListener('keydown', e => {
                 try { playSFX('gottaFixIt'); } catch(_){}
               } else if (player.swordDurability === 20){
                 showToast('⚠ Sapphire Tearsword · 20 swings left', 2400);
+              }
+            } else if (_fangSwing){
+              // ★★ v0.96.73 · x1.6 FLAT · no combo table of its own and none
+              //   borrowed.  Above a first punch, below a third one, and it never
+              //   climbs — so the fang rewards striking and moving rather than
+              //   standing still and winding up.
+              outDmg = (player.baseAtk || 25) * 1.6;
+              try { playSFX('swordSlice'); } catch(_){}
+              player.fangDurability = Math.max(0, (player.fangDurability == null ? FANG_MAX : player.fangDurability) - 1);
+              if (player.fangDurability <= 0){
+                player.fangBroken   = true;
+                player.fangEquipped = false;
+                try { playSFX('cancel'); } catch(_){}
+                showToast('⛔ RUBYPAW FANG chipped through · repair with 100 gems (ZyPhone → Weapons)', 3800);
+              } else if (player.fangDurability === 30){
+                showToast('⚠ Rubypaw Fang · 30 strikes left', 2400);
               }
             } else if (mode === 'punch' && player.axeEquipped && !player.axeBroken
                        && (player.cosmeticSkin || 'normal') !== 'power_upgrade'){
@@ -38673,7 +38762,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.72' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.73' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45540,6 +45629,11 @@ function saveGame(){
         //   scoreboard, this is the claim, and only the claim can answer you
         //   when you walk back and press X on one of them
         zorynTookChests:            player.zorynTookChests    || [],
+        // ★ v0.96.73 · the fang is one-shot · Rakoron sheds a tooth, not a supply
+        rubypawFangGiven:           !!player.rubypawFangGiven,
+        fangEquipped:               !!player.fangEquipped,
+        fangBroken:                 !!player.fangBroken,
+        fangDurability:             player.fangDurability,
         // ★ v0.96.71 · one-shot and PERSISTED · an egg you can re-trigger is a
         //   drop table, not a secret
         eggZorynMap:                !!player.eggZorynMap,
@@ -49801,9 +49895,39 @@ const KELTHOR_LADDER = [
       "All five down, and you found the threshold without me drawing you a line to it.",
       "Prismsynch opens on your active Zyrex. One Prism-locked strike per battle. Spend it well.",
       "*he turns the basin over, empty*",
+      "Two rungs left, and the next one is not mine to teach.",
+      "There is a Gemlord asleep behind that threshold. RAKORON. Malezor has stood on his shoulders since before the Hall did.",
+      "Take the red-haired boy with you. Neither of you goes in there alone.",
+    ] },
+  // ★★★ v0.96.73 · MEET RAKORON · the rung Kelthor cannot teach.
+  //   Creator: "kelthor doesnt give you a prismshard ... maybe he sends you and
+  //   zoryn on a mission to actually meet rakoron for the first time and then
+  //   the cave locks like the rest until rizer has a mealux."
+  //
+  //   ★★ AND KELTHOR HANDS YOU NOTHING.  A Warden's gift is ACCESS, not loot —
+  //   which is also the correct canon reading: aov-combat-recruitment-canon
+  //   says Gemlords deal in RESPECT.  So the introduction is his, and the thing
+  //   you actually pocket comes from Rakoron.
+  //
+  //   ★★★ WHY NOT THE PRISMSHARD, which this rung used to give:
+  //   aov-five-relic-definitions · a Prismshard IS the Aenor Eruption,
+  //   uncraftable, one of the sixteen.  Ending a tutorial with one is ending a
+  //   tutorial with a sun.
+  { key:'s12', ladder:3, bond:1, xp:2000,
+    title:'The Threshold · Rakoron',
+    done: () => !!player.rakoronMet,
+    label: () => 'Meet RAKORON with Zoryn · the NW cave',
+    hint:  () => 'Both of you. Through the threshold you found. He has been waiting longer than the Hall has stood.',
+    reward:'RUBYPAW FANG · and the door shuts',
+    lines: [
+      "You met him. *Kelthor sits down, which you have not seen him do*",
+      "And he gave you a tooth. He does not do that.",
+      "It is not a Longsword, before you ask. It is what a Longsword is MADE from, and you are not the Rizer who carries that yet.",
+      "The cave is shut now. They all are — you felt it close behind you.",
+      "There is a creature that opens them. MEALUX. One in every district, never the same place twice, and I will not insult you by pretending I know where yours is.",
       "Last rung. Cross south into Zarvane — actually cross, I will know — and fish me three Soulphish out of the Oasis.",
     ] },
-  { key:'s12', ladder:3, bond:2, xp:3000,
+  { key:'s13', ladder:3, bond:2, xp:3000,
     title:'Bridge Trial · Zarvane',
     // ★ BOTH halves, and the journey first — v0.95.989's bug was checking only
     //   the fish, and Soulphish are also caught at the Andrannor fountain, so
@@ -49816,17 +49940,18 @@ const KELTHOR_LADDER = [
       : `Zarvane's Oasis · ${Math.min(3,player.items?.soulphish||0)}/3 Soulphish. Your Fae Net will do it.`,
     take:  () => {
       player.items.soulphish -= 3;
-      player.prismshardOwned = true;
-      player.items.prismshard = (player.items.prismshard||0) + 1;
-      try { playItemGain('prismshard'); } catch(_){}
+      // ★ v0.96.73 · NO PRISMSHARD.  The relic canon does not allow it and the
+      //   fang already paid the rung.  What the bridge gives is the TITLE and
+      //   the next name — which is what a bridge is for.
+      // ★ no new flag · kelthorLadderComplete() already MEANS Master Bonder,
+      //   and a second one that nothing reads is theatre
     },
-    reward:'PRISMSHARD · Master Bonder · Omniris named',
+    reward:'Master Bonder · Omniris named',
     lines: [
       "*sets the three glowing Soulphish into the basin · astral flesh feeds astral kin*",
       "You crossed a border for me. That was the rung. The fish were an excuse.",
-      "*presses a warm, veined shard into your palm · it hums against your gem*",
-      "The Prismshard. Among the highest relics ever cut out of this universe. It reshapes weapons, gear, anything worthy of it.",
-      "Master Bonder. Old title. Walk with it.",
+      "Master Bonder. Old title. Nobody will explain it to you and everybody will notice.",
+      "Walk with it.",
       "And in Zarvane — find the elder at the oasis. OMNIRIS. He does not teach the way I do; he will ask you to see something.",
       "Go on. You are not my student any more.",
     ] },
@@ -62697,7 +62822,10 @@ function currentWeaponKey(){
   // somehow flagged, because it is the heavier commitment.
   if (player.bowEquipped && !player.bowBroken) return 'pearlbow';
   if (player.axeEquipped && !player.axeBroken) return 'emerald';
-  return (player.swordEquipped && !player.swordBroken) ? 'sapphire' : 'fists';
+  if (player.swordEquipped && !player.swordBroken) return 'sapphire';
+  // ★ v0.96.73 · the fang sits at the bottom of the S1 chain · every heavier
+  //   commitment above wins the tie, which is the whole character of a dagger
+  return (player.fangEquipped && !player.fangBroken) ? 'fang' : 'fists';
 }
 function updateWeaponHUD(){
   const whud = document.getElementById('weaponHud');

@@ -35,18 +35,18 @@ const fresh = () => { sb.player = { items:{}, party:[], stats:{}, lootedChests:[
 
 H('★ SHAPE · three ladders, twelve rungs, soulphish last');
 const N = val('KELTHOR_LADDER.length');
-ok(N === 12, `${N} rungs`);
+ok(N === 13, `${N} rungs`);
 ok(val('KELTHOR_LADDERS.length') === 3, 'grouped into 3 ladders');
-ok(val('KELTHOR_LADDER[KELTHOR_LADDER.length-1].key') === 's12', 'the last rung is s12');
-ok(/soulphish/i.test(val('KELTHOR_LADDER[11].label.toString()')), '★ and it is the SOULPHISH bridge');
-ok(/OMNIRIS/.test(val('JSON.stringify(KELTHOR_LADDER[11].lines)')), '★ which names OMNIRIS, leading into Zarvane');
+ok(val('KELTHOR_LADDER[KELTHOR_LADDER.length-1].key') === 's13', 'the last rung is s13');
+ok(/soulphish/i.test(val('KELTHOR_LADDER[12].label.toString()')), '★ and it is the SOULPHISH bridge');
+ok(/OMNIRIS/.test(val('JSON.stringify(KELTHOR_LADDER[12].lines)')), '★ which names OMNIRIS, leading into Zarvane');
 // ★ I first asserted '111112222223' (the purge in Ladder II) and the table was
 //   RIGHT while the test was wrong: Kelthor's own rung-10 line says "Ladder
 //   Three is one rung of housekeeping and one border", which is two rungs.
 //   When the code and the dialogue agree, a test that disagrees with both is
 //   the thing that is broken.
-ok(val('KELTHOR_LADDER.map(r=>r.ladder).join("")') === '111112222233',
-   `ladder grouping ${val('KELTHOR_LADDER.map(r=>r.ladder).join("")')} — I:5 field, II:5 NPCs, III:2 bridge`);
+ok(val('KELTHOR_LADDER.map(r=>r.ladder).join("")') === '1111122222333',
+   `ladder grouping ${val('KELTHOR_LADDER.map(r=>r.ladder).join("")')} — I:5 field, II:5 NPCs, III:3 Rakoron+bridge`);
 
 H('★★ EVERY RUNG IS REACHABLE · flip only what the game itself writes');
 fresh();
@@ -63,7 +63,8 @@ const CLIMB = {
   s9:  p => { p.zureleaShopOpen = true; },
   s10: p => { p.orrenQuestDone = true; },
   s11: p => { p.vilerokKills = 5; p.rakoronCaveFound = true; },
-  s12: p => { p.zarvaneEntered = true; p.items.soulphish = 3; },
+  s12: p => { p.rakoronMet = true; },
+  s13: p => { p.zarvaneEntered = true; p.items.soulphish = 3; },
 };
 const order = [];
 for (let i = 0; i < 20; i++){
@@ -76,16 +77,16 @@ for (let i = 0; i < 20; i++){
   if (!climbed){ ok(false, `${k} did not register even after its own flag was written — DEAD GATE`); break; }
 }
 console.log('     ' + order.join(' → '));
-ok(order.length === 12, `all 12 rungs climbed in order (${order.length})`);
-ok(order.join(',') === 's1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12', 'and strictly in sequence — no rung skippable or stuck');
+ok(order.length === 13, `all 13 rungs climbed in order (${order.length})`);
+ok(order.join(',') === 's1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13', 'and strictly in sequence — no rung skippable or stuck');
 ok(val('kelthorLadderComplete()') === true, 'the ladder reports complete');
 
 H('★★★ THE BRIDGE CANNOT BE SHORT-CIRCUITED · v0.95.989 in one assertion');
 fresh();
-for (const k of ['s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11']) CLIMB[k](sb.player);
+for (const k of ['s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','s12']) CLIMB[k](sb.player);
 sb.player.items.soulphish = 3;                 // fish, but never crossed
-ok(val('(kelthorNextRung()||{}).key') === 's12', 'holding 3 Soulphish alone does NOT finish it');
-ok(/not set foot in Zarvane/.test(val('KELTHOR_LADDER[11].hint()')),
+ok(val('(kelthorNextRung()||{}).key') === 's13', 'holding 3 Soulphish alone does NOT finish it');
+ok(/not set foot in Zarvane/.test(val('KELTHOR_LADDER[12].hint()')),
    'and he says why — Soulphish are also caught at the Andrannor fountain');
 sb.player.zarvaneEntered = true;
 ok(val('kelthorLadderComplete()') === true, 'crossing the border finishes it');
@@ -110,6 +111,22 @@ ok(!/kelthorStep\.s8/.test(src.replace(/\/\/[^\n]*/g, '')),
    'nothing keys off kelthorStep.s8 any more — with 12 rungs it is Nurse Rein, four rungs early');
 ok((src.match(/kelthorLadderComplete\(\)/g) || []).length >= 4,
    'those three call sites ask kelthorLadderComplete() by name instead');
+
+H('★★★ v0.96.73 · NO PRISMSHARD · and Rakoron pays the rung instead');
+ok(!/prismshardOwned = true/.test(src),
+   'the ladder no longer grants a Prismshard — canon: it IS the Aenor Eruption, uncraftable');
+ok(/rung/.test(val("KELTHOR_LADDER[11].title")) || val("KELTHOR_LADDER[11].key") === 's12',
+   'rung 12 is the Rakoron meeting');
+ok(/RAKORON|Rakoron/.test(val('JSON.stringify(KELTHOR_LADDER[11].lines)+KELTHOR_LADDER[11].label()')),
+   'and it names Rakoron');
+ok(/rubypaw_fang: 1/.test(src), 'Rakoron grants the RUBYPAW FANG');
+ok(/player\.gemlordCavesOpen = false/.test(src), '★ and the caves shut behind you');
+ok(/rubypaw_fang/.test(src.match(/const S1_WEAPON_RING = \[[\s\S]*?\n\];/)[0]),
+   'the fang is declared in S1_WEAPON_RING — one seam, not a fifth pile of if-branches');
+ok(/rubypaw_fang: 300/.test(src), 'with its own durability ceiling (300)');
+// ★ the downstream break this change caused, and its fix
+ok(/traced/.test(src) && /speciesId === 'mealux'/.test(src),
+   "★★ Omniris Trial 8 lost its only Prismshard source — a bonded MEALUX now also opens it");
 
 H('★ THE FLAVOUR HOOK · the ladder starts when Elarion makes you official');
 ok(/if \(!player\.raidCardGifted\)\{[\s\S]{0,400}?Elarion/.test(src),

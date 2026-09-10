@@ -13670,187 +13670,58 @@ const NPCS = [
           ]});
           return;
         }
-        // v0.95.481 · KELTHOR'S 8-STEP LADDER · fully Malezor-completable · step 8
-        // branches into Zarvane.  Every step verifies against real game systems ·
-        // no dead-end counters that were never wired.
-        // Every step unlocks through discovery, plot, or demonstrated field
-        // progress. Rizer Level never gates a quest; levels grant 33.3 AP each
-        // so players can build for the increasingly hard encounters they find.
+        // ★★★ v0.96.71 · KELTHOR WALKS THE TABLE.  See KELTHOR_LADDER, declared
+        // once above buildQuestLog().  This used to be twelve-branches-worth of
+        // `if (!KS.sN)` with every gate condition written out a second time in
+        // the quest log; v0.95.989 is the record of what that cost.  Now the
+        // rung IS the data, and there is exactly one of it.
         player.kelthorStep = player.kelthorStep || {};
         const KS = player.kelthorStep;
         const bumpBond = (n) => { player.bonds = player.bonds || {}; player.bonds.kelthor = Math.min(100, (player.bonds.kelthor||0) + n); };
-        const owns = (k) => (player.items && (player.items[k]||0) > 0);
-        // ── Step 1 · First Meeting ──
+        // ── Rung 1 · gated on the R.A.I.D. card · the flavour hook and the
+        //    correct trigger both · Kelthor has nothing to teach a civilian
         if (!player.kelthorMet){
+          if (!player.raidCardGifted){
+            showDialog({ speaker: 'KELTHOR', lines: [
+              "*he does not look up*",
+              "Come back when somebody has signed for you. Elarion, at the Academy.",
+              "I do not train people the district has not vouched for.",
+            ]});
+            return;
+          }
           player.kelthorMet = true; try{pingNextObjective()}catch(_){}
-          bumpBond(1);   // v0.95.484 · Kelthor total bond capped at 10 across all 8 steps
-          // v0.95.488 · Quest XP rescaled to sit closer to combat XP · was 500
-          try { awardRizerXP(50); } catch(_){}    // v0.95.538 · Kelthor Step 1 · was 200 · new total = ~7,650
-          showToast('◈ QUEST · Kelthor\'s 8-Step Ladder · begins', 2600);
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "Ah.  The young Rizer at last.  I've watched a hundred cycles of your kind climb this hall.",
-            "Malezor is your foundation.  Every district you conquer builds on what I teach you here.",
-            "Eight steps.  One ladder.  Reach the top and I place a Prismshard in your palm.",
-            "Bring 5 berries + 5 seeds from Malezor's wild grass · Feed the Ward.",
-          ]});
-          return;
         }
-        // ── Step 2 · Feed the Ward · 5 berries + 5 seeds (Malezor wild) ──
-        if (!KS.s2){
-          const b = player.items?.berry || 0, s = player.items?.seed || 0;
-          if (b < 5 || s < 5){
-            showDialog({ speaker: 'KELTHOR', lines: [`Not yet · need 5 berries (${b}/5) and 5 seeds (${s}/5).  Harvest from Malezor's wild grass.`]});
+        {
+          const rung = kelthorNextRung();
+          if (!rung){
+            // ladder finished · fall through to the router below
+          } else if (!kelthorRungDone(rung)){
+            const L = KELTHOR_LADDERS[rung.ladder - 1];
+            // not there yet → he tells you what the rung actually is
+            if (rung.key !== 's1' && !(function(){ try { return !!rung.done(); } catch(_){ return false; } })()){
+              showDialog({ speaker: 'KELTHOR', lines: [
+                `Ladder ${'I'.repeat(rung.ladder)} · ${rung.title}`,
+                rung.hint(),
+              ]});
+              return;
+            }
+            // ── the rung is CLIMBED ──
+            KS[rung.key] = true;
+            try { rung.take && rung.take(); } catch(_){}
+            bumpBond(rung.bond);
+            try { awardRizerXP(rung.xp); } catch(_){}
+            const idx = KELTHOR_LADDER.indexOf(rung) + 1;
+            showToast(`★ Rung ${idx}/${KELTHOR_LADDER.length} · ${rung.title} · ${rung.reward}`, 3200);
+            try{pingNextObjective()}catch(_){}
+            // ★ a NEW ladder announces itself · three ladders is a shape the
+            //   player should be able to feel, not just a rung count
+            const prev = KELTHOR_LADDER[KELTHOR_LADDER.indexOf(rung) + 1];
+            const lines = rung.lines.slice();
+            if (prev && prev.ladder !== rung.ladder)
+              lines.push(`— Ladder ${'I'.repeat(prev.ladder)} · ${KELTHOR_LADDERS[prev.ladder-1].name} · ${KELTHOR_LADDERS[prev.ladder-1].line}`);
+            showDialog({ speaker: 'KELTHOR', lines });
             return;
           }
-          player.items.berry -= 5; player.items.seed -= 5;
-          KS.s2 = true; bumpBond(1);
-          try { awardRizerXP(100); } catch(_){}   // v0.95.538 · Step 2 · was 500 · new total = ~7,650
-          showToast('★ Step 2 · Feed the Ward · +500 RXP · +1 Bond', 3000);
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "*takes the berries and seeds · the old wards stir hungrily in the sanctum*",
-            "A Rizer who feeds his kin is a Rizer worth training.",
-            "Step 3 waits at Dad's science desk · take your first Zyrex, then return.",
-          ]});
-          return;
-        }
-        // ── Step 3 · First Bond · own a Zyrex ──
-        if (!KS.s3){
-          const anyZ = (player.party || []).some(z => z);
-          if (!anyZ){
-            showDialog({ speaker: 'KELTHOR', lines: [`Return to Dad's science desk · pick your starter Zyrex · then come back.`]});
-            return;
-          }
-          KS.s3 = true; bumpBond(1);
-          try { awardRizerXP(200); } catch(_){}   // v0.95.538 · Step 3 · was 1000 · new total = ~7,650
-          showToast('★ Step 3 · First Bond · +1000 RXP · +1 Bond · Bond Regen unlocked', 3200);
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "*bows his head to your Zyrex · they mirror it in return*",
-            "A Rizer without a Zyrex is a Rizer without a name.  Now you have both.",
-            "Bond Regeneration is yours · your party's bond ticks up passively when you rest.",
-            "Step 4 · come back with your Backpack, Skateboard, and ZyPhone all in your bag.",
-          ]});
-          return;
-        }
-        // ── Step 4 · Home Rank · backpack + skateboard + phone ──
-        if (!KS.s4){
-          const missing = [];
-          if (!player.hasBackpack)      missing.push('Backpack');
-          if (!owns('skateboard'))      missing.push('Skateboard');
-          if (!owns('zphone'))          missing.push('ZyPhone');
-          if (missing.length){
-            showDialog({ speaker: 'KELTHOR', lines: [`Home rank test · still need: ${missing.join(', ')}.  Check your room + the gear shop.`]});
-            return;
-          }
-          KS.s4 = true; bumpBond(1);
-          try { awardRizerXP(400); } catch(_){}   // v0.95.538 · Step 4 · was 2000
-          showToast('★ Step 4 · Home Rank · +2000 RXP · +1 Bond', 3000);
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "Backpack.  Board.  Phone.  A Rizer prepared is a Rizer respected.",
-            "Step 5 · Scrapjaw has a radio tower rotting up north.  Restore his signal.",
-          ]});
-          return;
-        }
-        // ── Step 5 · Signal Restored · Scrapjaw tower done ──
-        if (!KS.s5){
-          if (!player.radioTowerFixed){
-            // v0.95.490 · Radio Tower quest = scrap-metal fetch (main) · Kelthor waits on Scrapjaw's signal restoration
-            showDialog({ speaker: 'KELTHOR', lines: [`Scrapjaw's Radio Tower still down · fetch the SCRAP METAL from the chest at the tower base · bring it to him for the Phone Battery.`]});
-            return;
-          }
-          KS.s5 = true; bumpBond(1);
-          try { awardRizerXP(700); } catch(_){}   // v0.95.538 · Step 5 · was 3500
-          showToast('★ Step 5 · Signal Restored · +3500 RXP · +1 Bond', 3200);
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "The tower hums again · every Warden across the district can hear it.",
-            "Step 6 · Malezor has five Vileroks I need cleared.  Hunt them all down.",
-          ]});
-          return;
-        }
-        // ── Step 6 · Vilerok Purge · 5 Malezor Vileroks (existing counter) ──
-        if (!KS.s6){
-          const vk = player.vilerokKills || 0;
-          if (vk < 5){
-            showDialog({ speaker: 'KELTHOR', lines: [`Vilerok Purge · ${vk}/5 down.  NW corridor, NE tower, central stem, SE outskirts, SW wild arm.`]});
-            return;
-          }
-          KS.s6 = true; bumpBond(1);
-          try { awardRizerXP(1200); } catch(_){}   // v0.95.538 · Step 6 · was 6000
-          showToast('★ Step 6 · Vilerok Purge · +6k RXP · +1 Bond · Astralstrike A3 +40%', 3600);
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "All five Vileroks gone.  Malezor breathes easier tonight.",
-            "Your Astralstrike is refined · A3 damage +40% permanent.",
-            "Step 7 · climb the NW path to Rakoron's Cave.  Find the entrance · that is the whole step.",
-          ]});
-          return;
-        }
-        // ── Step 7 · Rakoron Path · FIND the cave entrance ──
-        // v0.95.532 · Reworked · used to require meeting Rakoron himself which
-        // triggered a Gemlord bond too early.  Now the step completes on cave
-        // DISCOVERY (rakoronCaveFound proximity flag) · the trail also puts
-        // Elzoran + Zoryn in the player's path.
-        if (!KS.s7){
-          if (!player.rakoronCaveFound){
-            showDialog({ speaker: 'KELTHOR', lines: [`Climb NW · the cave sits at the top of the district.  Find its entrance · Elzoran + Zoryn keep watch on the path.  You are NOT ready to face Rakoron himself yet · Gemlord bonds unlock at Korathen.`]});
-            return;
-          }
-          KS.s7 = true; bumpBond(2);
-          try { awardRizerXP(2000); } catch(_){}   // v0.95.538 · Step 7 · was 10000
-          showToast('★ Step 7 · Cave Found · +10k RXP · +2 Bond · Prismsynch slot', 3600);
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "You climbed to Rakoron's threshold.  Few Rizers your age even find the path.",
-            "Elzoran + Zoryn on the way — remember their faces.  You'll cross them again.",
-            "Prismsynch move slot opens on your active Zyrex · one Prism-locked strike per battle.",
-            "Step 8 · cross south into Zarvane and fish me 3 Soulphish from the Oasis.  Consider it your bridge to the next Warden.",
-          ]});
-          return;
-        }
-        // ── Step 8 · Zarvane Bridge · 3 Soulphish from Zarvane Oasis ──
-        if (!KS.s8){
-          const sp = player.items?.soulphish || 0;
-          // ★★★ v0.95.989 · THE STEP CHECKED THE FISH BUT NOT THE JOURNEY.
-          // Kelthor's own words are "CROSS INTO ZARVANE · fish the Oasis", and
-          // the quest-log mirror agrees — it computes s8 as soulphish >= 3 AND
-          // zarvaneEntered. This branch checked only the fish.
-          // ★ Soulphish are also caught at the ANDRANNOR fountain, so the one
-          // beat in the game whose entire purpose is to walk you across a
-          // district border could be completed without ever crossing it — and
-          // then the NPC handed you the Prismshard while the log entry stayed
-          // stubbornly unticked, because the two disagreed about what the step
-          // WAS.
-          // ★★ The log's version wins because it is the one that matches the
-          // dialogue. When code and text disagree, the text is the design.
-          if (!player.zarvaneEntered){
-            showDialog({ speaker: 'KELTHOR', lines: [
-              `Bridge Trial · the fish are the proof, not the point.`,
-              `You have not set foot in Zarvane. Go south, under the arch, and see it.`,
-              `Then fish the Oasis. Then come back to me.`,
-            ]});
-            return;
-          }
-          if (sp < 3){
-            showDialog({ speaker: 'KELTHOR', lines: [
-              `Bridge Trial · need 3 Soulphish (${sp}/3).`,
-              `Cross into Zarvane · fish the Oasis with your Fae Net · return here for the Prismshard.`,
-            ]});
-            return;
-          }
-          player.items.soulphish -= 3;
-          KS.s8 = true;
-          player.prismshardOwned = true;
-          player.items = player.items || {};
-          player.items.prismshard = (player.items.prismshard||0) + 1;
-          try { playItemGain('prismshard'); } catch(_){}   // v0.95.507
-          bumpBond(2);   // v0.95.484 · ladder total = 10 · 1+1+1+1+1+1+2+2
-          try { awardRizerXP(3000); } catch(_){}   // v0.95.538 · Step 8 · was 15000 (PRISMSHARD reward)
-          showToast('★ Step 8 · PRISMSHARD RECEIVED · +2 Bond · Master Bonder title unlocked', 4200);
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "*sets the three glowing Soulphish into the sanctum basin · astral flesh feeds astral kin*",
-            "You crossed a border for me.  That is the true final step.",
-            "*presses a warm, veined shard into your palm · it hums against your gem*",
-            "The Prismshard · among the highest-powered relics this universe has ever cut · it can reshape weapons, gear, anything worthy of it.  You are a Master Bonder now, Rizer.  Old title.  Walk with it.",   // ★ v0.95.842 · Creator: Prismshards are relics now, no longer bonding tools
-            "Zarvane's Warden knows you're coming.  The rest of Zyraxis is yours.",
-          ]});
-          return;
         }
         // ★★★ v0.95.990 · KELTHOR IS THE ROUTER NOW.  Creator: "I also wanna
         // make it that kelthor always updates you on what elder or master to
@@ -14798,10 +14669,14 @@ const MORI_BBOXES = [
     idleFrame: 0,
     moveCd: 900 + Math.random() * 600,   // a sentry's pace, not a shopper's
     blinkTimer: 9e9,
-    _contactLocked: () => !(player.kelthorStep && player.kelthorStep.s8),
+    // ★★★ v0.96.71 · WAS `kelthorStep.s8`, WHICH USED TO MEAN 'THE LADDER IS
+    //   DONE'.  The ladder is twelve rungs now, so s8 is Nurse Rein — this
+    //   gate would have opened Stelden four rungs early and nothing would
+    //   have thrown.  Ask the question by name instead of by index.
+    _contactLocked: () => !kelthorLadderComplete(),
     onInteract: (n) => {
       playSFX('confirm');
-      const laddered = !!(player.kelthorStep && player.kelthorStep.s8);
+      const laddered = kelthorLadderComplete();
       if (!laddered){
         showDialog({ speaker: 'STELDEN', lines: [
           '*the visor turns · twin embers study you*',
@@ -27443,7 +27318,7 @@ function openRaidCard(){
     !!player.kelthorEnrolled,
     !!player.kelthorSeedsFed,
     !!player.starterChosen,
-    !!(player.kelthorStep && player.kelthorStep.s8),
+    kelthorLadderComplete(),   // ★ v0.96.71 · the LAST rung, whatever its index
   ];
   const GX = [43.84, 54.96, 66.09, 77.21, 88.34];
   steps.forEach((done, i) => {
@@ -38688,7 +38563,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.70' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.71' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45555,6 +45430,10 @@ function saveGame(){
         //   scoreboard, this is the claim, and only the claim can answer you
         //   when you walk back and press X on one of them
         zorynTookChests:            player.zorynTookChests    || [],
+        // ★ v0.96.71 · one-shot and PERSISTED · an egg you can re-trigger is a
+        //   drop table, not a secret
+        eggZorynMap:                !!player.eggZorynMap,
+        eggElzoranMeet:             !!player.eggElzoranMeet,
         zorynKills:                 player.zorynKills         || 0,
         zorynHp:                    player.zorynHp,
         zorynDown:                  !!player.zorynDown,
@@ -49640,6 +49519,276 @@ function drawZycubeItemsList(W, H){
 //   QUESTS      = side missions · upgrades / hidden / cosmetics / achievements
 // Both pull from player.* flags · no separate DB · lightweight
 // ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.71 · KELTHOR'S LADDER · THE TUTORIAL, AS ONE TABLE.
+//
+// Creator: "redo kelthor 8 step ladder ... the update will be the entire
+// tutorial. getting first zyrex, opening chests, killing mori, talking to
+// scrapjaw, kaizari, rein, zurelea, and orren and doing their quests in
+// malezor ... make sure last ladder is still the soulphish to lead to omniris
+// in zarvane. I basically want the player to learn how to play the game basics
+// by doing kelthor missions. flavor them to rizer becoming an official rizer
+// after recieving RAID from Elarian."
+//
+// THE SPINE, as specified:
+//   Mom/Sister → Elarion → Dad → Mom → Dad → KELTHOR → NPC questline → KELTHOR
+//   → Omniris.  Rung 1 gates on the R.A.I.D. card, so the ladder BEGINS the
+//   moment Elarion makes you official — that is the flavour hook and also the
+//   correct trigger: Kelthor has nothing to teach a civilian.
+//
+// ★★★ WHY THIS IS A TABLE AND NOT TWELVE `if` BLOCKS.
+// The 8-step version was written twice — once as a chain of branches inside
+// Kelthor's onInteract, and once again as an independent mirror inside
+// buildQuestLog that recomputed every gate.  v0.95.989 records what that cost:
+// the two copies disagreed about what Step 8 WAS, so the NPC handed over the
+// Prismshard while the log entry stayed stubbornly unticked.  Twelve rungs
+// would be twelve more chances to drift.
+// So the ladder is declared ONCE, here.  Kelthor walks it to find the first
+// unfinished rung; the quest log renders the same array.  They cannot disagree,
+// because there is no longer a second copy to disagree with.
+//
+// ★★ EVERY GATE IS A FLAG THE GAME ALREADY WRITES.  Checked, one by one,
+// before this table was written — the same question the district gates taught:
+// not "is the flag read?" but "is it ever WRITTEN?"  nurseReinAllied,
+// zureleaShopOpen, orrenQuestDone, faeCollected, radioTowerFixed, vilerokKills,
+// stats.moriKills, lootedChests and zarvaneEntered all have live writers.  A
+// rung keyed to a dead flag would not be a bug, it would be a wall.
+const KELTHOR_LADDERS = [
+  { n: 1, name: 'THE FIELD',    line: 'What every Rizer knows before they are trusted with anything.' },
+  { n: 2, name: 'THE DISTRICT', line: 'Malezor is not a map. It is people. Go and be known.' },
+  { n: 3, name: 'THE BRIDGE',   line: 'One border. One Warden waiting on the other side.' },
+];
+const KELTHOR_LADDER = [
+  // ─── LADDER I · THE FIELD · the basics, in the order you meet them ───
+  { key:'s1', ladder:1, bond:1, xp:50,
+    title:'First Papers',
+    done: () => !!player.kelthorMet,
+    label: () => 'Report to Warden Kelthor · Beastwarden\'s Hall',
+    hint:  () => 'Elarion signed your R.A.I.D. card. Bring it to the Hall.',
+    reward:'Ladder I opens',
+    lines: [
+      "So. Elarion signed your card. *he does not look up from the ward-basin*",
+      "Official is not the same word as competent, and you are one of them.",
+      "Three ladders. Twelve rungs. Climb them and I put a Prismshard in your palm —",
+      "— and every district after this one will be a thing you walk into, not a thing that happens to you.",
+      "Rung two. You are a Rizer with no Zyrex. Fix that. Your father is at the Research Facility.",
+    ] },
+  { key:'s2', ladder:1, bond:1, xp:100,
+    title:'First Bond',
+    done: () => (player.party || []).some(z => z),
+    label: () => 'Take your first Zyrex from Dad\'s desk',
+    hint:  () => 'Your father is waiting at the Research Facility. Choose. Then come back.',
+    reward:'Bond Regeneration',
+    lines: [
+      "*he bows his head to the creature at your heel · it mirrors him*",
+      "A Rizer without a Zyrex is a Rizer without a name. Now you have both.",
+      "Bond Regeneration is yours — your party warms to you while you rest.",
+      "Rung three. There are chests all over this district. Open three. Any three.",
+    ] },
+  { key:'s3', ladder:1, bond:1, xp:150,
+    title:'What\'s Yours',
+    done: () => ((player.lootedChests || []).length >= 3),
+    label: () => `Open 3 chests (${Math.min(3,(player.lootedChests||[]).length)}/3)`,
+    hint:  () => `Chests, Rizer. Three of them. You have ${(player.lootedChests||[]).length}. Punch them or press X — either works.`,
+    reward:'+150 RXP',
+    lines: [
+      "Three. Good. *he almost smiles*",
+      "Now — a thing nobody will tell you kindly. Anything you leave sitting, someone else takes.",
+      "That red-haired boy who follows you about has already worked it out.",
+      "Rung four. The wards are hungry. Five berries, five seeds, out of the wild grass.",
+    ] },
+  { key:'s4', ladder:1, bond:1, xp:200,
+    title:'Feed the Ward',
+    done: () => ((player.items?.berry||0) >= 5 && (player.items?.seed||0) >= 5),
+    label: () => `Harvest 5 berries + 5 seeds (${Math.min(5,player.items?.berry||0)}/5 · ${Math.min(5,player.items?.seed||0)}/5)`,
+    hint:  () => `Not yet · ${Math.min(5,player.items?.berry||0)}/5 berries, ${Math.min(5,player.items?.seed||0)}/5 seeds. The wild grass gives both.`,
+    take:  () => { player.items.berry -= 5; player.items.seed -= 5; },
+    reward:'Harvest taught',
+    lines: [
+      "*the old wards stir in the basin and take the seed out of his palm*",
+      "Grass feeds them. Grass feeds YOU, and your Zyrex, if you learn the recipes.",
+      "A Rizer who forages does not starve in Netharion. Remember I said that.",
+      "Rung five. Mori. Five of them. You have hands — use them.",
+    ] },
+  { key:'s5', ladder:1, bond:1, xp:300,
+    title:'First Blood',
+    done: () => ((player.stats?.moriKills || 0) >= 5),
+    label: () => `Defeat 5 Mori (${Math.min(5, player.stats?.moriKills || 0)}/5)`,
+    hint:  () => `${Math.min(5, player.stats?.moriKills||0)}/5 Mori. Square punches, Triangle kicks. Chain them and they hurt more.`,
+    reward:'Ladder I complete',
+    lines: [
+      "Five. And you are still standing, which is the half of it that matters.",
+      "*he sets down the basin*",
+      "That is Ladder One. You can feed yourself, arm yourself and defend yourself.",
+      "Ladder Two is harder, and there is nothing to hit.",
+      "Malezor is not a map, Rizer. It is people. Go and be known by five of them.",
+      "Start with Scrapjaw. His tower has been dead for a season and I am tired of hearing about it.",
+    ] },
+  // ─── LADDER II · THE DISTRICT · the five NPC questlines ───
+  { key:'s6', ladder:2, bond:1, xp:500,
+    title:'Signal Restored · Scrapjaw',
+    done: () => !!player.radioTowerFixed,
+    label: () => 'Restore Scrapjaw\'s radio tower',
+    hint:  () => 'Scrapjaw, at the Gear Shop. The SCRAP METAL is in the chest at the tower base.',
+    reward:'Tower network online',
+    lines: [
+      "The tower hums. Every Warden on the continent can hear Malezor again.",
+      "Scrapjaw will deny he needed you. Let him.",
+      "Next · Kaizari. Ask her about the net. Do not argue with her about the net.",
+    ] },
+  { key:'s7', ladder:2, bond:1, xp:600,
+    title:'Fill the Faenet · Kaizari',
+    done: () => ((player.faeCollected || 0) >= 5),
+    label: () => `Catch 5 fae for Kaizari (${Math.min(5, player.faeCollected||0)}/5)`,
+    hint:  () => `Kaizari gives the Fae Net. Then five fae — ${Math.min(5,player.faeCollected||0)}/5. They drift where the grass is thickest.`,
+    reward:'Astral energy',
+    lines: [
+      "Fae in the net. Your astral bar will thank you every fight from here on.",
+      "Next · the Hospital. Nurse Rein has been carrying two stones she cannot use.",
+    ] },
+  { key:'s8', ladder:2, bond:1, xp:700,
+    title:'Life Stones · Nurse Rein',
+    done: () => !!player.nurseReinAllied,
+    label: () => 'Deliver both LIFE STONES to Nurse Rein',
+    hint:  () => `Two LIFE STONES to the Hospital (${Math.min(2, player.items?.life_stone||0)}/2 found).`,
+    reward:'Field-heal call',
+    lines: [
+      "Rein can reach you anywhere in the district now. Do not make her.",
+      "Next · Zurelea. She wants a Ruby Vial and she will not say why.",
+    ] },
+  { key:'s9', ladder:2, bond:1, xp:800,
+    title:'The Ruby Vial · Zurelea',
+    done: () => !!player.zureleaShopOpen,
+    label: () => 'Open Zurelea\'s potion shop',
+    hint:  () => 'Zurelea wants gems for the Ruby Vial. The Seer HQ first floor is where it sits.',
+    reward:'Premium potions',
+    lines: [
+      "Her shop is open. You will be glad of it in Baelgor, and you will not know why until you are.",
+      "Last of the five · Albert Orren. Old man, green house. He will make you dodge until you hate him.",
+    ] },
+  { key:'s10', ladder:2, bond:1, xp:900,
+    title:'The Dodge Trial · Albert Orren',
+    done: () => !!player.orrenQuestDone,
+    label: () => `Pass Albert Orren's dodge trial (${Math.min(10, player.orrenGruntDodges||0)}/10)`,
+    hint:  () => `Orren counts dodges taken beside a Seer Grunt · ${Math.min(10, player.orrenGruntDodges||0)}/10.`,
+    reward:'Grapple lore',
+    lines: [
+      "*he laughs, once, like it hurts*",
+      "Orren taught me the same trick. He was old then too.",
+      "Five names. That is Ladder Two — you are not a stranger in Malezor any more.",
+      "Ladder Three is one rung of housekeeping and one border.",
+      "Clear the five Vileroks, and find the cave mouth on the north-west climb. Do not go IN.",
+    ] },
+  // ─── LADDER III · THE BRIDGE ───
+  { key:'s11', ladder:3, bond:1, xp:1500,
+    title:'The Purge + The Climb',
+    done: () => ((player.vilerokKills || 0) >= 5 && !!player.rakoronCaveFound),
+    label: () => `Clear 5 Vileroks (${Math.min(5,player.vilerokKills||0)}/5) · find the NW cave mouth`,
+    hint:  () => `Vileroks ${Math.min(5,player.vilerokKills||0)}/5${player.rakoronCaveFound ? ' · cave found' : ' · the cave mouth is still unfound, north-west and up'}`,
+    reward:'Prismsynch slot',
+    lines: [
+      "All five down, and you found the threshold without me drawing you a line to it.",
+      "Prismsynch opens on your active Zyrex. One Prism-locked strike per battle. Spend it well.",
+      "*he turns the basin over, empty*",
+      "Last rung. Cross south into Zarvane — actually cross, I will know — and fish me three Soulphish out of the Oasis.",
+    ] },
+  { key:'s12', ladder:3, bond:2, xp:3000,
+    title:'Bridge Trial · Zarvane',
+    // ★ BOTH halves, and the journey first — v0.95.989's bug was checking only
+    //   the fish, and Soulphish are also caught at the Andrannor fountain, so
+    //   the one beat whose entire purpose is walking you across a border could
+    //   be finished without crossing it.
+    done: () => (!!player.zarvaneEntered && (player.items?.soulphish||0) >= 3),
+    label: () => `Cross into Zarvane · 3 Soulphish from the Oasis (${Math.min(3,player.items?.soulphish||0)}/3)`,
+    hint:  () => !player.zarvaneEntered
+      ? 'The fish are the proof, not the point. You have not set foot in Zarvane. Go south, under the arch, and see it.'
+      : `Zarvane's Oasis · ${Math.min(3,player.items?.soulphish||0)}/3 Soulphish. Your Fae Net will do it.`,
+    take:  () => {
+      player.items.soulphish -= 3;
+      player.prismshardOwned = true;
+      player.items.prismshard = (player.items.prismshard||0) + 1;
+      try { playItemGain('prismshard'); } catch(_){}
+    },
+    reward:'PRISMSHARD · Master Bonder · Omniris named',
+    lines: [
+      "*sets the three glowing Soulphish into the basin · astral flesh feeds astral kin*",
+      "You crossed a border for me. That was the rung. The fish were an excuse.",
+      "*presses a warm, veined shard into your palm · it hums against your gem*",
+      "The Prismshard. Among the highest relics ever cut out of this universe. It reshapes weapons, gear, anything worthy of it.",
+      "Master Bonder. Old title. Walk with it.",
+      "And in Zarvane — find the elder at the oasis. OMNIRIS. He does not teach the way I do; he will ask you to see something.",
+      "Go on. You are not my student any more.",
+    ] },
+];
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.71 · TWO EGGS ON THE NORTH-WEST CLIMB.
+// Creator: "Zoryn map easter egg. elzoran elzebub easter egg."
+//
+// ★★★ AND THEY ARE SILENT.  aov-no-easter-egg-spoilers: never reveal WHERE or
+// WHAT.  So neither of these gets a quest-log entry, a hint line, an objective
+// ping or a minimap pin — the ONLY way either fires is by being in the right
+// place having done the right thing, and the only announcement is the moment
+// itself.  Kelthor's rung-10 line points you up the climb for the Vileroks and
+// the cave mouth; what else is up there is not his to say.
+//
+// ★ Both are one-shot and both persist, because an easter egg you can farm is a
+//   drop table.
+const EGG_RADIUS = 6;
+function tickMalezorEggs(){
+  if (game.scene !== 'overworld') return;
+  try {
+    // ── ZORYN'S MAP · he has been holding it the whole time ──
+    // Fires only if you climbed this far having never taken the town map — the
+    // joke lands because you did it the hard way.
+    if (!player.eggZorynMap && !player.townMapGifted && player.rakoronCaveFound){
+      const z = zorynNpc();
+      if (z && z.scene === 'overworld'
+          && Math.abs(z.tileX - player.x) + Math.abs(z.tileY - player.y) <= EGG_RADIUS){
+        player.eggZorynMap = true;
+        player.townMapGifted = true;
+        try { addItems({ townmap: 1 }); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'ZORYN', lines: [
+          "*he is sitting on the rock like he has been there for hours*",
+          "You climbed all the way up here. Without a map.",
+          "*flicks it at your chest*",
+          "I have had this since the square. You never asked.",
+        ]});
+      }
+    }
+    // ── ELZORAN KNOWS ITS OWN ·  the line remembers itself ──
+    // Needs the hatched Elzebub actually WITH you, near where Elzoran keeps
+    // watch.  Two things that were never meant to be in the same place.
+    if (!player.eggElzoranMeet && player.elzebubHatched && player.rakoronCaveFound){
+      const hasElz = (player.party || []).some(z => z && /elzebub/i.test(z.speciesId || z.id || ''));
+      const elz = (typeof WILD_ZYREX !== 'undefined' ? WILD_ZYREX : [])
+        .find(w => w && !w._gone && /elzoran/i.test(w.speciesId || ''));
+      if (hasElz && elz
+          && Math.abs(elz.tileX - player.x) + Math.abs(elz.tileY - player.y) <= EGG_RADIUS){
+        player.eggElzoranMeet = true;
+        player.bonds = player.bonds || {};
+        player.bonds.elzebub = Math.min(100, (player.bonds.elzebub || 0) + 10);
+        try { playSFX('confirm'); } catch(_){}
+        try { awardRizerXP(500); } catch(_){}
+        showToast('★ The Elzebub at your heel goes very still. Something older up the path is looking back. (+10 bond)', 5200);
+      }
+    }
+  } catch(_){}
+}
+
+// ★ sticky · a rung STAYS climbed even if you spend the berries afterwards
+function kelthorRungDone(r){
+  const KS = player.kelthorStep = player.kelthorStep || {};
+  if (KS[r.key]) return true;
+  try { return !!r.done(); } catch(_){ return false; }
+}
+// The first rung not yet climbed · null when the ladder is finished.
+function kelthorNextRung(){
+  for (const r of KELTHOR_LADDER) if (!kelthorRungDone(r)) return r;
+  return null;
+}
+function kelthorLadderComplete(){ return !kelthorNextRung(); }
+
 function buildQuestLog(){
   const expeditions = [];
   const quests      = [];
@@ -49743,52 +49892,53 @@ function buildQuestLog(){
   // This IS the game's meta-progression loop.  Each unlock is documented in
   // aov-malezor-foundation + aov-bonded-astralite-combat + aov-prismshards.
   // ══════════════════════════════════════════════════════════════════════
-  // v0.95.489 · Kelthor ladder now trigger-gates on Kelthor's first meeting (kh)
-  // instead of the Elzebub-hatch (eg) · quest only appears once the Warden speaks.
-  if (kh){
-    const bond = player.bonds?.kelthor || 0;
-    const KS = player.kelthorStep = player.kelthorStep || {};
-    // Precomputed step-complete booleans · flags OR live-counter fallbacks
-    // v0.95.481 · Rewired ladder · Malezor-completable · step 8 branches to Zarvane
-    const anyZ = (player.party || []).some(z => z);
-    const hasKit = !!player.hasBackpack && (player.items?.skateboard||0) > 0 && (player.items?.zphone||0) > 0;
-    const s1 = kh;                                                                       // Meet Kelthor
-    const s2 = !!KS.s2 || ((player.items?.berry||0) >= 5 && (player.items?.seed||0) >= 5 && s1);
-    const s3 = !!KS.s3 || (anyZ && s2);
-    const s4 = !!KS.s4 || (hasKit && s3);
-    const s5 = !!KS.s5 || (!!player.radioTowerFixed && s4);
-    const s6 = !!KS.s6 || ((player.vilerokKills||0) >= 5 && s5);
-    const s7 = !!KS.s7 || (!!player.rakoronCaveFound && s6);   // v0.95.532 · was rakoronMet
-    const s8 = !!KS.s8 || ((player.items?.soulphish||0) >= 3 && !!player.zarvaneEntered && s7);
-    const allDone = s1 && s2 && s3 && s4 && s5 && s6 && s7 && s8;
-    const anyProg = s1;
-    const stat = allDone ? 'complete' : (anyProg ? 'active' : 'available');
-    expeditions.push({
-      title: 'Malezor · Kelthor\'s 8-Step Ladder',
-      at: { npc:'kelthor' },
-      giver: 'Warden Kelthor · Beastwarden\'s Hall',
-      status: stat,
-      steps: [
-        { done: s1, label: `Step 1 · First Meeting${s1?' · ✓':''}` },
-        { done: s2, label: `Step 2 · Feed the Ward · 5 berries + 5 seeds (${Math.min(5,player.items?.berry||0)}/5 · ${Math.min(5,player.items?.seed||0)}/5)` },
-        { done: s3, label: `Step 3 · First Bond · own a Zyrex` },
-        { done: s4, label: `Step 4 · Home Rank · Backpack + Skateboard + ZyPhone` },
-        { done: s5, label: `Step 5 · Signal Restored · deliver Scrapjaw's SCRAP METAL` },
-        { done: s6, label: `Step 6 · Vilerok Purge · defeat all 5 (${Math.min(5,player.vilerokKills||0)}/5)` },
-        { done: s7, label: `Step 7 · Rakoron Path · FIND the NW cave entrance` },
-        { done: s8, label: `Step 8 · Zarvane Bridge · 3 Soulphish from Zarvane Oasis (${Math.min(3,player.items?.soulphish||0)}/3)` },
-      ],
-      reward: s8 ? '✓ Prismshard + Master Bonder title' :
-              s7 ? '→ Prismshard + points you to Zarvane Warden (Step 8)' :
-              s6 ? '→ Prismsynch move slot on active Zyrex (Step 7)' :
-              s5 ? '→ Astralstrike A3 damage +40% (Step 6)' :
-              s4 ? '→ +18k RXP · +12 bond (Step 5)' :
-              s3 ? '→ +8k RXP · +15 bond (Step 4)' :
-              s2 ? '→ Bond Regeneration passive (Step 3)' :
-              s1 ? '→ +1500 RXP · +13 bond (Step 2)' :
-                   '→ Ladder unlock + full path (Step 1)',
-    });
-  }
+  // ★★★ v0.96.71 · THE MIRROR IS GONE.  This block used to recompute all eight
+  // gates independently of Kelthor's own branch — s1..s8 spelled out twice, in
+  // two files' worth of distance from each other.  v0.95.989 records the day
+  // they disagreed and the Prismshard changed hands while the log stayed
+  // unticked.  There is now one array and this renders it.
+  // ★ v0.96.71 · FENCED.  buildQuestLog's callers wrap the whole function in a
+  //   try/catch, so anything thrown in here does not surface an error — it
+  //   returns an EMPTY quest log, and every yellow minimap pin quietly
+  //   disappears with it.  Found by a suite whose sandbox lacked the ladder:
+  //   0 pins, no message.  One ladder failing must not blank the journal.
+  if (kh) try {
+    const rungs = KELTHOR_LADDER.map(r => ({ r, done: kelthorRungDone(r) }));
+    const next  = rungs.find(x => !x.done);
+    const doneN = rungs.filter(x => x.done).length;
+    for (const L of KELTHOR_LADDERS){
+      const mine = rungs.filter(x => x.r.ladder === L.n);
+      // a ladder you have not reached yet stays out of the log entirely —
+      // ★ aov-no-easter-egg-spoilers is about secrets, but the same courtesy
+      //   applies to structure: do not hand the player the whole map at rung 1
+      if (!mine.length || (L.n > 1 && !rungs.filter(x => x.r.ladder === L.n - 1).every(x => x.done)
+                            && !mine.some(x => x.done))) continue;
+      const all = mine.every(x => x.done);
+      expeditions.push({
+        title: `Malezor · Kelthor · Ladder ${'I'.repeat(L.n)} · ${L.name}`,
+        at: { npc:'kelthor' },
+        giver: 'Warden Kelthor · Beastwarden\'s Hall',
+        status: all ? 'complete' : 'active',
+        steps: mine.map(x => ({ done: x.done, label: `${x.r.title} · ${x.r.label()}` })),
+        reward: all ? `✓ ${mine[mine.length-1].r.reward}`
+                    : `→ ${(next && next.r.reward) || ''}`,
+      });
+    }
+    if (doneN === rungs.length){
+      expeditions.push({
+        title: 'Malezor · Kelthor · LADDER COMPLETE',
+        at: { npc:'kelthor' },
+        giver: 'Warden Kelthor',
+        status: 'complete',
+        steps: [{ done: true, label: 'Prismshard received · Master Bonder' },
+                // ★ v0.96.71 · omnirisMet does not exist — I nearly shipped a
+                //   dead flag into the one step that points at the next act.
+                //   omnirisStep is what the oasis trials actually write.
+                { done: !!player.omnirisStep, label: 'Find OMNIRIS at the Zarvane oasis' }],
+        reward: '✓ Prismshard · Omniris named',
+      });
+    }
+  } catch(err){ console.warn('[rp7b] kelthor ladder log', err); }
 
   // Legacy · Zoryn's Town Map (Zoryn gives it · trigger = Zoryn's first talk
   // which sets townMapGifted immediately · one-hit ally quest)
@@ -60004,6 +60154,7 @@ function _frameBody(now){
   try { drawLevelUpBanner(); } catch(_){}
   try { tickWildBond(now); } catch(err){ console.warn('[rp7b] wild bond tick', err); }   // ★ v0.95.866
   try { tickZorynCompanion(now); } catch(err){ console.warn('[rp7b] zoryn tick', err); }  // ★ v0.95.906
+  try { tickMalezorEggs(); } catch(err){ console.warn('[rp7b] eggs', err); }          // ★ v0.96.71
   try { drawWildBondOverlay(); } catch(err){ console.warn('[rp7b] wild bond draw', err); }
   try { stepArrows(); } catch(_){}   // ★ v0.95.794 · advance + detonate Pearlbow arrows
   try { ecologyTick(); } catch(_){}  // ★ v0.95.804 · rumors + anomalies · the living loop

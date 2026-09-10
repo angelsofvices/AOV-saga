@@ -3,7 +3,11 @@
 // appears and then goes away.  Stubs are minimal and carry the real world ids.
 const fs=require('fs'), vm=require('vm'); const src=fs.readFileSync('/tmp/all.js','utf8');
 const take=(re,l)=>{const m=src.match(re); if(!m) throw new Error('extract '+l); return m[0];};
-const code=[ take(/function buildQuestLog\(\)[\s\S]*?\n\s*return \{[^}]*\};\n\}/,'buildQuestLog'),
+const code=[ take(/const KELTHOR_LADDERS = \[[\s\S]*?\n\];/,'ladders'),
+             take(/const KELTHOR_LADDER = \[[\s\S]*?\n\];/,'ladder'),
+             take(/function kelthorRungDone\(r\)[\s\S]*?\n\}/,'rungDone'),
+             take(/function kelthorNextRung\(\)[\s\S]*?\n\}/,'nextRung'),
+             take(/function buildQuestLog\(\)[\s\S]*?\n\s*return \{[^}]*\};\n\}/,'buildQuestLog'),
              take(/function _questAnchor\(a\)[\s\S]*?\n\}/,'_questAnchor'),
              take(/let _mmQuestPins[\s\S]*?function questPins\(\)[\s\S]*?\n\}/,'questPins') ].join('\n');
 const NPCS=[{id:'kelthor',tileX:22,tileY:82},{id:'auraxion',tileX:15,tileY:180},

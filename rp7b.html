@@ -17549,6 +17549,24 @@ function dropRizerForm(){
 //
 // ★ So it is fixed in BOTH directions and at the class level, not just for the
 //   Rubypaw that happened to expose it.
+// ★★★ v0.96.75 · ONE SQUARE SLOT, ENFORCED FROM THE RING.
+//
+// Four call sites each hand-listed which OTHER weapons to clear:
+//     if (player.swordEquipped){ player.axeEquipped = false; player.bowEquipped = false; }
+// That was correct while the ring held three.  Adding the Fang in v0.96.73 made
+// every one of them silently incomplete — equip the sword and the fang stayed
+// equipped too, so two weapons owned one Square slot and `currentWeaponKey`
+// picked by priority while the panel showed both lit.  Nothing throws; it just
+// quietly stops being true, which is the same failure the ring was created to
+// end and which it only ended for the CYCLE.
+//
+// ★ So the rule lives in one function now.  A fifth weapon costs one line in
+//   S1_WEAPON_RING and nothing here.
+function keepOneS1Weapon(keepFlag){
+  if (typeof S1_WEAPON_RING === 'undefined') return;
+  for (const W of S1_WEAPON_RING)
+    if (W.equipFlag !== keepFlag) player[W.equipFlag] = false;
+}
 function syncFormWeapons(){
   if (typeof player === 'undefined' || !player) return false;
   let cleared = null;
@@ -31242,6 +31260,55 @@ const RIZER_SAPPHIRE_SWORD = {
   RIZER_SAPPHIRE_SWORD.img.src = url;
 })();
 
+// ★★★ v0.96.75 · THE RUBYPAW FANG · S1 dagger sheet.
+// 4x4 D/L/R/U, 313 cells, keyed at the image's own measured bar.
+//
+// ★★★ THE ROWS ARE TAKEN FROM CONTENT BANDS, NOT THE CELL GRID.  Measuring per
+// cell gave the RIGHT row a height of 286 against LEFT's 210-215 — a third
+// more, between two rows showing the same pose mirrored, which is not a thing
+// art does.  The cause: the UP row's hair starts at y=934 and its cell starts
+// at 939, so five pixels of Rizer's head sit INSIDE the RIGHT row's cells.  A
+// per-cell union was reading the head above as part of the body below
+// (aov-sprite-cc-extractor · never cell-clip, overflow is OWNED).
+// Measured off the four real content bands instead, RIGHT reads 215-216 and
+// agrees with LEFT.  The UP row keeps its negative y offsets, exactly as the
+// Sapphire sheet does, because the overflow belongs to the frame that drew it.
+//
+// ★★ bodyBh COMES FROM THE SIDE ROWS ONLY.  The Sapphire sheet's notes explain
+// why and this sheet obeys it: a weapon can only ADD to a silhouette, so the
+// honest reading of the character is where the blade is horizontal.  All eight
+// side frames agree at 215.
+//
+// ★ NOT a comboSheet.  The Tearsword holds one column per press because it is a
+// four-strike chain; the Fang is one quick jab, so it WALKS its row — which is
+// also why its damage is a flat x1.6 with no combo table.  The animation and
+// the number say the same thing about the weapon.
+const RIZER_RUBYPAW_FANG = {
+  img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+  bboxes: [
+    [[ 110,  78, 137, 212],[  82,  78, 157, 214],[  64,  82, 168, 213],[  61,  80, 141, 210]],
+    [[ 108,  51, 149, 215],[  27,  54, 231, 210],[  70,  51, 180, 215],[  74,  51, 138, 215]],
+    [[  98,  27, 146, 215],[  53,  27, 226, 215],[  51,  26, 176, 216],[  58,  27, 138, 215]],
+    [[ 106,  -1, 154, 212],[  75,  -5, 201, 218],[  58,  -3, 199, 216],[  61,  -3, 151, 214]],
+  ],
+  footOff: [[0, 1, 4, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 1, 1, 0]],
+  bodyBh: [215, 215, 215, 215],
+  constScale: true,
+  key: 'rubypaw-fang', loaded: false,
+};
+(function _loadRubypawFang(){
+  const url = 'assets/2D%20sprites/rizer/rubypaw-fang.png';
+  RIZER_RUBYPAW_FANG.img.onload  = () => {
+    RIZER_RUBYPAW_FANG.loaded = true;
+    console.info('[rp7b] rubypaw-fang sheet loaded · S1 dagger ready');
+  };
+  RIZER_RUBYPAW_FANG.img.onerror = () => {
+    RIZER_RUBYPAW_FANG.loaded = false;
+    console.error('[rp7b] rubypaw-fang sheet missing at ' + url + ' · equip will fall back to the punch animation');
+  };
+  RIZER_RUBYPAW_FANG.img.src = url;
+})();
+
 // v0.95.568 · Rubypaw Longsword sheet · 4x4 D/L/R/U · replaces the S2 punch
 // animation when cosmeticSkin='power_upgrade' AND player.rubypawEquipped.
 // Bboxes CC-measured per cell from the delivered sheet.
@@ -35757,6 +35824,14 @@ function drawPlayer(){
                     && !!player.swordEquipped && !player.swordBroken
                     && (player.cosmeticSkin || 'normal') !== 'power_upgrade'
                     && RIZER_SAPPHIRE_SWORD.loaded;
+  // ★ v0.96.75 · the fang sits BELOW the sword in the chain, the same order
+  //   currentWeaponKey() uses — so the picture and the damage can never
+  //   disagree about which weapon threw the blow.
+  const _fangActive = !_swordActive && !_axeActive && !_bowActive && inAttack
+                   && player.attackMode === 'punch'
+                   && !!player.fangEquipped && !player.fangBroken
+                   && (player.cosmeticSkin || 'normal') !== 'power_upgrade'
+                   && RIZER_RUBYPAW_FANG.loaded;
   // v0.95.568 · Rubypaw Longsword swap · S2 punch anim → rubypaw sheet
   const _rubypawActive = inAttack && player.attackMode === 'punch'
                       && !!player.rubypawEquipped && !player.rubypawBroken
@@ -35770,6 +35845,7 @@ function drawPlayer(){
     : _bowActive ? RIZER_PEARLBOW
     : _axeActive ? RIZER_EMERALD_AXE
     : _swordActive ? RIZER_SAPPHIRE_SWORD
+    : _fangActive ? RIZER_RUBYPAW_FANG
     : (inAttack ? activeRizerBundle(player.attackMode) : null);
   // v0.95.102 · Interact-with-X anim · brief reach pose during interact
   const _interacting = player.interactUntil && now < player.interactUntil;
@@ -38775,7 +38851,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.74' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.75' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -40984,7 +41060,7 @@ function renderZycellWeapons(){
         }
         player.swordEquipped = !player.swordEquipped;
         // ★ v0.95.791 · the OTHER half of the one-Square-slot rule
-        if (player.swordEquipped){ player.axeEquipped = false; player.bowEquipped = false; }
+        if (player.swordEquipped) keepOneS1Weapon('swordEquipped');
         try { playSFX('confirm'); } catch(_){}
         try { updateWeaponHUD(); } catch(_){}
         // v0.95.520 · Warn if sword sheet asset is missing when equipping
@@ -41208,8 +41284,8 @@ function renderZycellWeapons(){
             return;
           }
           player.axeEquipped = !player.axeEquipped;
-          // ★ one Square slot · the axe and the Tearsword cannot both be held
-          if (player.axeEquipped){ player.swordEquipped = false; player.bowEquipped = false; }
+          // ★ one Square slot · v0.96.75 · asked of the ring, not hand-listed
+          if (player.axeEquipped) keepOneS1Weapon('axeEquipped');
           try { playSFX('confirm'); } catch(_){}
           if (player.axeEquipped && !RIZER_EMERALD_AXE.loaded){
             showToast('⚠ Emerald Axe equipped but sheet missing · assets/2D sprites/rizer/emerald-axe-sheet.png · anim will fall back to punch until the file lands', 5000);
@@ -41319,7 +41395,7 @@ function renderZycellWeapons(){
           }
           player.bowEquipped = !player.bowEquipped;
           // ★ one Square slot · see S1_WEAPON_RING
-          if (player.bowEquipped){ player.swordEquipped = false; player.axeEquipped = false; }
+          if (player.bowEquipped) keepOneS1Weapon('bowEquipped');
           try { playSFX('confirm'); } catch(_){}
           if (player.bowEquipped && !RIZER_PEARLBOW.loaded){
             showToast('⚠ Pearlbow equipped but sheet missing · assets/2D sprites/rizer/pearlbow.png · anim will fall back to punch until the file lands', 5000);
@@ -62832,6 +62908,10 @@ const WHUD_ART = {
   rubypaw:  'assets/2D%20sprites/ui/weapon-hud-rubypaw.png',
   emerald:  'assets/2D%20sprites/ui/weapon-hud-emerald.png',
   pearlbow: 'assets/2D%20sprites/ui/weapon-hud-pearlbow.png',   // ★ v0.95.788
+  // ★ v0.96.75 · same canvas AND the same content bbox (x111-1140 y112-1104)
+  //   as the other four, verified pixel-for-pixel — which is what lets the
+  //   wheel swap be a background change with nothing moving on screen.
+  fang:     'assets/2D%20sprites/ui/weapon-hud-fang.png',
 };
 function currentWeaponKey(){
   const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';
@@ -62969,7 +63049,7 @@ function _updateWeaponHUD_disabled_v518(){
       // you hit by clicking the weapon HUD itself, which is the more obvious way
       // to do it — did neither that nor the repaint, so clicking the slot could
       // leave you "holding" two weapons and showed you the old art either way.
-      if (player.swordEquipped){ player.axeEquipped = false; player.bowEquipped = false; }
+      if (player.swordEquipped) keepOneS1Weapon('swordEquipped');
       try { playSFX('confirm'); } catch(_){}
       // ★ verify_whud has been RED on this exact line, and I had it filed under
       //   "pre-existing red suites" rather than read. Second time this session a

@@ -1,73 +1,109 @@
-// ★★★ v0.96.77 · THE MACROBOOK MUST NOT DESCRIBE A GAME THAT STOPPED EXISTING.
+// ★★★ v0.96.79 · THE MACROBOOK IS A TEASER, AND IT MUST NOT SPOIL.
 //
-// Creator: "im noticing that the macrobook is mentioning outdated features of
-// the RP7. can we fix it?"
+// Creator: "I really just want u to focus on these things but DONT spoil them:
+// zyraxis, gemlords, zyrex, rizers, the seers, the novarian challenge, the 63
+// astralites, the 21 types, the 10 gems colors, and then how the story builds up
+// for the game. dont spoil anything. these are the basic parts of the game that
+// will not change, so they can be included. the macrobook should read like
+// 'wow this is cool I wanna play the game now to learn more!'"
 //
-// ★★ THE MACROBOOK IS NOT PART OF THE GAME — it lives on the website — so
-//   nothing in the build breaks when it drifts, and nothing goes red.  It just
-//   quietly becomes a lie about the product, in the one document written to be
-//   believed ("the games are locked canon").  That is the most expensive kind
-//   of staleness and the least visible.
+// ★★ THAT IS TWO RULES AT ONCE, and they pull against each other:
+//   1 · the ten subjects must be PRESENT and inviting
+//   2 · nothing past them may leak
+// A book can satisfy either one alone by being empty or by being a wiki.  This
+// suite holds both, because the failure mode of a teaser is always the same —
+// somebody adds "just one more detail" and it is the ending.
 //
-// This suite pins the claims that HAVE drifted once, so they cannot drift back,
-// and cross-checks the checkable ones against the live build rather than
-// against my memory of it.
+// ★ It also guards the OTHER direction the old book failed in: mechanics rot.
+//   Anything with a price, a percentage or a formula is a promise that goes
+//   stale, and none of it belongs here.
 const fs = require('fs');
 const ROOT = '/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
-const mbRaw = fs.readFileSync(ROOT + 'macrobook.html', 'utf8');
-// ★ v0.96.78 · STRIP <style> AND <script> FIRST.  Measuring this file without
-//   doing so counts every rgba() and z-index as prose, which made an early
-//   numeral metric in this session meaningless — it reported 648 'numerals in
-//   the book' when most were CSS.
-const mb = mbRaw.replace(/<style[\s\S]*?<\/style>/g,' ').replace(/<script[\s\S]*?<\/script>/g,' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');
+const raw = fs.readFileSync(ROOT + 'macrobook.html', 'utf8');
+// ★ strip style/script FIRST · counting rgba() as prose made an earlier metric
+//   in this session meaningless
+const text = raw.replace(/<style[\s\S]*?<\/style>/g, ' ')
+                .replace(/<script[\s\S]*?<\/script>/g, ' ')
+                .replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');
 const game = fs.readFileSync('/tmp/all.js', 'utf8');
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);
 
-H("★★★ KELTHOR'S LADDER · it was 8 level-gated steps; it is 13 flag-gated rungs");
-const rungs = (game.match(/const KELTHOR_LADDER = \[[\s\S]*?\n\];/) || [''])[0];
-const n = (rungs.match(/key:'s\d+'/g) || []).length;
-ok(n === 13, `the build has ${n} rungs`);
-ok(!/eight steps/i.test(mb), 'the book no longer says "eight steps"');
-ok(/thirteen rungs/i.test(mb), 'it says thirteen rungs');
-ok(!/sphere tiers|sync power/i.test(mb), '★ and nothing still claims spheres have tiers');
-ok(!/gates on level/i.test(mb), '★ and it no longer claims the rungs gate on LEVEL');
-ok(/NOT A LEVEL GATE/i.test(mb), 'it says so explicitly — the ladder asks what you have DONE');
-// ★ v0.96.78 · THE RUNG TABLE IS GONE ON PURPOSE.  The Creator: "I dont want so
-//   much explanations because things can change" — and a thirteen-row step list
-//   is the definition of a thing that changes.  What must survive is the SHAPE
-//   (three ladders) and the five names, which are canon.
-ok(!/<td class="num-c">13<\/td>/.test(mbRaw), 'no thirteen-row rung table');
-for (const who of ['Scrapjaw','Kaizari','Rein','Zurelea','Orren'])
-  ok(new RegExp(who, 'i').test(mb), `Ladder II still names ${who}`);
-ok(/three ladders/i.test(mb), 'and the three-ladder shape is stated');
-ok(!/eight bond lessons|eight steps/i.test(mb), 'no "eight" anything survives');
-ok(/R\.A\.I\.D\. card/.test(mb), 'and the R.A.I.D. card is named as the trigger');
-ok(/raidCardGifted/.test(game), '…which is what the build actually gates rung 1 on');
+H('★ THE TEN SUBJECTS · each one present, each one its own part');
+const WANT = [
+  ['Zyraxis',              /Zyraxis/i,                      'world'],
+  ['the Gemlords',         /Gemlord/i,                      'gemlords'],
+  ['the ten gem colours',  /\bRuby\b[\s\S]{0,120}\bAmber\b/i, 'gems'],
+  ['Zyrex',                /Zyrex/i,                        'zyrex'],
+  ['Rizers',               /Rizer/i,                        'rizer'],
+  ['the Seers',            /Seers/i,                        'seers'],
+  ['the 63 Astralites',    /sixty-three|63/i,               'astralites'],
+  ['the 21 types',         /twenty-one|21 [Tt]ypes|ULTIMATE/, 'types'],
+  ['the Novarian Challenge', /Novarian|Novarius/i,          'novarian'],
+  ['how the story begins', /HOW IT BEGINS/i,                'story'],
+];
+for (const [label, re_, id] of WANT){
+  ok(re_.test(text), `${label} is covered`);
+  ok(new RegExp(`<section id="${id}"`).test(raw), `  …as <section id="${id}">`);
+}
 
-H('★★ THE PRISMSHARD · canon says it is not made, and Kelthor does not give one');
-ok(!/deliberately crafted/i.test(mb), 'the book no longer calls Prismshards "deliberately crafted"');
-ok(/A PRISMSHARD IS NOT MADE/i.test(mb), 'it states the canon lock outright');
-ok(!/prismshardOwned = true/.test(game), 'and the build no longer grants one on the ladder');
-ok(/remnant trace/i.test(mb), 'the Mealux is described as a remnant trace, which is the canon wording');
+H('★★★ SPOILER SWEEP · none of this may appear, at any depth');
+// Names, twists and endgame content.  Each entry is something a reader should
+// meet inside the game, in the order the game chose.
+const SPOIL = {
+  'Oatheus': 'which of the ten seats is empty',
+  'Empty Throne': 'the endgame trigger',
+  'Key of Anciuxor': 'the Tier IV Prism',
+  'Bridge of Hope': 'where the two paths converge',
+  'Xenoxil': 'what the Seers are actually for',
+  'Mothergem': 'the shape of the catastrophe',
+  'Prismshard': 'the endgame relic class',
+  'Kelthor': 'the tutorial mentor by name',
+  'Elarion': 'an NPC by name',
+  'Scrapjaw': 'an NPC by name',
+  'Zurelea': 'an NPC by name',
+  'Rakoron': 'a Gemlord by name',
+  'Mealux': 'a hidden species',
+  'Dracolord': 'endgame beings',
+  'Luminary': 'a late-game form',
+  'Zoryn': 'the rival',
+  'Omniris': 'a district elder',
+  'Vorugath': 'a miniboss',
+  'Rubypaw': 'a weapon line',
+};
+let leaks = 0;
+for (const [k, why] of Object.entries(SPOIL))
+  if (new RegExp(k, 'i').test(text)){ ok(false, `${k} appears — ${why}`); leaks++; }
+ok(leaks === 0, leaks ? `${leaks} spoiler(s) leaked` : 'nothing from the blocklist appears');
 
-H('★★ THE ZYSPHERE · four tiers became one');
-ok(!/Void Zysphere|Ultra Zysphere|Silver Zysphere/i.test(mb), 'no tiered spheres remain in the book');
-ok(!/sync power/i.test(mb), 'and no "sync power" multiplier — the build has no such field');
-ok(!/syncPower/.test(game), '…confirmed: syncPower does not exist in the build');
-ok(/ONE KIND OF ZYSPHERE/i.test(mb), 'the book states the one-sphere lock');
-ok(/merchant/i.test(mb), "and uses the game's own in-world explanation for the old names");
+H('★★ NO MECHANICS · a price or a percentage is a promise that goes stale');
+ok(!/<table/.test(raw), 'no tables at all');
+ok(!/¢\d/.test(text), 'no currency figures');
+ok(!/\b\d+%/.test(text), 'no percentages');
+ok(!/Lv ?\d+|R\.Lv/.test(text), 'no level gates');
+ok(!/floor\(|clamp\(|×\s?\d|baseAtk/.test(text), 'no formulas');
+ok(!/durability|multiplier|sync power|sphere tier/i.test(text), 'no tuning vocabulary');
 
-H('★ THE VERSION TAG still matches the build');
-const mbV = (mb.match(/BETA V(\d+)\.(\d+)\.(\d+)/) || []).slice(1).join('.');
-const gV = (game.match(/AOV_BUILD = \{ game: (\d+), gamedex: (\d+), codex: (\d+)/) || []).slice(1).join('.');
-ok(mbV === gV, `book ${mbV} = build ${gV}`);
+H('★ IT SHOULD READ LIKE AN INVITATION');
+const words = text.trim().split(/\s+/).length;
+ok(words > 900 && words < 3000, `${words} words — long enough to seduce, short enough to finish`);
+ok(/Go and find out/i.test(text), 'it ends by pointing at the game');
+ok(/WHAT WE ARE NOT GOING TO TELL YOU/i.test(text), '★ and it says out loud that it is withholding — which is the hook');
 
-H('★ claims that are still TRUE and must stay that way');
-ok(/[Tt]en [Dd]istricts/.test(mb), 'ten districts');
-ok(/five statuses|5 statuses/i.test(mb), 'five statuses');
-ok(/21st|21 types/.test(mb), '21 types incl. ULTIMATE');
+H('★ THE SHELL STILL WORKS');
+const ids = [...raw.matchAll(/<section id="([^"]+)"/g)].map(m => m[1]);
+const navs = [...raw.matchAll(/<a href="#([^"]+)"/g)].map(m => m[1]);
+ok(navs.every(n => ids.includes(n)), 'every nav link points at a real section');
+ok(ids.every(i => navs.includes(i)), 'every section has a nav entry');
+const styles = (raw.match(/<style[\s\S]*?<\/style>/g) || []).join('\n');
+const cls = new Set([...raw.matchAll(/class="([^"]+)"/g)].flatMap(m => m[1].split(/\s+/)));
+const unstyled = [...cls].filter(c => c && !new RegExp('\\.' + c + '\\b').test(styles));
+ok(unstyled.length === 0, unstyled.length ? `classes with no CSS: ${unstyled.join(', ')}` : 'every class used has a rule');
+ok(!/PATCH 0\.\d+\.\d+/.test(text), 'no patch number — it moves every build');
+const mbV = (text.match(/BETA V(\d+\.\d+\.\d+)/) || [])[1];
+const gV = (game.match(/game: (\d+), gamedex: (\d+), codex: (\d+)/) || []).slice(1).join('.');
+ok(mbV === gV, `version tag ${mbV} matches the build ${gV}`);
 
-H(f ? `❌ ${f} failed` : '✅ the macrobook describes the game that exists');
+H(f ? `❌ ${f} failed` : '✅ ten subjects in, everything past them out');
 process.exit(f ? 1 : 0);

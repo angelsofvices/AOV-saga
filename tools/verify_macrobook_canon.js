@@ -15,7 +15,11 @@
 const fs = require('fs');
 const ROOT = '/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
 const mbRaw = fs.readFileSync(ROOT + 'macrobook.html', 'utf8');
-const mb = mbRaw.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');
+// ★ v0.96.78 · STRIP <style> AND <script> FIRST.  Measuring this file without
+//   doing so counts every rgba() and z-index as prose, which made an early
+//   numeral metric in this session meaningless — it reported 648 'numerals in
+//   the book' when most were CSS.
+const mb = mbRaw.replace(/<style[\s\S]*?<\/style>/g,' ').replace(/<script[\s\S]*?<\/script>/g,' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');
 const game = fs.readFileSync('/tmp/all.js', 'utf8');
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
@@ -27,11 +31,18 @@ const n = (rungs.match(/key:'s\d+'/g) || []).length;
 ok(n === 13, `the build has ${n} rungs`);
 ok(!/eight steps/i.test(mb), 'the book no longer says "eight steps"');
 ok(/thirteen rungs/i.test(mb), 'it says thirteen rungs');
+ok(!/sphere tiers|sync power/i.test(mb), '★ and nothing still claims spheres have tiers');
 ok(!/gates on level/i.test(mb), '★ and it no longer claims the rungs gate on LEVEL');
 ok(/NOT A LEVEL GATE/i.test(mb), 'it says so explicitly — the ladder asks what you have DONE');
-// the rung table must name what the game actually asks for
-for (const who of ['Scrapjaw','Kaizari','Rein','Zurelea','Orren','RAKORON','Soulphish'])
-  ok(new RegExp(who, 'i').test(mb), `rung table names ${who}`);
+// ★ v0.96.78 · THE RUNG TABLE IS GONE ON PURPOSE.  The Creator: "I dont want so
+//   much explanations because things can change" — and a thirteen-row step list
+//   is the definition of a thing that changes.  What must survive is the SHAPE
+//   (three ladders) and the five names, which are canon.
+ok(!/<td class="num-c">13<\/td>/.test(mbRaw), 'no thirteen-row rung table');
+for (const who of ['Scrapjaw','Kaizari','Rein','Zurelea','Orren'])
+  ok(new RegExp(who, 'i').test(mb), `Ladder II still names ${who}`);
+ok(/three ladders/i.test(mb), 'and the three-ladder shape is stated');
+ok(!/eight bond lessons|eight steps/i.test(mb), 'no "eight" anything survives');
 ok(/R\.A\.I\.D\. card/.test(mb), 'and the R.A.I.D. card is named as the trigger');
 ok(/raidCardGifted/.test(game), '…which is what the build actually gates rung 1 on');
 

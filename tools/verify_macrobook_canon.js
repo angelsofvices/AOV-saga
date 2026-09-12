@@ -94,7 +94,17 @@ H('★ THE THREE VISUALS · tied to their sections');
 ok(/<table class="mapt"/.test(raw), 'the district map table is in PART 01');
 ok((raw.match(/<tr>/g)||[]).length >= 10, 'and it carries all ten districts');
 ok(/class="gemgrid"/.test(raw), 'the gem swatches are in PART 03');
-ok(/class="gem unknown"/.test(raw), 'with the Ninth and Tenth shown AS set apart, not invented');
+// ★★★ v0.96.83 · I HAD THIS BACKWARDS.  The suite used to assert the last two
+//   were shown as blank/withheld, because I had INFERRED they carried no colour
+//   of their own.  The Creator's reference image shows each is a BLEND.  The
+//   order is fixed in code (GEM_COLORS: red, blue, green, yellow / white,
+//   orange, purple, black), so IX mixes the first four and X the last four.
+//   ★ The blend may be SHOWN; what is in it stays spoiler-locked, which is why
+//   the two cards carry no label beyond "composite".
+ok((raw.match(/class="gem comp"/g)||[]).length === 2, 'the Ninth and Tenth are shown as two BLENDED gems');
+ok(/\.gs9\s*\{background:conic-gradient/.test(raw) && /\.gs10\s*\{background:conic-gradient/.test(raw),
+   'each blend is a real multi-hue swatch, not a placeholder');
+ok(!/no colour of their own/i.test(text), '★ and the retracted "no colour of their own" line is gone');
 // ★★ v0.96.81 · the gem section must use the RULING'S OWN approved wording —
 //   eight fundamental types plus two composites, origins guarded.
 ok(/eight Gem Types/i.test(text) && /two exceptional composite formations/i.test(text),

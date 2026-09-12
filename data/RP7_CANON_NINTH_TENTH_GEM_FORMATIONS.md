@@ -152,8 +152,37 @@ happens when it leans, and a white gem is a trace of it that never did"* — and
 counts **eight gem colours**. Eight colours, eight fundamental Gem Types. The two
 documents were agreeing before either of us noticed.
 
-★ **One inference, offered not asserted:** if colour alludes to astralite makeup,
-the Ninth and Tenth — convergences *of* the eight rather than any single lean —
-would have **no colour of their own**. That reads as a feature. The macrobook now
-uses it as its one permitted hint: *"The last two have no colour of their own."*
-Say the word if they should carry hues and I will revise.
+### ★★ CORRECTED · 2026-09-12 · THE COMPOSITES DO HAVE COLOUR
+
+> **Creator:** *"the 9th is a mix of the first 4 colors, the 10th is a mix of the
+> last 4 colors"* — with a reference image of all ten.
+
+**I inferred the opposite and was wrong.** Having ruled that colour alludes to
+astralite makeup, I reasoned that a convergence *of* the eight would have no
+single lean and therefore no colour, and I wrote that into the macrobook. The
+reference shows each composite as a visible **blend** — several colours answering
+at once. Retracted and corrected in the same pass.
+
+★ **The order was already fixed in code**, which is what makes "first four" and
+"last four" unambiguous rather than a reading of mine:
+
+```
+GEM_COLORS = ['red','blue','green','yellow',  'white','orange','purple','black']
+              └──────── the Ninth ────────┘   └──────── the Tenth ────────┘
+```
+
+| | blends |
+|---|---|
+| **Ninth Formation** · Oathane | red · blue · green · yellow |
+| **Tenth Formation** · Oatheus | white · orange · purple · black |
+
+This corroborates the reference exactly: the Ninth reads as a bright prismatic
+stone, the Tenth as a smoky one carrying light and dark together.
+
+### ★ SPOILER NOTE ON THE BLEND
+
+The **fact** that the last two are blends is safe publicly — it is simply what
+the gem looks like in the hand. **Which four each blends is not**, per §8. The
+macrobook therefore shows both swatches in full colour and labels them only
+"composite"; its one permitted line is that several colours answer at once.
+

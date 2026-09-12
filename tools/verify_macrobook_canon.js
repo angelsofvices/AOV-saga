@@ -52,8 +52,11 @@ H('★★★ SPOILER SWEEP · none of this may appear, at any depth');
 // Names, twists and endgame content.  Each entry is something a reader should
 // meet inside the game, in the order the game chose.
 const SPOIL = {
-  'Oatheus': 'which of the ten seats is empty',
-  'Empty Throne': 'the endgame trigger',
+  // ★ v0.96.80 · 'Rakoron' and 'Oatheus' were BLOCKED here and should not have
+  //   been: a Gemlord's NAME is setting — the ten seats have been public on the
+  //   site for years and the Creator lists gemlords as a required subject.  What
+  //   is a spoiler is the LABEL the build gives one of them, below.
+  'Empty Throne': "the build's own label for one of the ten seats — THE twist",
   'Key of Anciuxor': 'the Tier IV Prism',
   'Bridge of Hope': 'where the two paths converge',
   'Xenoxil': 'what the Seers are actually for',
@@ -63,7 +66,6 @@ const SPOIL = {
   'Elarion': 'an NPC by name',
   'Scrapjaw': 'an NPC by name',
   'Zurelea': 'an NPC by name',
-  'Rakoron': 'a Gemlord by name',
   'Mealux': 'a hidden species',
   'Dracolord': 'endgame beings',
   'Luminary': 'a late-game form',
@@ -77,8 +79,29 @@ for (const [k, why] of Object.entries(SPOIL))
   if (new RegExp(k, 'i').test(text)){ ok(false, `${k} appears — ${why}`); leaks++; }
 ok(leaks === 0, leaks ? `${leaks} spoiler(s) leaked` : 'nothing from the blocklist appears');
 
+H('★ THE THREE VISUALS · tied to their sections');
+ok(/<table class="mapt"/.test(raw), 'the district map table is in PART 01');
+ok((raw.match(/<tr>/g)||[]).length >= 10, 'and it carries all ten districts');
+ok(/class="gemgrid"/.test(raw), 'the gem swatches are in PART 03');
+ok(/class="gem unknown"/.test(raw), '★ with the two unpublished gems shown AS withheld, not invented');
+ok(/class="chipwrap"/.test(raw), 'the type chips are in PART 08');
+ok((raw.match(/class="tchip/g)||[]).length === 21, '21 chips exactly');
+// ★★ the chips must use the LOCKED canon swatches, not colours I liked
+{
+  const TC = JSON.parse(fs.readFileSync(ROOT+'data/TYPE_COLORS_V1.json','utf8')).types;
+  const used = [...raw.matchAll(/--c:(#[0-9A-Fa-f]{6})"><i><\/i>([A-Z]+)</g)]
+                 .map(m => [m[2], m[1].toUpperCase()]);
+  const wrong = used.filter(([t,c]) => {
+    const k = Object.keys(TC).find(x => x.toUpperCase() === t);
+    return !k || TC[k].toUpperCase() !== c;
+  });
+  ok(used.length === 21, `${used.length} chips read back with a colour`);
+  ok(wrong.length === 0, wrong.length ? `off-canon colours: ${wrong.map(w=>w[0]).join(', ')}`
+                                      : 'every chip matches data/TYPE_COLORS_V1.json exactly');
+}
+
 H('★★ NO MECHANICS · a price or a percentage is a promise that goes stale');
-ok(!/<table/.test(raw), 'no tables at all');
+ok(!/<th>Cost<\/th>|<th>R\.Lv|¢/.test(raw), 'no cost or level-gate columns');
 ok(!/¢\d/.test(text), 'no currency figures');
 ok(!/\b\d+%/.test(text), 'no percentages');
 ok(!/Lv ?\d+|R\.Lv/.test(text), 'no level gates');

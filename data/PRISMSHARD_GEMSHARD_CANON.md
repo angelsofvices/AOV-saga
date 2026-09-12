@@ -922,6 +922,16 @@ canon never produced, and presented them in a table as though it had.**
 
 #### ★★★ B1 · There are TEN gem types. The 504 is retracted.
 
+> ### ⚠ RECONCILED 2026-09-12 · see `RP7_CANON_NINTH_TENTH_GEM_FORMATIONS.md`
+> The count of ten stands, but the ten are **not ten peers**:
+> **eight fundamental Gem Types**, plus **two Composite Gem Formations**
+> (WORLD and SPACE) which are not natural types but higher-order convergences of
+> the eight. This section's own census already draws that line — *"8 colours
+> (the 10 gem types minus WORLD and SPACE)"* — so the substance below survives;
+> only the word *fundamental* needed pinning down.
+> ★ The World and Space Gems are **spoiler-locked**. Do not surface them in
+> public-facing copy.
+
 I built it as `9 families × 7 concentrations × 8 colours = 504` and called the
 result *"varieties."* **Nothing ruled that gems are identified by family.** The
 Creator's model is, and has always been, that **a gem's TYPE is its COLOUR** —

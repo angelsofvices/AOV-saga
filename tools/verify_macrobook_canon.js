@@ -57,6 +57,17 @@ const SPOIL = {
   //   site for years and the Creator lists gemlords as a required subject.  What
   //   is a spoiler is the LABEL the build gives one of them, below.
   'Empty Throne': "the build's own label for one of the ten seats — THE twist",
+  // ★★★ v0.96.81 · THE NINTH/TENTH COSMOLOGY RULING.  Its own §8 lists exactly
+  //   what may never appear publicly, and this is that list, enforced.
+  'Egnellahc': 'who made the Ninth and Tenth formations',
+  'Ultharis': 'who he was brought before',
+  'Third Dimension': 'where he was taken',
+  'World Gem': 'spoiler-locked · Oatheus is sworn to conceal it',
+  'Space Gem': 'spoiler-locked · Oatheus is sworn to conceal it',
+  'First Four': 'what the Ninth Formation converges',
+  'Final Four': 'what the Tenth Formation converges',
+  'divided his essence': 'how Oathane and Oatheus came to exist',
+  'convergence': 'the mechanism, and why reality could not hold it',
   'Key of Anciuxor': 'the Tier IV Prism',
   'Bridge of Hope': 'where the two paths converge',
   'Xenoxil': 'what the Seers are actually for',
@@ -83,7 +94,15 @@ H('★ THE THREE VISUALS · tied to their sections');
 ok(/<table class="mapt"/.test(raw), 'the district map table is in PART 01');
 ok((raw.match(/<tr>/g)||[]).length >= 10, 'and it carries all ten districts');
 ok(/class="gemgrid"/.test(raw), 'the gem swatches are in PART 03');
-ok(/class="gem unknown"/.test(raw), '★ with the two unpublished gems shown AS withheld, not invented');
+ok(/class="gem unknown"/.test(raw), 'with the Ninth and Tenth shown AS set apart, not invented');
+// ★★ v0.96.81 · the gem section must use the RULING'S OWN approved wording —
+//   eight fundamental types plus two composites, origins guarded.
+ok(/eight Gem Types/i.test(text) && /two exceptional composite formations/i.test(text),
+   '★ it states eight fundamental types + two composite formations');
+ok(/do not share the same origin as the first eight/i.test(text),
+   '★ and that the final two differ in origin — the one hint the ruling allows');
+ok(!/ten fundamental|ten natural|shattered into ten/i.test(text),
+   'and never claims ten natural types');
 ok(/class="chipwrap"/.test(raw), 'the type chips are in PART 08');
 ok((raw.match(/class="tchip/g)||[]).length === 21, '21 chips exactly');
 // ★★ the chips must use the LOCKED canon swatches, not colours I liked

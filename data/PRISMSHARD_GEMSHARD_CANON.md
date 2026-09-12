@@ -931,6 +931,14 @@ canon never produced, and presented them in a table as though it had.**
 > only the word *fundamental* needed pinning down.
 > ★ The World and Space Gems are **spoiler-locked**. Do not surface them in
 > public-facing copy.
+>
+> ★★ **And what a colour IS, ruled 2026-09-12:** *"a gems color just alludes to
+> its astralite makeup and the color theory of the saga."*  So "TYPE = COLOUR"
+> below is not overturned — it is explained.  Colour is not the taxonomic
+> identity; it is the ALLUSION by which you read what astralite is inside.
+> That is why naming a gem by its hue works, and why it never conflicted with
+> COLOUR ⊥ FAMILY in `GEM_COLOR_PSYCHOLOGY_CANON.md` — which independently
+> counts EIGHT gem colours, matching the eight fundamental types exactly.
 
 I built it as `9 families × 7 concentrations × 8 colours = 504` and called the
 result *"varieties."* **Nothing ruled that gems are identified by family.** The

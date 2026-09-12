@@ -124,23 +124,36 @@ the **World and Space Gems** · Oatheus's duty to conceal them.
 |---|---|---|
 | `zyraxis.html` | public copy: *"the Mothergem … shattered … From its fragments rose ten divine Gemlords"*, and *"whoever gathers all ten [shards]"* | **revised** per §1 |
 | `zyraxis.html` | public copy: *"Two of the original ten Gemlords — Oathane and Oatheus — vanished"* | **revised** — they were not "original" in the same sense, and the disappearance framing sits next to the division, which §8 forbids publicly |
-| `data/PRISMSHARD_GEMSHARD_CANON.md` | *"There are TEN gem types … eight hues plus WORLD and SPACE"* | **terminology reconciled**; its census already separated the 8 colours from World/Space, so the substance survives ★ see the open question below |
+| `data/PRISMSHARD_GEMSHARD_CANON.md` | *"There are TEN gem types … eight hues plus WORLD and SPACE"* | **terminology reconciled**; its census already separated the 8 colours from World/Space, and the colour ruling below explains why "TYPE = COLOUR" was never in conflict |
 | `macrobook.html` | gem visual said "eight named, two not published" | **replaced** with the §8 approved wording |
 | `rp7b.html` | its "shatter" references are astralite **stones**, not the Mothergem | no change — and §6 forbids gameplay changes anyway |
 | `backups/2026-05-20_*/cardmaster.html` | contains **Oathare** | left alone — a dated snapshot is history, not live copy |
 
-### ★ OPEN QUESTION FOR THE CREATOR
+### ★ ANSWERED · 2026-09-12
 
-`PRISMSHARD_GEMSHARD_CANON.md` records a ruling that **"a gem's TYPE is its
-COLOUR"** and quotes you directly: *"the 10 gem types and the colored gems are
-synonymous."* That doc counts **10 gem types**.
+> **Creator:** *"1. Oathane is the name. 2. a gems color just alludes to its
+> astralite makeup and the color theory of the saga."*
 
-This ruling says **8 are fundamental** and two are composites. The two documents
-reconcile cleanly if the sentence becomes *"ten gem types: eight fundamental
-colours, plus the two Composite Formations"* — which is exactly how that doc's
-own census already breaks it down (*"8 colours (the 10 gem types minus WORLD and
-SPACE)"*).
+**1 · Naming.** `Oathane` confirmed; `Oathare` stays obsolete. The only surviving
+occurrence in the repo is inside a dated backup snapshot — history, left alone.
 
-I have applied that reading. **If you meant the census to stay at a flat ten with
-no fundamental/composite distinction, say so and I will re-cut it** — I did not
-want to silently redefine a number you locked by quote.
+**2 · What a colour IS.** This dissolves the apparent conflict rather than
+choosing a side. Colour was never the gem's taxonomic identity — it is an
+**allusion**, pointing at two things at once: the gem's **astralite makeup**, and
+the saga's own **colour theory**.
+
+So `PRISMSHARD_GEMSHARD_CANON.md`'s *"a gem's TYPE is its COLOUR"* is not
+overturned, it is explained: colour is how you read what is inside. That is also
+why it never contradicted the COLOUR ⊥ FAMILY rule in the colour-theory doc.
+
+★★ **And it closes the count.** `GEM_COLOR_PSYCHOLOGY_CANON.md` already records,
+from an earlier ruling: *"Aethryx is the light, the 63 Astralites are what
+happens when it leans, and a white gem is a trace of it that never did"* — and it
+counts **eight gem colours**. Eight colours, eight fundamental Gem Types. The two
+documents were agreeing before either of us noticed.
+
+★ **One inference, offered not asserted:** if colour alludes to astralite makeup,
+the Ninth and Tenth — convergences *of* the eight rather than any single lean —
+would have **no colour of their own**. That reads as a feature. The macrobook now
+uses it as its one permitted hint: *"The last two have no colour of their own."*
+Say the word if they should carry hues and I will revise.

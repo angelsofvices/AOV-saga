@@ -22539,6 +22539,8 @@ function deployFieldStation(){
     player.camps = player.camps || {};
     player.camps[dist] = { x: sited[0], y: sited[1], at: Date.now() };
   }
+  // ★★★ v0.96.87 · and the record the SAVE reads back (see restoreFieldStation)
+  player.fieldCamp = { x: sited[0], y: sited[1], hp: FS_MAX_HP, dist: dist || null };
   try { playSFX('confirm'); } catch(_){}
   showToast(`◈ FIELD CAMP · ${String(dist || '').toUpperCase()} · X to craft · SQUARE to pack up`, 4000);
   return prop;
@@ -22564,9 +22566,10 @@ function fieldStationUse(prop){
     showToast('◈ Still setting up...', 1600);
     return;
   }
-  // ★ swap to the crafting pose while the panel is open · the art has a frame
-  //   for exactly this and it costs one assignment to use it
-  _fsApplyFrame(prop, 'crafting');
+  // ★ swap to the working pose while the panel is open · the art has frames for
+  //   exactly this.  v0.96.87 · which pose depends on the tab — `crafting` for
+  //   the recipe bench, `scanning` for the Astralite Matrix.
+  _fsApplyFrame(prop, game.expPanelTab === 'matrix' ? 'scanning' : 'crafting');
   // ★ v0.96.30 · a save that already knew the bench never heard Noot say this,
   //   so the bench itself back-fills. Idempotent — grantHarvestRecipes skips
   //   anything already known.
@@ -22591,6 +22594,43 @@ function _fsRemove(prop){
   const i = WORLD_PROPS.indexOf(prop);
   if (i >= 0) WORLD_PROPS.splice(i, 1);
   try { invalidatePropGrid(); } catch(_){}
+  player.fieldCamp = null;      // ★ v0.96.87 · nothing is standing any more
+}
+// ★★★ v0.96.87 · PUT THE CAMP BACK WHERE YOU LEFT IT.
+//
+//   loadGame() rebuilds the overworld from the prop tables and then calls the
+//   restorers — restoreLootedChests, restoreScrapDrops, restoreWeaponDrops.
+//   There was no restorer for this, so the one thing you carry INTO the wild
+//   was the one thing a save could not hold.
+//
+//   ★ It comes back DEPLOYED, not packed, and that is deliberate.  The
+//     Creator's rule is that a station left standing is exposed and a station
+//     in the case is safe.  Handing it back stowed would quietly convert
+//     "I left my bench out overnight" into free insurance, and delete the only
+//     stake the feature has.  It also comes back at the HP it had.
+function restoreFieldStation(){
+  const c = player.fieldCamp;
+  if (!c || typeof WORLD_PROPS === 'undefined') return 0;
+  // the rebuild may already have dropped one in; never end up with two
+  for (let i = WORLD_PROPS.length - 1; i >= 0; i--)
+    if (WORLD_PROPS[i] && WORLD_PROPS[i]._fieldStation) WORLD_PROPS.splice(i, 1);
+  const prop = {
+    id: `field_station_${c.x},${c.y}`,
+    _fieldStation: true,
+    _fsHp: Math.max(1, c.hp || FS_MAX_HP), _fsHpMax: FS_MAX_HP,
+    _fsDist: c.dist || null,
+    _fsSeq: [], _fsSeqAt: 0,          // ★ already up · do NOT replay the unfold
+    tileX: c.x, tileY: c.y,
+    footprint: [[0, 0]],
+    door: [0, 0], _pressOnlyDoor: true,
+    onInteract(){ fieldStationUse(prop); },
+    onSquare(){ packFieldStation(prop); },
+  };
+  _fsApplyFrame(prop, 'deployed');
+  WORLD_PROPS.push(prop);
+  try { registerPropCollision(prop); } catch(_){}
+  try { invalidatePropGrid(); } catch(_){}
+  return 1;
 }
 function _fsFinishPack(prop){
   _fsRemove(prop);
@@ -22609,6 +22649,9 @@ function damageFieldStation(dmg, by){
   if (!prop) return false;
   prop._fsHp = Math.max(0, (prop._fsHp || 0) - (dmg || 1));
   prop._fsHitAt = performance.now();
+  // ★ v0.96.87 · a save taken mid-raid has to remember the damage, or reloading
+  //   at 5 HP is a full repair and the raid never happened.
+  if (player.fieldCamp) player.fieldCamp.hp = prop._fsHp;
   try { spawnHitFx(prop.tileX, prop.tileY, 'kick'); } catch(_){}
   if (prop._fsHp > 0){
     if (!prop._fsWarned && prop._fsHp <= prop._fsHpMax * 0.5){
@@ -28693,7 +28736,21 @@ function setExperimentTab(tab){
     return;
   }
   game.expPanelTab=tab==='matrix'?'matrix':'recipes';
+  // ★★ v0.96.87 · and the bench in the field changes its pose with the tab.
+  //   The `scanning` frame was delivered and never drawn: it shows a gem up on
+  //   the pedestal under a live waveform readout, which is the Astralite Matrix
+  //   and nothing else.  `crafting` shows tools out and the drawer open, which
+  //   is the recipe bench.  The art already made this distinction; the code
+  //   just wasn't asking.
+  try { fieldStationPose(); } catch(_){}
   openExperimentPanel(true);
+}
+// ★ one place decides which working pose a deployed station is holding.
+function fieldStationPose(){
+  const prop = (typeof deployedFieldStation === 'function') ? deployedFieldStation() : null;
+  if (!prop || (prop._fsSeq && prop._fsSeq.length)) return;
+  if (prop._fsFrame !== 'crafting' && prop._fsFrame !== 'scanning') return;  // not in use
+  _fsApplyFrame(prop, game.expPanelTab === 'matrix' ? 'scanning' : 'crafting');
 }
 function styleExperimentTabs(){
   const matrix=game.expPanelTab==='matrix';
@@ -28850,6 +28907,17 @@ function closeExperimentPanel(){
   const p = document.getElementById('expPanel');
   if (p) p.style.display = 'none';
   game.expPanelOpen = false;
+  // ★★ v0.96.87 · and the bench stands back up.  fieldStationUse() struck the
+  //   working pose and nothing ever undid it, so a station stayed hunched over
+  //   its open drawer for the rest of the save — tools out, forever, including
+  //   while Mori were beating on it.  The pose is a STATE, so it needs a way
+  //   back out of it, not just a way in.
+  try {
+    const prop = deployedFieldStation();
+    if (prop && !(prop._fsSeq && prop._fsSeq.length) &&
+        (prop._fsFrame === 'crafting' || prop._fsFrame === 'scanning'))
+      _fsApplyFrame(prop, 'deployed');
+  } catch(_){}
   playSFX('menuClose');
 }
 
@@ -38893,7 +38961,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.86' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.87' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45721,6 +45789,14 @@ function saveGame(){
         // session toy: the deeds survived a reload but the tier you reached,
         // the contact you housed and the perimeter you staffed did not.
         camps:         Object.assign({}, player.camps        || {}),   // ★ v0.96.12
+        // ★★★ v0.96.87 · THE STANDING STATION.  `camps` above is a breadcrumb —
+        //   where you last pitched, per district.  It was the ONLY thing saved,
+        //   and nothing read it, so a workstation that was standing when you
+        //   saved came back as neither a prop nor an item: the case was already
+        //   spent, and loadGame rebuilds the world without it.  Saving at camp
+        //   silently destroyed 20 scrap and Noot's lesson.
+        //   This is the live one, and restoreFieldStation() reads it.
+        fieldCamp:     player.fieldCamp ? Object.assign({}, player.fieldCamp) : null,
         nootTaughtBench:    !!player.nootTaughtBench,      // ★ v0.96.14
         nootRaygunReturned: !!player.nootRaygunReturned,
         raygunChestOpened:  !!player.raygunChestOpened,
@@ -46277,6 +46353,7 @@ function loadGame(){
     // ★ v0.95.772 · put the un-swept scrap piles back where they lay
     try { restoreScrapDrops(); } catch(_){}
     try { restoreWeaponDrops(); } catch(_){}   // ★ v0.95.776
+    try { restoreFieldStation(); } catch(_){}  // ★ v0.96.87 · the camp you left standing
     if (!Array.isArray(player.pcZyrex)) player.pcZyrex = [];   // v0.95.536 · back-compat default
     // ★★ v0.95.875 · sanctuary residents get the default but are DELIBERATELY
     // not run through migrateSavedZyrex below.  That pass EVICTS any Zyrex

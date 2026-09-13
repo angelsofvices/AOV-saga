@@ -74,3 +74,54 @@ def resize_and_key(pil, target, chroma_rgb=(255, 0, 255)):
     core = is_chroma(r, g, b) & (al > 0)
     arr[core] = [0, 0, 0, 0]
     return Image.fromarray(arr, 'RGBA')
+
+
+def kill_enclosed_chroma(pil, min_blob=4):
+    """★★★ Remove TRUE chroma that the border flood could not reach.
+
+    flood_key() walks in from the four corners, which is the canon rule and the
+    right default: it is what guarantees the keyer can never wander into the
+    art.  But it has one blind spot, and a fire dragon found it.
+
+    Volcaxor's attack sweeps a crescent of flame that CLOSES INTO A RING.  The
+    studio background inside that ring touches no corner, so the flood never
+    arrives, and 9,762 pixels of pure magenta shipped inside the sprite — a
+    bright pink hole in the middle of the effect.
+
+    ★ This is not the interior-hole case that erased the Dracolords
+      ([[aov-defringe-border-reachable]]).  That rule is about ALPHA holes after
+      keying, where transparency means damage.  This is about COLOUR: pixels
+      that still test as studio chroma.  The two are opposites and must not be
+      confused — one says "do not seed from a hole", this one says "a hole that
+      is still bright magenta was never art".
+
+    ★ Safe because is_chroma is strict.  On Volcaxor the survivors averaged
+      RGB (238, 28, 236) against an art mean of (117, 68, 56); not one art
+      pixel passed the test.  `min_blob` is belt and braces for single-pixel
+      speckle that might be a highlight.
+
+    resize_and_key() has always done this as its step 5.  It was never callable
+    on its own, so every sheet that did not need resizing went without it.
+    """
+    arr = np.array(pil.convert('RGBA'))
+    r, g, b, al = arr[..., 0], arr[..., 1], arr[..., 2], arr[..., 3]
+    hit = is_chroma(r, g, b) & (al > 0)
+    if min_blob > 1:
+        H, W = hit.shape
+        seen = np.zeros((H, W), bool)
+        ys, xs = np.nonzero(hit)
+        for sy, sx in zip(ys, xs):
+            if seen[sy, sx]:
+                continue
+            dq = deque([(sy, sx)]); seen[sy, sx] = True; px = []
+            while dq:
+                y, x = dq.popleft(); px.append((y, x))
+                for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < H and 0 <= nx < W and not seen[ny, nx] and hit[ny, nx]:
+                        seen[ny, nx] = True; dq.append((ny, nx))
+            if len(px) < min_blob:
+                for y, x in px:
+                    hit[y, x] = False
+    arr[hit] = [0, 0, 0, 0]
+    return Image.fromarray(arr, 'RGBA'), int(hit.sum())

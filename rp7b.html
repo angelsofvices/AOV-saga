@@ -11388,37 +11388,19 @@ const NPCS = [
           }
         }});
       } else {
-        // v0.95.592 · Graduation reward gate · after all 16 classmates cleared,
-        // Elarion grants 16 Zyspheres (once).  Requires at least one Zyrex.
+        // ★★★ v0.96.89 · THE GRADUATION REWARD IS RETIRED, by directive.
+        //
+        //   It paid 16 Zyspheres for beating all 16 classmates in turn-based
+        //   practice matches. Turn-based left the overworld, the class left the
+        //   classroom, and a reward gated on a verb that no longer exists is not
+        //   a reward — it is an unreachable promise sitting in the build.
+        //
+        // ★ WHAT IS NOT TOUCHED: `player.academyZyspheresGifted`. Any save that
+        //   already collected those 16 keeps them, and the flag keeps that save
+        //   from ever being re-offered. Retiring a reward must never reach back
+        //   and take one.
         player.stats = player.stats || {};
-        player.stats.schoolBeaten = player.stats.schoolBeaten || {};
-        const cleared = Object.keys(player.stats.schoolBeaten).filter(k => k.startsWith('school_student_')).length;
-        if (cleared >= 16 && !player.academyZyspheresGifted){
-          const alive = (player.party || []).filter(z => z && z.hp > 0);
-          if (alive.length === 0){
-            showDialog({ speaker: 'PROFESSOR ELARION', lines: [
-              '*peers over his spectacles*  You cleared the class · but you carry no Zyrex today.',
-              'Bring a partner with you when you come back · I have your graduation package waiting.',
-            ]});
-            try { playSFX('doorLock'); } catch(_){}
-            return;
-          }
-          player.academyZyspheresGifted = true;
-          player.items = player.items || {};
-          player.items.zysphere = (player.items.zysphere || 0) + 16;
-          try { playSFX('confirm'); } catch(_){}
-          try { playItemGain('zysphere'); } catch(_){}
-          try { awardRizerXP(400); } catch(_){}
-          try { pingNextObjective(); } catch(_){}
-          showDialog({ speaker: 'PROFESSOR ELARION', lines: [
-            '*eyes light up · a slow smile*  All sixteen · cleared.  Well done, Rizer.',
-            '*produces a small case of shimmering orbs*  Sixteen Zyspheres · one for every classmate you outlasted.',
-            'A Zysphere binds a wild Zyrex to your faction · but the bond must first be earned.  Talk to a wild Zyrex out in the world · if your Rizer Bond is strong enough, throw a Sphere and see if they accept you.',
-            '*hands you the case*  Go find your team, young Rizer.  The Academy is proud.',
-          ]});
-          try { showToast('★ ACADEMY GRADUATED · +16 Zyspheres from Prof Elarion', 5200); } catch(_){}
-          return;
-        }
+        const found = (typeof classmatesFound === 'function') ? classmatesFound() : 0;
         if (player.academyZyspheresGifted){
           showDialog({ speaker: 'PROFESSOR ELARION', lines: [
             '*small nod*  Wear your R.A.I.D. proudly, graduate.',
@@ -11428,9 +11410,11 @@ const NPCS = [
         }
         showDialog({ speaker: 'PROFESSOR ELARION', lines: [
           '*adjusts spectacles*  Keep your R.A.I.D. close, young Rizer.',
-          cleared > 0
-            ? `Sixteen classmates in there · you have cleared ${cleared}.  Beat them all · come see me for your Zyspheres.`
-            : 'The Academy is open to you now · step inside · challenge every classmate · then return.',
+          '*glances at the empty Academy steps*  You will not find your year in there.  Sixteen R.A.I.D.s went out the same morning yours did, and sixteen of them kept walking.',
+          found > 0
+            ? `You have crossed paths with ${found} of the sixteen already.  Good.  A road is easier with a face you know on it.`
+            : 'They are out on the planet now · every one of them somewhere different.  You will run into them.  That is rather the point.',
+          'Come back when you have a reason to.  The building is not finished with you yet.',
         ]});
       }
     },
@@ -12675,31 +12659,201 @@ const NPCS = [
       const [bx, by, bw, bh] = p.bbox;
       p.staticBBox = [col * 313 + bx, row * 313 + by, bw, bh];
     });
-    // v0.95.600 · 16 students in a 30×24 classroom · 4 rows of 4 desks
-    //   cols spread wide (5, 12, 19, 26) · rows step forward from wall (9, 12, 15, 18)
-    //   Difficulty curve reads back-row easiest → front-row hardest.
+    // ★★★ v0.96.89 · THE CLASS SCATTERED. THEY ALL GOT THEIR R.A.I.D. THAT DAY TOO.
+    //
+    //   Creator: "lets place them in different parts of the planet. all 16 of
+    //   them spread out so rizer can have familiar faces along the journey …
+    //   no sparring for now, just an encounter and dialogue of each classmate."
+    //
+    // ★★ WHY THIS IS A FIX AND NOT JUST A MOVE. Sixteen classmates sat at
+    //   sixteen desks waiting to be turn-battled — and turn-based is retired
+    //   outside Faction v Faction. So the room held sixteen NPCs whose only
+    //   verb no longer exists. Worse, it made Rizer the only graduate in his
+    //   year who went anywhere: everyone else got the same R.A.I.D. on the same
+    //   day and then, apparently, sat down.
+    //   Scattering them costs nothing and buys the thing a long journey most
+    //   needs — SOMEONE YOU ALREADY KNOW, four districts from home.
+    //
+    // ★ Placement is NOT eyeballed. Each anchor below was produced by running
+    //   the game's own `_worldDistrictAtUncached` over a spiral from each
+    //   district centre and keeping only tiles at least 8 clear of any coast or
+    //   border buffer. The exact tile is then settled at boot against the real
+    //   `walkable()` (see settleClassmates) so nobody stands in a town hall.
+    //
+    // ★ Order tracks the old back-row→front-row difficulty curve onto district
+    //   progression, so the classmates you used to beat first are the ones you
+    //   meet first. `species` is kept: it is their partner Zyrex, it is what
+    //   they talk about, and it is what they will spar with when hand-to-hand
+    //   and faction-v-faction land.
     const STUDENTS = [
-      // Back row · easiest
-      { name:'Kaelith',  tx: 5, ty: 9,  portrait: 0, species:'aetherwing',  level: 4 },
-      { name:'Yuma',     tx:12, ty: 9,  portrait: 1, species:'aurarat',     level: 4 },
-      { name:'Talia',    tx:19, ty: 9,  portrait: 2, species:'sandskitter', level: 5 },
-      { name:'Bren',     tx:26, ty: 9,  portrait: 3, species:'cinderant',   level: 5 },
-      // Row 2
-      { name:'Odri',     tx: 5, ty:12, portrait: 4, species:'dunestinger', level: 6 },
-      { name:'Rin',      tx:12, ty:12, portrait: 5, species:'frosane',     level: 6 },
-      { name:'Vex',      tx:19, ty:12, portrait: 6, species:'aetherwing',  level: 7 },
-      { name:'Marko',    tx:26, ty:12, portrait: 7, species:'aurarat',     level: 7 },
-      // Row 3
-      { name:'Solen',    tx: 5, ty:15, portrait: 8, species:'cinderant',   level: 8 },
-      { name:'Cirri',    tx:12, ty:15, portrait: 9, species:'dunestinger', level: 8 },
-      { name:'Zev',      tx:19, ty:15, portrait:10, species:'frosane',     level: 9 },
-      { name:'Nova',     tx:26, ty:15, portrait:11, species:'sandskitter', level: 9 },
-      // Front row · hardest classmates
-      { name:'Rhyven',   tx: 5, ty:18, portrait:12, species:'aetherwing',  level:10 },
-      { name:'Ando',     tx:12, ty:18, portrait:13, species:'aurarat',     level:10 },
-      { name:'Lyra',     tx:19, ty:18, portrait:14, species:'cinderant',   level:11 },
-      { name:'Kestra',   tx:26, ty:18, portrait:15, species:'dunestinger', level:11 },
+      { name:'Kaelith', portrait: 0, species:'aetherwing',  district:'malezor',   tx: 58, ty:103,
+        met:[ "*startles, then laughs*  Rizer!  I thought you were a Mori.",
+              "*taps the R.A.I.D. on her collar*  Same day as you.  Elarion barely finished the sentence before I was out the gate.",
+              "My Aetherwing maps better than I do — we're charting the wild arm, tile by tile.",
+              "*already walking backwards*  Find me when you've been somewhere.  I want to hear it." ],
+        back:[ "*doesn't look up from her notes*  Two more ridges and this map is finished.",
+               "Go be interesting, Rizer.  I'll still be here." ] },
+      { name:'Yuma',    portrait: 1, species:'aurarat',     district:'malezor',   tx: 93, ty:103,
+        met:[ "*sitting on his pack at the roadside*  Oh.  Hey.",
+              "I've been looking at this road for about an hour.  It just keeps going.",
+              "*scratches his Aurarat's ears*  Everyone else left already.  Kaelith left RUNNING.",
+              "*stands up, decides something*  …No, you're right.  Okay.  See you out there." ],
+        back:[ "*a little further down the road each time*  Still going.  Slowly.",
+               "Don't tell Kaelith how long it took me." ] },
+      { name:'Talia',   portrait: 2, species:'sandskitter', district:'zarvane',   tx:112, ty:278,
+        met:[ "*shading her eyes*  I KNEW that was you.  Nobody else walks like that.",
+              "Zarvane.  Because everyone said don't, and I wanted to know why.",
+              "*her Sandskitter burrows and resurfaces*  She's happier here than she ever was at a desk.",
+              "There's an elder out past the oasis who supposedly sees things.  I'm going to go be annoying at him." ],
+        back:[ "*grinning through cracked lips*  Still hot.  Still worth it.",
+               "The elder still won't talk to me.  I'm wearing him down." ] },
+      { name:'Bren',    portrait: 3, species:'cinderant',   district:'zarvane',   tx:147, ty:278,
+        met:[ "*sunburnt, furious about it*  Don't.  Say.  Anything.",
+              "I picked the desert.  I had a whole speech about why.  The speech was wrong.",
+              "*his Cinderant is thriving, obviously*  HE loves it.  He's insufferable.",
+              "*waves you off*  Go on.  I'm fine.  I'm adapting." ],
+        back:[ "*marginally less red*  I'm adapting.",
+               "Ask me again in a week." ] },
+      { name:'Odri',    portrait: 4, species:'dunestinger', district:'andrannor', tx:315, ty:325,
+        met:[ "*leaning on a wall like she owns it*  Well.  Look who made it to the city.",
+              "Andrannor's got a club I'm not old enough for.  I've been refused entry four times.",
+              "*her Dunestinger clicks impatiently*  Five, if you count today.",
+              "I'll get in.  It's a whole research project now." ],
+        back:[ "*still leaning*  Six.  But the doorman knows my name now, which is progress.",
+               "Don't look at me like that." ] },
+      { name:'Rin',     portrait: 5, species:'frosane',     district:'andrannor', tx:350, ty:325,
+        met:[ "*quietly, without turning*  You're louder than the crowd, Rizer.",
+              "I came here to watch people.  There are more of them here than anywhere.",
+              "*her Frosane sits perfectly still beside her*  We're good at not being noticed.",
+              "*finally looks at you · small smile*  I noticed YOU, though.  Straight away." ],
+        back:[ "*already knew you were coming*  Still watching.  Still learning.",
+               "You've got heavier since last time.  Your bag, I mean." ] },
+      { name:'Vex',     portrait: 6, species:'aetherwing',  district:'veridan',   tx:520, ty:255,
+        met:[ "*immediately competitive*  How many districts.  Say the number.",
+              "*narrows eyes at your answer*  …Fine.  Fine!  That's fine.",
+              "The river's the hard part.  My Aetherwing can cross it.  I can't.",
+              "*already planning*  I'll beat you to the far bank.  Watch me." ],
+        back:[ "Still can't cross it.  Don't ask.",
+               "*points at you*  The race is still on.  I've just paused it." ] },
+      { name:'Marko',   portrait: 7, species:'aurarat',     district:'veridan',   tx:555, ty:255,
+        met:[ "*lying on the bank, fishing, deeply relaxed*  Rizer!  Sit down.",
+              "Vex has been trying to cross this river for three days.  Three.",
+              "*his Aurarat is asleep on his chest*  I told him the bridge is upstream.  He didn't hear me.",
+              "*closes his eyes again*  Anyway.  Good to see you.  Take a fish." ],
+        back:[ "*same spot*  Vex still hasn't found the bridge.",
+               "I'm being patient.  It's very rewarding." ] },
+      { name:'Solen',   portrait: 8, species:'cinderant',   district:'netharion', tx:455, ty:435,
+        met:[ "*staring up, doesn't look down*  Do you see it?  There, past the third light.",
+              "Netharion reads the sky better than anywhere on Zyraxis.  So I came to read it.",
+              "*his Cinderant glows faintly in the dark*  The Astralite counts up here don't match the book.",
+              "*finally looks at you*  Sorry.  Hello!  It's really good to see a face I know." ],
+        back:[ "*still looking up*  The numbers still don't match the book.",
+               "One of us is wrong and I don't think it's the sky." ] },
+      { name:'Cirri',   portrait: 9, species:'dunestinger', district:'netharion', tx:490, ty:435,
+        met:[ "*startled, then genuinely delighted*  RIZER.  Oh, thank the gems.",
+              "I've been out here five weeks and you're the first person from home I've seen.",
+              "*composes herself*  I'm doing WELL.  I want that on record.  I'm doing very well.",
+              "*quieter*  I just miss Malezor more than I said I would." ],
+        back:[ "*brighter than last time*  Still doing well.  Still homesick.  Both can be true.",
+               "Tell me something about the road when you've got a minute." ] },
+      { name:'Zev',     portrait:10, species:'frosane',     district:'vorashil',  tx:300, ty:550,
+        met:[ "*stares*  …Vorashil.  You walked to VORASHIL.",
+              "*starts laughing*  Nobody back home thought either of us would get this far.",
+              "I heard Odri's still stuck at a door in Andrannor.  I'm never letting that go.",
+              "*claps your shoulder*  Whatever you're doing — keep doing it." ],
+        back:[ "*grinning*  Still further out than anyone expected.  Both of us.",
+               "Odri's STILL at that door.  I checked." ] },
+      { name:'Nova',    portrait:11, species:'sandskitter', district:'xilnar',    tx:420, ty:655,
+        met:[ "*sharply*  Who— oh.  Oh, it's you.  Sorry.",
+              "*lowers her guard, barely*  Xilnar does that.  You'll feel it too.",
+              "My Sandskitter won't sleep here.  Neither will I, much.",
+              "*steadier*  I'm not leaving, though.  Something's wrong in this district and I want to know what." ],
+        back:[ "*still watchful*  Still wrong.  Still here.",
+               "Don't camp in the open.  That's not advice, that's a rule." ] },
+      { name:'Rhyven',  portrait:12, species:'aetherwing',  district:'baelgor',   tx:575, ty:655,
+        met:[ "*soot to the elbows, beaming*  Rizer!  Come look at this.",
+              "Baelgor lets you WATCH them forge.  I've been at that rail six hours a day.",
+              "*his Aetherwing has a fresh burn-scar and seems proud of it*  We both have.",
+              "One day they'll let me hold the hammer.  That's the whole plan.  That's it." ],
+        back:[ "*more soot*  Not the hammer yet.  Closer.",
+               "They let me carry the billets now.  That counts." ] },
+      { name:'Ando',    portrait:13, species:'aurarat',     district:'baelgor',   tx:610, ty:655,
+        met:[ "*arm in a sling, cheerful about it*  Don't panic.  You should see the other one.",
+              "*grins*  There was no other one.  I fell.",
+              "They patched me up at the Baelgor infirmary.  The head nurse there — she's got your eyes, you know that?",
+              "*sobers slightly*  She was kind to me.  I thought you'd want to hear that." ],
+        back:[ "*sling gone*  Good as new.  Mostly.",
+               "Still think about that infirmary.  Good people in there." ] },
+      { name:'Lyra',    portrait:14, species:'cinderant',   district:'thardin',   tx:730, ty:655,
+        met:[ "*elbow-deep in a cracked Scanobot shell*  Hold this.  Don't drop it.",
+              "*doesn't wait*  Thardin builds these.  Nobody in Thardin will tell me HOW.",
+              "So I'm taking them apart until one of them tells me itself.",
+              "*takes the part back*  Good to see you, Rizer.  Come back when I've got it open." ],
+        back:[ "*deeper into a different shell*  Closer.  It's a gatelock, I'm sure of it.",
+               "Still nobody's told me anything.  Still taking them apart." ] },
+      { name:'Kestra',  portrait:15, species:'dunestinger', district:'korathen',  tx:895, ty:655,
+        met:[ "*doesn't seem surprised at all*  I wondered which of us would get here first.",
+              "*looks out over Korathen*  It was always going to be you or me.  Everyone knew that.",
+              "The Challenge convenes out there, eventually.  I intend to be standing in it.",
+              "*offers a hand*  When we meet properly — and we will — don't go easy.  I'd hate that most." ],
+        back:[ "*still watching the far end of the district*  Still waiting.  Still training.",
+               "Don't be late, Rizer." ] },
     ];
+    // ★★★ v0.96.89 · THE ANCHOR PICKS THE NEIGHBOURHOOD · walkable() PICKS THE TILE.
+    //
+    //   The offline sweep proved each anchor is land, in the right district, and
+    //   clear of the coast. What it CANNOT know is what got built there since —
+    //   a town hall, a shop footprint, a boulder, another NPC. Only the running
+    //   game knows that, because only the running game has `walkable()`.
+    //
+    // ★ So placement is two-stage, and the second stage is the authoritative
+    //   one. This is the same lesson as every sprite bbox in this file: measure
+    //   offline to get close, then let the thing that actually renders decide.
+    //   Runs ONCE, on the first frame after the world exists, then never again.
+    let _classmatesSettled = false;
+    window.settleClassmates = function settleClassmates(){
+      if (_classmatesSettled) return 0;
+      if (typeof walkable !== 'function' || typeof NPCS === 'undefined') return 0;
+      if (game.scene !== 'overworld') return 0;     // walkable() reads game.scene
+      _classmatesSettled = true;
+      let moved = 0;
+      const taken = new Set();
+      for (const n of NPCS){
+        if (!n || !n._isSchoolStudent) continue;
+        const key = (x, y) => `${x},${y}`;
+        let best = null;
+        // spiral out from the anchor · first free walkable tile wins
+        search:
+        for (let r = 0; r <= 12; r++){
+          for (let dy = -r; dy <= r; dy++){
+            for (let dx = -r; dx <= r; dx++){
+              if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;   // ring only
+              const x = n.homeX + dx, y = n.homeY + dy;
+              if (taken.has(key(x, y))) continue;
+              if (!walkable(x, y)) continue;
+              best = [x, y]; break search;
+            }
+          }
+        }
+        if (!best){
+          // ★ Never silently leave someone in a wall. If twelve tiles of search
+          //   found nothing, the anchor is wrong and I want to hear about it.
+          console.warn('[rp7b] classmate has nowhere to stand:', n.id, n.name, n.homeX, n.homeY);
+          continue;
+        }
+        taken.add(key(best[0], best[1]));
+        if (best[0] !== n.tileX || best[1] !== n.tileY) moved++;
+        n.tileX = n.homeX = best[0];
+        n.tileY = n.homeY = best[1];
+      }
+      try { ensureNpcOccupancy(); } catch(_){}
+      return moved;
+    };
+    // ★ how many of the sixteen you have actually run into.
+    window.classmatesFound = function classmatesFound(){
+      const m = (player.stats && player.stats.schoolMet) || {};
+      return Object.keys(m).filter(k => k.startsWith('school_student_') && m[k]).length;
+    };
     const npcs = STUDENTS.map((s, i) => ({
       id: `school_student_${i}`,
       name: s.name,
@@ -12710,8 +12864,8 @@ const NPCS = [
       // staticSprite convention · single-frame render regardless of facing
       tileX: s.tx, tileY: s.ty,
       homeX: s.tx, homeY: s.ty,
-      homeScene: 'interior_malezor_school',
-      scene:     'interior_malezor_school',
+      homeScene: 'overworld',
+      scene:     'overworld',
       dir: 'down',
       mode: 'stationary',
       moving: false,
@@ -12720,37 +12874,28 @@ const NPCS = [
       turnToInteract: false,
       _isSchoolStudent: true,
       _studentSpecies: s.species,
-      _studentLevel:   s.level,
+      _studentDistrict: s.district,
+      // ★ v0.96.89 · NO SPARRING YET, by directive — "just an encounter and
+      //   dialogue". The battle plumbing (startTrainerBattle's schoolStudentId
+      //   option, the 'school' xpType, player.stats.schoolBeaten) is left
+      //   INTACT and unused: hand-to-hand and faction-v-faction are coming, and
+      //   ripping out working machinery you are about to need again is how a
+      //   feature gets rebuilt worse the second time.
       onInteract: (n) => {
         player.stats = player.stats || {};
-        player.stats.schoolBeaten = player.stats.schoolBeaten || {};
-        const already = !!player.stats.schoolBeaten[n.id];
-        if (already){
-          showDialog({ speaker: n.name.toUpperCase(), lines: [
-            '*bows lightly*  Good sparring earlier, Rizer.',
-            'Come back anytime · I need the reps too.',
-          ]});
+        player.stats.schoolMet = player.stats.schoolMet || {};
+        const first = !player.stats.schoolMet[n.id];
+        if (first){
+          player.stats.schoolMet[n.id] = true;
+          const found = classmatesFound();
+          try { playSFX('confirm'); } catch(_){}
+          try { awardRizerXP(40); } catch(_){}
+          showDialog({ speaker: n.name.toUpperCase(), lines: s.met, onDone: () => {
+            try { showToast(`★ CLASSMATE FOUND · ${n.name.toUpperCase()} in ${String(s.district).toUpperCase()} · ${found}/16`, 3600); } catch(_){}
+          }});
           return;
         }
-        const alive = (player.party || []).filter(z => z && z.hp > 0);
-        if (alive.length === 0){
-          showDialog({ speaker: n.name.toUpperCase(), lines: [
-            '*eyes your empty faction slots*  You cannot spar without a Zyrex partner, Rizer.',
-            'Return to Dad first · pick your starter · then we\'ll go a round.',
-          ]});
-          try { playSFX('doorLock'); } catch(_){}
-          return;
-        }
-        showDialog({ speaker: n.name.toUpperCase(), lines: [
-          `*grins*  Fellow Rizer!  My ${SPECIES[s.species]?.name || s.species} vs yours · one round.`,
-          `Lv ${s.level} · winner buys lunch.`,
-        ], onDone: () => {
-          try {
-            // v0.95.619 · win is marked INSIDE battleExecuteMove only on victory ·
-            // losing means healing up and rematching (student stays unbeaten)
-            startTrainerBattle(s.species, s.level, { schoolStudentId: n.id });
-          } catch(err){ console.warn('school battle failed', err); }
-        }});
+        showDialog({ speaker: n.name.toUpperCase(), lines: s.back });
       },
     }));
     // ── ZORYN #17 · student · graduated top of class · non-battleable ──
@@ -12774,11 +12919,14 @@ const NPCS = [
       _isSchoolStudent: false,
       _isTopOfClass: true,
       onInteract: () => {
+        // ★ v0.96.89 · his old line sent you to "beat the sixteen" in a room
+        //   they have all left. He is top of the class; he would know they had
+        //   gone before anyone.
         showDialog({ speaker: 'ZORYN', lines: [
-          '*grins at you across the desk*  Look at you · finally showing up to class.',
-          '*taps the top-of-class emblem on his sleeve*  I already graduated · nothing to prove between us here.',
-          'Beat the sixteen and see Prof Elarion · he\'ll dial you in with real Zyspheres.',
-          '*half-wave*  See you outside, hotshot.',
+          '*feet up on an empty desk*  Look at you · finally showing up to class.',
+          '*gestures at sixteen empty chairs*  You missed them.  Whole year cleared out the morning the R.A.I.D.s came through.',
+          '*taps the top-of-class emblem on his sleeve*  I already graduated · nothing to prove between us in HERE.',
+          '*half-wave*  You\'ll trip over them out there.  See you outside, hotshot.',
         ]});
       },
     });
@@ -12811,22 +12959,22 @@ const NPCS = [
       turnToInteract: true,
       blinkTimer: 2000 + Math.random() * 2000,
       _isAssistantProfessor: true,
+      // ★ v0.96.89 · she used to read out a practice-match scoreboard. There
+      //   are no practice matches and no class to hold them. She keeps the
+      //   ledger — it is now a register of where everyone went.
       onInteract: () => {
         player.stats = player.stats || {};
-        player.stats.schoolBeaten = player.stats.schoolBeaten || {};
-        const cleared = Object.keys(player.stats.schoolBeaten).filter(k => k.startsWith('school_student_')).length;
-        if (cleared < 16){
-          showDialog({ speaker: 'PROF. VIRETA', lines: [
-            '*peers up from her ledger*  Welcome to Malezor Academy · I run the bond-cycle module under Prof Elarion.',
-            `You have cleared ${cleared}/16 practice matches.  Beat every classmate · then see the head professor outside for your Zyspheres.`,
-            '*gestures to the class*  Each classmate runs a different T1 line — battle them all to feel the type spread.',
-          ]});
-        } else {
-          showDialog({ speaker: 'PROF. VIRETA', lines: [
-            '*nods approvingly*  Every classmate cleared.  Impressive.',
-            'Go see Prof Elarion outside · he has been holding your Zyspheres for graduation day.',
-          ]});
-        }
+        const found = (typeof classmatesFound === 'function') ? classmatesFound() : 0;
+        showDialog({ speaker: 'PROF. VIRETA', lines: [
+          '*peers up from her ledger*  Welcome back to Malezor Academy · I run the bond-cycle module under Prof Elarion.',
+          '*taps the page*  I keep the register.  Every one of your year signed out within a day of their R.A.I.D. — two never even went home first.',
+          found >= 16
+            ? 'And you have found all sixteen.  *she writes something small in the margin, and looks rather pleased about it*'
+            : found > 0
+              ? `Sixteen names in this column.  You have crossed ${found} of them off.`
+              : 'Sixteen names in this column, and not one of them is in this building.  Go and find out why.',
+          '*returns to the ledger*  The class is not gone, Rizer.  It is simply spread out.',
+        ]});
       },
     });
     return npcs;
@@ -31744,24 +31892,18 @@ function exitInterior(){
   if (priorScene === 'interior_home' || priorScene === 'interior_home_2f'){
     try { playSFX('laterMom'); } catch(_){}
   }
-  // v0.95.619 · ACADEMY GAUNTLET · leaving the school before clearing ALL 16
-  // classmates resets the run.  You can bring heal items in, but you cannot
-  // step outside mid-gauntlet.  Fully-cleared runs keep their flags so the
-  // Elarion Zysphere reward stands.
-  if (priorScene === 'interior_malezor_school'){
-    try {
-      player.stats = player.stats || {};
-      const sb = player.stats.schoolBeaten || {};
-      const cleared = Object.keys(sb).filter(k => k.startsWith('school_student_')).length;
-      if (cleared > 0 && cleared < 16 && !player.academyZyspheresGifted){
-        for (const k of Object.keys(sb)){
-          if (k.startsWith('school_student_')) delete sb[k];
-        }
-        showToast(`◈ Gauntlet abandoned · ${cleared} win${cleared>1?'s':''} reset · clear all 16 in one visit`, 4200);
-        try { playSFX('cancel'); } catch(_){}
-      }
-    } catch(_){}
-  }
+  // ★★★ v0.96.89 · THE ACADEMY GAUNTLET IS RETIRED WITH THE CLASSROOM BATTLES.
+  //
+  //   v0.95.619 made leaving the school mid-run wipe your practice-match wins,
+  //   to force all sixteen in one visit. There are no practice matches and no
+  //   classmates in the school, so this block could only ever do one thing now:
+  //   silently delete `schoolBeaten` entries from an OLD save the first time
+  //   that player walked out of the building.
+  //
+  // ★ That is the whole reason it is deleted rather than left dormant. A dead
+  //   branch that still WRITES is not dormant — it is a landmine with the pin
+  //   already out. ("Is the flag ever written?" cuts both ways.)
+  //   `schoolBeaten` itself is kept, untouched, for when sparring returns.
   // v0.95.27 · Prefer cfg.overworldDrop if the interior defines one (e.g.,
   // player home always drops to 22,106 facing down, never on the house).
   const priorCfg = interiorConfig(priorScene);
@@ -38961,7 +39103,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.88' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.89' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -60412,6 +60554,7 @@ function _frameBody(now){
   _step('tickScrapjawLoot', () => tickScrapjawLoot());
   _step('tickFieldStation', () => tickFieldStation());
   _step('tickFieldStationRaid', () => tickFieldStationRaid());
+  _step('settleClassmates', () => settleClassmates());
   _step('tickNootRaygun', () => tickNootRaygun());
   _step('tickOmnirisStillness', () => tickOmnirisStillness());
   _step('tickZorynRest', () => tickZorynRest(dt));

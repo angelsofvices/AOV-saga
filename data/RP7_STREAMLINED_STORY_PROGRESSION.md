@@ -1,0 +1,382 @@
+# RP7 PART ONE — STREAMLINED CANON STORY PROGRESSION
+
+**Status:** CANON · the master progression for implementation
+**Ruled:** 2026-09-13 by the Creator
+**Authority:** sits under `AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` (§0.3 makes the
+latest explicit Creator statement the tie-breaker; this is later than §21 and
+**expands** it — it does not overturn anything in it)
+**Creator's framing:** *"merge with what we have. no retcons. just clarity and
+support."*
+
+> **The organising principle, in the Creator's words:**
+> *"make every district answer one story question and create the reason for the
+> next expedition. No duplicate revelations, no unnecessary detours, and no boss
+> encounter before its canonical point."*
+
+---
+
+## PROLOGUE — THE MOVE TO MALEZOR
+
+Rizer's family temporarily relocates from **Baelgor** to **Malezor** because his
+father is conducting Beast-type Zyrex research.
+
+Rizer arrives as an inexperienced aspiring Rizer who loves science and
+experimentation. His ambitions are already larger than Malezor: become a **Master
+Zyrex Bonder** and eventually a **Master Rizer Challenger**.
+
+His father gives him his first Zyrex.
+
+Malezor establishes the family, Veyra, Rizer's early friendships, Zyrex
+bonding/catching, the Experiment Table, Astralites, and the basic culture of
+Zyraxis.
+
+Rizer begins noticing abnormalities among Zyrex and Astralite phenomena while
+exploring. His curiosity leads to his first major supernatural development:
+
+**SAPPHIRE RESONANCE → S1** — Sapphire responds to Rizer's natural affinity for
+intellect.
+
+The abnormalities provide the first reason to leave Malezor.
+
+---
+
+## ACT I — BECOMING A RIZER
+
+### I · MALEZOR — *Bond*
+Rizer learns to catch, train and bond with Zyrex. He establishes his
+relationships and begins investigating abnormal Zyrex/Astralite activity.
+Rakoron's presence and cave introduce the deeper history of the Gemlords
+**without explaining everything immediately**.
+
+- **Unlocks:** Zyrex catching/bonding · Experiment Table · Sapphire / S1
+- **Next lead:** Zarvane
+
+### II · ZARVANE — *Fight*
+The abnormalities aren't purely natural. Rizer encounters evidence that
+individuals are deliberately manipulating Astralite forces and life. Because
+Zyrex cannot solve every threat for him, Rizer learns basic **Rizer combat**.
+The player begins hearing about the Seers, but their complete purpose remains
+unclear.
+
+- **Unlocks:** Rizer combat
+- **Next lead:** Andrannor
+
+### III · ANDRANNOR — *Explore*
+The investigation expands beyond isolated incidents. Rizer discovers evidence of
+**forced adaptation/mutation** inconsistent with ordinary Zyrex development. His
+science background and the Experiment Table become directly relevant to the
+story. Andrannor also expands traversal.
+
+★ Rizer is no longer merely exploring around his temporary home. He is now
+conducting **actual expeditions** across Zyraxis.
+
+- **Unlocks:** Hoverboard
+- **Next lead:** Veridan
+
+### IV · VERIDAN — *Understand the Threat*
+The **Living Forest** demonstrates what the Seers' work can actually do to an
+ecosystem. Rizer encounters clearer evidence of the corruption that produces
+**Mori and Daemons**. The mystery becomes a crisis.
+
+> Somebody isn't merely researching or altering Zyrex. **They're corrupting life.**
+
+Evidence points toward the movement of Seer activity through the **World Hub**.
+
+- **Next lead:** Netharion
+
+---
+
+## ACT II — THE SEER CHIEFS
+
+### V · NETHARION — *Expose Ophira*
+At the **World Hub**, Rizer can finally connect incidents occurring across
+multiple districts. The Seers are organized.
+
+**OPHIRA — FIRST BATTLE.** Rizer defeats her. The Seer network remains
+operational. Evidence points toward another Chief using Vorashil.
+
+- **Next lead:** Vorashil
+
+### VI · VORASHIL — *Expose Orryx*
+Rizer pursues Seer activity through the **Sky Roads**.
+
+**ORRYX — FIRST BATTLE.** Rizer defeats him. Having beaten both Chiefs he
+reasonably believes he is closing in on whoever commands them. The trail points
+toward Xilnar.
+
+- **Next lead:** Xenoxil
+
+---
+
+## ACT III — RIZER IS TOO LATE
+
+### VII · XILNAR — *Reveal Xenoxil*
+Rizer finally reaches the level of the operation where Xenoxil becomes visible.
+
+> ### ★★★ RIZER DOES NOT FIGHT XENOXIL.
+> Xenoxil avoids the confrontation. Rizer instead battles the **six Seer grunts**
+> associated with this encounter. Xenoxil continues preparing himself and escapes.
+
+Then Rizer discovers something far more important: **BAELGOR HAS ALREADY BEEN
+HIT.** While Rizer was chasing the Seers across Upper Zyraxis, his own hometown
+was already being damaged. The expedition immediately changes.
+
+- **Next destination:** Home
+
+### VIII · BAELGOR — *Show the Cost*
+Rizer returns to his hometown. This isn't another adventure destination. **It's
+personal.** The player sees the damage already inflicted and understands that
+defeating Ophira and Orryx didn't stop the larger operation.
+
+Before Rizer can fully respond, an emergency requires him back in Malezor. The
+forward district journey is **interrupted**.
+
+### ★★★ EMERGENCY RETURN — MALEZOR
+Rizer races back to the district where the game began. There he discovers:
+
+> ## HIS PARENTS HAVE BEEN KIDNAPPED.
+
+This happens **after** the first Ophira and Orryx victories, **after** Xilnar,
+and **after** Rizer's discovery of Baelgor's devastation.
+
+Rizer's emotional state changes completely. **Rakoron senses what is happening
+inside him.** Rizer has entered genuine resonance with Ruby's instinctive nature.
+
+**RUBY RESONANCE · RAGE · S2 UNLOCKED.**
+
+> Ruby isn't inherently stronger than Sapphire. Rizer has simply developed
+> resonance with another Gem.
+> **Sapphire = Intellect / S1 · Ruby = Instinct / Rage / S2**
+
+Rizer now has a personal reason to destroy the Seer operation — but **Rage
+creates a new internal challenge rather than instantly making him masterful.**
+
+- **Next lead:** Thardin
+
+---
+
+## ACT IV — FALL OF UPPER ZYRAXIS
+
+### IX · THARDIN — *Reveal the Scale*
+The Seer corruption has evolved. It no longer affects only biological life.
+
+- **INDUSTRIAL MORI**
+- **DAEMON SENTINELS**
+
+Seer corruption has infected/weaponised the technological systems of the
+**Mechlands**. This pays off the established infrastructure lore: Thardin's
+technical race manufactures Scanobots, which patrol the districts and stabilise
+portal gatelocks under **Korathen's** oversight.
+
+Rizer deals with corrupted technology, destabilised infrastructure and
+compromised systems using both his scientific abilities and increased combat
+capability. Through Thardin's network he discovers the real strategic disaster:
+
+> ## THE SEERS HAVE TAKEN KORATHEN.
+> And Korathen's Gemlord isn't there. **OATHEUS IS ABSENT.**
+
+★★★ **The Seers did not remove him.** Oatheus was **summoned by Ultharis to
+Altaris, the Divine Council**, on the authority of the Highest One.
+
+Behind the scenes, Oatheus faces divine judgment concerning the extraordinary
+circumstances of his existence as the Tenth Gemlord, the consequences of the
+**Soul Split**, and the surviving metaphysical connection/imprint associated with
+**Egnellahc**. The central question before Altaris is essentially:
+
+> **What is Oatheus, and does his existence belong within the divine order?**
+
+Xenoxil simply recognises the vacancy Oatheus's summons created, and exploits it.
+
+### X · KORATHEN — *Break the Occupation*
+Rizer pushes into Seer-controlled Korathen. Here the two Chiefs return.
+
+- **OPHIRA — SECOND BATTLE**
+- **ORRYX — SECOND BATTLE**
+
+Mechanically evolved versions of their earlier encounters. Rizer defeats them
+again. But Xenoxil still doesn't give Rizer the fight he wants.
+
+**XENOXIL ESCAPES AGAIN.** This has been deliberate — every escape has given him
+more time to complete his preparation and reach his fully powered state.
+
+His destination: **THE BRIDGE OF HOPE.**
+
+---
+
+## ACT V — BRIDGE OF HOPE
+
+Everything converges back toward Baelgor. The Bridge becomes the staging point
+for the decisive battle for Upper Zyraxis. **This is where the game's journey
+should visibly pay off.**
+
+Rizer's friends, contacts, Zyrex, Field Perks, Experiment Table progress,
+equipment and side-expedition relationships can influence his available support.
+★ This doesn't need dozens of branching endings. It simply makes the player's
+journey matter.
+
+Then Xenoxil finally stops escaping. He has reached the state he wanted. Orryx
+and Ophira regroup with him. For the first time: **RIZER FIGHTS XENOXIL** — and
+he doesn't fight him alone.
+
+> ## PART ONE FINAL BOSS
+> ### XENOXIL + ORRYX + OPHIRA
+
+Rizer defeats all three. **But they survive.**
+
+### PART ONE ENDING — UPPER ZYRAXIS SAVED
+The Seers retreat. But instead of fleeing to another known district —
+
+> ## THEY DESCEND INTO LOWER ZYRAXIS.
+
+That is the final major revelation. **The ten-district world Rizer spent the game
+crossing is Upper Zyraxis. There is another world below it.**
+
+Rizer has accomplished something enormous: **he saved Upper Zyraxis.** But the
+Seer threat isn't finished, Xenoxil/Orryx/Ophira are somewhere in Lower Zyraxis,
+and Rizer wants to see this unknown world for himself.
+
+---
+
+## POST–BRIDGE OF HOPE — ANCIUXOR
+
+Bridge of Hope victory also changes Korathen. **After the victory, Anciuxor can
+be found in Korathen.** This is **not required** to beat Part One.
+
+Likewise: **LEVEL 100 IS NEVER PROMISED.** Players reach Level 100 naturally
+through their individual progression. A player could complete the Upper Zyraxis
+story well before reaching it.
+
+When both requirements eventually converge —
+
+- player naturally reaches **Level 100**
+- Rizer **bonds with Anciuxor**
+
+→ **LUMINARY FORM.**
+
+★ Luminary Form is therefore an **elite achievement** representing both extreme
+Rizer development and the bond with Anciuxor — **not a scripted transformation
+handed to every player during the finale.**
+
+---
+
+## GEM / FORM PROGRESSION
+
+Kept **separate from ordinary district progression.**
+
+| resonance | form | meaning | condition |
+|---|---|---|---|
+| **Sapphire** | **S1** | Intellect | first major resonance · Rizer's analytical/scientific nature |
+| **Ruby** | **S2** | Instinct / Rage | the emergency return to Malezor · parents kidnapped · Rakoron senses it |
+| **Pearl** | **S3** | Balance | Rizer's third major Gem resonance · **story/gameplay condition deliberately NOT yet established** |
+| — | **Luminary Form** | — | **separate from the S1/S2/S3 Gem structure** · natural Lv100 **+** Anciuxor bond |
+
+> ### ★★★ THE LAW UNDER ALL OF IT
+> **No Gem is inherently stronger than another.** A Gem possesses its natural
+> power scale. **The user's resonance determines how fully that potential can be
+> unlocked.**
+
+---
+
+## IMPLEMENTATION SPINE — the dependency chain
+
+```
+Malezor        family relocation → first Zyrex → bonding/catching →
+               Experiment Table → abnormal activity → Sapphire/S1
+  ↓
+Zarvane        investigation → Seer evidence → Rizer combat
+  ↓
+Andrannor      forced adaptation → science investigation → hoverboard
+  ↓
+Veridan        ecological corruption → Mori/Daemon threat confirmed
+  ↓
+Netharion      Seer network exposed → OPHIRA I
+  ↓
+Vorashil       Chief pursuit → ORRYX I
+  ↓
+Xilnar         Xenoxil encountered → six grunts → NO Xenoxil battle →
+               Xenoxil escapes → Baelgor damage discovered
+  ↓
+Baelgor        Rizer returns home → devastation witnessed
+  ↓
+Malezor        EMERGENCY RETURN · parents kidnapped → Rage →
+ (return)      Rakoron senses resonance → Ruby/S2
+  ↓
+Thardin        Industrial Mori + Daemon Sentinels → infrastructure crisis →
+               Korathen takeover discovered → Oatheus absent at Altaris
+  ↓
+Korathen       Seer occupation → OPHIRA II → ORRYX II →
+               Xenoxil escapes fully powering up
+  ↓
+Bridge of Hope allies converge → XENOXIL + ORRYX + OPHIRA final boss
+ (Baelgor)
+  ↓
+VICTORY        Upper Zyraxis saved → Seers retreat into LOWER ZYRAXIS
+  ↓
+Korathen       post-victory · Anciuxor becomes discoverable
+  ↓
+earned         natural LV100 + Anciuxor bond → LUMINARY FORM
+  ↓
+LOWER ZYRAXIS  Rizer's next great expedition begins
+```
+
+★ Machine-readable copy of this chain ships in the build as `RP7_STORY_SPINE`
+and is asserted by `tools/verify_story_spine.js`, so the order, the two
+no-boss-before-its-point rules and the Chief rematches cannot drift.
+
+---
+
+## WHAT THIS DOCUMENT PRESERVES
+
+Recorded because "no retcons" is the instruction, and the easiest way to break it
+is to be vague about what was already true:
+
+- The **district order** of `AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` §21.1, I–X.
+- **§21.4** — parents kidnapped only *after* the first Orryx **and** Ophira
+  defeats. This document **narrows** that window (also after Xilnar and Baelgor)
+  without contradicting it.
+- **§21.5 Gemlord non-intervention** — which is *why* Rakoron senses Rizer's
+  resonance rather than intervening in the Seer war himself.
+- **§21.6 Scanobots/Portals** — Thardin manufactures, Korathen oversees. Act IV
+  pays this off rather than re-introducing it.
+- The **Soul Split** canon (`RP7_CANON_NINTH_TENTH_GEM_FORMATIONS.md` §3, §10) —
+  Oatheus's summons to Altaris is a *consequence* of it, and the first time that
+  cosmology has had a gameplay-visible effect.
+- **Ruby = Rakoron = Malezor = instinct/rage**, and the **Rubypaw Longsword** as
+  the S2 weapon.
+
+> ### ★ CORRECTION · this list originally claimed one more thing than it should
+> I first wrote "**S1 Azurel → S2 Rakoron** as the established form ladder" into
+> this section while installing the handoff. **That was my error, not the
+> Creator's.** The body of this document places Sapphire/S1 in **Malezor**, from
+> Rizer's own affinity, with no Gemlord involved — so it does not preserve
+> "S1 Azurel", it replaces it. Claiming otherwise in the same file was the exact
+> kind of quiet drift a preservation list exists to prevent.
+> The real status of that question is **§R1 below**.
+
+---
+
+# ★★★ RECONCILIATION · WHERE THIS DOCUMENT MOVES SHIPPED CANON
+
+**The instruction was "no retcons."** This section exists because the document
+contains several, and the only way to honour that instruction is to name them
+rather than absorb them. **Nothing below has been applied to the build.**
+
+Full evidence, with quotes from both sides, in
+`data/RULING_NEEDED_STORY_PROGRESSION_2026-09-13.md`.
+
+| # | the move | collides with | status |
+|---|---|---|---|
+| **R1** | Sapphire/S1 unlocks in **Malezor** from Rizer's own affinity | *"★ The S1 → S2 order is **locked**… S1 · Azurel (Vorashil)"* — and it leaves Vorashil with only Orryx I | **UNAPPLIED** |
+| **R2** | Ruby/S2 unlocks at the **emergency return to Malezor** | ★★★ Creator, 2026-09-01: *"**he cant have s2 until endgame battle against xenoxil.** he uses his s2 form to fight zoryns s2 form in part 2."* | **UNAPPLIED** |
+| **R3** | **Luminary Form ≠ S3**; Luminary needs Lv100 **+** Anciuxor | S3 **is** Luminary in shipped canon and shipped art — `idle-luminary.png` live since v0.96.40, 22 sheets commissioned as the S3 set | **UNAPPLIED** |
+| **R4** | Part One finale moves **Korathen → Bridge of Hope**; Chiefs fought a third time | the shipped gate opens the Bridge on `xenoxilDefeated` — fighting him *on* it is circular; also retires the *"Throne Remains Empty"* ending | **UNAPPLIED** |
+| **R5** | **Anciuxor found in Korathen** post-victory | Creator, 2026-09-01: *"anciuxor will be tied to the **treehouse** easter egg later"* — and he is already placed in Malezor at tile (22,-19), bond 100 | **UNAPPLIED** |
+| **R6** | Oatheus's summons **explained in Act IV** | §8 spoiler boundary forbids stating his audience with Ultharis; the Egnellahc reveal is Part 2's | **UNAPPLIED** |
+| **R7** | Lower Zyraxis is a **world below** | canon geography is **south** of Baelgor/Xilnar — a bridge, not a descent | **UNAPPLIED** |
+| **R8** | the Malezor kidnapping scene, **without Kelthor** | Creator: *"…up until **his death when the seers invade malezor and they kidnap your parents**"* | **UNAPPLIED** |
+
+★ **What is NOT in that table is the majority of this document**, and it is good:
+the district order, the §21.4 narrowing, the §21.5 use of Rakoron, the
+no-Xenoxil-at-Xilnar rule with its six grunts, the Chief rematches, the
+Oatheus-vacancy logic, "Upper Zyraxis" as a name, and the Lower Zyraxis hook that
+sets up Zoryn exactly. Those are merged and live.

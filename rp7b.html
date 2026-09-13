@@ -20106,7 +20106,7 @@ const INTERIOR_SEER_HQ_R2 = {
     '        ###################        ',
     '        ###################        ',
     '        ###################        ',
-    '        #########D#########        ',
+    '        ###################        ',
     '        #.................#        ',
     '        #.................#        ',
     '        #.................#        ',
@@ -20140,6 +20140,17 @@ const INTERIOR_SEER_HQ_R2 = {
   // ★ The 'D' is gone from the plan above — the north wall is solid now, so the
   // room reads as what it is: a stair landing, not a corridor. The two
   // staircases are the only things in it, which is the whole point.
+  //
+  // ★★★ v0.96.90 · IT WASN'T GONE. This comment has been describing an edit
+  //   that never happened since v0.95.980 — row 7 still read
+  //   '#########D#########', so the landing carried a full grand door, drawn
+  //   three tiles tall on its north wall, wired to NOTHING. Walk up to the most
+  //   door-looking object in the room, press X, and nothing happens.
+  //   ★ That is worse than the 1F bug it sat next to: the 1F door at least had
+  //     a destination. This one was pure furniture pretending to be an exit.
+  //   Removed for real this time, and tools/verify_seerhq_doors.js now asserts
+  //   that every door tile in the building has somewhere to go — so a comment
+  //   can never again be the only thing standing between a plan and its claim.
   //
   // ★★ AND THAT MEANS THE WAY BACK CANNOT BE A DOOR EITHER. It is the tile you
   // arrive on: step back down onto (17,21) and you are on the 1F hall floor
@@ -34663,6 +34674,28 @@ function tryMove(dt){
   // Grassblade / grass-patch tiles carry wildZone: true.  Stepping in
   // rolls the RP7 canon 14% chance after 2 consecutive grass steps.
   const interiorWildCfg=interiorConfig(game.scene);
+  // ★★★ v0.96.90 · STEPPING ONTO A DOOR TILE USES IT.
+  //
+  //   R2's own comment describes the way back as *"step back down onto (17,21)
+  //   and you are on the 1F hall floor again"* — a deliberate design, so the
+  //   landing could keep its no-door rule and still let you leave. It was never
+  //   implemented. doorTargets only ever fired from tryInteract, off the tile
+  //   you FACE, so the documented gesture did nothing and the only way out of
+  //   the landing was to guess that an unmarked floor tile wanted an X.
+  //
+  // ★ Normally inert. A door tile is solid, so you cannot step onto one and
+  //   this never runs — it matters only where SEER_HQ_WALLS_ON has turned the
+  //   plan's walls into floor, which is exactly the case the comment is about.
+  //   Facing it and pressing X still works everywhere it worked before.
+  if (interiorWildCfg && interiorWildCfg.doorTargets){
+    const _d = interiorWildCfg.doorTargets[nx + ',' + ny];
+    if (_d && !(typeof _d.locked === 'function' && _d.locked()) && interiorConfig(_d.target)){
+      player.x = nx; player.y = ny; player.moving = false;
+      useStairs({ target: _d.target, spawnAt: _d.spawnAt });
+      try { playSFX('confirm'); } catch(_){}
+      return;
+    }
+  }
   // Interiors are encounter-safe by default. A specific room may opt in by
   // declaring cfg.gemgrass as [[x,y], ...]; decorative grass never counts.
   const onDeclaredGemgrass=game.scene==='overworld'
@@ -37086,10 +37119,42 @@ function tryInteract(){
           showToast(typeof _door.lockedMsg === 'function' ? _door.lockedMsg() : '◈ LOCKED', 2600);
           return;
         }
-        const _nextCfg = interiorConfig(_door.target);
-        if (_nextCfg){
-          enterInterior(_door.target, _nextCfg, _door.spawnAt || _nextCfg.spawn);
+        // ★★★ v0.96.90 · THE DOOR NEVER OPENED, AND IT SAID "CONFIRM" WHILE NOT OPENING.
+        //
+        //   Creator: "I cannot enter the main floor door in the seer hq. that
+        //   door should lead me to r2 where the up and down staircases are."
+        //
+        // ★ This called enterInterior(), whose very first line is
+        //     if (game.scene !== 'overworld') return;
+        //   and you are standing in interior_seer_hq_1f when you press X. So
+        //   the call returned instantly, every time, and did nothing — while
+        //   the playSFX('confirm') on the NEXT line still fired. The door
+        //   acknowledged you and refused to move you, which is the worst
+        //   possible failure because it reads as "wrong tile, try again".
+        //
+        // ★★ AND THE GUARD IS CORRECT. enterInterior's second line is
+        //   `game.overworldReturn = {x: player.x, ...}` — letting it run from
+        //   inside a building would overwrite your way home with interior
+        //   coordinates and strand you. The guard was never the bug; calling
+        //   the wrong function was.
+        //
+        // ★ useStairs() is the interior→interior move the building already
+        //   uses for its staircases: it swaps the scene, honours spawnAt,
+        //   relabels Seer HQ floors per district, carries your summons, and
+        //   leaves overworldReturn alone. A door between two rooms is the same
+        //   journey as a staircase between two floors.
+        //
+        // ★★★ It also fixes a SECOND bug in the same line. enterInterior's
+        //   third parameter is `toast`, not a spawn — so `_door.spawnAt` was
+        //   being passed as a toast STRING and the arrival point was always
+        //   cfg.spawn. Harmless 1F→R2 (both are 17,20) but wrong coming back:
+        //   R2→1F wants (17,8) under the door and would have dumped you at
+        //   (17,20) at the far end of the hall. useStairs reads spawnAt.
+        if (interiorConfig(_door.target)){
+          useStairs({ target: _door.target, spawnAt: _door.spawnAt });
           try { playSFX('confirm'); } catch(_){}
+        } else {
+          console.warn('[rp7b] door points at an unknown scene:', _door.target);
         }
         return;
       }
@@ -39103,7 +39168,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.89' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.90' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

@@ -58,7 +58,7 @@ Map layout:
 
 ### 2.2 · Dad the Historian / Expeditionist (`d` at 8, 4)
 
-- **First interact:** paragraph of **Mothergem cosmology** ("before every age of Zyraxis, the Mothergem falls / ten shards become the ten Gemlords / every Zyrex is a shard of it too"), then opens the **starter picker**.
+- **First interact:** paragraph of **Mothergem cosmology** ("before every age of Zyraxis, the Mothergem falls / eight shards become the first eight Gemlords / every Zyrex is a shard of it too") — ★ 2026-09-13 · handoff §10.2: the Ninth and Tenth are Composite Formations from a far later era, not Mothergem shards, then opens the **starter picker**.
 - **Starter picker options:** Cinderant (Beast/Spirit · Southern), Otterlin (Beast/Nature · Eastern), Volitimite (Beast/Aura · Western). All Lv 5, Tier I max stats.
 - **After choice:** Dad's expanded briefing — admits he doesn't know where the Seer leaders are, points at Yara / Jax / Quinn as clue sources, tells the player the cave is sealed.
 - **Recurring interact:** reports the current clue count (`0/3` → `3/3`), reminds the player the cave stays sealed.

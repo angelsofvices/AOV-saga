@@ -2,6 +2,9 @@
 
 **Status:** Approved canon · supersedes all prior ten-natural-type language
 **Ruled:** 2026-09-12 by the Creator
+**★★★ AMENDED 2026-09-13** by `AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` §10.3–10.5.
+See **§10** at the foot of this file. The amendment changes **who performs the
+split and what the two forms are made of**. Everything else here survives.
 **Spoiler class:** ★★★ DEEP COSMOLOGY — see §9 before using ANY of this publicly
 
 ---
@@ -26,7 +29,7 @@ not ten independent natural types**.
 | | |
 |---|---|
 | **RETIRED** | The Mothergem shattered into ten equivalent fragments, and one Gemlord rose directly from each. |
-| **CANON** | The Mothergem revealed eight fundamental principles, from which the first eight Gemlords arose. Egnellahc later converged those principles into the Ninth and Tenth Composite Formations. His division brought forth Oathane and Oatheus, completing the Ten. |
+| **CANON** | The Mothergem revealed eight fundamental principles, from which the first eight Gemlords arose. Egnellahc later converged those principles into the Ninth and Tenth Composite Formations. **Obsidius's Soul Split of Egnellahc** brought forth Oathane and Oatheus, completing the Ten. |
 
 - The **Ninth Formation** combines the principles of the **First Four** Gem Types.
 - The **Tenth Formation** combines the principles of the **Final Four**.
@@ -48,19 +51,40 @@ His real achievement was not stronger gems. It was the proof that the eight
 belong to a unified structure — **and that reuniting that structure is
 catastrophically unsafe.**
 
-## 3 · The division
+## 3 · The Soul Split
 
-To stop the fracture, Egnellahc irreversibly divided his own essence, redistributing
-what had become too dangerous to hold together.
+**★★★ AMENDED 2026-09-13 · handoff §10.3–10.4. Egnellahc did not divide himself.**
 
-| Gemlord | Formation | Converges | Keeps its association with |
-|---|---|---|---|
-| **Oathane** · Ninth | Ninth Composite | the First Four | balance, system, anomaly, ordered structure |
-| **Oatheus** · Tenth | Tenth Composite | the Final Four | divinity, law, totality, finality |
+**Obsidius**, the Black Gemlord and the strongest of the eight natural Gemlords,
+**personally performs the Soul Split on Egnellahc.** This is not instruction, not
+guidance, and not something Egnellahc is taught how to do to himself — Obsidius
+does it, to him, to save him, because the IX/X state is destroying him and
+fracturing reality around him.
 
-Neither is a descendant, a creation, or a naturally born Gemlord. They are
-**separated continuations of Egnellahc's essence** — the living consequences of
-the convergence.
+Egnellahc outranks Obsidius **only** by virtue of holding the composite forms.
+Among natural Gemlords, Obsidius is the strongest there is.
+
+| Gemlord | Formation | Converges | Made of | Keeps its association with |
+|---|---|---|---|---|
+| **Oathane** · Ninth | Ninth Composite | the First Four | a **stabilized copy patterned from Obsidius** | balance, system, anomaly, ordered structure |
+| **Oatheus** · Tenth | Tenth Composite | the Final Four | a **hybrid of Egnellahc and Obsidius** | divinity, law, totality, finality |
+
+Neither is a descendant, a creation, or a naturally born Gemlord, and neither is
+an ordinary biological child. They are **forms/manifestations of Egnellahc's
+split essence** — but the pattern that stabilizes them is **Obsidius's**, which
+is why they hold together where the undivided state did not.
+
+Obsidius then helps Egnellahc **perfect and stabilize** the two forms, and the
+other Gemlords bless Oathane and Oatheus **under Obsidius's influence**. The
+Ten are completed by consent of the eight, not by Egnellahc's authority.
+
+> **★ What this corrects.** This file previously read *"Egnellahc irreversibly
+> divided his own essence."* That was wrong in the one way that matters: it made
+> the climax an act of self-sacrifice by the protagonist of the era, and wrote
+> the strongest natural Gemlord out of his own scene. The handoff names it as a
+> do-not-retcon item (§24.10: *"Do not make Obsidius merely teach the Soul
+> Split; he personally performs it"*), which means the error was already
+> anticipated.
 
 ## 4 · Aftermath
 
@@ -103,10 +127,16 @@ roster placements change.**
 
 ### MUST NOT be stated publicly
 Egnellahc created the formations · IX = First Four, X = Final Four · that he held
-both at once · that the convergence fractured reality · that he divided his
-essence · that Oathane and Oatheus emerged from that division · his rapture into
-the Third Dimension · his audience with Ultharis · the existence or function of
-the **World and Space Gems** · Oatheus's duty to conceal them.
+both at once · that the convergence fractured reality · **that Obsidius performed
+a Soul Split on him** · **that Oathane is patterned from Obsidius and Oatheus is
+an Egnellahc–Obsidius hybrid** · that Oathane and Oatheus emerged from that split ·
+**that the other Gemlords blessed them under Obsidius's influence** · his rapture
+into the Third Dimension · his audience with Ultharis · the existence or function
+of the **World and Space Gems** · Oatheus's duty to conceal them.
+
+★ **Obsidius's involvement is now itself a spoiler.** He is a public, playable-
+adjacent Gemlord of Xilnar, so his *name* is setting and stays safe — but his
+hand in the Ninth and Tenth is the secret the public wording exists to protect.
 
 ### Approved spoiler-free wording
 
@@ -186,3 +216,55 @@ the gem looks like in the hand. **Which four each blends is not**, per §8. The
 macrobook therefore shows both swatches in full colour and labels them only
 "composite"; its one permitted line is that several colours answer at once.
 
+
+---
+
+## 10 · ★★★ AMENDMENT 2026-09-13 · the Definitive Canon Handoff
+
+Source: `data/AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md`, §10.3–10.5 and §24.9–24.11.
+That document is the **top canon authority** for the Saga and its §0.3 priority
+order makes the latest explicit Creator statement rule. It is later than this
+file, and it names the correction as a standing do-not-retcon item — so this is
+not me choosing between two Creator statements, it is the newer one landing.
+
+### What changed
+
+| | before (2026-09-12) | **now** |
+|---|---|---|
+| who splits | Egnellahc divides his own essence | **Obsidius personally performs the Soul Split** |
+| why | to stop the fracture he caused | unchanged — the IX/X state nearly destroys him and/or fractures reality |
+| Oathane IX | a half of Egnellahc | **a stabilized copy patterned from Obsidius** |
+| Oatheus X | a half of Egnellahc | **a hybrid of Egnellahc + Obsidius** |
+| aftermath | — | **Obsidius helps perfect/stabilize them; the other Gemlords bless them under his influence** |
+
+### What did NOT change
+
+- Eight fundamental Gem Types. IX and X are Composite Formations, not natural types.
+- IX converges the First Four; X converges the Final Four.
+- The blend colours (§ correction, 2026-09-12) stand: IX reads red/blue/green/
+  yellow, X reads white/orange/purple/black.
+- Egnellahc is raptured to the Third Dimension before Ultharis / the Highest One.
+- Oatheus is compelled to conceal World and Space Gem knowledge.
+- Oathane canonical, Oathare obsolete.
+- **No gameplay, district, role or roster change.**
+
+### Newly established by the handoff, not previously in this file
+
+- **Obsidius is the strongest natural Gemlord.** Egnellahc ranks above him only
+  because of the composite forms.
+- Egnellahc reaches Zyraxis by **transplacing himself** after the failed Virtua
+  Transplacement Verse, and wanders the world for years before the IX/X work.
+- **Novarius is much later** and must never be tied to the original IX/X
+  blessing or the Soul Split (§11, §24.11).
+
+### Deliberately NOT resolved here
+
+The handoff does not rule on these, and §26.6 forbids inventing an answer:
+
+- the mechanical reason the Virtua Transplacement failed (§9.2, §24.8)
+- Father Gem vs Mothergem, and the legacy "10 Mother Gems" count (§6.2 says
+  preserve legacy Father-Gem material where compatible — it does not renumber)
+- whether the `Elder Prime of Nexyros` codex card and the `egnellahc` card are
+  one entity (they are the same being per §7.2, but merging cards is a roster
+  change, not a wording fix)
+- Mykarlyth's "first humanoid / Mandrake egg" genealogy vs §7.1–7.2

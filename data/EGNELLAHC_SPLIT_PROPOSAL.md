@@ -1,6 +1,39 @@
 # THE EGNELLAHC SPLIT — hiding the Ninth and Tenth Gemlords
 **PROPOSAL, 2026-09-01. Not canon until the Creator rules.**
 
+---
+
+> # ★★★ PARTIALLY SUPERSEDED · 2026-09-13
+>
+> `AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` §10.3–10.4 has ruled on the mechanism,
+> and **this document had it wrong.**
+>
+> **RETIRED — the central thesis of §3 below.** This proposal argued that
+> Egnellahc *chose* to divide himself, refusing to be an absolute ruler a second
+> time, so that no single being would hold the whole. That was **my invention**,
+> and the document says so plainly at §3: *"Searched the whole repo: no text
+> gives a reason. That is the gap this proposal exists to fill."* Under handoff
+> §0.3 rule 6 an assistant hypothesis was never canon, and it should not have
+> been quoted onward — but it was, into `ZORYN_ARC_CANON.md`, which is why the
+> rule about not laundering proposals into canon files exists.
+>
+> **CANON:** **Obsidius personally performs the Soul Split on Egnellahc.** It is
+> a rescue from a state that was destroying him and fracturing reality, not a
+> political renunciation. Oathane is a stabilized copy patterned from Obsidius;
+> Oatheus is a hybrid of Egnellahc and Obsidius. Obsidius then helps perfect
+> them, and the other Gemlords bless them under his influence.
+>
+> **STILL STANDS — and this is most of the document.** The Creator's actual
+> question was *"should we not make the ninth and tenth gemlord hidden?"*, and
+> everything answering THAT survives: the concealment, the Empty Throne, the
+> already-shipped foreshadowing, Egnellahc as a Part 2 NPC with Part 1 seeding,
+> and the reveal structure. The motive was the only invented part, and the
+> handoff has now supplied a better one than mine — the split is a **medical
+> emergency performed by the strongest natural Gemlord**, which is far more
+> dramatic than an abdication.
+>
+> Live canon: `data/RP7_CANON_NINTH_TENTH_GEM_FORMATIONS.md` §3 and §10.
+
 > **Creator:** *"should we not make the ninth and tenth gemlord hidden? … maybe we can rewrite their lore. tying them more closely to their origin story of egnellahc. he can be a part 2 NPC character with subtle part 1 foreshadowing. let me know. want it to fit."*
 
 **Answer: yes — and it needs far less writing than expected, because it is not a rewrite. It is a REVEAL, and the foreshadowing is already shipped.**

@@ -114,8 +114,8 @@ The ten **Seer Commanders** have a full art-direction doc, per-district corrupti
 **Planets crystallised around Aenor Eruption hotzones; a planet's core is the hotzone it formed around** **[CANON §0l]**.
 
 - **#1 ORIGON** (~12 Bya) — first planet to crystallise. Its core is the **FATHER GEM**, *"the source from which all 10 Mother Gems descend."* Charge density so extreme that nothing below Tier VI survives natively.
-- **#3 DRAEVOS** — Dracolords and Mandrakes. **THE FIRST WAR** (Dracolords vs Astrums). **Elzoran** finds a purple Father-Gem fragment → becomes **OMEGORAN**.
-- **#9 ZYRAXIS** (~9 Bya) — **gems first crystallise. The TEN GEMLORDS rise. The War of the Gemlords.**
+- **#3 DRAEVOS** — Dracolords and Mandrakes. **THE FIRST ASTRUM WAR** (Dracolords vs Astrums). ★ *2026-09-13 · handoff §4.3/§24.2: this is the first major Astrum–Dracolord front, NOT the beginning of the Eternal War — that was Dracolords vs Planetelles, earlier. The file's own L134 had already flagged "The First War" as overloaded.* **Elzoran** finds a purple Father-Gem fragment → becomes **OMEGORAN**.
+- **#9 ZYRAXIS** (~9 Bya) — **gems first crystallise. The EIGHT natural Gemlords rise. The War of the Gemlords.** ★ *2026-09-13 · handoff §10.2: the Ninth and Tenth are Composite Formations made far later, in Egnellahc's era — they were never present at crystallisation. `RP7_CANON_NINTH_TENTH_GEM_FORMATIONS.md` retired "ten fragments" on 2026-09-12; this line had not caught up.*
 - **#13 KYRATHOS** — *"awareness without form."* Home of Mealux, guardians of the Eternal Library.
 - **#27 VIRIDIA** — the Astral Core, the Veil, the four-realm architecture, true humans, the Aur bloodline.
 

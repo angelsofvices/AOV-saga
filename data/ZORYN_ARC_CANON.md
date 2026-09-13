@@ -384,10 +384,21 @@ EXISTENTIAL FAILURE.**
 > it a weapon.**
 
 ★★★ **He is also Egnellahc inverted, and the game gets that for free.** Egnellahc,
-offered a throne, **divided himself so no one being would hold the whole.** Zoryn,
-offered nothing, **fuses himself with a Dracolord to become whole enough to hold it
-alone.** Same act, opposite directions — **humility and pride making the identical
-decision about how many people one being should be.**
+having become more than reality could hold, **is Soul Split by Obsidius — made into
+two so that he could survive being one.** Zoryn, offered nothing, **fuses himself
+with a Dracolord — made into one so that he can survive having been nobody.**
+Division to save a life, fusion to justify one. **Same operation, opposite
+directions, opposite consent.**
+
+> ★ **Amended 2026-09-13** · handoff §10.3. RETIRED: *"Egnellahc, offered a
+> throne, divided himself so no one being would hold the whole"* — self-division
+> out of humility. **Obsidius performs the split, and it is a rescue, not a
+> renunciation.** The mirror survives the
+> correction and arguably sharpens, because the axis is now **consent**: Egnellahc
+> is divided *by someone who wants him to live*, Zoryn fuses *with something that
+> wants to use him*. But the original "humility vs pride" reading was load-bearing
+> for this arc, so **the Creator should confirm the new framing** rather than
+> inherit mine. `CONTINUITY_REVIEW_REQUIRED`.
 
 ★ And *"he moves to take Lower Zyraxis for himself"* (§3) becomes precise: **he is a
 claimant.** Part 1 ended with a throne that *"violently rejects unworthy claimants."*

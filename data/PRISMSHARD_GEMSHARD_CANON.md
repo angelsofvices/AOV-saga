@@ -1116,8 +1116,18 @@ are three specific functions and three specific prisms could own them.
 > scale.** Kept as written so the gap, and its closing, both stay visible.
 
 `timeline.html`: Origon's **Father Gem core** is *"the source from which all **10
-Mother Gems** descend."* `rp8.html`: a cosmic stone *"carrying the frequencies of
-ten primal wills. It breaks on Zyraxis. **Ten Gemlords rise from its shards.**"*
+Mother Gems** descend."* `rp8.html` **said**, until 2026-09-13, that a cosmic stone
+carried *"the frequencies of ten primal wills"* and that *"Ten Gemlords rise from
+its shards."*
+
+> ★★ **2026-09-13 · that second quote has been corrected** per
+> `AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` §10.2 — the stone carries **eight**
+> fundamental principles and **eight** Gemlords rise from its shards; the final
+> two do not share that origin. The *first* quote, the Father Gem and its "10
+> Mother Gems", is **deliberately left alone**: §6.2 says preserve legacy
+> Father-Gem material where compatible, and the handoff does not renumber it.
+> **The gap this section documents is therefore still open** — it just no longer
+> has a contradiction sitting inside one half of it.
 
 ★★ **Nothing in this document connects that line to the Astralite → gem → Gemshard
 → Prismshard ladder.** They are two separate genealogies of gem-like objects that

@@ -34435,15 +34435,29 @@ function tryMove(dt){
   // nearby Mori/Daemon patrols and pulls them into an aggro/chase state.
   // Per memory aov-catching-philosophy: "grass = terrain flavor + noise that
   // draws Mori/Daemon aggro · differentiates AOV from Pokemon".
+  // ★ v0.96.85 · and the noise is the RUN's, not the walk's — see below.
   if (player.activeActor === 'rizer' && onDeclaredGemgrass){
-    player.stepsInGrass = (player.stepsInGrass || 0) + 1;
+    // ★★★ v0.96.85 · IT IS THE RUNNING THAT MAKES THE NOISE.
+    //   Creator: "grass is used to draw in enemies to rizer when he RUNS through
+    //   it and it makes noise."
+    //
+    //   Until now every grass step fed the counter identically, so creeping
+    //   through a meadow was exactly as loud as sprinting across it — which
+    //   removed the only interesting decision the terrain offers.  A run (or the
+    //   board, which is louder still) is what carries; a walk is quiet.
+    //   ★ The footstep SFX still plays either way.  You can always HEAR yourself
+    //   in grass; the difference is whether anything else can.
+    const _loud = !!player.running || !!player.skating;
+    if (_loud) player.stepsInGrass = (player.stepsInGrass || 0) + 1;
+    else       player.stepsInGrass = Math.max(0, (player.stepsInGrass || 0) - 1);
     // v0.95.341 · Per-step grass SFX · no overlap · restart the base Audio
     // element instead of clone-and-play so rapid steps don't stack layers
     try {
       const s = AUDIO.sfx.walkingGrass;
-      if (s){ s.pause(); s.currentTime = 0; s.volume = 0.85; s.play().catch(() => {}); }
+      if (s){ s.pause(); s.currentTime = 0; s.volume = _loud ? 0.85 : 0.45; s.play().catch(() => {}); }
     } catch(_){}
-    emitGrassNoise(nx, ny);
+    // ★ a walk does not reach anybody · the aggro pulse is the LOUD step's
+    if (_loud) emitGrassNoise(nx, ny);
   } else {
     // v0.95.341 · Just LEFT a grass patch · fire an echo of the last step
     // (softer + delayed) for a natural fade-out cue
@@ -38851,7 +38865,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.84' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.85' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

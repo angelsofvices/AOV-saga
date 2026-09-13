@@ -63,14 +63,28 @@ function forbid(id, re, why, only){
   for (const [file, body] of TEXT){
     if (only && !only.test(file)) continue;
     if (retired.has(file)) continue;
-    // ★ EXEMPTION IS A BLOCK PROPERTY, NOT A LINE PROPERTY. A retired quote
-    //   wraps: the "RETIRED:" marker lands on one line and the offending words
-    //   on the next, so a line-by-line exemption flags the second half of a
-    //   correction I just wrote. Look at the matched line plus the two above it.
+    // ★★★ EXEMPTION IS A BLOCK PROPERTY, NOT A LINE PROPERTY — and the block is
+    //   bigger than I twice assumed.
+    //     1st try · the line itself   → broke on a quote that WRAPS.
+    //     2nd try · a 2-line window   → broke on a `| was | now |` table, where
+    //                                   the marker is in the header three, ten,
+    //                                   or forty rows up.
+    //   The unit markdown actually gives you is the SECTION: the nearest
+    //   preceding heading, and the nearest preceding table header. A
+    //   correction log is a document whose headings say so — "what changed",
+    //   "was / now", "retired" — and every row under such a heading is a record
+    //   of a fix, not a fresh violation. Getting this wrong deletes the very
+    //   documents that track the drift.
     const lines = body.split('\n');
+    const HEADING = /^#{1,6}\s|^\s*\|[\s\-:|]+\|\s*$/;     // heading, or a |---| rule
+    const SECTION_OK = /was\b|\bnow\b|chang|correct|retired|supersed|applied|violat|\bfix/i;
+    let ctx = '';                       // the governing heading / table header
     for (let i = 0; i < lines.length; i++){
+      if (/^#{1,6}\s/.test(lines[i])) ctx = lines[i];
+      else if (/^\s*\|[\s\-:|]+\|\s*$/.test(lines[i])) ctx += ' ' + (lines[i - 1] || '');
       if (!re.test(lines[i])) continue;
       if (lines.slice(Math.max(0, i - 2), i + 1).some(l => EXEMPT_LINE.test(l))) continue;
+      if (SECTION_OK.test(ctx)) continue;
       hits.push(`${file} · ${lines[i].trim().slice(0, 110)}`);
     }
   }
@@ -101,7 +115,11 @@ forbid(15, /Andre[^\n]{0,30}(descendant|son|father|ancestor) of Auraxion|Auraxio
        'Andre Hart and Auraxion are one person');
 forbid(17, /Earth[^\n]{0,25}Planet\s*#?\s*28|Planet\s*#?\s*28[^\n]{0,20}Earth/i,
        'Earth is not AE Planet #28');
-forbid(18, /Ultharis[^\n]{0,30}(Planet|#)\s*19|Planet\s*#?\s*19[^\n]{0,20}Ultharis/i,
+// ★ TIGHTENED. The loose version — "Ultharis within 20 chars of 'Planet 19'" —
+//   flagged the line *"Planet 19 | Uralyx — Ultharis is the Highest One only"*,
+//   which is the rule being stated CORRECTLY. Proximity is not assertion; test
+//   for the equation, not the co-occurrence.
+forbid(18, /Ultharis\b[^\n]{0,12}\b(is|=|:)\s*(AE\s*)?(Planet|World|#)\s*#?\s*19|(Planet|World)\s*#?\s*19\s*(is|=|:|,|·|—|-)?\s*(the\s+)?Ultharis/i,
        'Planet 19 is Uralyx — Ultharis is reserved for the Highest One');
 forbid(21, /(two|second|another|many) Highest Ones?|Highest Ones\b/i,
        'the Highest One is singular — the Mirror multiplies interpretations, not God');

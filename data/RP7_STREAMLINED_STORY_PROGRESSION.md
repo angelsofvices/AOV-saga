@@ -518,7 +518,7 @@ documents each naming one of them and assuming it was the whole event.
 |---|---|---|
 | **S1 · Sapphire** | ★ **before the game starts** — his natural blue-gem affinity, which is *why he can use astral energy at all*. Malezor is him **learning** it. | **Vorashil** — he finds the **Sapphire Sword**, and his **full S1 skill tree opens** |
 | **S2 · Ruby** | **Baelgor arc** — the parents are taken, the rage answers | **the endgame** |
-| **S3 · Pearl · Luminary** | **after the endgame** | **end of Part 3** — *"to face Zoryn at the Pit of No Return"* |
+| **S3 · Pearl · Luminary** | **after the Part 1 endgame** | ★ **endgame of Part 2** — *"to face Zoryn at the Pit of No Return"* |
 
 ### ★★ What this rescues
 
@@ -545,11 +545,15 @@ Rizer is always one stage behind the thing he is about to face, and the game
 closes each gap exactly when he needs it closed. Part 3 ends with the last gap
 closing against Zoryn.
 
-> ### ★ ONE SMALL THING TO CONFIRM
-> The quote puts the Zoryn confrontation at the **Pit of No Return, end of
-> Part 3**. Current memory records Zoryn as the **Part 2** final boss. That may
-> be a renumber, or "Part 3" may mean the third act of Part 2 — **not assumed
-> either way.** Everything else in E6 is applied.
+> ### ★ CONFIRMED 2026-09-13
+> *"I meant endgame part 2 for zoryn battle."* The part number was the only
+> thing left unruled in this ladder, and it lands where canon already had it:
+> **Zoryn is the Part 2 final boss at the Pit of No Return.**
+>
+> ★★ **Which gives the ladder its final shape.** S3 is learned the moment Part 1
+> ends and perfected by the time Part 2 does — the same learn/perfect gap as S1
+> and S2, scaled up to a whole part. **The distance between having a form and
+> owning it is always the length of the act you spend carrying it.**
 
 ## E7 · ★★★ THE BRIDGE IS THE BOUNDARY
 

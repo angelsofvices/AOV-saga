@@ -168,6 +168,11 @@ H('★★★ A FORM IS LEARNED, THEN PERFECTED');
      `S2 learned ${L.s2.learned} · perfected ${L.s2.perfected}`);
   ok(L.s3.form === 'luminary' && L.s3.gem === 'pearl',
      `★ S3 is Pearl/Balance and its form is ${L.s3.form}`);
+  // ★ the last unruled field in the ladder, confirmed 2026-09-13
+  ok(L.s3.perfected === 'endgame of Part 2',
+     `★★ S3 perfected at the ${L.s3.perfected}, vs ${L.s3.against}`);
+  ok(!/unruled|NOT ASSUMED/i.test(JSON.stringify(L)),
+     '★ and nothing in the form ladder is still marked unruled');
   // ★★★ THE BRIDGE IS THE BOUNDARY · "below" and "south" were never in conflict
   ok(H2.boundary === 'bridge_of_hope',
      `★★★ Lower Zyraxis is "${H2.lower}" — lower is relative to the BRIDGE, not a stratum`);

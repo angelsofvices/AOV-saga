@@ -79,6 +79,25 @@ rewards *searching* — it turns every district into a small closed loop with it
 own answer, which is the same principle as "every district answers one story
 question". **The monument stops being scenery and becomes a door.**
 
+> ### ★★★ LOCKED 2026-09-14 · the three answers
+> **1 · Malezor's relic is a BROKEN NOVARIUS STATUE FRAGMENT.**
+> *"a broken novarius statue fragment."* — which solves the one physical snag:
+> you were never meant to carry the statue. ★★ And it is better than a generic
+> token, because a **broken** fragment says the monument was damaged, which is a
+> fact about the world rather than a fetch excuse. The statue at (8,29) becomes
+> a thing with a piece missing.
+>
+> **2 · THE TWO HUNTS HAVE DIFFERENT BENEFICIARIES.**
+> *"gemstone hunt will only be for rizer. the relic hunt will be for the
+> elder/master of the district."*
+> ★★★ That is what separates them, and it is a sharper split than "two fetch
+> quests": the **gemstone is self-interested** (Rizer's own progression) and the
+> **relic is service** (you are doing it for the district's elder). Same verb,
+> opposite motive.
+> ★★ **And it fills the eight empty elders.** The relic hunt *is* the elder's
+> questline — so `DISTRICT_ELDERS` stops being eight `built:false` rows with
+> nothing to say and becomes eight people who each want one specific thing back.
+
 ★ **And both of the Creator's examples are already in the build:**
 - `novarius_statue` — Malezor **(8, 29)**, 2×4 tiles, currently does nothing but
   toast *"◈ Statue of NOVARIUS · First Beast Master."*
@@ -158,23 +177,35 @@ Zysphere, Zycube, Zyramid — and calls them utility prisms."*
 That is a clean set, and it retires the vague "powers" function the old doc gave
 it.
 
-> ### ★★★ BUT THIS ONE IS A SYSTEM, NOT AN ITEM — READ BEFORE BUILDING
-> **The game has no bag limit at all right now.** No `bagCap`, no slot count,
-> no carry check anywhere in 3.5 MB. So the Zyramid does not *raise* a cap —
-> **introducing it CREATES the cap**, and a cap is the one kind of feature that
-> is subtractive rather than additive.
+> ### ★★★ LOCKED 2026-09-14 · the numbers
+> **Creator:** *"zyramid comes with zycube. start with 30 slots. can be upgraded
+> to 60, 90, 120, 150, 180, 210, etc, up to zycube level 10 with 300 slots. so
+> the zyramid upgrading increases the zycube capacity."*
 >
-> ★ The hazard is existing saves. A player mid-game may be carrying 40 item
-> types; ship a cap below that and their bag is retroactively illegal.
-> ★★ The safe shape, and I'd recommend it: **set the starting cap at or above
-> the fattest realistic save, and let the Zyramid go up from there.** Then the
-> first Zyramid is always an upgrade and never a confiscation — nobody loses
-> anything to a feature they did not ask for.
+> - **The Zyramid arrives WITH the ZyCube** — not a separate acquisition. Mom
+>   hands over the ZyCube early; the Zyramid is what makes it hold anything.
+> - **`cap = 30 × zycubeLevel`** · L1 = 30 · L10 = **300**. Clean linear +30.
+> - **It upgrades the ZYCUBE, not a separate bag.** ★ Correct on the build's own
+>   terms: `ZYCUBE_CATEGORIES` is the registry the inventory UI renders from, so
+>   the ZyCube *is* the bag. The Zyramid is its capacity stat.
 >
-> ★ Upgrade cadence is open. It wants a rhythm the player can feel — one step
-> per district is the obvious candidate, and **it would pair naturally with the
-> shrine loop** (§1.1), since carrying relics across a district is exactly when
-> capacity becomes noticeable. Not assumed.
+> ★★★ **ONE NUMBER TO CHECK BEFORE BUILDING, and it is not a small one.**
+> `INVENTORY_META` defines **81 item types.** The cap starts at **30**. There is
+> currently **no limit at all** anywhere in 3.5 MB — so this does not raise a
+> cap, it **creates** one, and it creates it well below what the game can hand a
+> player.
+>
+> ★ So the open question is what a **slot** counts:
+> **(a) one item TYPE** — 30 slots against 81 types means a normal player fills
+> it and starts making real decisions about what to carry. Tight and meaningful,
+> but it will bind early and often, and every existing save needs checking.
+> **(b) one STACK or unit count** — far looser, and 30 would rarely bite.
+> ★★ (a) is almost certainly the intent — 30→300 only reads as progression if
+> the number is scarce — but it is the difference between a feature and a
+> frustration, so it is recorded rather than assumed.
+>
+> ★ Existing saves: anything already over the starting cap needs a migration
+> that grants levels rather than deletes items. **Never confiscate.**
 
 ### 1.6 The six unnamed Gemlord weapons — *the schema is already there*
 `GEMLORD_WEAPONS` has four keyed and six `{key:null, weapon:null}`: Eurakeon

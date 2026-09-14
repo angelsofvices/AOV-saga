@@ -121,15 +121,29 @@ H('★★ AND THE GATE IS WIRED INTO THE REAL MELEE PATH');
 
 H('★★★ PLACEMENT · ruled 2026-09-14');
 {
-  const P = vm.createContext({ player: { districtsVisited: {} } });
+  const P = vm.createContext({ player: { districtsVisited: {} }, Math, Array, Object });
   vm.runInContext(grab('const NEW_ENEMY_PLACEMENT = {'), P);
+  // ★ v0.97.1 · the counts became a depth-scaled BAND, so the district table
+  //   and the depth helper are dependencies now. Without them newEnemyCountFor
+  //   throws a ReferenceError from inside the vm — which reads as a placement
+  //   regression rather than as a stale test harness.
+  // ★ grab() is brace-matched and cannot take an ARRAY literal — it produced
+  //   `{id:'malezor',...};` and a SyntaxError. The harness's grabDecl asks the
+  //   compiler where the declaration ends instead of counting characters, so
+  //   it handles both. One extractor, not two that disagree.
+  const { grabDecl } = require('./lib/world_harness.js');
+  vm.runInContext(grabDecl(src, 'ZYRAXIS_DISTRICTS').code, P);
+  vm.runInContext(grabDecl(src, 'newEnemyDepth').code, P);
   vm.runInContext(grab('function penumbraHasSpread(').replace(/^function/, 'var penumbraHasSpread = function'), P);
   vm.runInContext(grab('function newEnemyCountFor(').replace(/^function/, 'var newEnemyCountFor = function'), P);
   const N = e => vm.runInContext(e, P);
 
   // ★ NYMPHYSYL · the three darker districts, and nowhere else
   const dark = ['netharion','vorashil','xilnar'];
-  for (const d of dark) ok(N(`newEnemyCountFor('nymphysyl','${d}')`) > 0, `  nymphysyl patrols ${d}`);
+  // ★ v0.97.1 · "patrols" now means a POPULATION, not a presence flag. One
+  //   body in a 110x100 ellipse satisfied the sentence and failed the world.
+  for (const d of dark) ok(N(`newEnemyCountFor('nymphysyl','${d}')`) >= 4,
+    `  nymphysyl patrols ${d} · ${N(`newEnemyCountFor('nymphysyl','${d}')`)} of them`);
   for (const d of ['malezor','zarvane','baelgor','korathen','thardin'])
     ok(N(`newEnemyCountFor('nymphysyl','${d}')`) === 0, `  and NOT ${d}`);
 
@@ -146,7 +160,8 @@ H('★★★ PLACEMENT · ruled 2026-09-14');
      '★★ and they do not fight in pacts — each one is alone');
 
   // ★★★ PENUMBRA · the world changes because you WENT somewhere
-  ok(N("newEnemyCountFor('penumbra','thardin')") > 0, 'penumbra is in Thardin from the start');
+  ok(N("newEnemyCountFor('penumbra','thardin')") >= 9,
+     `penumbra is in Thardin IN NUMBER from the start · ${N("newEnemyCountFor('penumbra','thardin')")}`);
   const before = N("newEnemyCountFor('penumbra','malezor')");
   ok(before === 0, '★★★ and NOWHERE else until you reach Thardin');
   P.player.districtsVisited.thardin = true;

@@ -16159,6 +16159,13 @@ setTimeout(() => { try {
     const sb = buildScanobotNet();
     if (sb) console.log(`[rp7b] scanobot net · ${sb} drones across 10 districts · rogue: ${!!player.scanobotsRogue}`);
   } catch(err){ console.warn('[rp7b] scanobot seed failed', err); }
+  // ★★ v0.97.1 · the three new enemies · AFTER the drones, deliberately: the
+  // siting rule spaces against every enemy already standing, and the drones are
+  // 300 of them. Run this first and the net would space against an empty map.
+  try {
+    const ne = buildNewEnemyNet();
+    if (ne) console.log(`[rp7b] new enemy net · ${ne} bodies · morvexar/nymphysyl/penumbra`);
+  } catch(err){ console.warn('[rp7b] new enemy seed failed', err); }
   // ★★ v0.95.800 · PORTALS LAST.  Siting reads the density of everything that
   // ended up in the world — props, buildings, NPCs, tower guards, Seer rings,
   // Scanobots.  Run any earlier and "the most unpopulated area" would be
@@ -24454,14 +24461,40 @@ function penumbraHasSpread(){
   return !!(player.districtsVisited && player.districtsVisited[NEW_ENEMY_PLACEMENT.penumbra.spreadsAfterReaching]);
 }
 // ★ how many of a new enemy belong in a district right now.
+// ★★★ v0.97.1 · POPULATION, NOT PRESENCE.
+//
+//   Creator: "I want each district to get harder and have a range of enemy
+//   populations, similar to zyrex populations."
+//
+// ★ The first version of this function returned ONE Nymphysyl per district,
+//   which satisfies "patrols netharion, vorashil, xilnar" as a sentence and
+//   fails it as a world: one body in a 110x100 ellipse is a rumour, not a
+//   patrol. A player could cross the whole of Vorashil and meet nothing.
+//
+// ★★ So the count is a BAND scaled by how deep the district is, which is the
+//   same shape TOWER_NETWORK already uses for levels — Malezor 5, Korathen 80.
+//   Difficulty in RP7 has never meant only "the enemy hits harder"; it also
+//   means "there are more of them, and fewer gaps to walk through."
+//   ★ Morvexar is the exception and stays EXACT, because 6/4/2 was ruled by
+//     number rather than described, and a ruled number is not a band.
+function newEnemyDepth(dist){
+  const i = ZYRAXIS_DISTRICTS.findIndex(d => d.id === dist);
+  return i < 0 ? 0 : i;                            // 0 Malezor ... 9 Korathen
+}
 function newEnemyCountFor(id, dist){
   const P = NEW_ENEMY_PLACEMENT[id];
   if (!P) return 0;
-  if (P.counts) return P.counts[dist] || 0;
-  if (P.districts) return P.districts.includes(dist) ? 1 : 0;
+  if (P.counts) return P.counts[dist] || 0;        // ★ ruled by number · untouched
+  const depth = newEnemyDepth(dist);
+  if (P.districts){
+    // 4 at the shallowest of her three, rising with depth · Netharion 5,
+    // Vorashil 6, Xilnar 7 — the deeper the dark, the more of it there is.
+    return P.districts.includes(dist) ? 4 + Math.floor(depth / 2) : 0;
+  }
   if (P.home){
-    if (dist === P.home) return 3;                 // "in number" at home
-    return penumbraHasSpread() ? 1 : 0;            // ...and only after you go
+    if (dist === P.home) return 9;                 // "patrol thardin IN NUMBER"
+    if (!penumbraHasSpread()) return 0;            // ...and only after you go
+    return 2 + Math.floor(depth / 4);              // 2 early, 4 by Korathen
   }
   return 0;
 }
@@ -26722,6 +26755,134 @@ function _scanobotTile(dist, tx, ty){
   }
   return null;
 }
+// ★★★ v0.97.1 · THE ENEMY SITING DOCTRINE.
+//
+//   Creator, 2026-09-14: "make sure there are enemies all over the map. no area
+//   should be super dense and others scarce. also, try to keep enemies out of
+//   the main town districts. more so in the wilds, in the outskirts, in the
+//   coasts, near valuable chests, etc."
+//
+// ★★★ THE RULE THAT DECIDES "TOWN" WAS ALREADY WRITTEN — I ALMOST INVENTED A
+//   SECOND ONE. My first draft measured distance from any prop with a
+//   footprint, on the reasoning that a settlement IS its buildings. Then I
+//   read the note at v0.95.747, which records this exact mistake being made
+//   before: *"treating FLORA as occupancy. 9,203 of 16,270 props are trees,
+//   bushes and grass."* A prop-distance test does not say "town", it says
+//   "forest" — and a forest is precisely where the Creator wants these things.
+//
+// ★★ So the test is SETTLEMENT_DOCTRINE READ BACKWARDS. That doctrine already
+//   defines, in the game's own numbers, exactly where a person would choose to
+//   live: the belt t 0.09-0.50 of the district radius, in the FOREST and
+//   HIGHLAND quarters, never on the road and never out in the marsh. An enemy
+//   belongs wherever a house may not stand. ★ Inverting a law is better than
+//   authoring a parallel one, because the two can never drift apart.
+//
+// ★★ FOUR RULES, AND THEY PULL AGAINST EACH OTHER ON PURPOSE:
+//   1. EVEN — a hard minimum spacing, enforced against every enemy already
+//      standing, across districts. Clumping is what a random scatter produces
+//      most often, because random is not uniform.
+//   2. NOT IN TOWN — the inverted settlement belt, plus a plaza ring around
+//      each district's civic doors.
+//   3. PREFER THE EDGES — coast, and the outskirts past the settlement band.
+//   4. PREFER GUARDED TREASURE — gold and cosmic chests. ★ This is the rule
+//      that turns siting into design: an enemy near a chest is a decision the
+//      player has to make; an enemy in an empty field is scenery with HP.
+//
+// ★ Rules 1-2 are HARD (reject). Rules 3-4 are SOFT (score). That split matters:
+//   a hard "must be coastal" would starve inland districts and reintroduce the
+//   scarcity I was asked to avoid.
+const ENEMY_SITE_MIN_SPACING = 9;    // ★ tighter than the drones' 12 · there are fewer of these
+const ENEMY_SITE_CIVIC_CLEAR = 16;   // plaza ring · > CLEAR_OF_HALL, they are not neighbours
+const ENEMY_SITE_CANDIDATES  = 500;  // samples per slot before taking the best
+
+// ★ the civic doors of one district — the same filter findHomePlots() uses, so
+//   "civic" means one thing in this file and cannot come to mean two.
+const _siteCivic = {};
+function siteCivicTiles(dist){
+  if (_siteCivic[dist]) return _siteCivic[dist];
+  let out = [];
+  try {
+    out = WORLD_PROPS.filter(p => p && typeof p.tileX === 'number'
+        && /_town_hall$|shop|school|hospital|academy|inn|clinic|market/.test(p.id || '')
+        && worldDistrictAt(p.tileX, p.tileY) === dist)
+      .map(p => [p.tileX, p.tileY]);
+  } catch(_){}
+  return (_siteCivic[dist] = out);
+}
+function _siteBearing(dx, dy){
+  if (Math.abs(dx) <= Math.abs(dy) * 0.45) return dy < 0 ? 'N' : 'S';
+  if (Math.abs(dy) <= Math.abs(dx) * 0.45) return dx < 0 ? 'W' : 'E';
+  return (dy < 0 ? 'N' : 'S') + (dx < 0 ? 'W' : 'E');
+}
+// ★★★ "would a HOUSE be allowed to stand here?" — if yes, this is town.
+function siteIsTownGround(dist, x, y){
+  const D = ZYRAXIS_DISTRICT_BY_ID[dist]; if (!D) return false;
+  const S = SETTLEMENT_DOCTRINE;
+  const t = Math.hypot((x - D.cx) / D.rx, (y - D.cy) / D.ry);
+  if (t < S.T_MIN || t > S.T_MAX) return false;              // outside the belt = not town
+  let q = null;
+  try { q = wheelQuarterAt(dist, _siteBearing(x - D.cx, y - D.cy)); } catch(_){}
+  return !!q && SETTLEMENT_QUARTERS.includes(q);             // timber and slope = town
+}
+// ★ a coast tile is one with open water within three steps — the outskirt of
+//   the landmass, which is where a thing that does not belong in town goes.
+function siteCoastScore(x, y){
+  for (let r = 1; r <= 3; r++)
+    for (const [dx, dy] of [[r,0],[-r,0],[0,r],[0,-r]])
+      if (!isWorldLandTile(x + dx, y + dy)) return 4 - r;    // nearer the water scores higher
+  return 0;
+}
+let _siteTreasure = null;
+function siteTreasureTiles(){
+  if (_siteTreasure) return _siteTreasure;
+  _siteTreasure = [];
+  try { for (const g of GOLD_CHEST_TILE_POSITIONS) _siteTreasure.push([g[0], g[1]]); } catch(_){}
+  try { for (const c of COSMIC_CHEST_SPOTS) if (c && c.at) _siteTreasure.push([c.at[0], c.at[1]]); } catch(_){}
+  return _siteTreasure;
+}
+function siteTreasureScore(x, y){
+  let best = 0;
+  for (const [tx, ty] of siteTreasureTiles()){
+    const d = Math.max(Math.abs(tx - x), Math.abs(ty - y));
+    // ★ 4..14 tiles, not 0 — GUARDING the chest, not standing on the lid.
+    if (d >= 4 && d <= 14) best = Math.max(best, 6 - Math.floor(d / 3));
+  }
+  return best;
+}
+
+// ★★★ Pick one tile for one enemy in one district. Hard rules reject; soft
+//   rules rank; the best of N candidates wins.
+function siteEnemyTile(dist, rand, taken){
+  const D = ZYRAXIS_DISTRICT_BY_ID[dist];
+  if (!D) return null;
+  const S = SETTLEMENT_DOCTRINE;
+  const civic = siteCivicTiles(dist);
+  let best = null, bestScore = -1;
+  for (let i = 0; i < ENEMY_SITE_CANDIDATES; i++){
+    const a = rand() * Math.PI * 2;
+    // ★ sqrt() for a UNIFORM disc. Without it the sample crowds the centre —
+    //   which is both the clumping I was warned about AND the town.
+    const r = Math.sqrt(rand()) * 0.97;
+    const x = Math.round(D.cx + Math.cos(a) * D.rx * r);
+    const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
+    if (!_scanobotWalkable(x, y)) continue;                       // HARD · real ground
+    if (worldDistrictAt(x, y) !== dist) continue;                 // HARD · its own district
+    if (siteIsTownGround(dist, x, y)) continue;                   // HARD · not in town
+    let clear = true;
+    for (const [cx, cy] of civic)
+      if (Math.hypot(x - cx, y - cy) < ENEMY_SITE_CIVIC_CLEAR){ clear = false; break; }
+    if (!clear) continue;                                         // HARD · not on the plaza
+    for (const [px, py] of taken)
+      if (Math.max(Math.abs(px - x), Math.abs(py - y)) < ENEMY_SITE_MIN_SPACING){ clear = false; break; }
+    if (!clear) continue;                                         // HARD · evenly spread
+    const t = Math.hypot((x - D.cx) / D.rx, (y - D.cy) / D.ry);
+    const outskirt = t > S.T_MAX ? 2 : 0;                         // SOFT · past the last house
+    const score = siteCoastScore(x, y) + siteTreasureScore(x, y) + outskirt + rand();
+    if (score > bestScore){ bestScore = score; best = [x, y]; }
+  }
+  return best;
+}
+
 // Idempotent · safe at boot, after load, and after a Horde toggle.
 function buildScanobotNet(){
   if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
@@ -26782,6 +26943,114 @@ function buildScanobotNet(){
   applyScanobotState();
   return made;
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.97.1 · THE NEW ENEMY NET · Morvexar · Nymphysyl · Penumbra
+// ═══════════════════════════════════════════════════════════════════════════
+// Idempotent, exactly like buildScanobotNet — safe at boot, after a load, and
+// after Penumbra spreads. ★ Idempotence is the whole reason this is a function
+// and not a literal SPOTS array the way Vorugath is: Penumbra's population
+// CHANGES when you reach Thardin, so the net has to be re-runnable without
+// duplicating the bodies already standing.
+//
+// ★★ AND IT CANNOT BE BUILT AT WORLD_PROPS TIME. The siting rules read
+//   _propBlocked (line ~15432) and walkable(), both of which are still in their
+//   TDZ while the prop array is being constructed ~9,000 lines earlier. That
+//   trap has bitten this file three times by its own comments; this is the
+//   fourth place it would have, so the net runs after boot like the drones do.
+const NEW_ENEMY_STATS = {
+  // rank ladder: commander < miniboss < boss.  Vilerok 500 / Vorugath 1000 are
+  // the two fixed points already in the build, so these hang off those.
+  penumbra:  { hp: 800,  drain: 22, tier: 6, detectR: 15, wander: 5 },
+  nymphysyl: { hp: 1200, drain: 26, tier: 7, detectR: 13, wander: 6 },
+  morvexar:  { hp: 2600, drain: 45, tier: 8, detectR: 16, wander: 3 },
+};
+function _newEnemyArt(id){
+  return id === 'morvexar' ? MORVEXAR_ART : id === 'nymphysyl' ? NYMPHYSYL_ART : PENUMBRA_ART;
+}
+// ★ each species' banks mapped onto the generic _vSheets contract (idle / run /
+//   light / heavy) that the multi-bank strike system already drives. Nothing
+//   new in the AI — same lesson Vorugath learned at v0.96.72.
+function _newEnemySheets(id){
+  const A = _newEnemyArt(id);
+  const load = k => { const b = A[k]; if (!b) return null;
+                      const im = new Image(); im.src = b.src; return { img: im, bboxes: b.bboxes }; };
+  if (id === 'morvexar')
+    return { base: A.p1idle, idle: { img: null, bboxes: A.p1idle.bboxes },
+             run: load('p1walk'), light: load('p1light'), heavy: load('p1heavy') };
+  if (id === 'nymphysyl')
+    return { base: A.idle, idle: { img: null, bboxes: A.idle.bboxes },
+             run: load('sprint'), light: load('light'), heavy: load('heavy') };
+  return   { base: A.idle, idle: { img: null, bboxes: A.idle.bboxes },
+             run: load('walk'), light: load('light'), heavy: load('heavy') };
+}
+const NEW_ENEMY_IDS = ['morvexar', 'nymphysyl', 'penumbra'];
+function buildNewEnemyNet(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  let made = 0;
+  // ★★ SPACING IS ENFORCED AGAINST EVERY ENEMY ALREADY STANDING — the drones
+  //   and the older species too, not just each other. "No area super dense"
+  //   is a statement about the MAP, and the map already has bodies on it.
+  const placed = NPCS.filter(n => n && n.scene === 'overworld' && (n.isEnemy || n._scanobot))
+                     .map(n => [n.tileX, n.tileY]);
+  for (const id of NEW_ENEMY_IDS){
+    const A = _newEnemyArt(id), ST = NEW_ENEMY_STATS[id];
+    const sheets = _newEnemySheets(id);
+    const body = new Image(); body.src = sheets.base.src;
+    for (const D of ZYRAXIS_DISTRICTS){
+      const want = newEnemyCountFor(id, D.id);
+      if (!want) continue;
+      const T = TOWER_NETWORK.find(t => t.dist === D.id);
+      const rand = _makeWorldRng(0x5E7 + D.cx * 31 + NEW_ENEMY_IDS.indexOf(id) * 7919);
+      for (let i = 0; i < want; i++){
+        const nid = `${id}_${D.id}_${i + 1}`;
+        if (NPCS.some(n => n && n.id === nid)) continue;   // ★ idempotent
+        const spot = siteEnemyTile(D.id, rand, placed);
+        if (!spot) { console.warn(`[newEnemyNet] no legal tile for ${nid}`); continue; }
+        placed.push(spot);
+        NPCS.push({
+          id: nid,
+          name: id[0].toUpperCase() + id.slice(1),
+          sheet: body, src: sheets.base.src, bboxes: sheets.base.bboxes,
+          cellW: 313, cellH: 313, cols: 4, rows: 4,
+          uniformScale: true, scaleMul: A.scaleMul,
+          tileX: spot[0], tileY: spot[1], homeX: spot[0], homeY: spot[1],
+          scene: 'overworld', homeScene: 'overworld',
+          dir: ['down','left','right','up'][i % 4],
+          mode: 'drainer', wanderRadius: ST.wander, moving: false,
+          animFrame: 0, idleFrame: 0,
+          moveCd: 480 + Math.random() * 420, blinkTimer: 9e9,
+          isEnemy: true, detectR: ST.detectR,
+          hpMax: ST.hp, hp: ST.hp, drainAmt: ST.drain,
+          tier: ST.tier,
+          // ★ boss rank fights at the district's BOSS level, the others at its
+          //   Mori level — so the same species genuinely hardens as you go east.
+          level: T ? (A.rank === 'boss' ? T.bossLv : T.moriLv) : 30,
+          rank: A.rank,
+          _newEnemy: id,
+          // ★★★ THE FLAG THE IMMUNITY READS. enemyResistsHit checks
+          //   n._astralOnly, so it has to be written HERE, on the body — the
+          //   ART table's `astralOnly` is data about the species and is never
+          //   consulted at the melee site.
+          _astralOnly: !!A.astralOnly,
+          // ★ "they do not fight in pacts" — recorded on every body so the
+          //   eventual group-aggro pass cannot sweep them in by accident.
+          _noPack: !!(NEW_ENEMY_PLACEMENT[id] && NEW_ENEMY_PLACEMENT[id].noPack),
+          _vSheets: { idle: sheets.idle, run: sheets.run,
+                      light: sheets.light, heavy: sheets.heavy },
+          footprint: A.scaleMul >= 1.8 ? [[0,0],[-1,0],[1,0]] : [[0,0]],
+          interactHitbox: [[-1,0],[0,0],[1,0]],
+          onInteract: () => showToast(
+            id === 'nymphysyl' ? '◈ NYMPHYSYL · steel will not reach it'
+          : id === 'morvexar'  ? '◈ MORVEXAR · the astral in it went wrong'
+                               : '◈ PENUMBRA · older than the machines that copy it', 2600),
+        });
+        made++;
+      }
+    }
+  }
+  return made;
+}
+
 // One place decides what a Scanobot IS. Called at boot, after load, and on the
 // flip, so a save made before the net went rogue cannot restore forty passive
 // drones into a rogue world.
@@ -27135,6 +27404,10 @@ function syncTowerNetworkFromSave(){
   // this, and the second call covers a save whose drones already existed.
   try { buildScanobotNet(); } catch(_){}
   try { applyScanobotState(); } catch(_){}
+  // ★ same reason · a save taken before Thardin restores a world where Penumbra
+  //   lives only in Thardin, and one taken after must restore them everywhere.
+  //   The net is idempotent, so this tops up rather than duplicating.
+  try { buildNewEnemyNet(); } catch(_){}
   try { seedMalezorWild(); } catch(_){}
   // Tower sprites re-derive from towerRestored() every paint · nothing to do.
 }
@@ -34816,6 +35089,20 @@ function tryMove(dt){
       player.districtsVisited = player.districtsVisited || {};
       if (!player.districtsVisited[_d]){
         player.districtsVisited[_d] = true;
+        // ★★★ v0.97.1 · REACHING THARDIN CHANGES THE REST OF THE MAP.
+        // Creator: "penumbra patrol thardin in number, but once you get there,
+        // they begin popping up in all other districts too."
+        // ★ penumbraHasSpread() reads this very flag, so the net must be re-run
+        //   AFTER it is set — and it is the line above that arms it. Without
+        //   this call the spread would be true in data and invisible in play
+        //   until the next save-load, which is the quietest kind of dead
+        //   feature: the flag is written, read, correct, and nothing happens.
+        if (_d === NEW_ENEMY_PLACEMENT.penumbra.spreadsAfterReaching){
+          try {
+            const sp = buildNewEnemyNet();
+            if (sp) showToast('\u25c8 PENUMBRA UNITS DETECTED PLANETWIDE', 4200);
+          } catch(_){}
+        }
         if (_d === 'zarvane' && !player.zarvaneEntered){
           player.zarvaneEntered = true;
           try { pingNextObjective(); } catch(_){}
@@ -39748,7 +40035,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.0' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.1' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

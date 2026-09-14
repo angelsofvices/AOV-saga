@@ -57,7 +57,46 @@ district, none needing a word invented.
 
 ## 1 · ITEMS AND RELICS
 
-### 1.1 ★★★ The nine district shrine relics — *fully specified, reference code exists*
+### 1.1 ★★★ TEN district shrines and TEN relics — *the loop RUNS THE OTHER WAY*
+
+> **★★★ RULED 2026-09-14.** Creator: *"there should be 30 lore buildings. also,
+> 10 district shrines and 10 relics you have to bring to the shrine to complete
+> the loop. for instance, the statue of novarius is the relic in malezor. the
+> water fountain in andrannor is their shrine."*
+
+**Two changes to everything written below.**
+
+1. **TEN, not nine.** Malezor gets a shrine and a relic like everywhere else.
+   The rp8 table starts at district II; Malezor was left out because it was the
+   tutorial. It is not the tutorial any more.
+2. **★★★ THE DIRECTION REVERSES.** rp8's shrines *granted* a relic on first
+   touch. Now the relic is **found in the district and carried to the shrine**.
+   The shrine is the lock; the relic is the key.
+
+★★ **This is strictly better and it is worth saying why.** A shrine that hands
+you something for arriving rewards *walking*. A shrine that wants something
+rewards *searching* — it turns every district into a small closed loop with its
+own answer, which is the same principle as "every district answers one story
+question". **The monument stops being scenery and becomes a door.**
+
+★ **And both of the Creator's examples are already in the build:**
+- `novarius_statue` — Malezor **(8, 29)**, 2×4 tiles, currently does nothing but
+  toast *"◈ Statue of NOVARIUS · First Beast Master."*
+- `andrannor_fountain` — a live **animated multi-cell** prop with a working SFX
+  loop, currently pure decor.
+- ★★ And a detail worth keeping: the **Elzoran easter egg already kneels at
+  (8, 31)**, two tiles from the statue, *"kneeling before Novarius' statue."*
+  Malezor's shrine site has had a worshipper at it this whole time.
+
+★ Count check: the build has **11 monument-class props** already
+(`novarius_statue`, `andrannor_fountain`, `korathen_the_empty_throne`,
+`zarvane_the_resonance_spire`, `malezor_radio_tower`, `rizer_treehouse`, a
+`spire`, a `tree`…). **Zero are called shrines.** Most of the twenty objects this
+loop needs are probably already standing.
+
+---
+
+### 1.1b The rp8 nine — *the source table, now superseded on direction*
 **Source:** `MASTER_CODEX_HANDOFF.md` §5b — *"Each district II–X has a landmark
 shrine. First-visit interaction grants a unique named relic + XP."*
 **Status:** absent from rp7b · **already implemented in `rp8.html`** (`SHRINES`
@@ -108,13 +147,34 @@ sixteen names with tier/realm/planet — but none is an item.
 **The Deep Prism · Xilnar** · **The Refuge Prism · Vorashil** ·
 **The Prism of Omnithris · Korathen**. Three placements written and unbuilt.
 
-### 1.5 Zyramid — the missing third utility prism
+### 1.5 ★★★ Zyramid — CARRY CAPACITY · *ruled 2026-09-14*
 **Source:** `PRISMSHARD_GEMSHARD_CANON.md` §0g — *"Thardin mass-produces three —
 Zysphere, Zycube, Zyramid — and calls them utility prisms."*
-**Status:** Zysphere (bond) and Zycube (storage) both ship. **Zyramid returns
-zero hits in the entire repo.** Canon gives it the "powers" function and Thardin
-manufacture. ★ Its absence is currently a *contradiction*: the doc quotes a
-scroll that no longer exists.
+> **Creator, 2026-09-14:** *"zyramid will be earned and upgraded to increase
+> backpack inventory size throughout game."*
+
+★★ **The three utility prisms now own three distinct ideas and none overlap:**
+**Zysphere = bond** · **Zycube = storage** · **Zyramid = how much you can carry.**
+That is a clean set, and it retires the vague "powers" function the old doc gave
+it.
+
+> ### ★★★ BUT THIS ONE IS A SYSTEM, NOT AN ITEM — READ BEFORE BUILDING
+> **The game has no bag limit at all right now.** No `bagCap`, no slot count,
+> no carry check anywhere in 3.5 MB. So the Zyramid does not *raise* a cap —
+> **introducing it CREATES the cap**, and a cap is the one kind of feature that
+> is subtractive rather than additive.
+>
+> ★ The hazard is existing saves. A player mid-game may be carrying 40 item
+> types; ship a cap below that and their bag is retroactively illegal.
+> ★★ The safe shape, and I'd recommend it: **set the starting cap at or above
+> the fattest realistic save, and let the Zyramid go up from there.** Then the
+> first Zyramid is always an upgrade and never a confiscation — nobody loses
+> anything to a feature they did not ask for.
+>
+> ★ Upgrade cadence is open. It wants a rhythm the player can feel — one step
+> per district is the obvious candidate, and **it would pair naturally with the
+> shrine loop** (§1.1), since carrying relics across a district is exactly when
+> capacity becomes noticeable. Not assumed.
 
 ### 1.6 The six unnamed Gemlord weapons — *the schema is already there*
 `GEMLORD_WEAPONS` has four keyed and six `{key:null, weapon:null}`: Eurakeon

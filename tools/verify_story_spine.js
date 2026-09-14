@@ -93,24 +93,83 @@ H('★★★ THE KIDNAPPING WINDOW · handoff §21.4, narrowed');
      '★★ Rakoron SENSES the resonance there — §21.5 non-intervention, intact');
 }
 
-H('★★★ NOTHING CONTESTED HAS BEEN BUILT');
+H('★★★ RULED 2026-09-13 · THE ENDGAME LADDER');
+{
+  // ★ S2 · the Creator overrode their own 2026-09-01 quote here, so the test
+  //   asserts the NEW ruling and names the old one so nobody "restores" it.
+  const kid = SPINE.find(s => (s.beats || []).includes('parents_kidnapped'));
+  ok((kid.unlocks || []).includes('s2'),
+     '★★ S2 unlocks with the rage, at the parents\' abduction (supersedes 2026-09-01)');
+  ok(LAWS.s2UnlockAt === 'parents_kidnapped', 'and the law records the trigger');
+
+  // ★★★ Egnellahc is not in RP7 — only his two Gemlord forms.
+  const th = SPINE.find(s => s.at === 'thardin');
+  ok((th.neverNamesInGame || []).includes('egnellahc'),
+     '★★★ Thardin shows the VACANCY and never names Egnellahc');
+  ok((LAWS.neverInRP7 || []).includes('egnellahc'),
+     'and the law says so once, for the whole game');
+  const said = /showDialog|showToast/.source;
+  const leaks = src.split('\n').filter(l => /Egnellahc/i.test(l)
+                && (/showDialog|showToast|lines:|say\(/.test(l)));
+  ok(leaks.length === 0,
+     leaks.length ? `★ Egnellahc is SPOKEN in game: ${leaks[0].trim().slice(0,80)}`
+                  : 'and no player-facing line says his name');
+
+  // ★★★ the post-victory ladder · Oatheus is the tenth, and the tenth buys the God
+  const oat = SPINE.find(s => (s.beats || []).includes('oatheus_catchable'));
+  ok(!!oat && oat.post === true, 'Oatheus is a POST-victory encounter');
+  ok(oat.at === 'korathen' && (oat.requires || []).includes('lv100'),
+     '★ back to Korathen at Lv100 to enter his cave');
+  const anc = SPINE.find(s => (s.beats || []).includes('anciuxor_catchable'));
+  ok(!!anc && (anc.requires || []).includes('all_ten_gemlords'),
+     '★★★ and Anciuxor costs all ten Gemlords');
+  ok(anc.n > oat.n, '★ Oatheus comes FIRST — he is the tenth, so he is the key');
+  ok(LAWS.anciuxorRequires.level === 100 && LAWS.anciuxorRequires.gemlords === 10,
+     `the law: Lv${LAWS.anciuxorRequires.level} + ${LAWS.anciuxorRequires.gemlords} Gemlords`);
+}
+
+H('★★ AND THE GATE IS ACTUALLY WIRED, not just written down');
+{
+  ok(/function allTenGemlords\(\)/.test(src), 'allTenGemlords() exists');
+  ok(/const GEMLORD_TEN = GEMLORD_WEAPONS\.map/.test(src),
+     '★ the ten come from the shipped Gemlord table, not a second hand-typed list');
+  ok(/anciuxorWillStay\(\)\{[\s\S]{0,200}allTenGemlords\(\)/.test(src),
+     '★★★ anciuxorWillStay() checks BOTH halves — Lv100 was never the whole gate');
+  ok(/return \(\(player\.bonds && player\.bonds\[id\]\) \|\| 0\) >= GEMLORD_RESPECT_PCT;/.test(src),
+     '★ "or at least gained all their respect" — bond counts, as the Creator said');
+  // drive it
+  const c = vm.createContext({ player: { rizerLvl: 100, party: [], pcZyrex: [], sanctuary: [], bonds: {} },
+                               GEMLORD_WEAPONS: [] });
+  const blk = src.slice(src.indexOf('const GEMLORD_TEN ='), src.indexOf('function beginAnciuxorFlight'));
+  c.GEMLORD_WEAPONS = Array.from({length:10}, (_, i) => ({ gemlord: 'g' + i }));
+  c.ANCIUXOR_TAME_LV = 100;
+  vm.runInContext(blk, c);
+  const stay = e => vm.runInContext(e, c);
+  ok(stay('anciuxorWillStay()') === false, 'Lv100 with zero Gemlords: he still flies');
+  c.player.bonds = Object.fromEntries(Array.from({length:9}, (_, i) => ['g'+i, 100]));
+  ok(stay('anciuxorWillStay()') === false, '★ nine of ten: he STILL flies');
+  c.player.bonds.g9 = 100;
+  ok(stay('anciuxorWillStay()') === true, '★★★ all ten: he stops running');
+  c.player.rizerLvl = 99;
+  ok(stay('anciuxorWillStay()') === false, 'and ten Gemlords below Lv100 is not enough either');
+}
+
+H('★★★ NOTHING STILL CONTESTED HAS BEEN BUILT');
 {
   // ★ The list below is the eight moves the 2026-09-13 progression makes against
   //   already-ruled canon. Each must still be MARKED, not wired.
   const flagged = SPINE.flatMap(s => (s.contested || []).map(c => `${s.at}:${c}`));
   console.log('      ' + (flagged.join('  ·  ') || '(none)'));
-  ok(flagged.length >= 4, `${flagged.length} contested beats still marked as unruled`);
+  ok(flagged.length >= 2, `${flagged.length} contested beats still marked as unruled`);
   // ★★ S2 is the highest-cost one: Creator 2026-09-01 "he cant have s2 until
   //    endgame battle against xenoxil". Sensing was merged; granting was not.
-  const s2 = SPINE.find(s => (s.contested || []).includes('s2_unlock'));
-  ok(!!s2, '★★★ the S2 unlock is flagged, not wired');
-  ok(!SPINE.some(s => (s.unlocks || []).includes('s2')),
-     '★★★ and no spine stop actually UNLOCKS s2 — the 2026-09-01 ruling stands');
+  ok(!SPINE.some(s => (s.contested || []).includes('s2_unlock')),
+     '★ S2 is no longer contested — it was ruled');
   ok(!SPINE.some(s => (s.unlocks || []).includes('s1')),
      '★ nor s1 — its source is contested too (R1)');
   const doc = fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/'
             + 'data/RULING_NEEDED_STORY_PROGRESSION_2026-09-13.md', 'utf8');
-  for (const r of ['R1','R2','R3','R4','R5','R6','R7','R8'])
+  for (const r of ['R1','R3','R4','R7','R8'])
     ok(doc.includes(r + ' ·'), `  ${r} has an entry with both sides quoted`);
 }
 

@@ -367,13 +367,92 @@ Full evidence, with quotes from both sides, in
 | # | the move | collides with | status |
 |---|---|---|---|
 | **R1** | Sapphire/S1 unlocks in **Malezor** from Rizer's own affinity | *"★ The S1 → S2 order is **locked**… S1 · Azurel (Vorashil)"* — and it leaves Vorashil with only Orryx I | **UNAPPLIED** |
-| **R2** | Ruby/S2 unlocks at the **emergency return to Malezor** | ★★★ Creator, 2026-09-01: *"**he cant have s2 until endgame battle against xenoxil.** he uses his s2 form to fight zoryns s2 form in part 2."* | **UNAPPLIED** |
+| **R2** | Ruby/S2 at the parents' abduction | — | ★ **RULED 2026-09-13 · SEE §E1** |
 | **R3** | **Luminary Form ≠ S3**; Luminary needs Lv100 **+** Anciuxor | S3 **is** Luminary in shipped canon and shipped art — `idle-luminary.png` live since v0.96.40, 22 sheets commissioned as the S3 set | **UNAPPLIED** |
 | **R4** | Part One finale moves **Korathen → Bridge of Hope**; Chiefs fought a third time | the shipped gate opens the Bridge on `xenoxilDefeated` — fighting him *on* it is circular; also retires the *"Throne Remains Empty"* ending | **UNAPPLIED** |
-| **R5** | **Anciuxor found in Korathen** post-victory | Creator, 2026-09-01: *"anciuxor will be tied to the **treehouse** easter egg later"* — and he is already placed in Malezor at tile (22,-19), bond 100 | **UNAPPLIED** |
-| **R6** | Oatheus's summons **explained in Act IV** | §8 spoiler boundary forbids stating his audience with Ultharis; the Egnellahc reveal is Part 2's | **UNAPPLIED** |
+| **R5** | Anciuxor's availability | — | ★ **RULED 2026-09-13 · SEE §E3** |
+| **R6** | Oatheus's summons **explained in Act IV** | — | ★ **RULED 2026-09-13 · SEE §E4** |
 | **R7** | Lower Zyraxis is a **world below** | canon geography is **south** of Baelgor/Xilnar — a bridge, not a descent | **UNAPPLIED** |
 | **R8** | the Malezor kidnapping scene, **without Kelthor** | Creator: *"…up until **his death when the seers invade malezor and they kidnap your parents**"* | **UNAPPLIED** |
+
+---
+
+# ★★★ E · RULED 2026-09-13 — the endgame ladder
+
+## E1 · S2 comes with the rage, in the Baelgor arc
+
+> **Creator:** *"he gets **s2** at baelgor arc when parents are taken reflecting
+> his rage."* (corrected in the same breath from a typo'd "endgame")
+
+**RULED. The progression's placement stands.** Ruby/S2 unlocks during the
+Baelgor arc, at the moment the parents are taken, as an expression of his rage.
+
+★ **This supersedes** the 2026-09-01 line *"he cant have s2 until endgame battle
+against xenoxil"* — handoff §0.3 rule 1, latest explicit statement wins, and the
+Creator ruled here having been shown that quote.
+
+★★ **What still needs re-motivating, and is NOT invented here:** canon built
+three things on the late unlock — Rakoron's *twice-deferred* grant arriving
+on-screen at the finale, Xenoxil's promotion to Tier VIII (*"a Tier VIII
+arrives, and grants the power that lets a mortal fight a Tier VIII"*), and the
+Part 2 reading that Rizer was **refused and accepted the refusal** where Zoryn
+took it. The S2-vs-S2 fight itself is unaffected — he has S2 either way. The
+deferral scene and the T8 justification need a new home or a note that they are
+retired. **Flagged, not decided.**
+
+## E2 · Oatheus is met after the world is saved
+
+> **Creator:** *"rizer will meet oatheus after he saves the world. goes back to
+> korathen at level 100. can enter oatheus cave. then oatheus is catchable."*
+
+The **Empty Throne stays empty for the whole of Part One.** Oatheus is a
+**post-victory** encounter, gated on returning to Korathen at **Level 100**,
+entering his cave, and catching him.
+
+★ The build is already most of the way there: `oatheus_cave` exists on the
+Korathen highland at (824,750) with the same `tryEnterGemlordCave` door rule as
+the other nine, and the Gemlord table already carries `oatheus · The Empty
+Throne · inGame:false`.
+
+## E3 · ★★★ Anciuxor costs all ten Gemlords
+
+> **Creator:** *"once rizer has all ten gemlords, he can then catch anciuxor who
+> will **no longer fly away when approached**. must have caught all ten gemlords
+> **or at least gained all their respect**."*
+
+**RULED — and it closes the ladder.** Anciuxor is **not** relocated to Korathen;
+he stays where he is. What changes is that he **stops fleeing**.
+
+```
+save the world  →  return to Korathen at Lv100  →  enter Oatheus's cave
+                →  catch OATHEUS  (the tenth Gemlord)
+                →  all ten Gemlords caught, or all ten respecting you
+                →  ANCIUXOR STOPS FLYING AWAY  →  catchable
+```
+
+★ **Two routes to one gate, both named by the Creator, both counted:** a Gemlord
+is *won* if he is caught (party, PC or Sanctuary) **or** if his bond has reached
+the Gemlord threshold of 100%.
+
+★★ **Wired at v0.96.94.** `anciuxorWillStay()` had been Level 100 alone since
+v0.96.63 — which meant a Rizer who ground to 100 and had met nobody could walk up
+to the Ultimate God. He is not measuring your level; he is measuring whether the
+rest of his order already said yes. Once you are Lv100 the refusal now tells you
+the count (`7/10 Gemlords vouch for you`), because at that point it is a gate
+rather than a wall. Below 100 it stays wordless.
+
+## E4 · Egnellahc is not in RP7
+
+> **Creator:** *"egnellahc is not present in rp7. **only his gemlord forms.**"*
+
+**RULED.** RP7 contains **Oathane and Oatheus** and never Egnellahc himself.
+
+★ This settles R6 the strict way: the Act IV explanation of Oatheus's absence is
+**author-facing only**. Nothing in the game names Egnellahc, the Soul Split or
+the audience with Ultharis — which is exactly what
+`RP7_CANON_NINTH_TENTH_GEM_FORMATIONS.md` §8 already required, and it keeps Dad's
+Xilnar scroll line intact: *"Obsidius would know if Oatheus had died. Obsidius
+says nothing."* The mystery is still the point in Part One.
 
 ★ **What is NOT in that table is the majority of this document**, and it is good:
 the district order, the §21.4 narrowing, the §21.5 use of Rakoron, the

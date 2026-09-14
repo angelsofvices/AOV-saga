@@ -15344,6 +15344,58 @@ const LEGACY_ENEMY_SCATTER_ENABLED = false;
 //   ★ The lesson is the ordering, and it is now impossible to get wrong: this
 //     is a FUNCTION called from the boot sequence, immediately after the pass
 //     that needs the templates alive.
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.97.5 · TOP UP A GATED SPECIES WHEN ITS GATE OPENS
+// ═══════════════════════════════════════════════════════════════════════════
+//   Penumbra's roster number is its POST-SPREAD figure — 3 to 6 a district —
+//   but before you reach Thardin only Thardin's twelve exist. The moment the
+//   gate opens the rest of the world has to catch up to the table.
+//
+// ★★ IT IS A TOP-UP, NOT A REBUILD. It counts what each district already holds
+//   of that species and places only the difference, so walking into Thardin a
+//   second time cannot double the fleet. The old path called buildNewEnemyNet()
+//   which was idempotent by ID; this is idempotent by COUNT, which is the right
+//   guarantee once the roster is what decides how many there should be.
+function topUpGatedRoster(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  let made = 0;
+  for (const kind of Object.keys(ROSTER_GATED)){
+    const base = _rosterTemplateFor(kind);
+    if (!base) continue;
+    const H = ENEMY_SPECIES_HABITAT[kind] || {};
+    for (const T of TOWER_NETWORK){
+      const dist = T.dist;
+      const want = rosterCountFor(dist, kind);
+      if (!want) continue;
+      const have = NPCS.filter(n => n && n._roamOf === dist && n._roamKind === kind
+                                 && n.scene === 'overworld').length;
+      if (have >= want) continue;
+      const rng = _makeWorldRng((0x9A7E ^ (T.tower[0] * 31)) >>> 0);
+      const townPts = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
+      const occupied = new Set();
+      for (const n of NPCS) if (n && n.scene === 'overworld' && n.tileX != null)
+        occupied.add(n.tileX + ',' + n.tileY);
+      const hp = ROAM_HP_FLAT.has(kind) ? (ROAM_HP[kind] || 125)
+               : Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
+      for (let i = have; i < want; i++){
+        const spot = siteRosterTile(dist, kind, rng, occupied, townPts);
+        if (!spot) continue;
+        const [x, y, hab] = spot;
+        occupied.add(x + ',' + y);
+        NPCS.push(_cloneEnemyTo(base, `roam_${dist}_g${kind}_${i}`, x, y, {
+          name: kind.charAt(0).toUpperCase() + kind.slice(1),
+          dir: ['up','down','left','right'][i % 4],
+          wanderRadius: 5, mode: 'drainer', isEnemy: true,
+          level: T.moriLv, tier: H.tier || 1, hpMax: hp, hp,
+          _roamOf: dist, _roamKind: kind, _roamHab: hab,
+        }));
+        made++;
+      }
+    }
+  }
+  if (made) console.log(`[rp7b] v0.97.5 · gated roster top-up · ${made} placed`);
+  return made;
+}
 function retireLegacyEnemyScatter(){
   if (LEGACY_ENEMY_SCATTER_ENABLED) return 0;
   let cut = 0;
@@ -16250,6 +16302,16 @@ setTimeout(() => { try {
   // ★★★ AFTER the roster, never before · scatterDistrictEnemies clones its
   //   sprites off the very bodies this retires.
   try { retireLegacyEnemyScatter(); } catch(err){ console.warn('[rp7b] legacy retire failed', err); }
+  // ★★★★ AND THE SCANOBOT STATE PASS HAS TO RUN AGAIN, HERE.
+  //   applyScanobotState owns isEnemy / mode / drainAmt for every `_scanobot`
+  //   body, and it had already run at boot — BEFORE the roster existed. So all
+  //   300 drones came out of the roster with isEnemy:false and could not be
+  //   hit at all: Square passes straight through them. That is precisely the
+  //   bug v0.95.801 fixed ("make them smashable at game start") reappearing
+  //   because the placement moved and the state pass did not follow it.
+  //   ★ The rule: whoever creates `_scanobot` bodies must hand them to
+  //     applyScanobotState afterwards, every time.
+  try { applyScanobotState(); } catch(err){ console.warn('[rp7b] scanobot state failed', err); }
 } catch(err){ console.warn('[rp7b] tower guard build failed', err); } }, 0);
 
 // v0.95.477 · SCRAPJAW TOWER QUEST · resurrect the 6 tower Mori + the tower-boss
@@ -26811,10 +26873,48 @@ const ENEMY_SPECIES_HABITAT = {
 //   convention here; it is the Seers still working.
 const ENEMY_LINEAGE = {
   source: 'seers',
-  // the two stems · everything descends from one of these
-  stems: {
-    mori:   { from: 'corrupt humanoid', tier: 1 },
-    daemon: { from: 'corrupt zyrex',    tier: 2 },
+  // ★★★★ v0.97.5 · THREE BRANCHES, and the correction is that DAEMON MOVED.
+  //   Creator, 2026-09-14: "mori and daemon are both corrupt humanoid (haemen).
+  //   corrupt zyrex are corrupt aethren."
+  //   ★ I had Daemon down as corrupt Zyrex. It is not — both organic stems are
+  //     corrupt HAEMEN, and corrupt Zyrex are a separate people with their own
+  //     name. That is a bigger correction than a label: it means every organic
+  //     enemy in Part One traces to humanity, and the Aethren branch is a door
+  //     that has not been opened yet.
+  branches: {
+    haemen: {
+      of: 'corrupt humanoid', name: 'Haemen',
+      stems: { mori: { tier: 1 }, daemon: { tier: 2 } },
+      note: 'both organic stems · everything organic in the game descends here',
+    },
+    aethren: {
+      of: 'corrupt zyrex', name: 'Aethren',
+      stems: {},
+      // ★★★ NO CURRENT ENEMY IS AETHREN, and I have not assigned one. The
+      //   Creator named the branch without naming its members, and the standing
+      //   canon from this same conversation is that "everything comes from mori
+      //   and daemon" — both of which are now Haemen. So Aethren is a category
+      //   with no inhabitants yet rather than a relabelling of existing beasts.
+      //   ★ Flagged for ruling: if Vilerok / Vorugath / Satyrbeast are meant to
+      //     be corrupt Zyrex rather than corrupt humanoid, this is the one line
+      //     that moves them.
+      status: 'RESERVED · no members assigned · awaiting ruling',
+    },
+    tech: {
+      of: 'seized Thardinian machinery', name: 'Tech',
+      stems: { scanobot: { tier: 3 }, penumbra: { tier: 6 } },
+      // ★★ Creator: "they are created by thardin corrupt tech seer commander.
+      //   when he and his grunts took thardin, he took their tech too."
+      //   ★ This is the cleanest piece of enemy lore in the game: the machines
+      //     are not corrupted life, they are STOLEN INDUSTRY. Thardin built a
+      //     survey net and a war machine, a Seer commander took the district and
+      //     the factory with it, and now both walk for him. It also explains why
+      //     a Scanobot is passive until the net goes rogue — it is still doing
+      //     Thardin's job until its new owner tells it otherwise.
+      commander: 'thardin_tech_seer_commander',
+      seized: 'thardin',
+      note: 'not corrupted life · captured machinery, turned',
+    },
   },
   vector: 'seer_commanders',            // who spreads it
   origin: 'seer_hq',                    // one per district · the plague source
@@ -26822,12 +26922,19 @@ const ENEMY_LINEAGE = {
   climax: { at: 'bridge_of_hope', event: 'part_one_endgame_war',
             scale: 'marvel', ushers: ['part_two', 'luminary'] },
 };
-// ★ which stem a species descends from · used for lore, and for keeping any
-//   future rebalance honest about what it is trading away.
+// ★ which branch/stem a species descends from · lore, and a guard on any
+//   future rebalance being honest about what it trades away.
 const ENEMY_STEM_OF = {
+  // ── HAEMEN · corrupt humanoid ──
   mori:'mori', vilerok:'mori', vorugath:'mori', satyrbeast:'mori',
-  daemon:'daemon', morlisk:'daemon', nymphysyl:'daemon',
-  morvexar:'daemon', penumbra:'daemon', scanobot:'daemon',
+  daemon:'daemon', morlisk:'daemon', nymphysyl:'daemon', morvexar:'daemon',
+  // ── TECH · seized Thardinian machinery ──
+  scanobot:'tech', penumbra:'tech',
+};
+const ENEMY_BRANCH_OF = {
+  mori:'haemen', vilerok:'haemen', vorugath:'haemen', satyrbeast:'haemen',
+  daemon:'haemen', morlisk:'haemen', nymphysyl:'haemen', morvexar:'haemen',
+  scanobot:'tech', penumbra:'tech',
 };
 
 // ★★★★ THE TIER CEILING · LAW, not a balance dial.
@@ -26850,33 +26957,58 @@ function enemyTierLegal(tier, opts){
 const DISTRICT_ENEMY_ROSTER = {
   // ── Creator-authored, 2026-09-14 ──────────────────────────────────────
   //
-  // ★★★ MORI IS THE BALLAST, and that is the Creator's own instruction:
-  //   "we can always decrease number of mori to fit other species of enemies
-  //   in." Every row below carries his exact HEAVY counts — 15 Vileroks in
-  //   Malezor, 50 Nymphysyl in Netharion, 70 Vorugath in Korathen — and mori
-  //   absorbs whatever the 200-250 district ceiling needs.
+  // ★★★ MORI IS THE BALLAST — the Creator's own instruction: "we can always
+  //   decrease number of mori to fit other species of enemies in." Every row
+  //   carries his exact HEAVY counts and mori absorbs whatever the 200-250
+  //   district ceiling needs.
   //
-  // ★★ WHY 185 AND NOT 200. Structural enemies that are not the roster —
-  //   30 Scanobots, 8 Seer HQ guards, ~7 tower guards, Verdant Creepers,
-  //   Morvexar, Penumbra — add 51-60 per district. At a 200 core the world
-  //   booted at 251-260 and every district sat just OVER the ceiling. 185
-  //   lands them at 236-245, inside the range with room for the next species.
-  //   ★ His authored heavies are untouched; only mori moved, by 15 a district.
-  malezor:   { mori:165, vilerok:15, vorugath:5 },
-  zarvane:   { mori:155, satyrbeast:30 },
-  andrannor: { mori:135, daemon:30, morlisk:20 },
-  veridan:   { mori:85,  satyrbeast:55, vilerok:30, vorugath:15 },
-  netharion: { mori:75,  nymphysyl:50, vorugath:35, vilerok:25 },
-  // ── drafted from the curve his five draw · "we will scale the other
-  //    districts accordingly" · edit freely; the suite only checks the row
-  //    sums to DISTRICT_ROSTER_TOTAL and the district lands in the range ──
-  vorashil:  { mori:55,  nymphysyl:45, vorugath:40, vilerok:25, satyrbeast:20 },
-  xilnar:    { mori:40,  nymphysyl:50, vorugath:45, vilerok:30, morlisk:20 },
-  baelgor:   { mori:30,  vorugath:55, vilerok:45, morlisk:35, daemon:20 },
-  thardin:   { mori:20,  vorugath:55, vilerok:50, morlisk:40, daemon:20 },
-  korathen:  { mori:10,  vorugath:70, vilerok:55, morlisk:35, daemon:15 },
+  // ★★★★ v0.97.5 · THE MACHINES ARE IN THE POOL NOW.
+  //   Creator: "all the current enemies are either technology (scanobots and
+  //   penumbra) we also need to add those into the district enemy pools as
+  //   well." They used to be placed by two separate nets that nothing counted,
+  //   which is why a district could read 239 while nobody had decided it
+  //   should. ★ A species that is not in the roster is a species outside the
+  //   200-250 promise.
+  //
+  // ★ scanobot rises eastward and peaks in THARDIN, because Thardin is where
+  //   the tech was taken. penumbra is GATED — see NEW_ENEMY_PLACEMENT — so its
+  //   number here is the POST-SPREAD count; before you reach Thardin only
+  //   Thardin's own are placed.
+  malezor:   { mori:166, vilerok:15, vorugath:5,  scanobot:22, penumbra:3 },
+  zarvane:   { mori:153, satyrbeast:30,           scanobot:24, penumbra:3 },
+  andrannor: { mori:131, daemon:30, morlisk:20,   scanobot:26, penumbra:3 },
+  veridan:   { mori:79,  satyrbeast:55, vilerok:30, vorugath:15, scanobot:28, penumbra:3 },
+  netharion: { mori:70,  nymphysyl:50, vorugath:35, vilerok:25,  scanobot:28, penumbra:4 },
+  vorashil:  { mori:48,  nymphysyl:45, vorugath:40, vilerok:25, satyrbeast:20, scanobot:30, penumbra:4 },
+  xilnar:    { mori:35,  nymphysyl:50, vorugath:45, vilerok:30, morlisk:20,    scanobot:30, penumbra:4 },
+  baelgor:   { mori:18,  vorugath:55, vilerok:45, morlisk:35, daemon:20,       scanobot:32, penumbra:5 },
+  // ★★ THARDIN IS THE SOURCE · the largest machine population in the world,
+  //   and the only district where Penumbra stand before you have been there.
+  thardin:   { mori:5,  vorugath:50, vilerok:45, morlisk:40, daemon:20,       scanobot:45, penumbra:12 },
+  korathen:  { mori:5,  vorugath:70, vilerok:50, morlisk:30, daemon:15,       scanobot:29, penumbra:6 },
 };
-const DISTRICT_ROSTER_TOTAL = 185;        // the authored core, per district
+// ★★★ GATED SPECIES · placed only once the world has unlocked them. Their
+//   roster number is the post-unlock figure, so the table always reads as the
+//   world you will eventually be standing in.
+const ROSTER_GATED = {
+  penumbra: dist => (dist === 'thardin') ? true
+                  : (typeof penumbraHasSpread === 'function' ? penumbraHasSpread() : false),
+};
+function rosterCountFor(dist, kind){
+  const R = DISTRICT_ENEMY_ROSTER[dist]; if (!R) return 0;
+  const want = R[kind] || 0;
+  if (!want) return 0;
+  const gate = ROSTER_GATED[kind];
+  if (gate && !gate(dist)) return 0;
+  return want;
+}
+// ★★★ v0.97.5 · THE ROWS NO LONGER SHARE ONE MAGIC NUMBER.
+//   They used to all sum to 185, which was tidy and wrong the moment the
+//   machines joined: Thardin should carry more of them than Malezor, so the
+//   rows must be allowed to differ. ★ The invariant that matters was never the
+//   row total — it is the Creator's 200-250 district range, which is what the
+//   suite enforces and what every future species has to fit inside.
+const DISTRICT_ROSTER_TOTAL = null;       // ★ retired · rows differ on purpose
 const DISTRICT_SPAWN_RANGE  = [200, 250]; // ★ the whole district, everything in
 
 function rosterTotalFor(dist){
@@ -26938,13 +27070,42 @@ const ROAM_PACK            = [3, 5];// pack size range · they travel together, 
 //     the 0.04 floor means the rare wrong thing can still walk out of a cave.
 // tier per enemy kind · mirrors the bestiary the tower bosses already use
 const ROAM_TIER = { mori: 1, daemon: 2, morlisk: 4, vilerok: 5 };
-const ROAM_HP   = { mori: 125, daemon: 250, morlisk: 350, vilerok: 500 };
+// ★ scanobot stays FLAT at one Mori band — "lightweight = one Mori band, flat"
+//   (v0.95.732). Letting it ride the district multiplier would have made a
+//   Korathen survey drone a 375 HP fight, which is not what a scanner is.
+const ROAM_HP   = { mori: 125, daemon: 250, morlisk: 350, vilerok: 500,
+                    satyrbeast: 300, vorugath: 1000, nymphysyl: 1200,
+                    scanobot: 125, penumbra: 800 };
+const ROAM_HP_FLAT = new Set(['scanobot']);
 // ★ a clonable template for a species that lives only as an ART table.
 //   Returns the same shape buildNewEnemyNet pushes, minus the placement — so
 //   both paths draw one creature, not two that drift.
-function _rosterTemplateFor(id){
+function _rosterTemplateFor(id, dist){
+  // ★★★★ v0.97.5 · THE MACHINES BUILD THEIR OWN BODIES TOO.
+  //   A Scanobot is not clonable off another NPC once its net stops placing
+  //   them, and it carries machinery nothing else does: `_scanobot` is read by
+  //   applyScanobotState (the passive→rogue flip), by the jailbreak, and by the
+  //   portalchip economy. ★ Drop that flag and 300 drones become ordinary
+  //   enemies and the whole Thardin tech questline quietly stops existing.
+  if (id === 'scanobot'){
+    const img = new Image(); img.src = SCANOBOT_SRC;
+    const T = TOWER_NETWORK.find(x => x.dist === dist);
+    return {
+      name: 'Scanobot', sheet: img, src: SCANOBOT_SRC, bboxes: SCANOBOT_BBOXES,
+      cellW: 313, cellH: 313, cols: 4, rows: 4, scaleMul: 0.62,
+      scene: 'overworld', homeScene: 'overworld',
+      dir: 'down', mode: 'wander', wanderRadius: 3, moving: false,
+      animFrame: 0, idleFrame: 0, idleCycleMs: 460, blinkTimer: 9e9,
+      hpMax: SCANOBOT_HP, hp: SCANOBOT_HP,
+      tier: SCANOBOT_TIER, level: T ? T.moriLv : 5,
+      isEnemy: false,                       // ← flipped by applyScanobotState
+      _scanobot: dist,                      // ★ the flag the whole net reads
+      onInteract: (n) => scanobotTalk(TOWER_NETWORK.find(x => x.dist === dist), n),
+    };
+  }
   let A = null;
-  try { A = (id === 'nymphysyl') ? NYMPHYSYL_ART : null; } catch(_){ return null; }
+  try { A = (id === 'nymphysyl') ? NYMPHYSYL_ART
+          : (id === 'penumbra')  ? PENUMBRA_ART : null; } catch(_){ return null; }
   if (!A) return null;
   const sheets = _newEnemySheets(id);
   const body = new Image(); body.src = sheets.base.src;
@@ -26960,7 +27121,9 @@ function _rosterTemplateFor(id){
     rank: A.rank, _astralOnly: !!A.astralOnly,
     _vSheets: { idle: sheets.idle, run: sheets.run, light: sheets.light, heavy: sheets.heavy },
     footprint: [[0, 0]], interactHitbox: [[-1, 0], [0, 0], [1, 0]],
-    onInteract: () => showToast('◈ NYMPHYSYL · steel will not reach it', 2600),
+    onInteract: () => showToast(id === 'penumbra'
+      ? '◈ PENUMBRA · older than the machines that copy it'
+      : '◈ NYMPHYSYL · steel will not reach it', 2600),
   };
 }
 function scatterDistrictEnemies(){
@@ -26986,6 +27149,10 @@ function scatterDistrictEnemies(){
     //     playthrough. A pass that quietly hits 150/200 looks exactly like a
     //     pass that hit 200.
     nymphysyl:  _rosterTemplateFor('nymphysyl'),
+    // ★ machines · built per district because a Scanobot's `_scanobot` flag and
+    //   its dialogue both need to know which district's net it belongs to
+    scanobot:   null,   // ← built per district inside the loop
+    penumbra:   _rosterTemplateFor('penumbra'),
   };
   if (!BASE.mori) return 0;
   const rng = _makeWorldRng(0xE7E31);
@@ -27012,11 +27179,12 @@ function scatterDistrictEnemies(){
     //   so tower guards, HQ garrisons and hand-placed packs are ADDITIONAL, and
     //   the roster is the 200 you can go and count.
     for (const kind of Object.keys(R)){
-      const want = R[kind] || 0;
-      const base = BASE[kind];
+      const want = rosterCountFor(dist, kind);   // ★ gated species yield 0 until unlocked
+      const base = (kind === 'scanobot') ? _rosterTemplateFor('scanobot', dist) : BASE[kind];
       if (!base){ if (want) shortfall.push(`${dist}/${kind}×${want} · no sheet`); continue; }
       const H  = ENEMY_SPECIES_HABITAT[kind] || {};
-      const hp = Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
+      const hp = ROAM_HP_FLAT.has(kind) ? (ROAM_HP[kind] || 125)
+               : Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
       let got = 0;
       for (let i = 0; i < want; i++){
         const spot = siteRosterTile(dist, kind, rng, occupied, townPts);
@@ -27027,8 +27195,12 @@ function scatterDistrictEnemies(){
           name: kind.charAt(0).toUpperCase() + kind.slice(1),
           dir: ['up','down','left','right'][Math.floor(rng() * 4)],
           wanderRadius: 5 + Math.floor(rng() * 4),
-          mode: kind === 'mori' ? 'wander' : 'drainer',
-          isEnemy: true,
+          mode: (kind === 'mori' || kind === 'scanobot') ? 'wander' : 'drainer',
+          // ★★ a Scanobot's isEnemy/mode/drainAmt are OWNED by
+          //   applyScanobotState — it is municipal property until the net goes
+          //   rogue. Setting isEnemy:true here would make the survey fleet
+          //   hostile from minute one and skip the event entirely.
+          isEnemy: kind !== 'scanobot',
           level: T.moriLv,
           tier: H.tier || ROAM_TIER[kind] || 1,
           hpMax: hp, hp,
@@ -27429,66 +27601,6 @@ function siteEnemyTile(dist, rand, taken){
   return best;
 }
 
-// Idempotent · safe at boot, after load, and after a Horde toggle.
-function buildScanobotNet(){
-  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
-  const img = new Image(); img.src = SCANOBOT_SRC;
-  let made = 0;
-  // spacing is enforced against EVERY drone already standing, across districts
-  const placed = NPCS.filter(n => n && n._scanobot && n.scene === 'overworld')
-                     .map(n => [n.tileX, n.tileY]);
-  const _clear = (x, y) => placed.every(([px, py]) =>
-    Math.max(Math.abs(px - x), Math.abs(py - y)) >= SCANOBOT_MIN_SPACING);
-  for (const T of TOWER_NETWORK){
-    const D = ZYRAXIS_DISTRICTS.find(d => d.id === T.dist);
-    if (!D) continue;
-    const rand = _scanoRand(0xA0F0 + TOWER_NETWORK.indexOf(T) * 977);
-    for (let i = 0; i < SCANOBOT_PER_DIST; i++){
-      const id = `scanobot_${T.dist}_${i + 1}`;
-      if (NPCS.some(n => n && n.id === id)) continue;
-      // seeded rejection sampling over the district ellipse · a candidate that
-      // snaps into another drone's 12x12 box is thrown back
-      let spot = null;
-      for (let t = 0; t < 260 && !spot; t++){
-        const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * 0.85;
-        const x = Math.round(D.cx + Math.cos(a) * D.rx * r);
-        const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
-        const sTry = _scanobotTile(T.dist, x, y);
-        if (!sTry || !_clear(sTry[0], sTry[1])) continue;
-        // ★ two tiles INSIDE the coastline.  The whole-district scatter found
-        // tiles at y=0 and x=0 — the world's literal rim — which pass every
-        // legality predicate and still look wrong: a survey drone perched on
-        // the edge of existence.  Same lesson as the tower-guard rescue at
-        // v0.95.732; this time the rule is written down before shipping.
-        if (!isWorldLandTile(sTry[0]-2, sTry[1]) || !isWorldLandTile(sTry[0]+2, sTry[1])
-         || !isWorldLandTile(sTry[0], sTry[1]-2) || !isWorldLandTile(sTry[0], sTry[1]+2)) continue;
-        spot = sTry;
-      }
-      if (!spot) continue;                     // never force one into a wall
-      placed.push(spot);
-      NPCS.push({
-        id, name: 'Scanobot',
-        sheet: img, src: SCANOBOT_SRC, bboxes: SCANOBOT_BBOXES,
-        cellW: 313, cellH: 313, cols: 4, rows: 4,
-        scaleMul: 0.62,
-        tileX: spot[0], tileY: spot[1], homeX: spot[0], homeY: spot[1],
-        scene: 'overworld', homeScene: 'overworld',
-        dir: ['down','left','right','up'][i % 4],
-        mode: 'wander', wanderRadius: 3, moving: false,
-        animFrame: 0, idleFrame: 0, idleCycleMs: 460,
-        moveCd: 400 + Math.random() * 500, blinkTimer: 9e9,
-        hpMax: SCANOBOT_HP, hp: SCANOBOT_HP,
-        tier: SCANOBOT_TIER, level: T.moriLv,
-        isEnemy: false,                        // ← flipped by applyScanobotState
-        _scanobot: T.dist,
-        onInteract: (n) => scanobotTalk(T, n),
-      });
-      made++;
-    }
-  }
-  applyScanobotState();
-  return made;
-}
 // ═══════════════════════════════════════════════════════════════════════════
 // ★★★ v0.97.1 · THE NEW ENEMY NET · Morvexar · Nymphysyl · Penumbra
 // ═══════════════════════════════════════════════════════════════════════════
@@ -27532,7 +27644,10 @@ function _newEnemySheets(id){
 // ★ nymphysyl is NOT here any more · she is roster, placed by
 //   scatterDistrictEnemies. Her art table stays for the sheets and the
 //   astralOnly flag; only her PLACEMENT moved.
-const NEW_ENEMY_IDS = ['morvexar', 'penumbra'];
+// ★ v0.97.5 · nymphysyl and penumbra are both ROSTER species now · only
+//   Morvexar is still placed by his own net, because his 6/4/2/4/4/12 are ruled
+//   by number and "outskirts" is a hard siting rule the roster does not carry.
+const NEW_ENEMY_IDS = ['morvexar'];
 function buildNewEnemyNet(){
   if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
   let made = 0;
@@ -27602,6 +27717,25 @@ function buildNewEnemyNet(){
   return made;
 }
 
+// ★★★★ v0.97.5 · THE NET NO LONGER PLACES ANYTHING.
+//
+//   Creator: "we also need to add those into the district enemy pools as well."
+//   Scanobots are a counted species in DISTRICT_ENEMY_ROSTER now — 22 in
+//   Malezor rising to 45 in Thardin, where the tech was taken — so a second
+//   placer would double the fleet and put every district back outside the
+//   200-250 range.
+//
+// ★★ WHAT SURVIVES IS EVERYTHING THAT MATTERS: applyScanobotState still owns
+//   isEnemy, mode and drainAmt for every body carrying `_scanobot`, the
+//   passive→rogue flip is untouched, and scanobotTalk still answers. The
+//   roster's template sets `_scanobot: dist` precisely so none of that had to
+//   move. ★ Only the WHERE changed; the WHAT is where it always was.
+function buildScanobotNet(){
+  // kept as a no-op entry point: it is called from boot and from the save-load
+  // path, and applyScanobotState is the half that still has work to do.
+  applyScanobotState();
+  return 0;
+}
 // One place decides what a Scanobot IS. Called at boot, after load, and on the
 // flip, so a save made before the net went rogue cannot restore forty passive
 // drones into a rogue world.
@@ -35650,7 +35784,7 @@ function tryMove(dt){
         //   feature: the flag is written, read, correct, and nothing happens.
         if (_d === NEW_ENEMY_PLACEMENT.penumbra.spreadsAfterReaching){
           try {
-            const sp = buildNewEnemyNet();
+            const sp = topUpGatedRoster();
             if (sp) showToast('\u25c8 PENUMBRA UNITS DETECTED PLANETWIDE', 4200);
           } catch(_){}
         }
@@ -40596,7 +40730,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.4' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.5' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

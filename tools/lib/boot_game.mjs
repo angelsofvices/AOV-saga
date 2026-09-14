@@ -73,7 +73,7 @@ export function bootGame({ runBootTasks = true } = {}){
     'NEW_ENEMY_PLACEMENT','newEnemyCountFor','_makeWorldRng','_scanobotWalkable',
     'enemyHabitatAt','ENEMY_HABITATS','ENEMY_SPECIES_HABITAT','districtScaleOf',
     'DISTRICT_ENEMY_ROSTER','DISTRICT_ROSTER_TOTAL','DISTRICT_SPAWN_RANGE','rosterTotalFor','siteRosterTile',
-    'ENEMY_LINEAGE','ENEMY_STEM_OF','LEGACY_ENEMY_SCATTER_ENABLED','ENEMY_TIER_MAX','TIER_TEN_BEINGS','LOWER_ZYRAXIS_TIER_BAND','enemyTierLegal',
+    'ENEMY_LINEAGE','ENEMY_STEM_OF','ENEMY_BRANCH_OF','rosterCountFor','ROSTER_GATED','topUpGatedRoster','applyScanobotState','LEGACY_ENEMY_SCATTER_ENABLED','ENEMY_TIER_MAX','TIER_TEN_BEINGS','LOWER_ZYRAXIS_TIER_BAND','enemyTierLegal',
     'tickEnemyRespawn','ENEMY_RESPAWN_MS','queueEnemyRespawn','_enemyRespawnQueue'];
   const tail = ';globalThis.__G = {' + EXPORTS.map(n =>
       `${n}: (typeof ${n} !== 'undefined' ? ${n} : undefined)`).join(',') + '};';

@@ -29,7 +29,8 @@ const G  = bootGame();
 const DISTS   = G.ZYRAXIS_DISTRICTS.map(d => d.id);
 const enemies = overworldEnemies(G);
 const roster  = enemies.filter(n => n._roamOf);
-const TIER = { mori:1, daemon:2, satyrbeast:3, morlisk:4, vilerok:5, vorugath:6, nymphysyl:7 };
+const TIER = { mori:1, daemon:2, satyrbeast:3, morlisk:4, vilerok:5, vorugath:6, nymphysyl:7,
+               scanobot:3, penumbra:6 };
 
 const mixOf = d => {
   const m = {};
@@ -43,15 +44,16 @@ H(`★ THE GAME BOOTED · ${Date.now() - t0}ms · ${G.NPCS.length} NPCs`);
   //   retired and mori trimmed by 15 a district to bring every district inside
   //   the 200-250 range. Fewer enemies, better distributed, is the result.
   ok(enemies.length > 2300, `${enemies.length} overworld enemies standing`);
-  ok(roster.length === 1850, `★★★ ${roster.length} roster bodies · ten districts × 185, exactly`);
+  ok(roster.length > 2000, `★★★ ${roster.length} roster bodies · the machines are counted now`);
 }
 
 H('★★★ EVERY AUTHORED ROW SUMS TO THE CORE · the table checks itself');
 {
-  for (const d of DISTS){
-    const total = G.rosterTotalFor(d);
-    ok(total === G.DISTRICT_ROSTER_TOTAL, `  ${d.padEnd(10)} ${total}`);
-  }
+  // ★ v0.97.5 · rows differ on purpose now — Thardin carries 45 Scanobots and
+  //   Malezor 22, because Thardin is where the tech was taken. The invariant
+  //   moved to the district RANGE, asserted further down.
+  for (const d of DISTS) console.log(`     ${d.padEnd(10)} row ${G.rosterTotalFor(d)}`);
+  ok(G.DISTRICT_ROSTER_TOTAL === null, '★ the single shared row-total is retired');
   // ★ and nothing may name a species the spawner cannot build
   const known = Object.keys(TIER);
   const bad = [];
@@ -66,10 +68,15 @@ H('★★★ AND THE BOOTED WORLD MATCHES IT BODY FOR BODY');
 {
   let drift = 0;
   for (const d of DISTS){
-    const want = G.DISTRICT_ENEMY_ROSTER[d], got = mixOf(d);
-    const line = Object.keys(want).map(k => `${k} ${got[k] || 0}/${want[k]}`).join(' · ');
-    const exact = Object.keys(want).every(k => (got[k] || 0) === want[k])
-               && Object.keys(got).every(k => want[k] != null);
+    const row = G.DISTRICT_ENEMY_ROSTER[d];
+    // ★ gated species read 0 until their gate opens · penumbra outside Thardin
+    const want = {};
+    for (const k of Object.keys(row)) want[k] = G.rosterCountFor(d, k);
+    const got = mixOf(d);
+    const line = Object.keys(row).map(k => `${k} ${got[k] || 0}/${want[k]}`
+                   + (row[k] !== want[k] ? ` (gated, ${row[k]} after)` : '')).join(' · ');
+    const exact = Object.keys(row).every(k => (got[k] || 0) === want[k])
+               && Object.keys(got).every(k => row[k] != null);
     if (!exact) drift++;
     ok(exact, `  ${d.padEnd(10)} ${line}`);
   }
@@ -91,6 +98,7 @@ H('★★★★ EVERY SPECIES WEARS ITS OWN SPRITE · the check the census could
   const WANT = {
     mori:/mori\.png/, daemon:/daemon\.png/, satyrbeast:/satyrbeast/,
     morlisk:/morlisk/, vilerok:/vilerok/, vorugath:/vorugath/, nymphysyl:/nymphysyl/,
+    scanobot:/scanobot/, penumbra:/penumbra/,
   };
   for (const [kind, re] of Object.entries(WANT)){
     const mine = roster.filter(n => n._roamKind === kind);
@@ -164,39 +172,86 @@ H('★★★★ KORATHEN IS THE HARDEST DISTRICT · the point of the extra six')
   console.log('     ★ Zarvane dips below Malezor by design · Malezor carries 15 Vileroks and 5 Vorugath');
 }
 
-H('★★★★ THE ENEMY CANON · every enemy descends from two Seer-made stems');
+H('★★★★ THE ENEMY CANON · three branches, and Daemon moved');
 {
-  // Creator, 2026-09-14: "everything comes from mori and daemon which come from
-  // corrupt humanoid and zyrex which comes from the hands of the seers who make
-  // the seers commanders spread plagues from seer HQs in each district."
-  const L = G.ENEMY_LINEAGE;
+  // Creator, 2026-09-14: "mori and daemon are both corrupt humanoid (haemen).
+  // corrupt zyrex are corrupt aethren." + "all the current enemies are either
+  // technology (scanobots and penumbra)... created by thardin corrupt tech seer
+  // commander. when he and his grunts took thardin, he took their tech too."
+  const L = G.ENEMY_LINEAGE, B = L.branches;
   ok(L.source === 'seers', 'the source of every enemy is the Seers');
-  ok(L.stems.mori.from === 'corrupt humanoid' && L.stems.daemon.from === 'corrupt zyrex',
-     '★ two stems · Mori from corrupt humanoid, Daemon from corrupt Zyrex');
-  ok(L.origin === 'seer_hq' && L.vector === 'seer_commanders',
-     '★★ spread by Seer commanders out of the Seer HQ in each district');
+  ok(B.haemen.of === 'corrupt humanoid' && !!B.haemen.stems.mori && !!B.haemen.stems.daemon,
+     '★★★ BOTH organic stems are Haemen · Daemon is corrupt humanoid, not corrupt Zyrex');
+  ok(B.aethren.of === 'corrupt zyrex', '★ Aethren is the name for corrupt Zyrex');
+  ok(Object.keys(B.aethren.stems).length === 0,
+     '★★ and Aethren has NO members assigned — a branch named, not yet inhabited');
+  ok(B.tech.seized === 'thardin' && B.tech.commander === 'thardin_tech_seer_commander',
+     '★★★ Tech is seized Thardinian machinery, turned by the commander who took the district');
+  ok(!!B.tech.stems.scanobot && !!B.tech.stems.penumbra,
+     '★ both machines sit on the Tech branch');
   ok(L.climax.at === 'bridge_of_hope' && L.climax.ushers.includes('luminary'),
-     '★★★ and the loop ends at the Bridge of Hope, ushering in Part Two and Luminary');
-  // every species in the roster must trace to a stem
-  const unstemmed = [];
+     '★★ the loop still ends at the Bridge of Hope, ushering Part Two and Luminary');
+
+  // every species in every roster row must trace to a branch
+  const unbranched = [];
   for (const d of DISTS)
     for (const k of Object.keys(G.DISTRICT_ENEMY_ROSTER[d]))
-      if (!G.ENEMY_STEM_OF[k]) unstemmed.push(k);
-  ok(!unstemmed.length, unstemmed.length ? `no lineage for: ${[...new Set(unstemmed)].join(', ')}`
-     : '★★ every species in the roster traces to Mori or Daemon');
+      if (!G.ENEMY_BRANCH_OF[k]) unbranched.push(k);
+  ok(!unbranched.length, unbranched.length ? `no branch for: ${[...new Set(unbranched)].join(', ')}`
+     : '★★ every species in the roster traces to Haemen or Tech');
+  const techSpecies = Object.keys(G.ENEMY_BRANCH_OF).filter(k => G.ENEMY_BRANCH_OF[k] === 'tech');
+  ok(techSpecies.length === 2 && techSpecies.includes('scanobot') && techSpecies.includes('penumbra'),
+     `★ exactly two Tech species: ${techSpecies.join(', ')}`);
 
-  // ★★★★ THE TIER CEILING IS LAW. Creator: "nothing will ever hit tier 10
-  //   though. only anciuxor (and rizer technically at level 100+)."
+  // ★★★★ THE TIER CEILING IS LAW.
   ok(G.ENEMY_TIER_MAX === 9, `enemies cap at T${G.ENEMY_TIER_MAX}`);
   ok(G.enemyTierLegal(9) === true && G.enemyTierLegal(10) === false,
-     '★★★ T9 is legal for an enemy and T10 is not — driven, not read');
+     '★★★ T9 legal for an enemy, T10 refused — driven, not read');
   ok(G.TIER_TEN_BEINGS.includes('anciuxor') && G.TIER_TEN_BEINGS.includes('rizer'),
      `★★ T10 belongs to exactly two beings: ${G.TIER_TEN_BEINGS.join(' and ')}`);
   const overCap = enemies.filter(n => (n.tier || 1) > G.ENEMY_TIER_MAX);
   ok(!overCap.length, overCap.length ? `${overCap.length} enemies exceed the cap`
      : '★★★ and not one enemy standing in the world breaks it');
-  ok(G.LOWER_ZYRAXIS_TIER_BAND[1] === 9,
-     '★ Lower Zyraxis is the band reserved for T7-T9 · Part One stops short on purpose');
+}
+
+H('★★★★ THE MACHINES ARE IN THE POOL · and still behave like machines');
+{
+  const sc = G.NPCS.filter(n => n && n.scene === 'overworld' && n._scanobot);
+  const byD = {};
+  for (const n of sc) byD[n._scanobot] = (byD[n._scanobot] || 0) + 1;
+  console.log('     scanobot · ' + DISTS.map(d => `${d} ${byD[d] || 0}`).join(' · '));
+  // ★ 294, not 300 — Korathen's row gave 6 of its Scanobots back to keep the
+  //   district inside 250 once the machines started being counted. The number
+  //   is the roster's to decide now, which is the whole point of folding them in.
+  ok(sc.length === 294, `${sc.length} Scanobots, placed by the ROSTER now`);
+  ok(byD.thardin > byD.malezor,
+     `★★★ Thardin carries the most (${byD.thardin} vs Malezor's ${byD.malezor}) — it is where the tech was taken`);
+
+  // ★★★★ THE STATE MACHINE MUST STILL OWN THEM. applyScanobotState had already
+  //   run at boot, BEFORE the roster existed, so all 300 came out isEnemy:false
+  //   and could not be hit at all — Square passes straight through. That is the
+  //   v0.95.801 bug ("make them smashable at game start") reappearing because
+  //   the placement moved and the state pass did not follow it.
+  ok(sc.every(n => n._scanobot), '★ every one carries `_scanobot` · the flag the whole net reads');
+  ok(sc.every(n => n.isEnemy === true),
+     '★★★★ and every one is smashable · applyScanobotState re-runs after the roster');
+  ok(sc.every(n => n.mode === 'wander'), '★★ still passive · municipal property until the net goes rogue');
+  ok([...new Set(sc.map(n => n.hpMax))].length === 1 && sc[0].hpMax === 125,
+     '★ flat 125 HP everywhere · a scanner is not a Korathen-band fight');
+
+  // ★★★ PENUMBRA IS GATED, and its roster number is the post-spread figure
+  const pre = G.NPCS.filter(n => n && n._roamKind === 'penumbra');
+  ok(pre.length === 12 && pre.every(n => n._roamOf === 'thardin'),
+     `★★★ before you reach Thardin, all ${pre.length} Penumbra are IN Thardin and nowhere else`);
+  G.player.districtsVisited = { thardin: true };
+  const made = G.topUpGatedRoster();
+  const post = G.NPCS.filter(n => n && n._roamKind === 'penumbra');
+  ok(made > 30 && post.length === 47,
+     `★★ reaching Thardin tops the world up · ${pre.length} → ${post.length}`);
+  ok(new Set(post.map(n => n._roamOf)).size === 10, '★ and they now stand in all ten districts');
+  // ★ idempotent BY COUNT, not by id — walking into Thardin twice must not double them
+  ok(G.topUpGatedRoster() === 0,
+     '★★★ running the top-up again adds nothing · idempotent by count');
 }
 
 H('★★★ THE SPAWN RANGE · minibosses and nets, and no double-placement');

@@ -7,51 +7,73 @@
 > spread plagues from seer HQs in each district. this is the enemy loop leading
 > up to final war part 1 endgame war at the bridge of hope."*
 
-## THE LOOP
+## THE LOOP · THREE BRANCHES
 
 ```
-            SEERS
-              │  make
-              ▼
-       SEER COMMANDERS
-              │  spread plagues from
-              ▼
-    SEER HQ · one per district
-              │
-      ┌───────┴───────┐
-      ▼               ▼
-corrupt HUMANOID   corrupt ZYREX
-      │               │
-      ▼               ▼
-    MORI  T1       DAEMON  T2
-      │               │
-      └──── every enemy in the game ────┘
-                      │
-                      ▼
-      PART ONE ENDGAME WAR · BRIDGE OF HOPE
-         marvel-scale · ushers in Part Two
-               and LUMINARY (S3)
+                        SEERS
+                          │  make
+                          ▼
+                  SEER COMMANDERS
+                          │  spread plagues from
+                          ▼
+              SEER HQ · one per district
+                          │
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+  corrupt HUMANOID  corrupt ZYREX      THARDIN, TAKEN
+    = HAEMEN         = AETHREN        seized machinery
+        │                 │                 │
+   ┌────┴────┐        (no members       ┌───┴────┐
+   ▼         ▼         assigned yet)    ▼        ▼
+ MORI T1  DAEMON T2                SCANOBOT  PENUMBRA
+   │         │                        T3        T6
+   └─── every organic enemy ───┘
+                          │
+                          ▼
+          PART ONE ENDGAME WAR · BRIDGE OF HOPE
+             marvel-scale · ushers in Part Two
+                   and LUMINARY (S3)
 ```
 
-★★★ **This is why the roster can be rebalanced freely.** Adding a species is
-never a lore problem, only a placement one — the supply chain has one source,
-and the source is a faction the player is already fighting. *"We can always
-decrease number of mori to fit other species in"* is a statement about that.
+> ### ★★★★ THE CORRECTION THAT MATTERS: DAEMON MOVED.
+> Creator, 2026-09-14: *"mori and daemon are both corrupt humanoid (haemen).
+> corrupt zyrex are corrupt aethren."*
+>
+> I had Daemon down as corrupt Zyrex. It is not — **both organic stems are
+> corrupt Haemen.** That is bigger than a label: every organic enemy in Part One
+> traces back to humanity, and **Aethren is a door that has not been opened.**
 
-★★ **And it makes the Seer HQs mechanical.** A plague spreading out of a HQ in
-every district is the in-world reason the population exists, respawns, and
-hardens eastward. The 10-minute respawn is not a game convention here — it is
-the Seers still working while you explore.
+★ **No current enemy is Aethren, and I have not assigned one.** The branch was
+named without members, and the standing canon is that everything organic comes
+from Mori and Daemon — both now Haemen. So Aethren is a category waiting to be
+filled rather than a relabelling of the existing beasts.
+**Ruling wanted:** if Vilerok / Vorugath / Satyrbeast are meant to be corrupt
+*Zyrex* rather than corrupt humanoid, one line in `ENEMY_BRANCH_OF` moves them.
+
+### ★★★ THE TECH BRANCH · stolen industry, not corrupted life
+
+> *"they are created by thardin corrupt tech seer commander. when he and his
+> grunts took thardin, he took their tech too."*
+
+This is the cleanest piece of enemy lore in the game. The machines are not
+corrupted creatures — Thardin **built** a survey net and a war machine, a Seer
+commander took the district and the factory with it, and now both walk for him.
+
+★ It also explains a mechanic that was already shipped: a Scanobot is *passive
+until the net goes rogue* because it is still doing Thardin's job until its new
+owner tells it otherwise.
 
 ## LINEAGE OF EVERY CURRENT SPECIES
 
-| stem | descends |
-|---|---|
-| **Mori** (corrupt humanoid, T1) | Vilerok T5 · Vorugath T6 · Satyrbeast T3 |
-| **Daemon** (corrupt zyrex, T2) | Morlisk T4 · Nymphysyl T7 · Morvexar T8 · Penumbra T6 · Scanobot T3 |
+| branch | stem | descends |
+|---|---|---|
+| **Haemen** (corrupt humanoid) | Mori T1 | Vilerok T5 · Vorugath T6 · Satyrbeast T3 |
+| **Haemen** | Daemon T2 | Morlisk T4 · Nymphysyl T7 · Morvexar T8 |
+| **Aethren** (corrupt zyrex) | — | *reserved · no members* |
+| **Tech** (seized Thardinian) | — | Scanobot T3 · Penumbra T6 |
 
-`ENEMY_STEM_OF` in `rp7b.html` holds this, and the suite fails if any roster
-species has no stem.
+`ENEMY_BRANCH_OF` and `ENEMY_STEM_OF` hold this; the suite fails if any roster
+species has no branch.
 
 ## ★★★★ THE TIER CEILING · LAW
 
@@ -85,28 +107,30 @@ So for every new species from here:
 4. **The range is the invariant** — every district must land in **200–250**
    total spawns, minibosses and nets included. The suite fails otherwise.
 
-## WHERE IT STANDS AT v0.97.4
+## WHERE IT STANDS AT v0.97.5
+
+Every district **235 spawns** once the world is fully unlocked — machines
+included, which they were not before.
 
 ```
-district    spawns   mean tier (all enemies)
-malezor      239       1.43
-zarvane      240       1.42
-andrannor    241       1.50
-veridan      240       2.36
-netharion    238       3.60
-vorashil     238       3.75
-xilnar       236       4.18
-baelgor      240       3.61
-thardin      242       3.80
-korathen     245       4.23   ← hardest, by the extra six Morvexar
+district    spawns   mean tier   scanobot   penumbra (post-spread)
+malezor      235       1.69         22          3
+zarvane      235       1.69         24          3
+andrannor    235       1.79         26          3
+veridan      235       2.69         28          3
+netharion    235       3.96         28          4
+vorashil     235       4.13         30          4
+xilnar       235       4.53         30          4
+baelgor      235       4.04         32          5
+thardin      235       4.14         45         12   ← the source
+korathen     235       4.60         29          6   ← hardest
 ```
 
-★ **Korathen leads because of the twelve Morvexar**, not the roster. Xilnar's
-roster is heavier on paper — Nymphysyl is T7 and lives in the three dark
-districts, while Korathen's roster ceiling is Vorugath at T6. Twelve T8 bodies
-above the line is what settles it.
+★ **Thardin carries the most machines** because Thardin is where the tech was
+taken. ★ **Korathen is hardest** on the strength of its twelve Morvexar.
+★ **15 spawns of headroom** before the 250 ceiling.
 
-★ **Zarvane dips below Malezor**, by your numbers: Malezor carries 15 Vileroks
-and 5 Vorugath and Zarvane carries neither. Left as authored.
-
-★ **5 spawns of headroom** before the 250 ceiling. The next species fits.
+★★ Mori absorbed all of it, per your rule — from 186 down to 166 in Malezor and
+all the way to 5 in Thardin and Korathen, where almost nothing weak survives.
+Korathen also gave back 6 Scanobots; its row was the only one mori alone could
+not balance.

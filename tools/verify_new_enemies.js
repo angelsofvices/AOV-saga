@@ -145,23 +145,30 @@ H('★★★ PLACEMENT · ruled 2026-09-14');
   vm.runInContext(grab('function newEnemyCountFor(').replace(/^function/, 'var newEnemyCountFor = function'), P);
   const N = e => vm.runInContext(e, P);
 
-  // ★ NYMPHYSYL · the three darker districts, and nowhere else
-  const dark = ['netharion','vorashil','xilnar'];
-  // ★ v0.97.1 · "patrols" now means a POPULATION, not a presence flag. One
-  //   body in a 110x100 ellipse satisfied the sentence and failed the world.
-  for (const d of dark) ok(N(`newEnemyCountFor('nymphysyl','${d}')`) >= 4,
-    `  nymphysyl patrols ${d} · ${N(`newEnemyCountFor('nymphysyl','${d}')`)} of them`);
-  for (const d of ['malezor','zarvane','baelgor','korathen','thardin'])
-    ok(N(`newEnemyCountFor('nymphysyl','${d}')`) === 0, `  and NOT ${d}`);
+  // ★★★★ v0.97.3 · NYMPHYSYL IS NO LONGER PLACED BY THIS TABLE.
+  //   Creator: "netharion should have 50 mori, 50 nymphysyl, 35 vorugath, and
+  //   25 vilerok" — she became a counted member of DISTRICT_ENEMY_ROSTER, so
+  //   leaving her here would DOUBLE-PLACE her and make Netharion's authored 50
+  //   boot as ~56. Her census now lives in tools/verify_enemy_world.mjs, which
+  //   boots the real game and counts bodies.
+  ok(!N('NEW_ENEMY_PLACEMENT.nymphysyl'),
+     '★★ nymphysyl has left NEW_ENEMY_PLACEMENT · the roster owns her count now');
+  for (const d of ['netharion','vorashil','xilnar','malezor'])
+    ok(N(`newEnemyCountFor('nymphysyl','${d}')`) === 0,
+       `  and this table places none of her in ${d}`);
 
   // ★★ MORVEXAR · the counts, exactly, and the descent
-  const want = { korathen: 6, baelgor: 4, zarvane: 2 };
+  // ★★ v0.97.3 · Creator ruled ADD, not move: "morvexar in netharion vorashil
+  //   and xilnar outskirts" joins the original 6/4/2 rather than replacing it.
+  const want = { korathen: 6, baelgor: 4, zarvane: 2, netharion: 4, vorashil: 4, xilnar: 4 };
   let total = 0;
   for (const [d, n] of Object.entries(want)){
     const got = N(`newEnemyCountFor('morvexar','${d}')`);
     ok(got === n, `  morvexar ${d}: ${got}`); total += got;
   }
-  ok(total === 12, `★ twelve in the world, and none anywhere else`);
+  ok(total === 24, `★ ${total} in the world across six districts, and none anywhere else`);
+  ok(N('NEW_ENEMY_PLACEMENT.morvexar.outskirtsOnly') === true,
+     '★★★ and "outskirts" is a HARD siting rule for him, not a preference');
   ok(N("newEnemyCountFor('morvexar','malezor')") === 0, '  none in Malezor');
   ok(N("NEW_ENEMY_PLACEMENT.morvexar.noPack") === true,
      '★★ and they do not fight in pacts — each one is alone');

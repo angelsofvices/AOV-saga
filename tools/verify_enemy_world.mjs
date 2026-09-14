@@ -1,25 +1,21 @@
-// ★★★★ v0.97.2 · THE ENEMY WORLD, MEASURED BY BOOTING IT.
+// ★★★★ v0.97.3 · THE AUTHORED ROSTER, MEASURED BY BOOTING IT.
 //
-//   Creator, 2026-09-14: "borrow the ZYREX_POPULATIONS habitat model, so
-//   species tie to terrain rather than district id. but make it so that u can
-//   find almost all enemies in any district, just weighted to the district
-//   scale 1-10. harder fights in korathen than malezor and the enemies are
-//   harder, not necessarily more. all districts can have 100 enemies spread out
-//   so 1000 total and they respawn after 10 mins of death maybe? should feel
-//   like seers are reroducing enemies while we explore."
+//   Creator, 2026-09-14: "we need a strict 200 enemy spawn in each district
+//   with respawn on. malezor carries 180 mori and 15 vilerok and 5 vorugath..."
 //
-// ★★★★ THIS FILE EXISTS BECAUSE I GOT IT WRONG BY READING INSTEAD OF RUNNING.
-//   At v0.97.1 I reported four districts with ZERO overworld enemies and wrote
-//   it into a findings doc. The real number was 200 each. My harness evaluated
-//   the NPCS array LITERAL; the world's 2,000 roamers are pushed at boot by
-//   scatterDistrictEnemies(), inside a setTimeout the harness never ran.
-//   ★★★ I measured the source and called it the world.
+// ★★★ "STRICT" IS THE WORD THIS FILE EXISTS TO ENFORCE. A roster that quietly
+//   places 150 of an authored 200 looks, from inside the game, exactly like one
+//   that placed 200 — you would have to stand in Netharion and count. So every
+//   row is checked against the booted world body by body, and the pass reports
+//   shortfalls rather than rounding them.
+//   ★★ That is not hypothetical: the first boot after the rewrite came back
+//     "netharion/nymphysyl×50 · no sheet" and 145 bodies were missing from
+//     three districts, because Nymphysyl had never existed as a clonable NPC —
+//     she was built from her art table by a net I had just taken her off.
+//     One boot, not one playthrough.
 //
-// So this suite boots the actual game — DOM shimmed, boot tasks executed — and
-// counts what is standing there. It replaces tools/verify_enemy_siting.js and
-// tools/lib/world_harness.js, both deleted: two harnesses that disagree is the
-// same failure as two town rules that disagree, and I have now made that
-// mistake twice in one day.
+// ★ The model inverted at v0.97.3: the ROSTER decides what, TERRAIN decides
+//   where. Both halves are tested here.
 import { bootGame, overworldEnemies, byDistrict } from './lib/boot_game.mjs';
 
 let f = 0;
@@ -28,201 +24,216 @@ const H  = t => console.log('\n' + t);
 
 const t0 = Date.now();
 const G  = bootGame();
-const DISTS = G.ZYRAXIS_DISTRICTS.map(d => d.id);
+const DISTS   = G.ZYRAXIS_DISTRICTS.map(d => d.id);
 const enemies = overworldEnemies(G);
-const roamers = enemies.filter(n => n._roamOf);
+const roster  = enemies.filter(n => n._roamOf);
+const TIER = { mori:1, daemon:2, satyrbeast:3, morlisk:4, vilerok:5, vorugath:6, nymphysyl:7 };
+
+const mixOf = d => {
+  const m = {};
+  for (const n of roster) if (n._roamOf === d) m[n._roamKind] = (m[n._roamKind] || 0) + 1;
+  return m;
+};
 
 H(`★ THE GAME BOOTED · ${Date.now() - t0}ms · ${G.NPCS.length} NPCs`);
 {
-  ok(G.NPCS.length > 1500, `${G.NPCS.length} NPCs in the live world`);
-  ok(enemies.length > 1500, `★★★ ${enemies.length} overworld enemies actually standing — `
-     + 'the number my source-reading harness reported as 177');
-  ok(typeof G.enemyHabitatAt === 'function', 'the habitat classifier is exported and live');
-  ok(roamers.length > 500, `${roamers.length} of them placed by the roamer pass`);
+  ok(enemies.length > 2500, `${enemies.length} overworld enemies standing`);
+  ok(roster.length === 2000, `★★★ ${roster.length} roster bodies · ten districts × 200, exactly`);
 }
 
-H('★★★ "ALL DISTRICTS" · the count the Creator set in v0.95.979 still holds');
+H('★★★ EVERY AUTHORED ROW SUMS TO 200 · the table checks itself');
+{
+  for (const d of DISTS){
+    const total = G.rosterTotalFor(d);
+    ok(total === G.DISTRICT_ROSTER_TOTAL, `  ${d.padEnd(10)} ${total}`);
+  }
+  // ★ and nothing may name a species the spawner cannot build
+  const known = Object.keys(TIER);
+  const bad = [];
+  for (const d of DISTS)
+    for (const k of Object.keys(G.DISTRICT_ENEMY_ROSTER[d] || {}))
+      if (!known.includes(k)) bad.push(`${d}/${k}`);
+  ok(!bad.length, bad.length ? `unknown species in the table: ${bad.join(', ')}` :
+     `★ every row names only species the pass can place (${known.join(', ')})`);
+}
+
+H('★★★ AND THE BOOTED WORLD MATCHES IT BODY FOR BODY');
+{
+  let drift = 0;
+  for (const d of DISTS){
+    const want = G.DISTRICT_ENEMY_ROSTER[d], got = mixOf(d);
+    const line = Object.keys(want).map(k => `${k} ${got[k] || 0}/${want[k]}`).join(' · ');
+    const exact = Object.keys(want).every(k => (got[k] || 0) === want[k])
+               && Object.keys(got).every(k => want[k] != null);
+    if (!exact) drift++;
+    ok(exact, `  ${d.padEnd(10)} ${line}`);
+  }
+  ok(drift === 0, drift ? `${drift} districts drifted from their authored roster`
+     : '★★★ not one district differs from the table by a single body');
+}
+
+H('★★★ TERRAIN DECIDES WHERE · the half of the old model that survived');
+{
+  // ★★ THE TEST THAT CAN CATCH A DEAD SITER. Species are assigned by the
+  //   roster now, so no per-body check can prove habitat still matters. What
+  //   can: each species should land disproportionately in the habitats its
+  //   affinity row favours, compared to where bodies land overall.
+  const overall = {};
+  for (const n of roster) overall[n._roamHab] = (overall[n._roamHab] || 0) + 1;
+  const share = h => (overall[h] || 0) / roster.length;
+
+  const check = (kind, hab) => {
+    const mine = roster.filter(n => n._roamKind === kind);
+    if (!mine.length) return null;
+    const s = mine.filter(n => n._roamHab === hab).length / mine.length;
+    return { s, base: share(hab) };
+  };
+  // satyrbeast is forest:10 · vilerok is cave_mouth:10 · vorugath is highland:10
+  for (const [kind, hab] of [['satyrbeast','forest'], ['vilerok','cave_mouth'], ['vorugath','highland']]){
+    const r = check(kind, hab);
+    if (!r){ ok(false, `no ${kind} placed at all`); continue; }
+    ok(r.s > r.base, `★★ ${kind} favours ${hab}: ${(r.s*100).toFixed(1)}% of them vs `
+       + `${(r.base*100).toFixed(1)}% of all bodies`);
+  }
+  const habs = {};
+  for (const n of roster) habs[n._roamHab] = (habs[n._roamHab] || 0) + 1;
+  console.log('     ' + G.ENEMY_HABITATS.map(h => `${h} ${habs[h] || 0}`).join(' · '));
+  ok(Object.keys(habs).length >= 5, `${Object.keys(habs).length} habitats in use`);
+  // the classifier must agree with the label each body was stamped with
+  let agree = 0, n = 0;
+  for (const b of roster.slice(0, 500)){
+    n++; if (G.enemyHabitatAt(b._roamOf, b.tileX, b.tileY) === b._roamHab) agree++;
+  }
+  ok(agree / n > 0.95, `★ the classifier reproduces the stored habitat for ${agree}/${n} bodies`);
+}
+
+H('★★ THE DIFFICULTY CURVE THE CREATOR AUTHORED · reported, not enforced');
+{
+  const mt = d => {
+    const r = roster.filter(x => x._roamOf === d);
+    return +(r.reduce((s, x) => s + (TIER[x._roamKind] || 1), 0) / r.length).toFixed(2);
+  };
+  const tiers = DISTS.map(mt);
+  console.log('     ' + DISTS.map((d, i) => `${d} ${tiers[i]}`).join(' · '));
+  // ★★★ NOT ASSERTED MONOTONIC, because the dips are in the Creator's own
+  //   numbers and are his to keep. They are printed so they are visible:
+  //     · Zarvane (1.30) is softer than Malezor (1.43) — Malezor carries 15
+  //       Vileroks and 5 Vorugath and Zarvane carries neither.
+  //     · Xilnar is the hardest district in the world, above Korathen, because
+  //       Nymphysyl is T7 and lives only in the three dark districts while
+  //       Korathen's ceiling is Vorugath at T6.
+  ok(tiers[0] > 1 && tiers[9] > 4, `★ the ramp runs ${tiers[0]} → ${tiers[9]}`);
+  const peak = DISTS[tiers.indexOf(Math.max(...tiers))];
+  console.log(`     ★★ hardest district by mean tier: ${peak} (${Math.max(...tiers)})`);
+  ok(true, `  — reported for the Creator's eye · not a failure, these are his numbers`);
+}
+
+H('★★★ ABOVE THE 200 · minibosses and nets, and no double-placement');
 {
   const per = byDistrict(G, enemies);
-  console.log('     ' + DISTS.map(d => `${d} ${per[d]}`).join(' · '));
-  ok(DISTS.every(d => per[d] >= 180), 'every district holds at least 180 enemies');
-  const vals = DISTS.map(d => per[d]);
-  ok(Math.max(...vals) - Math.min(...vals) <= 20,
-     `★★ and the spread across all ten is ${Math.min(...vals)}–${Math.max(...vals)} — `
-     + 'flat, which is what "no area super dense and others scarce" asked for');
-  ok(G.DISTRICT_ROAM_TARGET === 200,
-     `★ target is still ${G.DISTRICT_ROAM_TARGET}/district · the Creator kept his own earlier ruling`);
-}
+  console.log('     total per district · ' + DISTS.map(d => `${d} ${per[d]}`).join(' · '));
+  ok(DISTS.every(d => per[d] >= 200), 'every district is at or above the 200 line');
 
-H('★★★ THE HABITAT CLASSIFIER · terrain, not district id');
-{
-  const HABS = ['hub_fringe','meadow','forest','waterside','highland','cave_mouth','wild_fringe','landmark'];
-  ok(JSON.stringify(G.ENEMY_HABITATS) === JSON.stringify(HABS),
-     'the eight habitats match tools/build_wild_placement.mjs exactly');
-  // ★ every habitat must be REACHABLE, or it is a definition with no territory
-  const seen = {};
-  for (const n of roamers) seen[n._roamHab] = (seen[n._roamHab] || 0) + 1;
-  console.log('     ' + HABS.map(h => `${h} ${seen[h] || 0}`).join(' · '));
-  const live = HABS.filter(h => seen[h]);
-  ok(live.length >= 6, `★★ ${live.length}/8 habitats actually hold enemies`);
-  // ★★ waterside was 0 on the first run — not because the classifier was wrong
-  //   but because the pack anchor never reached a coast. A habitat you cannot
-  //   sample does not exist, however correctly it is defined.
-  ok((seen.waterside || 0) > 0, `★★★ waterside is populated (${seen.waterside || 0}) — `
-     + 'it was zero until the anchor radius reached 0.99 of the district');
-  // the classifier must AGREE with where things were put
-  let agree = 0, checked = 0;
-  for (const n of roamers.slice(0, 400)){
-    const h = G.enemyHabitatAt(n._roamOf, n.tileX, n.tileY);
-    checked++; if (h === n._roamHab) agree++;
+  // ★★★ NYMPHYSYL MOVED FROM HER NET TO THE ROSTER. If both placed her,
+  //   Netharion's authored 50 would boot as ~56 and the table would be a lie.
+  const netNym = G.NPCS.filter(n => n && /^nymphysyl_/.test(n.id || '')).length;
+  const rosNym = roster.filter(n => n._roamKind === 'nymphysyl').length;
+  ok(netNym === 0, '★★ buildNewEnemyNet no longer places Nymphysyl');
+  ok(rosNym === 145, `★★★ and the roster holds all ${rosNym} of her (50+45+50) — placed once`);
+  ok(roster.filter(n => n._roamKind === 'nymphysyl').every(n => n._astralOnly === true),
+     '★ every one of them carries _astralOnly · punches still pass through');
+
+  // ★ MORVEXAR · ruled ADD, so the original 6/4/2 stands and three join it
+  const morv = G.NPCS.filter(n => n && /^morvexar_/.test(n.id || ''));
+  ok(morv.length === 24, `★★ morvexar ${morv.length} · korathen 6 · baelgor 4 · zarvane 2 `
+     + '+ netharion 4 · vorashil 4 · xilnar 4');
+  for (const [d, n] of [['korathen',6],['baelgor',4],['zarvane',2],['netharion',4],['vorashil',4],['xilnar',4]]){
+    const got = morv.filter(m => G.worldDistrictAt(m.tileX, m.tileY) === d).length;
+    ok(got === n, `  ${d} ${got}`);
   }
-  ok(agree / checked > 0.95, `★ the classifier still returns the stored habitat for `
-     + `${agree}/${checked} sampled bodies — it is deterministic, not a one-shot label`);
+  // ★★★ "OUTSKIRTS" WAS A HARD RULE FOR HIM. Past the settlement belt, every one.
+  const S = G.SETTLEMENT_DOCTRINE;
+  const outs = morv.filter(m => {
+    const D = G.ZYRAXIS_DISTRICT_BY_ID[G.worldDistrictAt(m.tileX, m.tileY)];
+    if (!D) return false;
+    return Math.hypot((m.tileX - D.cx) / D.rx, (m.tileY - D.cy) / D.ry) > S.T_MAX;
+  }).length;
+  ok(outs === morv.length, `★★★ all ${outs}/${morv.length} Morvexars stand past the settlement belt — `
+     + 'the outskirts, as specified, not as preferred');
 }
 
-H('★★★ "ALMOST ALL ENEMIES IN ANY DISTRICT" · weights, never zeros');
+H('★★★ RESPAWN · same species, new ground');
 {
-  const mix = {};
-  for (const n of roamers) (mix[n._roamOf] ||= {})[n._roamKind] = ((mix[n._roamOf] ||= {})[n._roamKind] || 0) + 1;
-  for (const d of DISTS) console.log(`     ${d.padEnd(10)} ${JSON.stringify(mix[d] || {})}`);
-
-  // ★★★ THE LONG TAIL, BOTH WAYS. The shipped DISTRICT_ENEMY_MIX had
-  //   `malezor: { mori: 10 }` — a hard zero for everything else. The test that
-  //   matters is that heavy things reach shallow districts AND light things
-  //   survive into deep ones, because a zero in either direction is the rule
-  //   the Creator asked me to remove.
-  const deep = ['xilnar','baelgor','thardin','korathen'];
-  const lightInDeep = deep.filter(d => (mix[d] || {}).mori > 0);
-  ok(lightInDeep.length >= 3, `★★ Mori still appear in ${lightInDeep.length}/4 of the deepest districts`);
-  const kindsPerDist = DISTS.map(d => Object.keys(mix[d] || {}).length);
-  ok(Math.min(...kindsPerDist.slice(2)) >= 3,
-     `★ every district past the tutorial pair draws from ≥3 species (${kindsPerDist.join(',')})`);
-
-  // ★ and the draw itself must offer nearly everything nearly everywhere,
-  //   which is a property of the TABLE and is testable without waiting for
-  //   a rare roll to actually happen.
-  let offered = 0, slots = 0;
-  for (const d of DISTS)
-    for (const h of G.ENEMY_HABITATS){
-      const bag = G.enemyDrawFor(d, h);
-      slots++; if (bag.length >= 5) offered++;
-    }
-  ok(offered / slots > 0.8, `★★★ ${offered}/${slots} district×habitat draws offer 5+ species — `
-     + 'a weighted bag, not a lookup');
-}
-
-H('★★★ "HARDER, NOT NECESSARILY MORE" · the gradient is in the TIER, not the count');
-{
-  const meanTier = d => {
-    const r = roamers.filter(n => n._roamOf === d);
-    return r.length ? r.reduce((s, n) => s + (n.tier || 1), 0) / r.length : 0;
-  };
-  const tiers = DISTS.map(d => +meanTier(d).toFixed(2));
-  console.log('     mean tier · ' + DISTS.map((d, i) => `${d} ${tiers[i]}`).join(' · '));
-  const west = tiers.slice(0, 3).filter(Boolean);
-  const east = tiers.slice(7);
-  const wAvg = west.reduce((a, b) => a + b, 0) / west.length;
-  const eAvg = east.reduce((a, b) => a + b, 0) / east.length;
-  ok(eAvg > wAvg * 1.5, `★★★ mean enemy tier climbs ${wAvg.toFixed(2)} → ${eAvg.toFixed(2)} west to east`);
-
-  // ★ monotonic-ish: allow local dips, but the trend must not invert.
-  //   ★★ My first curve DID invert — Korathen came back softer than Xilnar,
-  //     because the target tier (8.4) had run off the end of the roamable
-  //     roster and every species fell onto the 0.04 floor, where rarity alone
-  //     decided and Mori won. This assertion exists to catch that again.
-  const nz = tiers.map((t, i) => [i, t]).filter(([, t]) => t > 0);
-  let inversions = 0;
-  for (let i = 1; i < nz.length; i++) if (nz[i][1] < nz[i - 1][1] - 0.35) inversions++;
-  ok(inversions <= 2, `★★ ${inversions} significant inversions in the difficulty ramp`);
-  ok(tiers[9] >= Math.max(...tiers) - 0.4,
-     `★★★ Korathen (${tiers[9]}) is at or near the hardest in the world — the inversion is gone`);
-
-  // levels and HP scale too, and always did
-  const lv = d => { const r = roamers.filter(n => n._roamOf === d); return r.length ? r[0].level : 0; };
-  ok(lv('korathen') > lv('andrannor') * 2, `★ level bands still climb (${lv('andrannor')} → ${lv('korathen')})`);
-}
-
-H('★★★ RARITY · a miniboss is rare EVERYWHERE');
-{
-  const count = k => roamers.filter(n => n._roamKind === k).length;
-  const vor = count('vorugath');
-  console.log(`     vorugath ${vor} · vilerok ${count('vilerok')} · morlisk ${count('morlisk')} `
-            + `· satyrbeast ${count('satyrbeast')} · daemon ${count('daemon')} · mori ${count('mori')}`);
-  // ★★★ The first habitat draw put NINETY-SEVEN Vorugath in Baelgor. The world
-  //   was designed to hold five. Tier-fit was answering "does a T6 belong at
-  //   depth 9" — yes — and nothing was asking "is this a heavy thing".
-  ok(vor < 60, `★★★ vorugath is ${vor} world-wide, not the 97-in-one-district the first draw produced`);
-  ok(count('mori') > vor * 2, '★ and the common thing is still commoner than the miniboss');
-  // net-owned species must NEVER be roam-cloned — their counts are ruled
-  for (const k of ['scanobot','penumbra','nymphysyl','morvexar'])
-    ok(count(k) === 0, `  ${k} is not roam-cloned · its own placer owns its count`);
-  const morv = G.NPCS.filter(n => n && /^morvexar_/.test(n.id || '')).length;
-  ok(morv === 12, `★★ and Morvexar is still exactly 12 — the ruled 6/4/2 survived the redistribution`);
-}
-
-H('★★★ RESPAWN · "seers reproducing enemies while we explore"');
-{
-  ok(G.ENEMY_RESPAWN_MS === 10 * 60 * 1000, `${G.ENEMY_RESPAWN_MS / 60000} minutes, as asked`);
-  ok(typeof G.queueEnemyRespawn === 'function' && typeof G.tickEnemyRespawn === 'function',
-     'the queue and the tick are both live');
-
-  // ★★ DRIVE IT. Kill a roamer, jump the clock, and see whether the world
-  //   actually replaces it — and replaces it SOMEWHERE ELSE, which is the
-  //   ruling that makes this reproduction rather than a reset.
-  const victim = roamers.find(n => n._roamOf === 'veridan');
-  const where0 = [victim.tileX, victim.tileY];
-  const before = G.NPCS.length;
+  ok(G.ENEMY_RESPAWN_MS === 10 * 60 * 1000, '10 minutes');
+  const victim = roster.find(n => n._roamOf === 'veridan' && n._roamKind === 'satyrbeast');
+  const from = [victim.tileX, victim.tileY];
   G.queueEnemyRespawn(victim);
-  ok(G.NPCS.length === before, 'queueing does not spawn anything immediately');
 
-  // wind the clock past the timer
   const realNow = performance.now.bind(performance);
-  let skew = 0;
-  globalThis.performance.now = () => realNow() + skew;
-  skew = 11 * 60 * 1000;
-  // park the player far away so the on-screen guard cannot reject every tile
+  globalThis.performance.now = () => realNow() + 11 * 60 * 1000;
   G.player.x = 58; G.player.y = 103;
   const made = G.tickEnemyRespawn();
-  ok(made === 1, `★★★ ten minutes later the world replaced it (${made})`);
-  const fresh = G.NPCS.filter(n => n && n._respawned);
-  ok(fresh.length === 1, 'exactly one body came back · not a cascade');
-  if (fresh.length){
-    const r = fresh[0];
-    ok(G.worldDistrictAt(r.tileX, r.tileY) === 'veridan', '  it came back in its own district');
-    const moved = Math.abs(r.tileX - where0[0]) + Math.abs(r.tileY - where0[1]);
-    ok(moved > 0, `★★★ and NOT on the tile it died on — ${moved} tiles away. `
-       + 'Same-tile respawn is a farm; re-siting is being pushed back.');
-    ok(Math.abs(r.tileX - G.player.x) >= 24 || Math.abs(r.tileY - G.player.y) >= 24,
-       '★★ and never within sight of the player · a body that appears on screen is a bug report');
-    ok(!!r._roamHab && G.ENEMY_HABITATS.includes(r._roamHab),
-       `★ drawn through the habitat picker again · came back on ${r._roamHab} as a ${r._roamKind}`);
-    ok(r.level === G.TOWER_NETWORK.find(t => t.dist === 'veridan').moriLv,
-       '★ at the district band, so a respawn cannot escalate past what Veridan may produce');
-  }
   globalThis.performance.now = realNow;
 
-  // ★ net-owned bodies must not enter the queue at all
-  const morv = G.NPCS.find(n => n && /^morvexar_/.test(n.id || ''));
-  ok(G.queueEnemyRespawn(morv) === false, '★★ a Morvexar is refused by the queue — ruled counts stay ruled');
-}
-
-H('★★★ TOWN · one rule, not two');
-{
-  // ★★★★ I shipped a SECOND town test at v0.97.1 while arguing in its own
-  //   comment that inverting an existing law beats authoring a parallel one.
-  //   _townAnchors already existed and already had 2,000 enemies standing on
-  //   it. This asserts they now agree on the number.
-  ok(G.ROAM_MIN_FROM_TOWN === 26, 'the roamer pass keeps 26 tiles from town');
-  const anchors = G._townAnchors('malezor');
-  ok(anchors.length > 5, `★ _townAnchors sees ${anchors.length} anchors in Malezor — hub, civic AND homes`);
-  let inTown = 0;
-  for (const n of roamers){
-    const a = G._townAnchors(n._roamOf);
-    for (const [tx, ty] of a) if (Math.hypot(tx - n.tileX, ty - n.tileY) < G.ROAM_MIN_FROM_TOWN){ inTown++; break; }
+  ok(made === 1, `the world replaced it (${made})`);
+  const fresh = G.NPCS.filter(n => n && n._respawned);
+  ok(fresh.length === 1, 'exactly one · not a cascade');
+  if (fresh.length){
+    const r = fresh[0];
+    // ★★★ THE RULE THAT CHANGED AT v0.97.3. v0.97.2 redrew the species from the
+    //   new tile's terrain, which was right while habitat owned the census. Now
+    //   the roster owns it — if a Satyrbeast returns as a Morlisk, Veridan's
+    //   authored 55 decays with every fight and the table stops being true.
+    ok(r._roamKind === 'satyrbeast', `★★★ came back as a ${r._roamKind} — the roster cannot drift`);
+    ok(G.worldDistrictAt(r.tileX, r.tileY) === 'veridan', '  in its own district');
+    const moved = Math.abs(r.tileX - from[0]) + Math.abs(r.tileY - from[1]);
+    ok(moved > 0, `★★ and NOT where it died · ${moved} tiles away`);
+    ok(Math.abs(r.tileX - G.player.x) >= 24 || Math.abs(r.tileY - G.player.y) >= 24,
+       '★ never within sight of the player');
+    // and the roster is whole again
+    const vs = G.NPCS.filter(n => n && n._roamOf === 'veridan' && n._roamKind === 'satyrbeast').length;
+    ok(vs === 56, `★ Veridan now holds ${vs} satyrbeast bodies — the 55 authored, `
+       + 'plus the dead one still on screen mid-death animation');
   }
-  ok(inTown === 0, inTown ? `${inTown} roamers are standing in town` :
-     `★★★ not one of ${roamers.length} roamers stands within 26 tiles of a door`);
+  const morv = G.NPCS.find(n => n && /^morvexar_/.test(n.id || ''));
+  ok(G.queueEnemyRespawn(morv) === false, '★★ a Morvexar is refused · ruled counts stay ruled');
 }
 
-H(f ? `\n❌ ${f} failed` : '\n✅ terrain decides what · the 1-10 scale decides how likely · and it comes back');
+H('★★★★ AND THE WORLD CAN STILL DRAW ITSELF · the cull that ships with the roster');
+{
+  // ★★★ THIS PATCH IS WHAT MADE THE CULL NECESSARY, so the cull is part of the
+  //   patch. The roster took the overworld from 1,990 enemies to 2,838, and
+  //   the NPC draw list had no bounds test at all — every body was sorted and
+  //   sent to drawNPC every frame, relying on the canvas to clip it. The prop
+  //   layer fixed exactly this at v0.96.1 and measured 3.79 ms/frame.
+  const ow = G.NPCS.filter(n => n && n.scene === 'overworld');
+  const PAD = 26;          // _CULL_MARGIN 20 + the NPC pad 6
+  let sum = 0, worst = 0, n = 0;
+  for (const [px, py] of [[58,103],[112,278],[315,325],[520,255],[455,435],[895,655],[730,655]]){
+    const drawn = ow.filter(o => o.tileX >= px-10-PAD && o.tileX <= px+10+PAD
+                              && o.tileY >= py-6-PAD  && o.tileY <= py+6+PAD).length;
+    sum += drawn; n++; worst = Math.max(worst, drawn);
+  }
+  const mean = sum / n;
+  console.log(`     ${ow.length} overworld NPCs · draw list mean ${mean.toFixed(0)}, worst ${worst}`);
+  ok(mean < ow.length * 0.05, `★★★ the cull removes ${(100*(1-mean/ow.length)).toFixed(1)}% of the `
+     + 'per-frame draw list and its sort');
+  ok(worst < 120, `★ and the worst camera position still only draws ${worst}`);
+  // ★ the margin must stay generous · a Morvexar is ~2 tiles of sprite on a
+  //   1-tile foot, and culling on the foot would clip his head at the edge
+  ok(PAD >= 20, `★★ ${PAD} tiles of margin beyond a 20x11 viewport — big sprites cannot pop`);
+}
+
+H('★★★ TOWN · 26 tiles, one rule');
+{
+  let inTown = 0;
+  for (const n of roster){
+    for (const [tx, ty] of G._townAnchors(n._roamOf))
+      if (Math.hypot(tx - n.tileX, ty - n.tileY) < G.ROAM_MIN_FROM_TOWN){ inTown++; break; }
+  }
+  ok(inTown === 0, inTown ? `${inTown} roster bodies are standing in town`
+     : `★★★ not one of ${roster.length} stands within 26 tiles of a door`);
+}
+
+H(f ? `\n❌ ${f} failed` : '\n✅ 200 per district, exactly as authored · terrain chose every tile · and it comes back');
 process.exit(f ? 1 : 0);

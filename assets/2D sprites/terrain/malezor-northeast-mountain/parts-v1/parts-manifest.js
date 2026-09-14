@@ -1,0 +1,167 @@
+window.MALEZOR_MOUNTAIN_PARTS = {
+  "version": 1,
+  "tileSize": 32,
+  "envelope": [
+    384,
+    320
+  ],
+  "coordinates": "Local screen pixels, top-left origin. All draw rectangles use alpha content bounds. Array order is back-to-front.",
+  "parts": [
+    {
+      "id": "01-foothill-base",
+      "label": "Foothill base",
+      "file": "01-foothill-base.png",
+      "sourceSize": [
+        1774,
+        887
+      ],
+      "sourceBounds": [
+        24,
+        171,
+        1729,
+        597
+      ],
+      "width": 384,
+      "height": 133,
+      "x": 0,
+      "y": 188,
+      "order": 0,
+      "visible": true,
+      "anchor": "top-left-of-sourceBounds"
+    },
+    {
+      "id": "02-western-ridge",
+      "label": "Western ridge",
+      "file": "02-western-ridge.png",
+      "sourceSize": [
+        1659,
+        948
+      ],
+      "sourceBounds": [
+        49,
+        132,
+        1574,
+        686
+      ],
+      "width": 288,
+      "height": 126,
+      "x": 32,
+      "y": 148,
+      "order": 1,
+      "visible": true,
+      "anchor": "top-left-of-sourceBounds"
+    },
+    {
+      "id": "03-upper-massif",
+      "label": "Upper mountain",
+      "file": "03-upper-massif.png",
+      "sourceSize": [
+        1484,
+        1060
+      ],
+      "sourceBounds": [
+        18,
+        71,
+        1449,
+        926
+      ],
+      "width": 224,
+      "height": 143,
+      "x": 136,
+      "y": 92,
+      "order": 2,
+      "visible": true,
+      "anchor": "top-left-of-sourceBounds"
+    },
+    {
+      "id": "04-summit-cap",
+      "label": "Summit cap",
+      "file": "04-summit-cap.png",
+      "sourceSize": [
+        1619,
+        971
+      ],
+      "sourceBounds": [
+        64,
+        13,
+        1491,
+        879
+      ],
+      "width": 144,
+      "height": 85,
+      "x": 184,
+      "y": 52,
+      "order": 3,
+      "visible": true,
+      "anchor": "top-left-of-sourceBounds"
+    },
+    {
+      "id": "05-side-ledge",
+      "label": "Side ledge",
+      "file": "05-side-ledge.png",
+      "sourceSize": [
+        1774,
+        887
+      ],
+      "sourceBounds": [
+        167,
+        115,
+        1445,
+        658
+      ],
+      "width": 96,
+      "height": 44,
+      "x": 258,
+      "y": 182,
+      "order": 4,
+      "visible": true,
+      "anchor": "top-left-of-sourceBounds"
+    },
+    {
+      "id": "06-summit-dead-tree",
+      "label": "Summit dead tree",
+      "file": "06-summit-dead-tree.png",
+      "sourceSize": [
+        1161,
+        1355
+      ],
+      "sourceBounds": [
+        29,
+        21,
+        1107,
+        1285
+      ],
+      "width": 88,
+      "height": 102,
+      "x": 220,
+      "y": 0,
+      "order": 5,
+      "visible": true,
+      "anchor": "top-left-of-sourceBounds"
+    },
+    {
+      "id": "07-ledge-chest",
+      "label": "Ledge chest",
+      "file": "07-ledge-chest.png",
+      "sourceSize": [
+        1374,
+        1145
+      ],
+      "sourceBounds": [
+        417,
+        355,
+        540,
+        508
+      ],
+      "width": 20,
+      "height": 19,
+      "x": 294,
+      "y": 173,
+      "order": 6,
+      "visible": true,
+      "anchor": "top-left-of-sourceBounds"
+    }
+  ],
+  "boundsAlphaThreshold": 16,
+  "boundsPadding": 2
+};

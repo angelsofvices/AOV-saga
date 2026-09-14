@@ -24434,18 +24434,27 @@ const PENUMBRA_ART = {
 //   does not get harder because you levelled — it gets harder because you went
 //   somewhere, and the thing you found there started shipping.
 const NEW_ENEMY_PLACEMENT = {
-  nymphysyl: {
-    rank: 'miniboss',
-    districts: ['netharion', 'vorashil', 'xilnar'],
-    why: 'the darker districts — Unknownlands, Alienlands, Spiritlands',
-  },
+  // ★★★★ v0.97.3 · NYMPHYSYL LEFT THIS TABLE FOR THE ROSTER.
+  //   Creator: "netharion should have 50 mori, 50 nymphysyl, 35 vorugath, and
+  //   25 vilerok" — she is a counted member of the 200 now, not a handful
+  //   placed by her own net. Leaving her here would have DOUBLE-PLACED her:
+  //   50 from DISTRICT_ENEMY_ROSTER plus 4-7 from this table, and Netharion's
+  //   authored row would have been wrong on the first boot.
+  //   ★ Her astral-only immunity is unaffected — `_astralOnly` is written onto
+  //     every body by the roster pass, and enemyResistsHit reads the body.
   morvexar: {
     rank: 'boss',
-    counts: { korathen: 6, baelgor: 4, zarvane: 2 },
+    // ★★ v0.97.3 · Creator: "I will make room for other enemy minibosses per
+    //   district such as the newly added morvexar in netharion vorashil and
+    //   xilnar outskirts." Ruled ADD, not move — the original 6/4/2 stands and
+    //   the three dark districts join it. 24 world-wide.
+    counts: { korathen:6, baelgor:4, zarvane:2, netharion:4, vorashil:4, xilnar:4 },
     // ★ "they do not fight in pacts" — each one is alone. No group aggro, no
-    //   shared target, no calling for help. A boss-rank body that swarmed would
-    //   be a different enemy entirely.
+    //   shared target, no calling for help.
     noPack: true,
+    // ★★★ "OUTSKIRTS" IS A HARD RULE FOR HIM, not the soft preference every
+    //   other body gets. Past the settlement belt, out where nothing is built.
+    outskirtsOnly: true,
   },
   penumbra: {
     rank: 'commander',
@@ -24454,9 +24463,7 @@ const NEW_ENEMY_PLACEMENT = {
     spreadsAfterReaching: 'thardin',
     escalates: 'scanobot',
   },
-};
-// ★ has the Thardin trigger fired? Reads the same districtsVisited map Kelthor
-//   already gates on, so there is one source of truth for "have you been there".
+}
 function penumbraHasSpread(){
   return !!(player.districtsVisited && player.districtsVisited[NEW_ENEMY_PLACEMENT.penumbra.spreadsAfterReaching]);
 }
@@ -24484,13 +24491,8 @@ function newEnemyDepth(dist){
 function newEnemyCountFor(id, dist){
   const P = NEW_ENEMY_PLACEMENT[id];
   if (!P) return 0;
-  if (P.counts) return P.counts[dist] || 0;        // ★ ruled by number · untouched
+  if (P.counts) return P.counts[dist] || 0;        // ★ ruled by number · exact
   const depth = newEnemyDepth(dist);
-  if (P.districts){
-    // 4 at the shallowest of her three, rising with depth · Netharion 5,
-    // Vorashil 6, Xilnar 7 — the deeper the dark, the more of it there is.
-    return P.districts.includes(dist) ? 4 + Math.floor(depth / 2) : 0;
-  }
   if (P.home){
     if (dist === P.home) return 9;                 // "patrol thardin IN NUMBER"
     if (!penumbraHasSpread()) return 0;            // ...and only after you go
@@ -26686,51 +26688,91 @@ const ENEMY_SPECIES_HABITAT = {
   morvexar:  { hub_fringe:0, meadow:1,  forest:3, waterside:2, highland:7, cave_mouth:10,wild_fringe:6, landmark:4, tier:8, rarity:0.02 },
 };
 
-// ★★★ TIER FIT · the district scale as a soft curve, never a gate.
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.97.3 · THE ROSTER IS AUTHORED, NOT DERIVED
+// ═══════════════════════════════════════════════════════════════════════════
 //
-//   A district of scale s wants tier ≈ s·0.8, and a species' weight falls off
-//   as it departs from that. ★ The FLOOR is the whole design: at 0.04 even a
-//   Morvexar has a 1-in-a-few-hundred chance of standing in Malezor, which is
-//   what "almost all enemies in any district" means and what a hard zero can
-//   never express. You will meet one thing you should not have met, once, and
-//   remember it.
-function enemyTierFit(tier, scale){
-  // ★★★ THE TARGET TIER MUST LAND INSIDE THE ROSTER, and my first version's
-  //   did not. `want = 0.8*scale + 0.4` peaks at 8.4 for Korathen — but the
-  //   heaviest species a roaming pack can actually be made of is Vorugath at
-  //   T6, because T7+ all belong to their own placers. So at the deep end
-  //   EVERY species fell past the curve onto the 0.04 floor, rarity became the
-  //   only surviving term, and Mori (rarity 1.00) won.
-  //   ★★ The booted census showed it plainly: Korathen came back SOFTER than
-  //     Xilnar — mori 45, daemon 48 — which is the exact opposite of the
-  //     request. A floor is a safety net; when everything is resting on it,
-  //     it has become the design.
-  // ★ So the 1-10 district scale maps onto the tiers that exist: 1 → T1,
-  //   10 → T5.5, with Vorugath's T6 sitting just past the top as the thing
-  //   Korathen produces and Malezor effectively never does.
-  const want = 1 + (scale - 1) * 0.5;
-  const off  = Math.abs(tier - want);
-  return Math.max(0.04, Math.exp(-(off * off) / 3.2));
+//   Creator, 2026-09-14: "nah I dont like it. we need a strict 200 enemy spawn
+//   in each district with respawn on. malezor carries 180 mori and 15 vilerok
+//   and 5 vorugath..." — then five districts by hand.
+//
+// ★★★ SO THE MODEL INVERTS, AND THIS IS THE WHOLE CHANGE:
+//     v0.97.2 · habitat decided WHAT, and the census fell out of it.
+//     v0.97.3 · the roster decides WHAT, and habitat decides WHERE.
+//
+//   The weighted draw produced a plausible world and an unpredictable one — you
+//   could not say how many Vileroks were in Veridan without booting it and
+//   counting. A hand-authored roster is a number you can read, edit, and hold
+//   the build to. ★ The habitat work is not wasted; it moves down a layer.
+//   ENEMY_SPECIES_HABITAT now answers "given that this district gets 30
+//   Vileroks, where does a Vilerok stand" — which is what terrain was always
+//   the right authority for.
+//
+// ★★ EXACT, NOT A TARGET. Every row sums to 200 and the suite fails if one
+//   does not, because "strict" was the word used and a roster that silently
+//   rounds is a roster you cannot trust to mean anything.
+const DISTRICT_ENEMY_ROSTER = {
+  // ── Creator-authored, 2026-09-14 ──────────────────────────────────────
+  malezor:   { mori:180, vilerok:15, vorugath:5 },
+  // ★ +20 mori · his line read "150 mori and 30 satyrbeast" = 180. Ruled: fill
+  //   the gap with mori, the filler species everywhere else in his list.
+  zarvane:   { mori:170, satyrbeast:30 },
+  andrannor: { mori:150, daemon:30, morlisk:20 },
+  veridan:   { mori:100, satyrbeast:55, vilerok:30, vorugath:15 },
+  // ★ +40 mori · his line totalled 160. Same ruling.
+  netharion: { mori:90, nymphysyl:50, vorugath:35, vilerok:25 },
+  // ── drafted from the curve his five draw · "we will scale the other
+  //    districts accordingly" · edit freely, the suite only checks they sum
+  //    to 200 and that nothing outside the known species appears ──────────
+  vorashil:  { mori:70, nymphysyl:45, vorugath:40, vilerok:25, satyrbeast:20 },
+  xilnar:    { mori:55, nymphysyl:50, vorugath:45, vilerok:30, morlisk:20 },
+  baelgor:   { mori:45, vorugath:55, vilerok:45, morlisk:35, daemon:20 },
+  thardin:   { mori:35, vorugath:55, vilerok:50, morlisk:40, daemon:20 },
+  korathen:  { mori:25, vorugath:70, vilerok:55, morlisk:35, daemon:15 },
+};
+const DISTRICT_ROSTER_TOTAL = 200;   // ★ every row · asserted, not assumed
+
+function rosterTotalFor(dist){
+  const R = DISTRICT_ENEMY_ROSTER[dist]; if (!R) return 0;
+  let n = 0; for (const k in R) n += R[k];
+  return n;
 }
-// the weighted bag for one habitat in one district
-function enemyDrawFor(dist, habitat){
-  const scale = districtScaleOf(dist);
-  const out = [];
-  for (const [id, H] of Object.entries(ENEMY_SPECIES_HABITAT)){
-    const aff = H[habitat] || 0;
-    if (!aff) continue;
-    const w = aff * enemyTierFit(H.tier, scale) * (H.rarity == null ? 1 : H.rarity);
-    if (w > 0.002) out.push({ id, w, tier: H.tier });
+
+// ★★★ SITING · the species is already decided; terrain only chooses the tile.
+//   Scores candidates by that species' habitat affinity, so 55 Satyrbeasts in
+//   Veridan land in its forests and 30 Vileroks find its cave mouths without
+//   either count being negotiable.
+const ROSTER_SITE_TRIES = 26;
+function siteRosterTile(dist, kind, rng, occupied, townPts){
+  const D = ZYRAXIS_DISTRICT_BY_ID[dist]; if (!D) return null;
+  const H = ENEMY_SPECIES_HABITAT[kind] || {};
+  let best = null, bestScore = -1;
+  for (let i = 0; i < ROSTER_SITE_TRIES; i++){
+    const a = rng() * Math.PI * 2, r = 0.18 + rng() * 0.81;
+    const x = Math.round(D.cx + Math.cos(a) * D.rx * r);
+    const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
+    if (worldDistrictAt(x, y) !== dist) continue;
+    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+    if (_propBlocked.has(x + ',' + y)) continue;
+    if (occupied.has(x + ',' + y)) continue;
+    let inTown = false;
+    for (const [tx, ty] of townPts)
+      if (Math.hypot(tx - x, ty - y) < ROAM_MIN_FROM_TOWN){ inTown = true; break; }
+    if (inTown) continue;
+    const hab = enemyHabitatAt(dist, x, y) || 'meadow';
+    // ★★★ MULTIPLICATIVE NOISE, NOT ADDITIVE. `affinity + rng()` could never
+    //   let a 6 beat a 10, so best-of-26 was effectively deterministic and the
+    //   census came back 99% of Satyrbeasts in forest and 92% of Vorugath on
+    //   highland. That is not a habitat, it is a monoculture — you would clear
+    //   one treeline and meet nothing else in it ever again.
+    //   ★ Scaling by 0.55-1.45 lets a strong-but-not-best habitat win often
+    //     enough to populate the margins, while the favoured terrain still
+    //     takes the clear majority. Species should PREFER their ground, not be
+    //     imprisoned on it.
+    const score = (H[hab] || 1) * (0.55 + rng() * 0.9);
+    if (score > bestScore){ bestScore = score; best = [x, y, hab]; }
   }
-  return out;
-}
-function enemyPickSpecies(dist, habitat, rand){
-  const bag = enemyDrawFor(dist, habitat);
-  if (!bag.length) return 'mori';
-  let total = 0; for (const b of bag) total += b.w;
-  let r = rand() * total;
-  for (const b of bag){ r -= b.w; if (r <= 0) return b.id; }
-  return bag[bag.length - 1].id;
+  return best;
 }
 
 const DISTRICT_ROAM_TARGET = 200;
@@ -26750,111 +26792,116 @@ const ROAM_PACK            = [3, 5];// pack size range · they travel together, 
 // tier per enemy kind · mirrors the bestiary the tower bosses already use
 const ROAM_TIER = { mori: 1, daemon: 2, morlisk: 4, vilerok: 5 };
 const ROAM_HP   = { mori: 125, daemon: 250, morlisk: 350, vilerok: 500 };
+// ★ a clonable template for a species that lives only as an ART table.
+//   Returns the same shape buildNewEnemyNet pushes, minus the placement — so
+//   both paths draw one creature, not two that drift.
+function _rosterTemplateFor(id){
+  let A = null;
+  try { A = (id === 'nymphysyl') ? NYMPHYSYL_ART : null; } catch(_){ return null; }
+  if (!A) return null;
+  const sheets = _newEnemySheets(id);
+  const body = new Image(); body.src = sheets.base.src;
+  return {
+    name: id.charAt(0).toUpperCase() + id.slice(1),
+    sheet: body, src: sheets.base.src, bboxes: sheets.base.bboxes,
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true, scaleMul: A.scaleMul,
+    scene: 'overworld', homeScene: 'overworld',
+    dir: 'down', mode: 'drainer', moving: false,
+    animFrame: 0, idleFrame: 0, blinkTimer: 9e9,
+    isEnemy: true, detectR: 13, drainAmt: 26,
+    rank: A.rank, _astralOnly: !!A.astralOnly,
+    _vSheets: { idle: sheets.idle, run: sheets.run, light: sheets.light, heavy: sheets.heavy },
+    footprint: [[0, 0]], interactHitbox: [[-1, 0], [0, 0], [1, 0]],
+    onInteract: () => showToast('◈ NYMPHYSYL · steel will not reach it', 2600),
+  };
+}
 function scatterDistrictEnemies(){
   if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
   if (game._districtEnemiesScattered) return 0;
   game._districtEnemiesScattered = true;
   const pick = (re) => NPCS.find(n => n && n.isEnemy && re.test(n.src || ''));
-  // ★ every species the habitat table can name needs a live body to clone from.
-  //   A missing sheet falls back to Mori rather than throwing — but it is
-  //   WARNED, because a silent fallback is how a roster quietly becomes one
-  //   species wearing ten names.
   const BASE = {
     mori:       pick(/enemies\/mori\.png/i),
     daemon:     pick(/enemies\/daemon\.png/i)  || pick(/enemies\/mori\.png/i),
     morlisk:    pick(/enemies\/morlisk/i)      || pick(/enemies\/mori\.png/i),
     vilerok:    pick(/vilerok/i)               || pick(/enemies\/mori\.png/i),
-    satyrbeast: pick(/satyrbeast/i)            || null,
-    vorugath:   pick(/vorugath/i)              || null,
-    scanobot:   null,   // ★ owned by buildScanobotNet · never roam-cloned
-    penumbra:   null,   // ★ owned by buildNewEnemyNet · fixed counts and spread
-    nymphysyl:  null,   // ★     "
-    morvexar:   null,   // ★     " · 6/4/2 was ruled by number
+    satyrbeast: pick(/satyrbeast/i)            || pick(/enemies\/mori\.png/i),
+    vorugath:   pick(/vorugath/i)              || pick(/enemies\/mori\.png/i),
+    // ★★★ NYMPHYSYL HAS NO BODY TO CLONE, and the shortfall reporter is how I
+    //   found out. She was never an NPCS entry — buildNewEnemyNet built her
+    //   from NYMPHYSYL_ART every time. The moment she moved to the roster,
+    //   `pick(/nymphysyl/i)` matched nothing and all 145 of her silently
+    //   vanished from three districts.
+    //   ★★ It was not silent, because the pass reports what it could not place
+    //     instead of rounding. "roster shortfall · netharion/nymphysyl×50 · no
+    //     sheet" is the entire reason this took one boot to find rather than a
+    //     playthrough. A pass that quietly hits 150/200 looks exactly like a
+    //     pass that hit 200.
+    nymphysyl:  _rosterTemplateFor('nymphysyl'),
   };
   if (!BASE.mori) return 0;
   const rng = _makeWorldRng(0xE7E31);
   let made = 0;
-  const perD = {};
+  const perD = {}, shortfall = [];
+
+  // ★★ ONE occupancy set for the whole pass. The old pass ran
+  //   `NPCS.some(n => n.tileX === x && n.tileY === y)` inside its legality
+  //   test — a full array scan per candidate tile, against an array it was
+  //   itself growing to 2,000. That is the shape of an O(n²) boot.
+  const occupied = new Set();
+  for (const n of NPCS) if (n && n.scene === 'overworld' && n.tileX != null)
+    occupied.add(n.tileX + ',' + n.tileY);
+
   for (const T of TOWER_NETWORK){
     const dist = T.dist;
-    // ★ count what this district ALREADY has and only make up the difference,
-    // so Malezor and Zarvane are left alone and nothing is double-populated on
-    // a later pass.
-    const have = NPCS.filter(n => n && n.isEnemy && n.tileX != null
-      && worldDistrictAt(n.tileX, n.tileY) === dist).length;
-    const want = Math.max(0, DISTRICT_ROAM_TARGET - have);
-    if (!want) { perD[dist] = 0; continue; }
-    const D = ZYRAXIS_DISTRICT_BY_ID[dist];
-    const town = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
-    const legal = (x, y) => {
-      if (worldDistrictAt(x, y) !== dist) return false;
-      if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
-      if (_propBlocked.has(x + ',' + y)) return false;
-      if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === x && n.tileY === y)) return false;
-      for (const [tx, ty] of town) if (Math.hypot(tx - x, ty - y) < ROAM_MIN_FROM_TOWN) return false;
-      return true;
-    };
-    let placed = 0, guard = 0;
-    while (placed < want && guard < 9000){
-      guard++;
-      // anchor the pack somewhere legal in the district's own ellipse
-      // ★★ v0.97.2 · 0.92 → 0.99 of the district radius.
-      //   The first habitat census came back with waterside: 0 — not because
-      //   the classifier was broken but because the pack anchor never got far
-      //   enough out to stand on a coast. A habitat you cannot sample is a
-      //   habitat that does not exist, however correctly it is defined.
-      const a = rng() * Math.PI * 2, r = 0.20 + rng() * 0.79;
-      const ax = Math.round(D.cx + Math.cos(a) * D.rx * r);
-      const ay = Math.round(D.cy + Math.sin(a) * D.ry * r);
-      if (!legal(ax, ay)) continue;
-      // ★★★ v0.97.2 · the species is drawn from the TERRAIN the pack anchored
-      //   on, not from the district's name. Same anchor, same rng — what
-      //   changed is what question gets asked about the ground.
-      const hab  = enemyHabitatAt(dist, ax, ay) || 'meadow';
-      const kind = enemyPickSpecies(dist, hab, rng);
-      const base = BASE[kind] || BASE.mori;
-      // ★★ THE FOUR NET-OWNED SPECIES ARE DRAWN AND THEN DECLINED. Scanobots,
-      //   Penumbra, Nymphysyl and Morvexar each have their own placer with its
-      //   own ruled counts — Morvexar's 6/4/2 most of all. Letting the roamer
-      //   pass clone them would silently double their population and break a
-      //   number the Creator set by hand. They stay in the affinity table
-      //   because they must still influence what ELSE fits a habitat.
-      if (!BASE[kind]) continue;
-      const size = Math.min(want - placed,
-        ROAM_PACK[0] + Math.floor(rng() * (ROAM_PACK[1] - ROAM_PACK[0] + 1)));
-      for (let i = 0; i < size; i++){
-        // members cluster around the anchor rather than stacking on it
-        const mx = ax + Math.round((rng() - 0.5) * 5);
-        const my = ay + Math.round((rng() - 0.5) * 5);
-        if (!legal(mx, my)) continue;
-        const id = `roam_${dist}_${made}`;
-          // ★ tier reads off the habitat table now — one place says what a
-        //   Morlisk is, instead of two tables that can drift.
-        const tier = (ENEMY_SPECIES_HABITAT[kind] || {}).tier || ROAM_TIER[kind] || 1;
-        NPCS.push(_cloneEnemyTo(base, id, mx, my, {
+    const R = DISTRICT_ENEMY_ROSTER[dist];
+    if (!R){ perD[dist] = 0; continue; }
+    const townPts = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
+    let placed = 0;
+    // ★★★ THE ROSTER IS FULFILLED SPECIES BY SPECIES, IN FULL.
+    //   This is no longer a top-up against whatever the district already held.
+    //   Creator: "any other enemies will sit above the 200 mark which is ok" —
+    //   so tower guards, HQ garrisons and hand-placed packs are ADDITIONAL, and
+    //   the roster is the 200 you can go and count.
+    for (const kind of Object.keys(R)){
+      const want = R[kind] || 0;
+      const base = BASE[kind];
+      if (!base){ if (want) shortfall.push(`${dist}/${kind}×${want} · no sheet`); continue; }
+      const H  = ENEMY_SPECIES_HABITAT[kind] || {};
+      const hp = Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
+      let got = 0;
+      for (let i = 0; i < want; i++){
+        const spot = siteRosterTile(dist, kind, rng, occupied, townPts);
+        if (!spot) continue;                       // counted below, never faked
+        const [x, y, hab] = spot;
+        occupied.add(x + ',' + y);
+        NPCS.push(_cloneEnemyTo(base, `roam_${dist}_${made}`, x, y, {
           name: kind.charAt(0).toUpperCase() + kind.slice(1),
           dir: ['up','down','left','right'][Math.floor(rng() * 4)],
           wanderRadius: 5 + Math.floor(rng() * 4),
           mode: kind === 'mori' ? 'wander' : 'drainer',
           isEnemy: true,
-          // ★ the district's own band · not a number invented here
           level: T.moriLv,
-          tier,
-          // ★ HP now tracks the band, so a Korathen Mori is not a Malezor Mori
-          hpMax: Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40)),
-          hp:    Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40)),
-          _roamOf: dist,
-          _roamKind: kind,
-          _roamHab: hab,
+          tier: H.tier || ROAM_TIER[kind] || 1,
+          hpMax: hp, hp,
+          // ★ the flag the immunity reads · Nymphysyl is roster now, and
+          //   enemyResistsHit checks the BODY, never the art table
+          _astralOnly: kind === 'nymphysyl',
+          _roamOf: dist, _roamKind: kind, _roamHab: hab,
         }));
-        made++; placed++;
+        made++; placed++; got++;
       }
+      if (got < want) shortfall.push(`${dist}/${kind} ${got}/${want}`);
     }
     perD[dist] = placed;
   }
   if (made){
-    console.log(`[rp7b] v0.97.2 · roaming enemies · ${made} placed by habitat · `
-      + Object.entries(perD).filter(([, n]) => n).map(([d, n]) => `${d}:${n}`).join(' '));
+    console.log(`[rp7b] v0.97.3 · roster enemies · ${made} placed · `
+      + Object.entries(perD).map(([d, n]) => `${d}:${n}`).join(' '));
+    // ★ a roster that could not be filled is REPORTED, never rounded. A silent
+    //   shortfall is how "strict 200" quietly becomes "about 200".
+    if (shortfall.length) console.warn('[rp7b] ★ roster shortfall · ' + shortfall.join(' · '));
   }
   return made;
 }
@@ -26891,57 +26938,63 @@ function queueEnemyRespawn(n){
   //   because their own placers set their counts and a respawn here would
   //   quietly inflate a ruled number.
   if (_enemyRespawnQueue.length >= ENEMY_RESPAWN_CAP) return false;
-  _enemyRespawnQueue.push({ dist: n._roamOf, at: performance.now() + ENEMY_RESPAWN_MS });
+  // ★★★ THE SPECIES RIDES THE QUEUE, and that is a consequence of "strict".
+  //   v0.97.2 redrew the species from the new tile's terrain, which was the
+  //   right call when habitat OWNED the census. Now the roster owns it: if a
+  //   Mori can come back as a Morlisk then Andrannor's authored 150/30/20
+  //   drifts a little with every fight, and by hour three the table on screen
+  //   is not the table in the file. ★ Same species, new ground.
+  _enemyRespawnQueue.push({ dist: n._roamOf, kind: n._roamKind || 'mori',
+                            at: performance.now() + ENEMY_RESPAWN_MS });
   return true;
 }
 
-function _respawnOneEnemy(dist){
+function _respawnOneEnemy(dist, kind){
   if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return null;
   const D = ZYRAXIS_DISTRICT_BY_ID[dist]; if (!D) return null;
   const T = TOWER_NETWORK.find(x => x.dist === dist); if (!T) return null;
   const pick = re => NPCS.find(x => x && x.isEnemy && re.test(x.src || ''));
-  const BASE = { mori: pick(/enemies\/mori\.png/i), daemon: pick(/enemies\/daemon\.png/i),
-                 morlisk: pick(/enemies\/morlisk/i), vilerok: pick(/vilerok/i),
-                 satyrbeast: pick(/satyrbeast/i), vorugath: pick(/vorugath/i) };
-  if (!BASE.mori) return null;
+  const SRC = { mori:/enemies\/mori\.png/i, daemon:/enemies\/daemon\.png/i,
+                morlisk:/enemies\/morlisk/i, vilerok:/vilerok/i,
+                satyrbeast:/satyrbeast/i, vorugath:/vorugath/i, nymphysyl:/nymphysyl/i };
+  const base = (kind === 'nymphysyl' ? _rosterTemplateFor('nymphysyl') : null)
+            || pick(SRC[kind] || SRC.mori) || pick(SRC.mori);
+  if (!base) return null;
   const rng = _makeWorldRng((Date.now() ^ (D.cx * 7919)) >>> 0);
-  const town = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
-  for (let t = 0; t < 400; t++){
-    const a = rng() * Math.PI * 2, r = 0.20 + rng() * 0.79;
-    const x = Math.round(D.cx + Math.cos(a) * D.rx * r);
-    const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
-    if (worldDistrictAt(x, y) !== dist) continue;
-    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
-    if (_propBlocked.has(x + ',' + y)) continue;
-    if (NPCS.some(o => o && o.scene === 'overworld' && o.tileX === x && o.tileY === y)) continue;
-    let nearTown = false;
-    for (const [tx, ty] of town) if (Math.hypot(tx - x, ty - y) < ROAM_MIN_FROM_TOWN){ nearTown = true; break; }
-    if (nearTown) continue;
-    // ★★★ NOT WITHIN SIGHT OF THE PLAYER. A body that materialises on screen
-    //   is a bug report, however correct the tile is. One screen is 20x11, so
-    //   24 tiles clear puts it comfortably past the edge in any direction.
+  const townPts = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
+  const H = ENEMY_SPECIES_HABITAT[kind] || {};
+  for (let t = 0; t < 40; t++){
+    const spot = siteRosterTile(dist, kind, rng, _respawnOccupancy(), townPts);
+    if (!spot) continue;
+    const [x, y, hab] = spot;
+    // ★★★ NOT WITHIN SIGHT OF THE PLAYER. A body that materialises on screen is
+    //   a bug report however correct the tile is. One screen is 20x11, so 24
+    //   tiles clear puts it past the edge in any direction.
     if (typeof player !== 'undefined' && player
         && Math.abs(player.x - x) < 24 && Math.abs(player.y - y) < 24) continue;
-    const hab  = enemyHabitatAt(dist, x, y) || 'meadow';
-    const kind = enemyPickSpecies(dist, hab, rng);
-    const base = BASE[kind]; if (!base) continue;      // net-owned · redraw
-    const H    = ENEMY_SPECIES_HABITAT[kind] || {};
-    const hp   = Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
-    const id   = `roam_${dist}_r${Math.floor(Math.random() * 1e9)}`;
-    NPCS.push(_cloneEnemyTo(base, id, x, y, {
+    const hp = Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
+    NPCS.push(_cloneEnemyTo(base, `roam_${dist}_r${Math.floor(Math.random() * 1e9)}`, x, y, {
       name: kind.charAt(0).toUpperCase() + kind.slice(1),
       dir: ['up','down','left','right'][Math.floor(rng() * 4)],
       wanderRadius: 5 + Math.floor(rng() * 4),
       mode: kind === 'mori' ? 'wander' : 'drainer',
-      isEnemy: true, level: T.moriLv, tier: H.tier || 1,
+      isEnemy: true, level: T.moriLv, tier: H.tier || ROAM_TIER[kind] || 1,
       hpMax: hp, hp,
+      _astralOnly: kind === 'nymphysyl',
       _roamOf: dist, _roamKind: kind, _roamHab: hab, _respawned: true,
     }));
     return { x, y, kind, hab };
   }
   return null;
 }
-
+// ★ built fresh per respawn rather than kept live · a respawn happens at most
+//   once every five seconds, and a stale set would stack bodies on one tile.
+function _respawnOccupancy(){
+  const s = new Set();
+  for (const n of NPCS) if (n && n.scene === 'overworld' && n.tileX != null)
+    s.add(n.tileX + ',' + n.tileY);
+  return s;
+}
 // throttled · called from the frame, but does real work at most every 5s
 function tickEnemyRespawn(){
   const now = performance.now();
@@ -26955,8 +27008,8 @@ function tickEnemyRespawn(){
     // ★ a failed siting is RETURNED TO THE QUEUE with a short delay, not
     //   dropped. Dropping it would make the world permanently poorer every
     //   time the player happened to be standing in the wrong place.
-    if (_respawnOneEnemy(q.dist)) made++;
-    else still.push({ dist: q.dist, at: now + 30000 });
+    if (_respawnOneEnemy(q.dist, q.kind)) made++;
+    else still.push({ dist: q.dist, kind: q.kind, at: now + 30000 });
   }
   _enemyRespawnQueue = still;
   return made;
@@ -27193,6 +27246,7 @@ function siteTreasureScore(x, y){
 
 // ★★★ Pick one tile for one enemy in one district. Hard rules reject; soft
 //   rules rank; the best of N candidates wins.
+let _siteOutskirtsOnly = false;
 function siteEnemyTile(dist, rand, taken){
   const D = ZYRAXIS_DISTRICT_BY_ID[dist];
   if (!D) return null;
@@ -27217,6 +27271,10 @@ function siteEnemyTile(dist, rand, taken){
       if (Math.max(Math.abs(px - x), Math.abs(py - y)) < ENEMY_SITE_MIN_SPACING){ clear = false; break; }
     if (!clear) continue;                                         // HARD · evenly spread
     const t = Math.hypot((x - D.cx) / D.rx, (y - D.cy) / D.ry);
+    // ★★★ v0.97.3 · for Morvexar this stops being a preference. Creator put him
+    //   in the OUTSKIRTS by name, and a soft score would have let the largest
+    //   enemy in the game turn up two screens from a school on an unlucky roll.
+    if (_siteOutskirtsOnly && t <= S.T_MAX) continue;              // HARD, when armed
     const outskirt = t > S.T_MAX ? 2 : 0;                         // SOFT · past the last house
     const score = siteCoastScore(x, y) + siteTreasureScore(x, y) + outskirt + rand();
     if (score > bestScore){ bestScore = score; best = [x, y]; }
@@ -27324,7 +27382,10 @@ function _newEnemySheets(id){
   return   { base: A.idle, idle: { img: null, bboxes: A.idle.bboxes },
              run: load('walk'), light: load('light'), heavy: load('heavy') };
 }
-const NEW_ENEMY_IDS = ['morvexar', 'nymphysyl', 'penumbra'];
+// ★ nymphysyl is NOT here any more · she is roster, placed by
+//   scatterDistrictEnemies. Her art table stays for the sheets and the
+//   astralOnly flag; only her PLACEMENT moved.
+const NEW_ENEMY_IDS = ['morvexar', 'penumbra'];
 function buildNewEnemyNet(){
   if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
   let made = 0;
@@ -27345,7 +27406,9 @@ function buildNewEnemyNet(){
       for (let i = 0; i < want; i++){
         const nid = `${id}_${D.id}_${i + 1}`;
         if (NPCS.some(n => n && n.id === nid)) continue;   // ★ idempotent
+        _siteOutskirtsOnly = !!(NEW_ENEMY_PLACEMENT[id] || {}).outskirtsOnly;
         const spot = siteEnemyTile(D.id, rand, placed);
+        _siteOutskirtsOnly = false;
         if (!spot) { console.warn(`[newEnemyNet] no legal tile for ${nid}`); continue; }
         placed.push(spot);
         NPCS.push({
@@ -40376,7 +40439,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.2' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.3' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -59772,8 +59835,27 @@ function drawWorldLayer(){
     // grass at its feet because that part is only drawn in the first pass.
     if (p._districtTree) renderables.push({ kind:'treeCanopy', prop:p, footY: p.tileY + TREE_CANOPY_LIFT });
   }));
+  // ★★★★ v0.97.3 · THE NPC DRAW LIST WAS NEVER CULLED, and the roster just
+  //   took the overworld from 1,990 enemies to 2,838. Every one of them was
+  //   being pushed into `renderables`, taking part in the O(n log n) sort, and
+  //   reaching drawNPC — which has no bounds test of its own and relied on the
+  //   canvas to clip it. Roughly fifteen are ever on screen.
+  //
+  // ★★ The prop layer solved this at v0.96.1 and measured 3.79 ms/frame saved.
+  //   The NPC layer never got the same treatment because it was small when it
+  //   was written. It is not small now, and this patch is what made that true,
+  //   so the cull ships WITH the roster rather than after someone notices.
+  //
+  // ★ The margin is deliberately larger than the props'. A Morvexar is 1.95
+  //   tiles of sprite hanging off a one-tile foot, and attack banks reach
+  //   further still — culling on the foot tile alone would pop the top of a
+  //   big enemy off at the screen edge.
+  const _nb = _propCullBounds();
+  const _NPC_CULL_PAD = 6;
   NPCS.forEach(n => {
     if (n.scene !== 'overworld') return;                          // only overworld here
+    if (n.tileX < _nb.x0 - _NPC_CULL_PAD || n.tileX > _nb.x1 + _NPC_CULL_PAD
+     || n.tileY < _nb.y0 - _NPC_CULL_PAD || n.tileY > _nb.y1 + _NPC_CULL_PAD) return;
     // ★★ v0.95.730 · `!n.sheet.complete` THREW on any NPC without a sheet.
     //
     // v0.95.718 introduced orb followers — a deployed Zyrex whose species has

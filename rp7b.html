@@ -26532,22 +26532,221 @@ function buildTowerGuardPacks(){
 // already holds (its tower ring, its HQ garrison, any hand-placed pack) and
 // makes up only the difference, so 200 is the number you can go and count in
 // the field rather than 200 added on top of whatever was there.
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.97.2 · THE HABITAT MODEL · species tie to TERRAIN, not to district id
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   Creator, 2026-09-14: "borrow the ZYREX_POPULATIONS habitat model, so species
+//   tie to terrain rather than district id. but make it so that u can find
+//   almost all enemies in any district, just weighted to the district scale
+//   1-10. harder fights in korathen than malezor and the enemies are harder,
+//   not necessarily more."
+//
+// ★★★ THE EIGHT HABITATS ARE NOT NEW. They are the same eight that
+//   tools/build_wild_placement.mjs already uses to site the wild Zyrex, with
+//   the same predicates. That generator defines them as SAMPLERS — "where do I
+//   look for a meadow" — and what a spawner needs is the INVERSE, a CLASSIFIER:
+//   "I am standing here, what is this?" Same rules, read the other way, so the
+//   two can never disagree about what a forest is.
+//
+// ★★ WHY TERRAIN BEATS DISTRICT ID. The shipped DISTRICT_ENEMY_MIX says
+//   `malezor: { mori: 10 }` — a hard zero for everything else, so no Vilerok
+//   can stand in Malezor under any circumstance. That is a rule about a NAME.
+//   Tying the draw to terrain instead means a Vilerok appears where Vileroks
+//   belong — the cave mouths, the highlands — and the district only tilts how
+//   likely that is. ★ Which is exactly what "almost all enemies in any
+//   district, weighted to the scale" asks for: weights, not zeros.
+const ENEMY_HABITATS = ['hub_fringe','meadow','forest','waterside','highland',
+                        'cave_mouth','wild_fringe','landmark'];
+
+// ★ district scale 1-10 · Malezor 1 ... Korathen 10 · the dial everything hangs off
+function districtScaleOf(dist){
+  const i = ZYRAXIS_DISTRICTS.findIndex(d => d.id === dist);
+  return i < 0 ? 1 : i + 1;
+}
+
+// ── the classifier's inputs, cached per district ──────────────────────────
+const _habCache = {};
+function _habAnchors(dist){
+  if (_habCache[dist]) return _habCache[dist];
+  const P = _districtPOIs(dist);
+  const T = TOWER_NETWORK.find(t => t.dist === dist);
+  return (_habCache[dist] = {
+    hub:   P.hub,
+    cave:  P.cave ? [P.cave.tileX, P.cave.tileY] : null,
+    hq:    P.seer ? [P.seer.tileX, P.seer.tileY] : null,
+    tower: T ? T.tower : null,
+  });
+}
+// ★ flora density, from the SAME test the wild generator uses: props whose
+//   source is a tree or a cactus. Bushes are deliberately not trees.
+let _habTrees = null;
+function _habTreeList(){
+  if (_habTrees) return _habTrees;
+  _habTrees = [];
+  for (const p of WORLD_PROPS)
+    if (p && p.src && /(tree|cactus)/.test(p.src) && p.tileX != null) _habTrees.push([p.tileX, p.tileY]);
+  // ★ 9,000+ trees scanned linearly per tile is 2 million comparisons for one
+  //   district's worth of spawns. Bucket them the way the prop grid does.
+  _habTrees.grid = new Map();
+  for (const [x, y] of _habTrees){
+    const k = (x >> 4) + ',' + (y >> 4);
+    if (!_habTrees.grid.has(k)) _habTrees.grid.set(k, []);
+    _habTrees.grid.get(k).push([x, y]);
+  }
+  return _habTrees;
+}
+function _habTreeNear(x, y, r){
+  const L = _habTreeList(); let n = 0;
+  for (let bx = (x - r) >> 4; bx <= (x + r) >> 4; bx++)
+    for (let by = (y - r) >> 4; by <= (y + r) >> 4; by++){
+      const cell = L.grid.get(bx + ',' + by); if (!cell) continue;
+      for (const [tx, ty] of cell)
+        if (Math.abs(tx - x) <= r && Math.abs(ty - y) <= r) n++;
+    }
+  return n;
+}
+function _habCoastNear(x, y, r){
+  for (let dx = -r; dx <= r; dx++)
+    for (let dy = -r; dy <= r; dy++)
+      if (!isWorldLandTile(x + dx, y + dy)) return true;
+  return false;
+}
+function _habBearing(cx, cy, x, y){
+  const a = Math.atan2(y - cy, x - cx) * 180 / Math.PI;
+  const dirs = [['E',0],['SE',45],['S',90],['SW',135],['W',180],['NW',225],['N',270],['NE',315]];
+  let best = 'E', bd = 1e9;
+  for (const [n, deg] of dirs){ let d = Math.abs(((a - deg) % 360 + 360) % 360); d = Math.min(d, 360 - d);
+    if (d < bd){ bd = d; best = n; } }
+  return best;
+}
+
+// ★★★ THE CLASSIFIER. Proximity habitats win, because standing at a cave mouth
+//   IS being at a cave mouth no matter how many trees are around you. Then the
+//   terrain tests, then the distance bands. Returns null off-district.
+function enemyHabitatAt(dist, x, y){
+  if (worldDistrictAt(x, y) !== dist) return null;
+  const A = _habAnchors(dist);
+  const near = (p, r) => p && Math.hypot(p[0] - x, p[1] - y) <= r;
+  if (near(A.cave,  14)) return 'cave_mouth';
+  if (near(A.hq,    18)) return 'wild_fringe';
+  if (near(A.tower, 12)) return 'landmark';
+  const [cx, cy] = A.hub;
+  const d = Math.hypot(cx - x, cy - y);
+  if (_habCoastNear(x, y, 3))    return 'waterside';
+  if (_habTreeNear(x, y, 7) >= 5) return 'forest';
+  let q = null; try { q = wheelQuarterAt(dist, _habBearing(cx, cy, x, y)); } catch(_){}
+  if (q === 'highland' && d >= 30) return 'highland';
+  if (d <= 22) return 'hub_fringe';
+  if (q === 'open' && _habTreeNear(x, y, 6) <= 2) return 'meadow';
+  // ★ everything else is open country. It gets the meadow's draw rather than
+  //   `null`, because a tile with no habitat is a tile no enemy can stand on,
+  //   and most of Zyraxis is open country.
+  return 'meadow';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ WHAT LIVES WHERE · habitat affinity, 0-10 per species
+// ═══════════════════════════════════════════════════════════════════════════
+// ★ A zero here is a real zero — a Scanobot does not wade — but a zero in ONE
+//   habitat is not a zero in a district, because every district holds all eight
+//   habitats somewhere. That is the mechanism by which "almost all enemies in
+//   any district" is true without any species being uniform.
+// ★★★ AND A RARITY, WHICH IS NOT THE SAME THING AS A TIER.
+//
+//   My first version had affinity x tier-fit and nothing else, and the booted
+//   world came back with **97 Vorugath in Baelgor** and 82 in Thardin. Vorugath
+//   is a MINIBOSS — 1,000 HP, "2x a Vilerok" — and the whole world was designed
+//   to hold FIVE of them. The curve was not wrong; it was answering the wrong
+//   question. Tier-fit asks "does this belong at this depth?" and the answer
+//   for a T6 miniboss in a scale-9 district is an enthusiastic yes.
+//
+// ★★ What was missing is that a heavy thing is rare EVERYWHERE. A district
+//   full of minibosses is not a hard district, it is a district with no shape:
+//   nothing to cut through, nothing to dread. Rarity is the second axis, and it
+//   is independent of depth — Korathen gets heavier enemies than Malezor
+//   because tier-fit shifts the draw, not because rarity stops applying.
+//   ★ This is the difference between "harder" and "more", which is the exact
+//     distinction the Creator drew.
+const ENEMY_SPECIES_HABITAT = {
+  //            hub  mead  for  water  high  cave  wild  land
+  mori:      { hub_fringe:6, meadow:10, forest:7, waterside:6, highland:5, cave_mouth:3, wild_fringe:6, landmark:5, tier:1, rarity:1.00 },
+  daemon:    { hub_fringe:3, meadow:6,  forest:7, waterside:5, highland:7, cave_mouth:8, wild_fringe:9, landmark:6, tier:2, rarity:0.80 },
+  satyrbeast:{ hub_fringe:2, meadow:7,  forest:10,waterside:4, highland:8, cave_mouth:4, wild_fringe:3, landmark:3, tier:3, rarity:0.55 },
+  morlisk:   { hub_fringe:1, meadow:4,  forest:6, waterside:4, highland:9, cave_mouth:7, wild_fringe:6, landmark:8, tier:4, rarity:0.32 },
+  vilerok:   { hub_fringe:1, meadow:3,  forest:5, waterside:5, highland:8, cave_mouth:10,wild_fringe:5, landmark:7, tier:5, rarity:0.18 },
+  // ★ the machines hold the built places and the roads · they do not wade
+  scanobot:  { hub_fringe:8, meadow:5,  forest:2, waterside:0, highland:4, cave_mouth:2, wild_fringe:7, landmark:10, tier:3, rarity:0.50 },
+  penumbra:  { hub_fringe:5, meadow:4,  forest:2, waterside:0, highland:5, cave_mouth:3, wild_fringe:8, landmark:10, tier:6, rarity:0.10 },
+  // ★★ 0.04 · the world was built to hold FIVE of these, and the first run of
+  //   the habitat draw put 97 in one district.
+  vorugath:  { hub_fringe:0, meadow:3,  forest:4, waterside:6, highland:10,cave_mouth:9, wild_fringe:4, landmark:5, tier:6, rarity:0.04 },
+  // ★ the spirit walks where the living do not build
+  nymphysyl: { hub_fringe:0, meadow:2,  forest:8, waterside:6, highland:6, cave_mouth:10,wild_fringe:9, landmark:2, tier:7, rarity:0.05 },
+  morvexar:  { hub_fringe:0, meadow:1,  forest:3, waterside:2, highland:7, cave_mouth:10,wild_fringe:6, landmark:4, tier:8, rarity:0.02 },
+};
+
+// ★★★ TIER FIT · the district scale as a soft curve, never a gate.
+//
+//   A district of scale s wants tier ≈ s·0.8, and a species' weight falls off
+//   as it departs from that. ★ The FLOOR is the whole design: at 0.04 even a
+//   Morvexar has a 1-in-a-few-hundred chance of standing in Malezor, which is
+//   what "almost all enemies in any district" means and what a hard zero can
+//   never express. You will meet one thing you should not have met, once, and
+//   remember it.
+function enemyTierFit(tier, scale){
+  // ★★★ THE TARGET TIER MUST LAND INSIDE THE ROSTER, and my first version's
+  //   did not. `want = 0.8*scale + 0.4` peaks at 8.4 for Korathen — but the
+  //   heaviest species a roaming pack can actually be made of is Vorugath at
+  //   T6, because T7+ all belong to their own placers. So at the deep end
+  //   EVERY species fell past the curve onto the 0.04 floor, rarity became the
+  //   only surviving term, and Mori (rarity 1.00) won.
+  //   ★★ The booted census showed it plainly: Korathen came back SOFTER than
+  //     Xilnar — mori 45, daemon 48 — which is the exact opposite of the
+  //     request. A floor is a safety net; when everything is resting on it,
+  //     it has become the design.
+  // ★ So the 1-10 district scale maps onto the tiers that exist: 1 → T1,
+  //   10 → T5.5, with Vorugath's T6 sitting just past the top as the thing
+  //   Korathen produces and Malezor effectively never does.
+  const want = 1 + (scale - 1) * 0.5;
+  const off  = Math.abs(tier - want);
+  return Math.max(0.04, Math.exp(-(off * off) / 3.2));
+}
+// the weighted bag for one habitat in one district
+function enemyDrawFor(dist, habitat){
+  const scale = districtScaleOf(dist);
+  const out = [];
+  for (const [id, H] of Object.entries(ENEMY_SPECIES_HABITAT)){
+    const aff = H[habitat] || 0;
+    if (!aff) continue;
+    const w = aff * enemyTierFit(H.tier, scale) * (H.rarity == null ? 1 : H.rarity);
+    if (w > 0.002) out.push({ id, w, tier: H.tier });
+  }
+  return out;
+}
+function enemyPickSpecies(dist, habitat, rand){
+  const bag = enemyDrawFor(dist, habitat);
+  if (!bag.length) return 'mori';
+  let total = 0; for (const b of bag) total += b.w;
+  let r = rand() * total;
+  for (const b of bag){ r -= b.w; if (r <= 0) return b.id; }
+  return bag[bag.length - 1].id;
+}
+
 const DISTRICT_ROAM_TARGET = 200;
 const ROAM_MIN_FROM_TOWN   = 26;    // outside the built-up core · packs live in the country
 const ROAM_PACK            = [3, 5];// pack size range · they travel together, like the Malezor threes
-// The mix, per district, weighted by tier. Values are pack-draw weights.
-const DISTRICT_ENEMY_MIX = {
-  malezor:   { mori: 10 },
-  zarvane:   { mori:  9, daemon: 1 },
-  andrannor: { mori:  8, daemon: 2 },
-  veridan:   { mori:  7, daemon: 3 },
-  netharion: { mori:  6, daemon: 3, morlisk: 1 },
-  vorashil:  { mori:  5, daemon: 4, morlisk: 1 },
-  xilnar:    { mori:  4, daemon: 4, morlisk: 2 },
-  baelgor:   { mori:  4, daemon: 4, vilerok: 2 },
-  thardin:   { mori:  3, daemon: 4, morlisk: 3 },
-  korathen:  { mori:  2, daemon: 4, morlisk: 2, vilerok: 2 },
-};
+// ★★★ v0.97.2 · RETIRED, AND KEPT WHERE IT DIED so the change is legible.
+//
+//   const DISTRICT_ENEMY_MIX = { malezor: { mori: 10 }, ... korathen: {...} };
+//
+// ★ It keyed the draw to a district NAME and wrote hard zeros: no Vilerok
+//   could stand in Malezor under any circumstance, in any terrain, ever.
+//   Creator: "make it so that u can find almost all enemies in any district,
+//   just weighted to the district scale 1-10."
+//   ★★ A zero cannot be weighted. ENEMY_SPECIES_HABITAT + enemyTierFit replace
+//     it: terrain decides WHAT belongs, the 1-10 scale decides HOW LIKELY, and
+//     the 0.04 floor means the rare wrong thing can still walk out of a cave.
 // tier per enemy kind · mirrors the bestiary the tower bosses already use
 const ROAM_TIER = { mori: 1, daemon: 2, morlisk: 4, vilerok: 5 };
 const ROAM_HP   = { mori: 125, daemon: 250, morlisk: 350, vilerok: 500 };
@@ -26556,11 +26755,21 @@ function scatterDistrictEnemies(){
   if (game._districtEnemiesScattered) return 0;
   game._districtEnemiesScattered = true;
   const pick = (re) => NPCS.find(n => n && n.isEnemy && re.test(n.src || ''));
+  // ★ every species the habitat table can name needs a live body to clone from.
+  //   A missing sheet falls back to Mori rather than throwing — but it is
+  //   WARNED, because a silent fallback is how a roster quietly becomes one
+  //   species wearing ten names.
   const BASE = {
-    mori:    pick(/enemies\/mori\.png/i),
-    daemon:  pick(/enemies\/daemon\.png/i) || pick(/enemies\/mori\.png/i),
-    morlisk: pick(/enemies\/morlisk/i)     || pick(/enemies\/mori\.png/i),
-    vilerok: pick(/vilerok/i)              || pick(/enemies\/mori\.png/i),
+    mori:       pick(/enemies\/mori\.png/i),
+    daemon:     pick(/enemies\/daemon\.png/i)  || pick(/enemies\/mori\.png/i),
+    morlisk:    pick(/enemies\/morlisk/i)      || pick(/enemies\/mori\.png/i),
+    vilerok:    pick(/vilerok/i)               || pick(/enemies\/mori\.png/i),
+    satyrbeast: pick(/satyrbeast/i)            || null,
+    vorugath:   pick(/vorugath/i)              || null,
+    scanobot:   null,   // ★ owned by buildScanobotNet · never roam-cloned
+    penumbra:   null,   // ★ owned by buildNewEnemyNet · fixed counts and spread
+    nymphysyl:  null,   // ★     "
+    morvexar:   null,   // ★     " · 6/4/2 was ruled by number
   };
   if (!BASE.mori) return 0;
   const rng = _makeWorldRng(0xE7E31);
@@ -26575,9 +26784,6 @@ function scatterDistrictEnemies(){
       && worldDistrictAt(n.tileX, n.tileY) === dist).length;
     const want = Math.max(0, DISTRICT_ROAM_TARGET - have);
     if (!want) { perD[dist] = 0; continue; }
-    const mix = DISTRICT_ENEMY_MIX[dist] || { mori: 10 };
-    const bag = [];
-    for (const [k, w] of Object.entries(mix)) for (let i = 0; i < w; i++) bag.push(k);
     const D = ZYRAXIS_DISTRICT_BY_ID[dist];
     const town = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
     const legal = (x, y) => {
@@ -26592,12 +26798,28 @@ function scatterDistrictEnemies(){
     while (placed < want && guard < 9000){
       guard++;
       // anchor the pack somewhere legal in the district's own ellipse
-      const a = rng() * Math.PI * 2, r = 0.20 + rng() * 0.72;
+      // ★★ v0.97.2 · 0.92 → 0.99 of the district radius.
+      //   The first habitat census came back with waterside: 0 — not because
+      //   the classifier was broken but because the pack anchor never got far
+      //   enough out to stand on a coast. A habitat you cannot sample is a
+      //   habitat that does not exist, however correctly it is defined.
+      const a = rng() * Math.PI * 2, r = 0.20 + rng() * 0.79;
       const ax = Math.round(D.cx + Math.cos(a) * D.rx * r);
       const ay = Math.round(D.cy + Math.sin(a) * D.ry * r);
       if (!legal(ax, ay)) continue;
-      const kind = bag[Math.floor(rng() * bag.length)];
+      // ★★★ v0.97.2 · the species is drawn from the TERRAIN the pack anchored
+      //   on, not from the district's name. Same anchor, same rng — what
+      //   changed is what question gets asked about the ground.
+      const hab  = enemyHabitatAt(dist, ax, ay) || 'meadow';
+      const kind = enemyPickSpecies(dist, hab, rng);
       const base = BASE[kind] || BASE.mori;
+      // ★★ THE FOUR NET-OWNED SPECIES ARE DRAWN AND THEN DECLINED. Scanobots,
+      //   Penumbra, Nymphysyl and Morvexar each have their own placer with its
+      //   own ruled counts — Morvexar's 6/4/2 most of all. Letting the roamer
+      //   pass clone them would silently double their population and break a
+      //   number the Creator set by hand. They stay in the affinity table
+      //   because they must still influence what ELSE fits a habitat.
+      if (!BASE[kind]) continue;
       const size = Math.min(want - placed,
         ROAM_PACK[0] + Math.floor(rng() * (ROAM_PACK[1] - ROAM_PACK[0] + 1)));
       for (let i = 0; i < size; i++){
@@ -26606,9 +26828,11 @@ function scatterDistrictEnemies(){
         const my = ay + Math.round((rng() - 0.5) * 5);
         if (!legal(mx, my)) continue;
         const id = `roam_${dist}_${made}`;
-        const tier = ROAM_TIER[kind] || 1;
+          // ★ tier reads off the habitat table now — one place says what a
+        //   Morlisk is, instead of two tables that can drift.
+        const tier = (ENEMY_SPECIES_HABITAT[kind] || {}).tier || ROAM_TIER[kind] || 1;
         NPCS.push(_cloneEnemyTo(base, id, mx, my, {
-          name: kind === 'mori' ? 'Mori' : kind.charAt(0).toUpperCase() + kind.slice(1),
+          name: kind.charAt(0).toUpperCase() + kind.slice(1),
           dir: ['up','down','left','right'][Math.floor(rng() * 4)],
           wanderRadius: 5 + Math.floor(rng() * 4),
           mode: kind === 'mori' ? 'wander' : 'drainer',
@@ -26620,6 +26844,8 @@ function scatterDistrictEnemies(){
           hpMax: Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40)),
           hp:    Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40)),
           _roamOf: dist,
+          _roamKind: kind,
+          _roamHab: hab,
         }));
         made++; placed++;
       }
@@ -26627,11 +26853,115 @@ function scatterDistrictEnemies(){
     perD[dist] = placed;
   }
   if (made){
-    console.log(`[rp7b] v0.95.977 · roaming enemies · ${made} placed · `
+    console.log(`[rp7b] v0.97.2 · roaming enemies · ${made} placed by habitat · `
       + Object.entries(perD).filter(([, n]) => n).map(([d, n]) => `${d}:${n}`).join(' '));
   }
   return made;
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.97.2 · RESPAWN · "seers reproducing enemies while we explore"
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   Creator: "they respawn after 10 mins of death maybe? something like that.
+//   should feel like seers are reroducing enemies while we explore."
+//   Ruled 2026-09-14: a respawn returns at a NEW habitat-legal tile, not the
+//   one it died on.
+//
+// ★★★ THE RULING IS WHAT MAKES IT READ AS REPRODUCTION RATHER THAN RESET.
+//   Same-tile respawn is a farm: you learn the spot, you stand there, the world
+//   hands you the same fight forever. Re-siting through the habitat picker
+//   means a cleared ridge does not refill, but the forest three screens over
+//   quietly gets heavier — which is what being pushed back by an enemy that
+//   breeds actually feels like. ★ The player is not fighting a spawn table,
+//   they are losing ground.
+//
+// ★★ AND IT DRAWS THE SPECIES AGAIN. The pack that comes back is drawn from the
+//   NEW tile's habitat, so a Mori cleared off a meadow can return as a Morlisk
+//   on a highland. The district scale still weights it, so this cannot escalate
+//   past what that district was ever allowed to produce.
+const ENEMY_RESPAWN_MS   = 10 * 60 * 1000;   // ten minutes
+const ENEMY_RESPAWN_CAP  = 240;              // queue guard · never grow unbounded
+let _enemyRespawnQueue = [];
+let _enemyRespawnLast  = 0;
+
+// called from startMoriDeath for anything the roamer pass owns
+function queueEnemyRespawn(n){
+  if (!n || !n._roamOf) return false;
+  // ★ net-owned species are excluded by construction: they never carry _roamOf,
+  //   because their own placers set their counts and a respawn here would
+  //   quietly inflate a ruled number.
+  if (_enemyRespawnQueue.length >= ENEMY_RESPAWN_CAP) return false;
+  _enemyRespawnQueue.push({ dist: n._roamOf, at: performance.now() + ENEMY_RESPAWN_MS });
+  return true;
+}
+
+function _respawnOneEnemy(dist){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return null;
+  const D = ZYRAXIS_DISTRICT_BY_ID[dist]; if (!D) return null;
+  const T = TOWER_NETWORK.find(x => x.dist === dist); if (!T) return null;
+  const pick = re => NPCS.find(x => x && x.isEnemy && re.test(x.src || ''));
+  const BASE = { mori: pick(/enemies\/mori\.png/i), daemon: pick(/enemies\/daemon\.png/i),
+                 morlisk: pick(/enemies\/morlisk/i), vilerok: pick(/vilerok/i),
+                 satyrbeast: pick(/satyrbeast/i), vorugath: pick(/vorugath/i) };
+  if (!BASE.mori) return null;
+  const rng = _makeWorldRng((Date.now() ^ (D.cx * 7919)) >>> 0);
+  const town = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
+  for (let t = 0; t < 400; t++){
+    const a = rng() * Math.PI * 2, r = 0.20 + rng() * 0.79;
+    const x = Math.round(D.cx + Math.cos(a) * D.rx * r);
+    const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
+    if (worldDistrictAt(x, y) !== dist) continue;
+    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+    if (_propBlocked.has(x + ',' + y)) continue;
+    if (NPCS.some(o => o && o.scene === 'overworld' && o.tileX === x && o.tileY === y)) continue;
+    let nearTown = false;
+    for (const [tx, ty] of town) if (Math.hypot(tx - x, ty - y) < ROAM_MIN_FROM_TOWN){ nearTown = true; break; }
+    if (nearTown) continue;
+    // ★★★ NOT WITHIN SIGHT OF THE PLAYER. A body that materialises on screen
+    //   is a bug report, however correct the tile is. One screen is 20x11, so
+    //   24 tiles clear puts it comfortably past the edge in any direction.
+    if (typeof player !== 'undefined' && player
+        && Math.abs(player.x - x) < 24 && Math.abs(player.y - y) < 24) continue;
+    const hab  = enemyHabitatAt(dist, x, y) || 'meadow';
+    const kind = enemyPickSpecies(dist, hab, rng);
+    const base = BASE[kind]; if (!base) continue;      // net-owned · redraw
+    const H    = ENEMY_SPECIES_HABITAT[kind] || {};
+    const hp   = Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
+    const id   = `roam_${dist}_r${Math.floor(Math.random() * 1e9)}`;
+    NPCS.push(_cloneEnemyTo(base, id, x, y, {
+      name: kind.charAt(0).toUpperCase() + kind.slice(1),
+      dir: ['up','down','left','right'][Math.floor(rng() * 4)],
+      wanderRadius: 5 + Math.floor(rng() * 4),
+      mode: kind === 'mori' ? 'wander' : 'drainer',
+      isEnemy: true, level: T.moriLv, tier: H.tier || 1,
+      hpMax: hp, hp,
+      _roamOf: dist, _roamKind: kind, _roamHab: hab, _respawned: true,
+    }));
+    return { x, y, kind, hab };
+  }
+  return null;
+}
+
+// throttled · called from the frame, but does real work at most every 5s
+function tickEnemyRespawn(){
+  const now = performance.now();
+  if (now - _enemyRespawnLast < 5000) return 0;
+  _enemyRespawnLast = now;
+  if (!_enemyRespawnQueue.length) return 0;
+  let made = 0;
+  const still = [];
+  for (const q of _enemyRespawnQueue){
+    if (q.at > now){ still.push(q); continue; }
+    // ★ a failed siting is RETURNED TO THE QUEUE with a short delay, not
+    //   dropped. Dropping it would make the world permanently poorer every
+    //   time the player happened to be standing in the wrong place.
+    if (_respawnOneEnemy(q.dist)) made++;
+    else still.push({ dist: q.dist, at: now + 30000 });
+  }
+  _enemyRespawnQueue = still;
+  return made;
+}
+
 // ── ★★ v0.95.732 · SCANOBOTS · Thardin's survey net ────────────────────────
 //
 // Lightweight floating tech. Five to a district, fifty in the world. Mechlands
@@ -26792,22 +27122,33 @@ function _scanobotTile(dist, tx, ty){
 //   a hard "must be coastal" would starve inland districts and reintroduce the
 //   scarcity I was asked to avoid.
 const ENEMY_SITE_MIN_SPACING = 9;    // ★ tighter than the drones' 12 · there are fewer of these
-const ENEMY_SITE_CIVIC_CLEAR = 16;   // plaza ring · > CLEAR_OF_HALL, they are not neighbours
+// ★ 26 · the SAME number scatterDistrictEnemies uses (ROAM_MIN_FROM_TOWN), not
+//   a second one. My 16 was invented; this one has 2,000 bodies standing on it.
+const ENEMY_SITE_CIVIC_CLEAR = (typeof ROAM_MIN_FROM_TOWN !== 'undefined') ? ROAM_MIN_FROM_TOWN : 26;
 const ENEMY_SITE_CANDIDATES  = 500;  // samples per slot before taking the best
 
-// ★ the civic doors of one district — the same filter findHomePlots() uses, so
-//   "civic" means one thing in this file and cannot come to mean two.
-const _siteCivic = {};
-function siteCivicTiles(dist){
-  if (_siteCivic[dist]) return _siteCivic[dist];
-  let out = [];
-  try {
-    out = WORLD_PROPS.filter(p => p && typeof p.tileX === 'number'
-        && /_town_hall$|shop|school|hospital|academy|inn|clinic|market/.test(p.id || '')
-        && worldDistrictAt(p.tileX, p.tileY) === dist)
-      .map(p => [p.tileX, p.tileY]);
-  } catch(_){}
-  return (_siteCivic[dist] = out);
+// ★★★★ v0.97.2 · CONSOLIDATED ONTO _townAnchors — I HAD BUILT A SECOND ONE.
+//
+//   I shipped siteCivicTiles() at v0.97.1 saying "there is no town concept in
+//   this game, so distance from civic props is the honest proxy." There IS one.
+//   `_townAnchors(dist)` has existed since the roamer pass: the district hub,
+//   every civic prop, AND every home — which is strictly more than mine saw,
+//   because mine never looked at where people live.
+//
+// ★★ scatterDistrictEnemies was already keeping 2,000 enemies ROAM_MIN_FROM_TOWN
+//   = 26 tiles clear of it. So the build had one town rule, and I added a
+//   second that disagreed with it, in the same patch where I argued that
+//   inverting an existing law is better than authoring a parallel one. The
+//   argument was right and I broke it on the next screen.
+//
+// ★ Both tests stay, because they answer different questions and the pair is
+//   the honest rule: siteIsTownGround asks "is this the KIND of ground people
+//   settle on" (the settlement belt, inverted) and siteTownAnchors asks "is
+//   there a DOOR right there" (the actual buildings). A thing can be far from
+//   every door and still standing in the middle of the neighbourhood.
+function siteTownAnchors(dist){
+  try { return (typeof _townAnchors === 'function') ? _townAnchors(dist) : []; }
+  catch(_){ return []; }
 }
 function _siteBearing(dx, dy){
   if (Math.abs(dx) <= Math.abs(dy) * 0.45) return dy < 0 ? 'N' : 'S';
@@ -26856,7 +27197,7 @@ function siteEnemyTile(dist, rand, taken){
   const D = ZYRAXIS_DISTRICT_BY_ID[dist];
   if (!D) return null;
   const S = SETTLEMENT_DOCTRINE;
-  const civic = siteCivicTiles(dist);
+  const civic = siteTownAnchors(dist);
   let best = null, bestScore = -1;
   for (let i = 0; i < ENEMY_SITE_CANDIDATES; i++){
     const a = rand() * Math.PI * 2;
@@ -40035,7 +40376,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.1' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.2' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -60014,6 +60355,11 @@ function startMoriDeath(n){
     n._deathT0   = performance.now();
     n.moving     = false;
   }
+  // ★★ v0.97.2 · queue the replacement. startMoriDeath is the UNIVERSAL death
+  //   path — sword, astral, void sea, UFO beam, every kill route ends here —
+  //   so hooking it once covers every way an enemy can be removed, including
+  //   ones not written yet. queueEnemyRespawn ignores anything without _roamOf.
+  try { queueEnemyRespawn(n); } catch(_){}
   // v0.95.522 · UNIVERSAL RXP FLOOR · every enemy death awards base kill XP
   // if nothing has already awarded it (attack-specific multipliers like
   // astralstrike 1.5x / astralkick 2x still fire at their sites; those set
@@ -61593,6 +61939,8 @@ function _frameBody(now){
   _step('tickMeditation', () => tickMeditation(dt));
   _step('tickFieldStudy', () => tickFieldStudy());
   _step('tickHomecoming', () => tickHomecoming());
+  // ★ v0.97.2 · self-throttled to 5s · the frame cost is one clock compare
+  _step('tickEnemyRespawn', () => tickEnemyRespawn());
   _step('tickDistrictAnchors', () => tickDistrictAnchors());
   _step('tickEscortBond', () => tickEscortBond());
   _step('tickScrapjawLoot', () => tickScrapjawLoot());

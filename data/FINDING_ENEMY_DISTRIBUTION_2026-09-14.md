@@ -1,88 +1,78 @@
-# ★★★★ MEASURED: four districts had ZERO overworld enemies
+# ★★★★ RETRACTED: "four districts had zero overworld enemies" was FALSE
 
-**Found:** 2026-09-14 at v0.97.1, while wiring Morvexar / Nymphysyl / Penumbra.
-**Source:** `tools/verify_enemy_siting.js`, run against the real map.
+**Claimed:** 2026-09-14, v0.97.1.
+**Retracted:** same day, v0.97.2, after booting the real game.
 
-> ### You said *"no area should be super dense and others scarce."*
-> You were describing a real defect and you were right about it without having
-> the number. Here is the number.
+> ### THE CORRECTION
+> I reported that Xilnar, Baelgor, Thardin and Korathen had **zero** overworld
+> enemies and that 169 of 177 bodies stood in the first three districts.
+>
+> **The real world, booted:**
+>
+> ```
+> overworld enemies = 1,990
+> malezor 190 · zarvane 200 · andrannor 200 · veridan 200 · netharion 200
+> vorashil 200 · xilnar 200 · baelgor 200 · thardin 200 · korathen 200
+> ```
+>
+> **It was already even, at exactly the 200/district you set in v0.95.979.**
 
-## THE SHIPPED WORLD, BEFORE THIS PATCH
+## ★★★ HOW I GOT IT WRONG
 
-| district | overworld enemies |
+My harness evaluated the **`NPCS` array literal** out of the source. The world's
+roaming enemies are not in the literal — `scatterDistrictEnemies()` pushes them
+at boot (called from line 16187, inside a `setTimeout(…, 0)` block). So I
+measured 177 hand-written entries, found four districts unrepresented among
+them, and reported that as the state of the world.
+
+> ### ★★★★ I MEASURED THE SOURCE AND CALLED IT THE WORLD.
+> The number was real. The thing it was a number *of* was not what I said.
+
+★★ **And the right technique was already in the repo.** `tools/build_wild_placement.mjs`
+shims enough DOM to run the build's own boot path in node and then reads the
+live globals. I did not look for it before writing my own, so I reinvented a
+worse version of a tool that was sitting two directories away — and the worse
+version is the one that couldn't see 1,813 enemies.
+
+★ The specific blind spot is worth naming: that generator stubs `setTimeout` to
+`() => 0`, which is fine for its purposes but means the boot tasks never fire.
+`tools/lib/boot_game.mjs` now **collects** the deferred callbacks and runs them,
+so the world is populated before anything is counted.
+
+## WHAT WAS ACTUALLY TRUE IN THE CLAIM
+
+Two things survive, and only two:
+
+1. **The new-enemy layer is sited well** — 64 bodies, walkable, in-district, out
+   of town, spaced ≥9, biased to coasts and chests. That was tested by driving
+   the siter, and those tests still pass.
+2. **The species mix was keyed to district id, not terrain** — which is the real
+   substance of what you asked for next, and it was never about emptiness.
+
+## WHAT WAS ALREADY BUILT AND I SAID WAS MISSING
+
+| I said | Truth |
 |---|---|
-| Malezor | **76** |
-| Zarvane | **53** |
-| Andrannor | **40** |
-| Veridan | 1 |
-| Netharion | 1 |
-| Vorashil | 1 |
-| Xilnar | **0** |
-| Baelgor | **0** |
-| Thardin | **0** |
-| Korathen | **0** |
+| "four districts have no enemies" | all ten hold 200 |
+| "there is no town concept in the build" | `_townAnchors()` exists — hub + civic + every home — and `scatterDistrictEnemies` already keeps roamers `ROAM_MIN_FROM_TOWN = 26` tiles clear of it |
+| "no density gradient" | `level: T.moriLv` (5 → 80) and `hpMax × (1 + moriLv/40)` already scale per district |
 
-**169 of 177 bodies stand in the first three districts.** The endgame district
-had no overworld enemies at all. Densest-to-sparsest ratio: **17.6x**.
+★ My inverted-settlement-law town test is not *wrong*, but it was a **second**
+town rule where one existed — the exact drift I claimed inverting would prevent.
+v0.97.2 folds it onto `_townAnchors`.
 
-★ This is not a balance opinion. It is a count of `NPCS` entries with
-`isEnemy && scene === 'overworld'`, taken by evaluating the real array rather
-than grepping near it.
+## THE WORK THAT IS GENUINELY NEW
 
-## WHAT v0.97.1 DID ABOUT IT
+From your 2026-09-14 direction, four of five asks stand:
 
-Added **64 bodies** across all ten districts, climbing eastward:
-
-```
-malezor 2 · zarvane 4 · andrannor 2 · veridan 2 · netharion 9
-vorashil 9 · xilnar 10 · baelgor 7 · thardin 9 · korathen 10
-```
-
-★ The four empty districts now hold **at least seven each**. Every district has
-new enemies. But 64 bodies cannot correct a 76-to-0 baseline, and I did not
-pretend otherwise — the suite records 17.6x as a **ratchet** it must not exceed,
-rather than a threshold relaxed until it went green.
-
-## WHAT THE REDISTRIBUTION PASS OWNS
-
-You already flagged this: *"pretty soon we will do a redistribution and update
-all enemies so that each district has individual species of enemies inhabiting
-them."* The measurement says it is not cosmetic — **half the map is empty.**
-
-Three things are now in place for it:
-
-1. **`siteEnemyTile()`** — the siting rule. Hard-rejects unwalkable ground,
-   wrong district, town, and plaza; soft-prefers coast, outskirts and tiles
-   4–14 from a gold or cosmic chest. Any species can be run through it.
-2. **`tools/lib/world_harness.js`** — loads the real terrain chain, the real
-   `WORLD_PROPS` and the real `NPCS` into a vm, so placement can be *driven*
-   instead of asserted. This is what found the zeros.
-3. **`tools/verify_enemy_siting.js`** — the density table above regenerates on
-   every run, so the redistribution's progress is visible as one number.
-
-## ★★★ THE TOWN RULE, AND WHY IT IS NOT A NEW RULE
-
-You said *"try to keep enemies out of the main town districts."* There is no
-town table in RP7 — no `isTownTile`, no `TOWN_CENTERS`. My first draft measured
-distance from any prop with a footprint, which would have been wrong in an
-expensive way: **9,203 of the 16,270 props are trees and bushes**, so that test
-says "forest", and a forest is exactly where you asked for enemies.
-
-What exists instead is `SETTLEMENT_DOCTRINE` — the law that decides where a
-*house* may stand, measured off Malezor because Malezor is the district you said
-already works. Belt t 0.09–0.50 of the district radius, forest and highland
-quarters only, never on the road, never in the marsh.
-
-**So the enemy rule is that law read backwards: an enemy belongs wherever a
-house may not.** Inverting a rule is better than authoring a parallel one,
-because the two can never drift apart — retune the settlement belt and the
-enemies move with it, for free.
-
-## ★ ONE THING WORTH YOUR RULING BEFORE THE REDISTRIBUTION
-
-The density target. *"a range of enemy populations, similar to zyrex
-populations"* points at the `ZYREX_POPULATIONS` / `wild_placement.json` model
-rather than a flat per-district count — which would mean enemies get a habitat
-table the way Zyrex do, with species tied to terrain rather than to district id.
-That is a bigger and better thing than "spawn N per district," and it is the
-shape your sentence implies. **Confirm and I will build it that way.**
+1. **Habitat keying** — species tie to terrain, not district id. Borrowed from
+   the 8 habitats in `tools/build_wild_placement.mjs`: `hub_fringe`, `meadow`,
+   `forest`, `waterside`, `highland`, `cave_mouth`, `wild_fringe`, `landmark`.
+2. **A weighted long tail** — "almost all enemies in any district, weighted to
+   the district scale 1-10." The shipped `DISTRICT_ENEMY_MIX` has hard zeros:
+   no Vilerok can appear in Malezor at all. Weights replace zeros.
+3. **Harder, not more** — count stays at 200/district (your ruling stands); the
+   *draw* shifts toward heavier species as the scale climbs.
+4. **Respawn** — ~10 minutes, re-sited to a new habitat-legal tile, so cleared
+   ground refills differently and it reads as the Seers reproducing enemies
+   while you explore.

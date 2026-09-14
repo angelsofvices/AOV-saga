@@ -128,12 +128,19 @@ H('★★★ PLACEMENT · ruled 2026-09-14');
   //   throws a ReferenceError from inside the vm — which reads as a placement
   //   regression rather than as a stale test harness.
   // ★ grab() is brace-matched and cannot take an ARRAY literal — it produced
-  //   `{id:'malezor',...};` and a SyntaxError. The harness's grabDecl asks the
-  //   compiler where the declaration ends instead of counting characters, so
-  //   it handles both. One extractor, not two that disagree.
-  const { grabDecl } = require('./lib/world_harness.js');
-  vm.runInContext(grabDecl(src, 'ZYRAXIS_DISTRICTS').code, P);
-  vm.runInContext(grabDecl(src, 'newEnemyDepth').code, P);
+  //   `{id:'malezor',...};` and a SyntaxError. The districts are a flat literal,
+  //   so slice it to its own closing bracket rather than teaching grab() a
+  //   second syntax.
+  //   ★★ This used to import tools/lib/world_harness.js. That harness has been
+  //     DELETED: it read the NPCS source literal and reported four empty
+  //     districts in a world that holds 200 each. tools/lib/boot_game.mjs boots
+  //     the real game instead, and tools/verify_enemy_world.mjs is where the
+  //     placement questions now live.
+  {
+    const i = src.indexOf('const ZYRAXIS_DISTRICTS = [');
+    vm.runInContext(src.slice(i, src.indexOf('];', i) + 2), P);
+  }
+  vm.runInContext(grab('function newEnemyDepth('), P);
   vm.runInContext(grab('function penumbraHasSpread(').replace(/^function/, 'var penumbraHasSpread = function'), P);
   vm.runInContext(grab('function newEnemyCountFor(').replace(/^function/, 'var newEnemyCountFor = function'), P);
   const N = e => vm.runInContext(e, P);

@@ -1,4 +1,40 @@
-# RULING NEEDED · Morvexar · Nymphysyl · Penumbra
+# Morvexar · Nymphysyl · Penumbra — RULED AND BUILT 2026-09-14
+
+> ### ★★★ ALL FOUR QUESTIONS ANSWERED. Shipped at v0.96.99.
+> **1 · "Final boss" was a MISSING WORD, not a collision.** *"orryx ophira and
+> xenoxil are the actual apex bosses but they govern other enemy groups: bosses,
+> minibosses, commanders, and grunt."* — **"boss" is a RANK and APEX sits above
+> it.** Morvexar is a boss; the three Seers are apexes; the ruled Part One
+> finale never moved. `ENEMY_RANKS = [grunt, commander, miniboss, boss, apex]`.
+>
+> **2 · ★★★ Nymphysyl needed a two-string allowlist, not a damage-type system.**
+> *"can only be hurt by astralstrike or astralkick, no punch or kick."* Her brief
+> read as a request for a whole combat subsystem the build does not have. The
+> ruling named **two attacks that already exist**, so the immunity is
+> `ASTRAL_ONLY_SOURCES = ['astralstrike','astralkick']` and one guard at the
+> melee site. ★★ She is now the first enemy in RP7 that makes the A1/A2/A3/A4
+> ladder matter — she reads it back to you by refusing three quarters of it.
+>
+> **3 · Penultinator is a future THARDIN BOSS above Penumbra.** So Penumbra is
+> the lower half of a pair in the Mechlands, and the brief's last line was the
+> typo it looked like.
+>
+> **4 · Sizes.** Nymphysyl **1.00** (normal/Mori) · Penumbra **1.45** (Vilerok)
+> · Morvexar **1.95** — past Vorugath's 1.85 and the largest **enemy** in the
+> game. ★ Not 2.00, because that is Anciuxor, and a corrupted troll should not
+> out-size the Ultimate God. One number if that is wrong.
+>
+> Built: `MORVEXAR_ART` (10 banks, two phases), `NYMPHYSYL_ART` (7),
+> `PENUMBRA_ART` (7), all from the measured tables. `tools/verify_new_enemies.js`
+> drives the immunity rather than reading it.
+>
+> **Still open: which districts** Morvexar and Nymphysyl patrol, and whether
+> these are Zyraxis natives or Viridia enemies borrowed via the 5-band mapping
+> (★ that mapping still exists only in memory, with no doc in the repo).
+
+---
+
+## ORIGINAL RULING REQUEST — kept for the record
 
 **Raised:** 2026-09-14 · art delivered and processed, placement not built.
 

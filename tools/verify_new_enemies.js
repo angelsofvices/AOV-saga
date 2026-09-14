@@ -119,6 +119,44 @@ H('★★ AND THE GATE IS WIRED INTO THE REAL MELEE PATH');
      '★★ and the astral strike/kick sites are deliberately NOT guarded');
 }
 
+H('★★★ PLACEMENT · ruled 2026-09-14');
+{
+  const P = vm.createContext({ player: { districtsVisited: {} } });
+  vm.runInContext(grab('const NEW_ENEMY_PLACEMENT = {'), P);
+  vm.runInContext(grab('function penumbraHasSpread(').replace(/^function/, 'var penumbraHasSpread = function'), P);
+  vm.runInContext(grab('function newEnemyCountFor(').replace(/^function/, 'var newEnemyCountFor = function'), P);
+  const N = e => vm.runInContext(e, P);
+
+  // ★ NYMPHYSYL · the three darker districts, and nowhere else
+  const dark = ['netharion','vorashil','xilnar'];
+  for (const d of dark) ok(N(`newEnemyCountFor('nymphysyl','${d}')`) > 0, `  nymphysyl patrols ${d}`);
+  for (const d of ['malezor','zarvane','baelgor','korathen','thardin'])
+    ok(N(`newEnemyCountFor('nymphysyl','${d}')`) === 0, `  and NOT ${d}`);
+
+  // ★★ MORVEXAR · the counts, exactly, and the descent
+  const want = { korathen: 6, baelgor: 4, zarvane: 2 };
+  let total = 0;
+  for (const [d, n] of Object.entries(want)){
+    const got = N(`newEnemyCountFor('morvexar','${d}')`);
+    ok(got === n, `  morvexar ${d}: ${got}`); total += got;
+  }
+  ok(total === 12, `★ twelve in the world, and none anywhere else`);
+  ok(N("newEnemyCountFor('morvexar','malezor')") === 0, '  none in Malezor');
+  ok(N("NEW_ENEMY_PLACEMENT.morvexar.noPack") === true,
+     '★★ and they do not fight in pacts — each one is alone');
+
+  // ★★★ PENUMBRA · the world changes because you WENT somewhere
+  ok(N("newEnemyCountFor('penumbra','thardin')") > 0, 'penumbra is in Thardin from the start');
+  const before = N("newEnemyCountFor('penumbra','malezor')");
+  ok(before === 0, '★★★ and NOWHERE else until you reach Thardin');
+  P.player.districtsVisited.thardin = true;
+  ok(N('penumbraHasSpread()') === true, 'reaching Thardin fires the spread');
+  const after = N("newEnemyCountFor('penumbra','malezor')");
+  ok(after > before, `★★★ after which they appear in every other district (${before} → ${after})`);
+  ok(N("NEW_ENEMY_PLACEMENT.penumbra.escalates") === 'scanobot',
+     '★ recorded as the escalation of the Scanobot net, which already covers every district');
+}
+
 H('★ ALL 24 SHEETS ARE ON DISK, KEYED AND MASTERED');
 {
   let live = 0, orig = 0;

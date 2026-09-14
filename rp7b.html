@@ -24400,6 +24400,72 @@ const PENUMBRA_ART = {
         [[  12,  23, 295, 194],[  12,  23, 295, 194],[  12,  23, 295, 194],[  12,  23, 296, 194]],
       ] },
 };
+// ★★★ v0.97.0 · WHERE THE THREE NEW ENEMIES LIVE.
+//
+//   Creator, 2026-09-14:
+//     "nymphysil patrol netharion, vorashil, xilnar (the darker districts)"
+//     "morvexar patrol korathen (6), baelgor (4), and zarvane (2). they do not
+//      fight in pacts."
+//     "penumbra patrol thardin in number, but once you get there, they begin
+//      popping up in all other districts too. they are basically the level up
+//      from scanobots."
+//
+// ★★ THREE DIFFERENT DISTRIBUTION SHAPES, and each one says something:
+//   · NYMPHYSYL is placed by MOOD. Netharion/Vorashil/Xilnar are the Unknown,
+//     Alien and Spirit lands — she goes where the map is already strange, so
+//     she reads as native rather than deployed.
+//   · MORVEXAR is placed by WEIGHT, and descends: 6 in Korathen, 4 in Baelgor,
+//     2 in Zarvane. ★ Which means two of them stand in district II, whose band
+//     is Lv14 against a boss-rank body — that is a wall you meet early and beat
+//     late, and it is the only one of the three that front-loads dread.
+//   · PENUMBRA is placed by EVENT. It concentrates in Thardin, and REACHING
+//     Thardin is what lets it appear everywhere else.
+//
+// ★★★ AND THAT LAST ONE IS THE INTERESTING MECHANIC. "The level up from
+//   scanobots" is literal: Scanobots already patrol every district from
+//   TOWER_NETWORK, so Penumbra spreading is the same net escalating. The world
+//   does not get harder because you levelled — it gets harder because you went
+//   somewhere, and the thing you found there started shipping.
+const NEW_ENEMY_PLACEMENT = {
+  nymphysyl: {
+    rank: 'miniboss',
+    districts: ['netharion', 'vorashil', 'xilnar'],
+    why: 'the darker districts — Unknownlands, Alienlands, Spiritlands',
+  },
+  morvexar: {
+    rank: 'boss',
+    counts: { korathen: 6, baelgor: 4, zarvane: 2 },
+    // ★ "they do not fight in pacts" — each one is alone. No group aggro, no
+    //   shared target, no calling for help. A boss-rank body that swarmed would
+    //   be a different enemy entirely.
+    noPack: true,
+  },
+  penumbra: {
+    rank: 'commander',
+    home: 'thardin',
+    // ★ before you reach Thardin they exist ONLY there. After, everywhere.
+    spreadsAfterReaching: 'thardin',
+    escalates: 'scanobot',
+  },
+};
+// ★ has the Thardin trigger fired? Reads the same districtsVisited map Kelthor
+//   already gates on, so there is one source of truth for "have you been there".
+function penumbraHasSpread(){
+  return !!(player.districtsVisited && player.districtsVisited[NEW_ENEMY_PLACEMENT.penumbra.spreadsAfterReaching]);
+}
+// ★ how many of a new enemy belong in a district right now.
+function newEnemyCountFor(id, dist){
+  const P = NEW_ENEMY_PLACEMENT[id];
+  if (!P) return 0;
+  if (P.counts) return P.counts[dist] || 0;
+  if (P.districts) return P.districts.includes(dist) ? 1 : 0;
+  if (P.home){
+    if (dist === P.home) return 3;                 // "in number" at home
+    return penumbraHasSpread() ? 1 : 0;            // ...and only after you go
+  }
+  return 0;
+}
+
 // ★★★ v0.96.99 · THE ENEMY RANK LADDER.
 //
 //   Creator, 2026-09-14: "orryx ophira and xenoxil are the actual apex bosses
@@ -39682,7 +39748,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.99' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.0' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

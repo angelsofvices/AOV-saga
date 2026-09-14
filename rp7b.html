@@ -15371,17 +15371,19 @@ function topUpGatedRoster(){
                                  && n.scene === 'overworld').length;
       if (have >= want) continue;
       const rng = _makeWorldRng((0x9A7E ^ (T.tower[0] * 31)) >>> 0);
-      const townPts = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
       const occupied = new Set();
-      for (const n of NPCS) if (n && n.scene === 'overworld' && n.tileX != null)
+      const grid = makeSpaceGrid();
+      for (const n of NPCS) if (n && n.scene === 'overworld' && n.tileX != null){
         occupied.add(n.tileX + ',' + n.tileY);
+        if (n.isEnemy && worldDistrictAt(n.tileX, n.tileY) === dist) grid.add(n.tileX, n.tileY);
+      }
       const hp = ROAM_HP_FLAT.has(kind) ? (ROAM_HP[kind] || 125)
                : Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
       for (let i = have; i < want; i++){
-        const spot = siteRosterTile(dist, kind, rng, occupied, townPts);
+        const spot = siteRosterTile(dist, kind, rng, occupied, grid);
         if (!spot) continue;
         const [x, y, hab] = spot;
-        occupied.add(x + ',' + y);
+        occupied.add(x + ',' + y); grid.add(x, y);
         NPCS.push(_cloneEnemyTo(base, `roam_${dist}_g${kind}_${i}`, x, y, {
           name: kind.charAt(0).toUpperCase() + kind.slice(1),
           dir: ['up','down','left','right'][i % 4],
@@ -26974,18 +26976,28 @@ const DISTRICT_ENEMY_ROSTER = {
   //   the tech was taken. penumbra is GATED — see NEW_ENEMY_PLACEMENT — so its
   //   number here is the POST-SPREAD count; before you reach Thardin only
   //   Thardin's own are placed.
-  malezor:   { mori:166, vilerok:15, vorugath:5,  scanobot:22, penumbra:3 },
-  zarvane:   { mori:153, satyrbeast:30,           scanobot:24, penumbra:3 },
-  andrannor: { mori:131, daemon:30, morlisk:20,   scanobot:26, penumbra:3 },
-  veridan:   { mori:79,  satyrbeast:55, vilerok:30, vorugath:15, scanobot:28, penumbra:3 },
-  netharion: { mori:70,  nymphysyl:50, vorugath:35, vilerok:25,  scanobot:28, penumbra:4 },
-  vorashil:  { mori:48,  nymphysyl:45, vorugath:40, vilerok:25, satyrbeast:20, scanobot:30, penumbra:4 },
-  xilnar:    { mori:35,  nymphysyl:50, vorugath:45, vilerok:30, morlisk:20,    scanobot:30, penumbra:4 },
-  baelgor:   { mori:18,  vorugath:55, vilerok:45, morlisk:35, daemon:20,       scanobot:32, penumbra:5 },
+  // ★★★★ v0.97.6 · HALVED. Creator: "should we cut each districts enemy count
+  //   in half? ... I just want the overworld to feel strategic. it feels too
+  //   congested sometimes."
+  //   ★ The measurement agreed before the question was asked: at 235 a district
+  //     the median gap between bodies was 8 tiles — under half a screen — so
+  //     you were never out of contact with something. Halved, the median opens
+  //     to ~12 and an encounter becomes a decision instead of traffic.
+  //   ★★ Nothing is lost by it: buildings, caves and interiors are still to be
+  //     wired, and those are where density belongs. The overworld is the map
+  //     between fights, not the fight.
+  malezor:   { mori:83, vilerok:8, vorugath:3,  scanobot:11, penumbra:2 },
+  zarvane:   { mori:77, satyrbeast:15,          scanobot:12, penumbra:2 },
+  andrannor: { mori:66, daemon:15, morlisk:10,  scanobot:13, penumbra:2 },
+  veridan:   { mori:40, satyrbeast:28, vilerok:15, vorugath:8, scanobot:14, penumbra:2 },
+  netharion: { mori:35, nymphysyl:25, vorugath:18, vilerok:13, scanobot:14, penumbra:2 },
+  vorashil:  { mori:24, nymphysyl:23, vorugath:20, vilerok:13, satyrbeast:10, scanobot:15, penumbra:2 },
+  xilnar:    { mori:18, nymphysyl:25, vorugath:23, vilerok:15, morlisk:10,    scanobot:15, penumbra:2 },
+  baelgor:   { mori:9,  vorugath:28, vilerok:23, morlisk:18, daemon:10,       scanobot:16, penumbra:3 },
   // ★★ THARDIN IS THE SOURCE · the largest machine population in the world,
   //   and the only district where Penumbra stand before you have been there.
-  thardin:   { mori:5,  vorugath:50, vilerok:45, morlisk:40, daemon:20,       scanobot:45, penumbra:12 },
-  korathen:  { mori:5,  vorugath:70, vilerok:50, morlisk:30, daemon:15,       scanobot:29, penumbra:6 },
+  thardin:   { mori:3,  vorugath:25, vilerok:23, morlisk:20, daemon:10,       scanobot:23, penumbra:6 },
+  korathen:  { mori:3,  vorugath:35, vilerok:25, morlisk:15, daemon:8,        scanobot:15, penumbra:3 },
 };
 // ★★★ GATED SPECIES · placed only once the world has unlocked them. Their
 //   roster number is the post-unlock figure, so the table always reads as the
@@ -27009,7 +27021,11 @@ function rosterCountFor(dist, kind){
 //   row total — it is the Creator's 200-250 district range, which is what the
 //   suite enforces and what every future species has to fit inside.
 const DISTRICT_ROSTER_TOTAL = null;       // ★ retired · rows differ on purpose
-const DISTRICT_SPAWN_RANGE  = [200, 250]; // ★ the whole district, everything in
+// ★★★ v0.97.6 · 200-250 → 110-160. The Creator halved the overworld on the
+//   strength of how it FELT to walk through, and the spacing numbers agreed.
+//   Structural bodies (tower guards, Seer garrisons, Morvexar) do not halve, so
+//   a halved roster lands the district around 130 rather than 118.
+const DISTRICT_SPAWN_RANGE  = [110, 160]; // ★ the whole district, everything in
 
 function rosterTotalFor(dist){
   const R = DISTRICT_ENEMY_ROSTER[dist]; if (!R) return 0;
@@ -27017,42 +27033,155 @@ function rosterTotalFor(dist){
   return n;
 }
 
-// ★★★ SITING · the species is already decided; terrain only chooses the tile.
-//   Scores candidates by that species' habitat affinity, so 55 Satyrbeasts in
-//   Veridan land in its forests and 30 Vileroks find its cave mouths without
-//   either count being negotiable.
-const ROSTER_SITE_TRIES = 26;
-function siteRosterTile(dist, kind, rng, occupied, townPts){
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.97.6 · SITING · EVEN EVERYWHERE, TIGHT TOWN, REAL HABITATS
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   Creator, 2026-09-14: "alot of the enemies are bunched up in the outskirts
+//   of the districts. I want an even spread of enemies everywhere within their
+//   district. the only place that is off limits is the inner town near the
+//   homes and the town hall. directly outside of that, you get combat. I dont
+//   want a bunch of enemies on top of one another because it looks cheesy like
+//   we just spammed sprites. lets actually place them in habitats that make
+//   sense"
+//
+// ★★★★ THE OUTSKIRTS BUNCHING WAS MY TOWN RULE, AND IT IS A MISTAKE THIS FILE
+//   ALREADY WARNED ABOUT. I excluded 26 tiles around every `_townAnchors`
+//   point — and that list includes EVERY HOME. The settlement doctrine scatters
+//   homes district-wide out to t=0.50 of the radius, so a 26-tile bubble on
+//   each one merged into a single mask over the entire inner and middle
+//   district. Measured: the innermost fifth of every district held 0-7 bodies
+//   out of 235, and everything piled into the 0.6-0.8 ring.
+//   ★★ The v0.95.747 note records this exact error being made before, in the
+//     building placer: "deriving the ring radius from the furthest home...
+//     'beyond the last house' meant 'outside the district'. Clear of
+//     residential is a LOCAL test, not a radius from the hub." I read that note
+//     while writing the habitat model and then made the same mistake anyway.
+//
+// ★★ SO THE TOWN RULE IS NOW TWO SMALL LOCAL CIRCLES, which is what the
+//   Creator described: the civic core, and the houses themselves. Step off the
+//   plaza and you are in combat.
+const TOWN_CIVIC_CLEAR = 12;   // town hall, shops, school, hospital · the plaza
+const TOWN_HOME_CLEAR  = 6;    // an individual house · its garden, not its county
+
+const _townCoreCache = {};
+function townCoreOf(dist){
+  if (_townCoreCache[dist]) return _townCoreCache[dist];
+  const out = { civic: [], homes: [] };
+  try {
+    const P = _districtPOIs(dist);
+    if (P.hub) out.civic.push(P.hub);
+    for (const c of P.civic) out.civic.push([c.tileX, c.tileY]);
+    for (const p of WORLD_PROPS){
+      if (!p || p.tileX == null || !/home|house/.test(p.id || '')) continue;
+      if (worldDistrictAt(p.tileX, p.tileY) !== dist) continue;
+      out.homes.push([p.tileX, p.tileY]);
+    }
+  } catch(_){}
+  return (_townCoreCache[dist] = out);
+}
+function siteInTown(dist, x, y){
+  const C = townCoreOf(dist);
+  for (const [cx, cy] of C.civic)
+    if (Math.abs(cx - x) < TOWN_CIVIC_CLEAR && Math.abs(cy - y) < TOWN_CIVIC_CLEAR
+        && Math.hypot(cx - x, cy - y) < TOWN_CIVIC_CLEAR) return true;
+  for (const [hx, hy] of C.homes)
+    if (Math.abs(hx - x) < TOWN_HOME_CLEAR && Math.abs(hy - y) < TOWN_HOME_CLEAR
+        && Math.hypot(hx - x, hy - y) < TOWN_HOME_CLEAR) return true;
+  return false;
+}
+
+// ★★★ A SPACING GRID · "I dont want a bunch of enemies on top of one another"
+//   Measured before this: 208 bodies stood within ONE tile of another and 851
+//   within three. A Set of occupied tiles only ever stopped two sharing the
+//   exact same square, which is not what "on top of one another" means to
+//   anybody looking at the screen.
+// ★ Bucketed so the nearest-neighbour query stays O(1) at 2,000 bodies instead
+//   of scanning the array per candidate per body.
+// ★ 4 → 6 · halving the roster freed the room to enforce a wider floor, and a
+//   6-tile minimum means two enemies are never both on screen in the same
+//   glance without you having chosen to walk between them.
+const ROSTER_MIN_SPACING = 6;    // hard floor, Chebyshev
+const ROSTER_SPACE_CAP   = 14;   // past this, more elbow room stops counting
+const ROSTER_SITE_TRIES  = 48;
+const _SG_SHIFT = 3;             // 8-tile buckets
+function makeSpaceGrid(){
+  const g = new Map();
+  return {
+    add(x, y){
+      const k = (x >> _SG_SHIFT) + ',' + (y >> _SG_SHIFT);
+      let c = g.get(k); if (!c) g.set(k, c = []);
+      c.push([x, y]);
+    },
+    // Chebyshev distance to the nearest placed body, capped
+    nearest(x, y, cap){
+      let best = cap;
+      const r = (cap >> _SG_SHIFT) + 1;
+      const bx = x >> _SG_SHIFT, by = y >> _SG_SHIFT;
+      for (let gx = bx - r; gx <= bx + r; gx++)
+        for (let gy = by - r; gy <= by + r; gy++){
+          const c = g.get(gx + ',' + gy); if (!c) continue;
+          for (const [px, py] of c){
+            const d = Math.max(Math.abs(px - x), Math.abs(py - y));
+            if (d < best){ best = d; if (best === 0) return 0; }
+          }
+        }
+      return best;
+    },
+  };
+}
+
+// ★★★★ BEST-CANDIDATE SITING · habitat sense AND an even spread, at once.
+//
+//   The species is already decided by the roster; this only chooses the tile.
+//   For each body it samples N legal candidates and scores each on two things:
+//
+//     1. HABITAT FIT — does this species belong on this ground (0-10)
+//     2. ELBOW ROOM  — how far the nearest already-placed body is (0-1)
+//
+//   ★★ Scoring elbow room rather than only rejecting close tiles is what makes
+//     the spread EVEN rather than merely legal. Pure rejection sampling
+//     satisfies a minimum and still clumps; picking the roomiest of N
+//     candidates is Mitchell's best-candidate algorithm, and it produces
+//     blue-noise — the "someone placed these" look instead of "someone spammed
+//     sprites".
+//   ★ Habitat is weighted heavier than room, so a Satyrbeast still chooses a
+//     forest over a lonely meadow — but between two forests it takes the emptier.
+function siteRosterTile(dist, kind, rng, occupied, grid){
   const D = ZYRAXIS_DISTRICT_BY_ID[dist]; if (!D) return null;
   const H = ENEMY_SPECIES_HABITAT[kind] || {};
   let best = null, bestScore = -1;
   for (let i = 0; i < ROSTER_SITE_TRIES; i++){
-    const a = rng() * Math.PI * 2, r = 0.18 + rng() * 0.81;
+    // ★ sqrt() for a UNIFORM disc, and from r=0 — the town test owns the
+    //   middle now, so the sampler no longer has to avoid it by starting at
+    //   0.18 and pushing everything outward.
+    const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * 0.99;
     const x = Math.round(D.cx + Math.cos(a) * D.rx * r);
     const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
     if (worldDistrictAt(x, y) !== dist) continue;
     if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
     if (_propBlocked.has(x + ',' + y)) continue;
     if (occupied.has(x + ',' + y)) continue;
-    let inTown = false;
-    for (const [tx, ty] of townPts)
-      if (Math.hypot(tx - x, ty - y) < ROAM_MIN_FROM_TOWN){ inTown = true; break; }
-    if (inTown) continue;
+    if (siteInTown(dist, x, y)) continue;                  // HARD · the inner town
+    const room = grid.nearest(x, y, ROSTER_SPACE_CAP);
+    if (room < ROSTER_MIN_SPACING) continue;               // HARD · never stacked
     const hab = enemyHabitatAt(dist, x, y) || 'meadow';
-    // ★★★ MULTIPLICATIVE NOISE, NOT ADDITIVE. `affinity + rng()` could never
-    //   let a 6 beat a 10, so best-of-26 was effectively deterministic and the
-    //   census came back 99% of Satyrbeasts in forest and 92% of Vorugath on
-    //   highland. That is not a habitat, it is a monoculture — you would clear
-    //   one treeline and meet nothing else in it ever again.
-    //   ★ Scaling by 0.55-1.45 lets a strong-but-not-best habitat win often
-    //     enough to populate the margins, while the favoured terrain still
-    //     takes the clear majority. Species should PREFER their ground, not be
-    //     imprisoned on it.
-    const score = (H[hab] || 1) * (0.55 + rng() * 0.9);
+    // ★★★ MULTIPLICATIVE NOISE ON THE HABITAT TERM, or it monopolises.
+    //   `affinity * 1.6 + room` came back 100% of Mori in meadow and 100% of
+    //   Satyrbeasts in forest — a flat weight means a 10 beats an 8 every
+    //   single time, and a species that is ONLY ever found on one terrain is a
+    //   monoculture, not a habitat. Scaling by 0.5-1.5 lets good-but-not-best
+    //   ground win often enough to populate the margins.
+    const score = (H[hab] || 1) * (0.5 + rng()) * 1.4
+                + (room / ROSTER_SPACE_CAP) * 6;
     if (score > bestScore){ bestScore = score; best = [x, y, hab]; }
   }
   return best;
 }
+
+
+// ★ (the v0.97.5 siter lived here · replaced by the best-candidate version above)
+
 
 const DISTRICT_ROAM_TARGET = 200;
 const ROAM_MIN_FROM_TOWN   = 26;    // outside the built-up core · packs live in the country
@@ -27171,7 +27300,13 @@ function scatterDistrictEnemies(){
     const dist = T.dist;
     const R = DISTRICT_ENEMY_ROSTER[dist];
     if (!R){ perD[dist] = 0; continue; }
-    const townPts = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
+    // ★ one spacing grid per district, seeded with every body already standing
+    //   there — tower guards, Seer garrisons, Morvexar — so the roster spaces
+    //   itself against the whole world and not just against itself.
+    const grid = makeSpaceGrid();
+    for (const n of NPCS)
+      if (n && n.isEnemy && n.scene === 'overworld' && n.tileX != null
+          && worldDistrictAt(n.tileX, n.tileY) === dist) grid.add(n.tileX, n.tileY);
     let placed = 0;
     // ★★★ THE ROSTER IS FULFILLED SPECIES BY SPECIES, IN FULL.
     //   This is no longer a top-up against whatever the district already held.
@@ -27187,10 +27322,11 @@ function scatterDistrictEnemies(){
                : Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
       let got = 0;
       for (let i = 0; i < want; i++){
-        const spot = siteRosterTile(dist, kind, rng, occupied, townPts);
+        const spot = siteRosterTile(dist, kind, rng, occupied, grid);
         if (!spot) continue;                       // counted below, never faked
         const [x, y, hab] = spot;
         occupied.add(x + ',' + y);
+        grid.add(x, y);
         NPCS.push(_cloneEnemyTo(base, `roam_${dist}_${made}`, x, y, {
           name: kind.charAt(0).toUpperCase() + kind.slice(1),
           dir: ['up','down','left','right'][Math.floor(rng() * 4)],
@@ -27280,10 +27416,15 @@ function _respawnOneEnemy(dist, kind){
             || pick(SRC[kind] || SRC.mori) || pick(SRC.mori);
   if (!base) return null;
   const rng = _makeWorldRng((Date.now() ^ (D.cx * 7919)) >>> 0);
-  const townPts = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
   const H = ENEMY_SPECIES_HABITAT[kind] || {};
+  // ★ the respawn spaces itself against the living world too, so a replacement
+  //   never materialises shoulder-to-shoulder with the pack that survived.
+  const grid = makeSpaceGrid();
+  for (const n of NPCS)
+    if (n && n.isEnemy && n.scene === 'overworld' && n.tileX != null
+        && worldDistrictAt(n.tileX, n.tileY) === dist) grid.add(n.tileX, n.tileY);
   for (let t = 0; t < 40; t++){
-    const spot = siteRosterTile(dist, kind, rng, _respawnOccupancy(), townPts);
+    const spot = siteRosterTile(dist, kind, rng, _respawnOccupancy(), grid);
     if (!spot) continue;
     const [x, y, hab] = spot;
     // ★★★ NOT WITHIN SIGHT OF THE PLAYER. A body that materialises on screen is
@@ -40730,7 +40871,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.5' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.6' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

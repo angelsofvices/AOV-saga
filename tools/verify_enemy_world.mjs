@@ -43,8 +43,12 @@ H(`★ THE GAME BOOTED · ${Date.now() - t0}ms · ${G.NPCS.length} NPCs`);
   // ★ the threshold moved DOWN on purpose at v0.97.4: 296 legacy bodies were
   //   retired and mori trimmed by 15 a district to bring every district inside
   //   the 200-250 range. Fewer enemies, better distributed, is the result.
-  ok(enemies.length > 2300, `${enemies.length} overworld enemies standing`);
-  ok(roster.length > 2000, `★★★ ${roster.length} roster bodies · the machines are counted now`);
+  // ★ v0.97.6 · the threshold HALVED on purpose. Creator: "it feels too
+  //   congested sometimes." The overworld is the map between fights now;
+  //   density moves into buildings and caves when those are wired.
+  ok(enemies.length > 1200 && enemies.length < 1800,
+     `${enemies.length} overworld enemies standing · halved`);
+  ok(roster.length > 950 && roster.length < 1200, `★★★ ${roster.length} roster bodies · the machines are counted now`);
 }
 
 H('★★★ EVERY AUTHORED ROW SUMS TO THE CORE · the table checks itself');
@@ -223,7 +227,7 @@ H('★★★★ THE MACHINES ARE IN THE POOL · and still behave like machines')
   // ★ 294, not 300 — Korathen's row gave 6 of its Scanobots back to keep the
   //   district inside 250 once the machines started being counted. The number
   //   is the roster's to decide now, which is the whole point of folding them in.
-  ok(sc.length === 294, `${sc.length} Scanobots, placed by the ROSTER now`);
+  ok(sc.length === 148, `${sc.length} Scanobots, placed by the ROSTER now`);
   ok(byD.thardin > byD.malezor,
      `★★★ Thardin carries the most (${byD.thardin} vs Malezor's ${byD.malezor}) — it is where the tech was taken`);
 
@@ -241,12 +245,12 @@ H('★★★★ THE MACHINES ARE IN THE POOL · and still behave like machines')
 
   // ★★★ PENUMBRA IS GATED, and its roster number is the post-spread figure
   const pre = G.NPCS.filter(n => n && n._roamKind === 'penumbra');
-  ok(pre.length === 12 && pre.every(n => n._roamOf === 'thardin'),
+  ok(pre.length === 6 && pre.every(n => n._roamOf === 'thardin'),
      `★★★ before you reach Thardin, all ${pre.length} Penumbra are IN Thardin and nowhere else`);
   G.player.districtsVisited = { thardin: true };
   const made = G.topUpGatedRoster();
   const post = G.NPCS.filter(n => n && n._roamKind === 'penumbra');
-  ok(made > 30 && post.length === 47,
+  ok(made > 15 && post.length === 26,
      `★★ reaching Thardin tops the world up · ${pre.length} → ${post.length}`);
   ok(new Set(post.map(n => n._roamOf)).size === 10, '★ and they now stand in all ten districts');
   // ★ idempotent BY COUNT, not by id — walking into Thardin twice must not double them
@@ -270,7 +274,7 @@ H('★★★ THE SPAWN RANGE · minibosses and nets, and no double-placement');
      : `★★★ all ten districts inside ${LO}-${HI} `
        + `(${Math.min(...DISTS.map(d => per[d]))}-${Math.max(...DISTS.map(d => per[d]))})`);
   const headroom = HI - Math.max(...DISTS.map(d => per[d]));
-  ok(headroom >= 5, `★★ ${headroom} spawns of headroom before the ceiling — room for the next species`);
+  ok(headroom >= 20, `★★ ${headroom} spawns of headroom before the ceiling — room for the next species`);
 
   // ★★★ THE LEGACY SCATTER IS GONE. 296 hand-placed bodies from before the
   //   roster existed were sitting underneath it and counted twice; Malezor
@@ -292,7 +296,7 @@ H('★★★ THE SPAWN RANGE · minibosses and nets, and no double-placement');
   const netNym = G.NPCS.filter(n => n && /^nymphysyl_/.test(n.id || '')).length;
   const rosNym = roster.filter(n => n._roamKind === 'nymphysyl').length;
   ok(netNym === 0, '★★ buildNewEnemyNet no longer places Nymphysyl');
-  ok(rosNym === 145, `★★★ and the roster holds all ${rosNym} of her (50+45+50) — placed once`);
+  ok(rosNym === 73, `★★★ and the roster holds all ${rosNym} of her (25+23+25) — placed once`);
   ok(roster.filter(n => n._roamKind === 'nymphysyl').every(n => n._astralOnly === true),
      '★ every one of them carries _astralOnly · punches still pass through');
 
@@ -345,7 +349,7 @@ H('★★★ RESPAWN · same species, new ground');
        '★ never within sight of the player');
     // and the roster is whole again
     const vs = G.NPCS.filter(n => n && n._roamOf === 'veridan' && n._roamKind === 'satyrbeast').length;
-    ok(vs === 56, `★ Veridan now holds ${vs} satyrbeast bodies — the 55 authored, `
+    ok(vs === 29, `★ Veridan now holds ${vs} satyrbeast bodies — the 28 authored, `
        + 'plus the dead one still on screen mid-death animation');
   }
   const morv = G.NPCS.find(n => n && /^morvexar_/.test(n.id || ''));
@@ -377,15 +381,123 @@ H('★★★★ AND THE WORLD CAN STILL DRAW ITSELF · the cull that ships with 
   ok(PAD >= 20, `★★ ${PAD} tiles of margin beyond a 20x11 viewport — big sprites cannot pop`);
 }
 
-H('★★★ TOWN · 26 tiles, one rule');
+H('★★★★ AN EVEN SPREAD, AND NOBODY STACKED · the two things that looked wrong');
 {
-  let inTown = 0;
-  for (const n of roster){
-    for (const [tx, ty] of G._townAnchors(n._roamOf))
-      if (Math.hypot(tx - n.tileX, ty - n.tileY) < G.ROAM_MIN_FROM_TOWN){ inTown++; break; }
+  //   Creator: "alot of the enemies are bunched up in the outskirts... I want an
+  //   even spread of enemies everywhere within their district... I dont want a
+  //   bunch of enemies on top of one another because it looks cheesy like we
+  //   just spammed sprites."
+  //
+  // ★★★★ BOTH COMPLAINTS WERE MEASURABLE AND BOTH WERE MINE.
+  //   1. The innermost fifth of every district held 0-7 of 235 bodies, because
+  //      I excluded 26 tiles around every `_townAnchors` point — and that list
+  //      includes EVERY HOME, which the settlement doctrine scatters district-
+  //      wide. The masks merged into one blanket over the whole middle.
+  //   2. 208 bodies stood within ONE tile of another and 851 within three,
+  //      because "occupied" was a Set of exact tiles — it only ever stopped two
+  //      sharing the same square, which is not what stacking looks like.
+
+  // ── 1 · RADIAL EVENNESS ────────────────────────────────────────────────
+  //   For a uniform areal spread the five radial bands should hold bodies in
+  //   roughly 1:3:5:7:9 proportion, because that is how their areas grow.
+  const bands = d => {
+    const D = G.ZYRAXIS_DISTRICT_BY_ID[d], b = [0,0,0,0,0];
+    for (const n of roster) if (n._roamOf === d){
+      const t = Math.hypot((n.tileX - D.cx) / D.rx, (n.tileY - D.cy) / D.ry);
+      b[Math.min(4, Math.floor(t / 0.2))]++;
+    }
+    return b;
+  };
+  console.log('     district   |0-.2|.2-.4|.4-.6|.6-.8|.8-1+|');
+  let innerEmpty = 0;
+  for (const d of DISTS){
+    const b = bands(d);
+    console.log(`     ${d.padEnd(10)} ${b.map(v => String(v).padStart(4)).join(' ')}`);
+    if (b[0] === 0) innerEmpty++;
   }
-  ok(inTown === 0, inTown ? `${inTown} roster bodies are standing in town`
-     : `★★★ not one of ${roster.length} stands within 26 tiles of a door`);
+  ok(innerEmpty === 0, innerEmpty ? `${innerEmpty} districts still have an empty core`
+     : '★★★ every district is populated right into its centre · the blanket mask is gone');
+  // the outer ring must not hold more than its share of area twice over
+  for (const d of DISTS){
+    const b = bands(d), tot = b.reduce((x, y) => x + y, 0);
+    ok(b[4] / tot < 0.42, `  ${d.padEnd(10)} outermost band holds ${(100*b[4]/tot).toFixed(0)}% — not bunched in the outskirts`);
+  }
+
+  // ── 2 · NOBODY ON TOP OF ANYBODY ───────────────────────────────────────
+  const nn = [];
+  for (const d of DISTS){
+    const pts = roster.filter(n => n._roamOf === d).map(n => [n.tileX, n.tileY]);
+    for (let i = 0; i < pts.length; i++){
+      let best = 1e9;
+      for (let j = 0; j < pts.length; j++){
+        if (i === j) continue;
+        const v = Math.max(Math.abs(pts[i][0]-pts[j][0]), Math.abs(pts[i][1]-pts[j][1]));
+        if (v < best) best = v;
+      }
+      nn.push(best);
+    }
+  }
+  nn.sort((a, b) => a - b);
+  const med = nn[Math.floor(nn.length / 2)];
+  console.log(`     nearest-neighbour · min ${nn[0]} · median ${med} · p90 ${nn[Math.floor(nn.length*0.9)]}`);
+  ok(nn[0] >= G.ROSTER_MIN_SPACING,
+     `★★★ closest pair in the world is ${nn[0]} tiles (floor ${G.ROSTER_MIN_SPACING}) · was 1`);
+  ok(nn.filter(v => v <= 3).length === 0,
+     `★★★★ not one body within 3 tiles of another · was 851 of 2076`);
+  ok(med >= 9, `★★ and the median gap is ${med} tiles — an encounter is a decision, not traffic`);
+}
+
+H('★★★ THE INNER TOWN IS THE ONLY THING OFF LIMITS');
+{
+  //   Creator: "the only place that is off limits is the inner town near the
+  //   homes and the town hall. directly outside of that, you get combat."
+  ok(G.TOWN_CIVIC_CLEAR === 12 && G.TOWN_HOME_CLEAR === 6,
+     `★ two small local circles: ${G.TOWN_CIVIC_CLEAR} from a civic door, ${G.TOWN_HOME_CLEAR} from a house`);
+  let inTown = 0;
+  for (const n of roster) if (G.siteInTown(n._roamOf, n.tileX, n.tileY)) inTown++;
+  ok(inTown === 0, inTown ? `${inTown} enemies are standing in the inner town`
+     : `★★★ not one of ${roster.length} stands inside it`);
+
+  // ★★ and it must be SMALL — the old rule ate 23% of Malezor, which is what
+  //   pushed everything to the rim. Measured per district here so a future
+  //   tweak to the radii cannot quietly re-blanket the map.
+  let worst = 0, worstD = '';
+  for (const D of G.ZYRAXIS_DISTRICTS){
+    let tot = 0, blocked = 0;
+    for (let x = D.cx - D.rx; x <= D.cx + D.rx; x += 3)
+      for (let y = D.cy - D.ry; y <= D.cy + D.ry; y += 3){
+        if (G.worldDistrictAt(x, y) !== D.id) continue;
+        tot++; if (G.siteInTown(D.id, x, y)) blocked++;
+      }
+    const pct = 100 * blocked / tot;
+    if (pct > worst){ worst = pct; worstD = D.id; }
+  }
+  ok(worst < 15, `★★★ the largest exclusion is ${worstD} at ${worst.toFixed(1)}% of its district — was 23%`);
+}
+
+H('★★★ HABITATS THAT MAKE SENSE · preference, not monoculture');
+{
+  //   Creator: "lets actually place them in habitats that make sense"
+  // ★★ The first pass after the spread fix came back 100% of Mori in meadow and
+  //   100% of Satyrbeasts in forest, because a flat affinity weight means a 10
+  //   beats an 8 every single time. A species found on exactly one terrain is a
+  //   monoculture, not a habitat. Multiplicative noise restored the margins.
+  const H2 = G.ENEMY_SPECIES_HABITAT;
+  for (const k of ['satyrbeast','vorugath','morlisk','vilerok','nymphysyl']){
+    const mine = roster.filter(n => n._roamKind === k);
+    if (!mine.length){ ok(false, `no ${k}`); continue; }
+    const counts = {};
+    for (const n of mine) counts[n._roamHab] = (counts[n._roamHab] || 0) + 1;
+    const row = H2[k] || {};
+    const habs = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    const topShare = counts[habs[0]] / mine.length;
+    // its commonest ground must be one it actually likes...
+    ok((row[habs[0]] || 0) >= 6,
+       `  ${k.padEnd(11)} commonest ground is ${habs[0]} (affinity ${row[habs[0]]}) · ${JSON.stringify(counts)}`);
+    // ...and it must not be the ONLY ground it is ever found on
+    ok(habs.length >= 2 && topShare < 0.97,
+       `  ${k.padEnd(11)} found across ${habs.length} habitats, ${(topShare*100).toFixed(0)}% in the commonest`);
+  }
 }
 
 H(f ? `\n❌ ${f} failed` : '\n✅ 200 per district, exactly as authored · terrain chose every tile · and it comes back');

@@ -107,30 +107,60 @@ So for every new species from here:
 4. **The range is the invariant** — every district must land in **200–250**
    total spawns, minibosses and nets included. The suite fails otherwise.
 
-## WHERE IT STANDS AT v0.97.5
+## WHERE IT STANDS AT v0.97.6
 
-Every district **235 spawns** once the world is fully unlocked — machines
-included, which they were not before.
+**Halved.** Creator: *"should we cut each districts enemy count in half? ... I
+just want the overworld to feel strategic. it feels too congested sometimes."*
 
 ```
 district    spawns   mean tier   scanobot   penumbra (post-spread)
-malezor      235       1.69         22          3
-zarvane      235       1.69         24          3
-andrannor    235       1.79         26          3
-veridan      235       2.69         28          3
-netharion    235       3.96         28          4
-vorashil     235       4.13         30          4
-xilnar       235       4.53         30          4
-baelgor      235       4.04         32          5
-thardin      235       4.14         45         12   ← the source
-korathen     235       4.60         29          6   ← hardest
+malezor      131       1.74         11          2
+zarvane      131       1.79         12          2
+andrannor    131       1.83         13          2
+veridan      132       2.64         14          2
+netharion    130       3.88         14          2
+vorashil     130       4.04         15          2
+xilnar       129       4.41         15          2
+baelgor      132       3.95         16          3
+thardin      128       3.97         23          6   ← the source
+korathen     134       4.54         15          3   ← hardest
 ```
 
-★ **Thardin carries the most machines** because Thardin is where the tech was
-taken. ★ **Korathen is hardest** on the strength of its twelve Morvexar.
-★ **15 spawns of headroom** before the 250 ceiling.
+Range is now **110-160**, not 200-250. Structural bodies don't halve, so a
+halved roster lands the district near 130 rather than 118.
 
-★★ Mori absorbed all of it, per your rule — from 186 down to 166 in Malezor and
-all the way to 5 in Thardin and Korathen, where almost nothing weak survives.
-Korathen also gave back 6 Scanobots; its row was the only one mori alone could
-not balance.
+### THE SPREAD, BEFORE AND AFTER
+
+| | before | after |
+|---|---|---|
+| innermost fifth of a district | 0-7 bodies | 2-6 of a half-size roster |
+| outermost band's share | up to 40% | 15-32% |
+| bodies within 1 tile of another | **208** | **0** |
+| bodies within 3 tiles | **851** | **0** |
+| median gap between bodies | 4 tiles | **10 tiles** |
+| largest town exclusion | 23% of Malezor | 11.5% of Zarvane |
+
+★★★ **The outskirts bunching was my town rule.** I excluded 26 tiles around
+every `_townAnchors` point — and that list includes **every home**, which the
+settlement doctrine scatters district-wide. The masks merged into one blanket
+over the entire middle of every district, so the only legal ground left was the
+rim. ★ The v0.95.747 note records this exact error being made before, in the
+building placer: *"Clear of residential is a LOCAL test, not a radius from the
+hub."* I read that note while writing the habitat model and made the mistake
+anyway.
+
+Now it is two small local circles, as described: **12 tiles from a civic door,
+6 from a house.** Step off the plaza and you are in combat.
+
+★★★ **And stacking was never actually prevented.** `occupied` was a Set of exact
+tiles — it stopped two enemies sharing one square, which is not what "on top of
+one another" looks like. Siting is now **best-candidate (Mitchell)**: each body
+samples 48 legal tiles and takes the one scoring best on habitat fit *and*
+distance from everything already placed. That produces blue-noise — the
+"someone placed these" look rather than "someone spammed sprites" — with a hard
+6-tile floor underneath it.
+
+★ Habitat affinity uses **multiplicative** noise. A flat weight meant a 10 beat
+an 8 every single time, and the first pass came back 100% of Mori in meadow and
+100% of Satyrbeasts in forest. A species found on exactly one terrain is a
+monoculture, not a habitat.

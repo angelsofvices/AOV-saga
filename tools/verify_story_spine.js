@@ -93,6 +93,15 @@ H('★★★ THE KIDNAPPING WINDOW · handoff §21.4, narrowed');
     ok(posOf(need) < kid.n, `  after ${need} (stop ${posOf(need)} < ${kid.n})`);
   ok(kid.beats.includes('rakoron_senses_resonance'),
      '★★ Rakoron SENSES the resonance there — §21.5 non-intervention, intact');
+  // ★★★ RULED 2026-09-13 · Kelthor's death CAUSES the abduction, so its beat
+  //   must sit on the same stop AND strictly before it.
+  const order = kid.beats;
+  for (const b of LAWS.malezorInvasion)
+    ok(order.includes(b), `  the invasion beat "${b}" is on the stop`);
+  ok(order.indexOf('kelthor_dies') < order.indexOf('parents_kidnapped'),
+     '★★★ and Kelthor dies BEFORE they are taken — they are taken because he did');
+  ok(order.indexOf('town_surrenders') < order.indexOf('parents_kidnapped'),
+     '★ the surrender is what hands them over');
 }
 
 H('★★★ RULED 2026-09-13 · THE ENDGAME LADDER');

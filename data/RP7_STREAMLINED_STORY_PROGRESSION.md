@@ -144,7 +144,8 @@ forward district journey is **interrupted**.
 ### ★★★ EMERGENCY RETURN — MALEZOR
 Rizer races back to the district where the game began. There he discovers:
 
-> ## HIS PARENTS HAVE BEEN KIDNAPPED.
+> ## THE SEERS HAVE INVADED MALEZOR.
+> ## WARDEN KELTHOR IS DEAD. HIS PARENTS HAVE BEEN KIDNAPPED.
 
 This happens **after** the first Ophira and Orryx victories, **after** Xilnar,
 and **after** Rizer's discovery of Baelgor's devastation.
@@ -382,7 +383,7 @@ Full evidence, with quotes from both sides, in
 | **R5** | Anciuxor's availability | — | ★ **RULED 2026-09-13 · SEE §E3** |
 | **R6** | Oatheus's summons **explained in Act IV** | — | ★ **RULED 2026-09-13 · SEE §E4** |
 | **R7** | what Lower Zyraxis *is* | — | ★ **RULED 2026-09-13 · SEE §E7 — the conflict dissolved** |
-| **R8** | the Malezor kidnapping scene, **without Kelthor** | Creator: *"…up until **his death when the seers invade malezor and they kidnap your parents**"* | **UNAPPLIED** |
+| **R8** | Kelthor in the Malezor scene | — | ★ **RULED 2026-09-13 · SEE §E8** |
 
 ---
 
@@ -583,3 +584,37 @@ crossing it ends Part One, and why the Seers fleeing across it is a
 ★ Note this leaves **§R4 untouched and slightly sharper**: if the Bridge is the
 boundary, whether the final battle happens **on** it is still the open question,
 and the shipped `xenoxilDefeated` gate still has to be reconciled either way.
+
+## E8 · ★★★ KELTHOR'S DEATH IS THE CAUSE, NOT THE BACKDROP
+
+> **Creator, 2026-09-13:** *"kelthor dies when rizers parents are abducted. he is
+> last known trying to defend the entire town from the seer invasion. they kill
+> him and force surrender."*
+
+**RULED.** The Malezor emergency return is **the Invasion of Malezor**, and it
+runs in this order:
+
+```
+the Seers invade  →  KELTHOR DEFENDS THE ENTIRE TOWN  →  they kill him
+                  →  the town SURRENDERS  →  the parents are taken
+```
+
+★★★ **Read the causality, because it is the whole point.** They do not take the
+parents *while* Kelthor dies. They take them **because** he does. He is not
+escorting an evacuation — he is holding the **whole town**, alone, and killing
+him is what **forces the surrender**. The surrender is what hands them his
+parents. *The mentor is the town's last line, and the town finds that out by
+losing him.*
+
+★★ **And it is why the rage is the size it is.** Under §E1, S2 is learned in this
+scene. Rizer does not lose two people here — **he loses three, and the third died
+covering for the first two.** Every previous version of this beat had to argue
+that the abduction alone justified the Ruby resonance. It does not have to argue
+any more.
+
+★ **Nothing in this contradicts anything.** It confirms the existing ruling
+(*"KELTHOR DIES covering the evacuation"*) and sharpens it from *covering* to
+*causing*. It also sits correctly against his 13-rung ladder: that ladder ends
+with him graduating Rizer toward Zarvane — *"You are not my student any more"* —
+at district **II**, six stops before he dies. The tutorial is long finished.
+He does not die as a teacher. He dies as a Warden.

@@ -160,13 +160,15 @@ H('★★★ PLACEMENT · ruled 2026-09-14');
   // ★★ MORVEXAR · the counts, exactly, and the descent
   // ★★ v0.97.3 · Creator ruled ADD, not move: "morvexar in netharion vorashil
   //   and xilnar outskirts" joins the original 6/4/2 rather than replacing it.
-  const want = { korathen: 6, baelgor: 4, zarvane: 2, netharion: 4, vorashil: 4, xilnar: 4 };
+  // ★ v0.97.4 · Creator: "add extra morvexar in korathen to make it the hardest
+  //   district. 6 here." Korathen doubles to 12 · 30 world-wide.
+  const want = { korathen: 12, baelgor: 4, zarvane: 2, netharion: 4, vorashil: 4, xilnar: 4 };
   let total = 0;
   for (const [d, n] of Object.entries(want)){
     const got = N(`newEnemyCountFor('morvexar','${d}')`);
     ok(got === n, `  morvexar ${d}: ${got}`); total += got;
   }
-  ok(total === 24, `★ ${total} in the world across six districts, and none anywhere else`);
+  ok(total === 30, `★ ${total} in the world across six districts, and none anywhere else`);
   ok(N('NEW_ENEMY_PLACEMENT.morvexar.outskirtsOnly') === true,
      '★★★ and "outskirts" is a HARD siting rule for him, not a preference');
   ok(N("newEnemyCountFor('morvexar','malezor')") === 0, '  none in Malezor');

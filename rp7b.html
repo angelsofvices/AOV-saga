@@ -15299,6 +15299,68 @@ if (!TOWNSFOLK_ENABLED){
   }
   if (_cut) console.log(`[rp7b] townsfolk · ${_cut} archetype NPCs held back (TOWNSFOLK_ENABLED=false · bad sprites)`);
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.97.4 · THE LEGACY SCATTER IS RETIRED · superseded by the roster
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   Creator: "I want each district to be about 200-250 enemy spawns."
+//   Measured before this prune: malezor 384, zarvane 380, andrannor 293.
+//
+// ★★★ THOSE ARE NOT THE ROSTER OVERFLOWING. They are 296 hand-placed Mori,
+//   Vileroks and Morlisks from before DISTRICT_ENEMY_ROSTER existed — the old
+//   ad-hoc population, sitting underneath the authored one and counted twice.
+//   Malezor's authored row asks for 180 Mori and the district was carrying 290.
+//
+// ★★ THE ONE REAL RISK WAS THE KILL COUNTERS, and it is not a risk. `_vilerok`
+//   drives Kelthor's Vilerok Purge and `_vorugath` drives its own counter, so
+//   deleting the bodies that carry them could have made a quest uncompletable.
+//   ★ But _cloneEnemyTo copies the base wholesale, so every roster Vilerok
+//     inherits `_vilerok` — 275 of them against the legacy 21, and 320
+//     Vorugath against 5. Verified by booting and counting, not by reading the
+//     clone function and hoping. The purge is better served after this than
+//     before it.
+//
+// ★ Structural enemies are NOT touched: tower guards, Seer HQ garrisons,
+//   Scanobots, Verdant Creepers, Satyrbeast packs, Morvexar and Penumbra all
+//   have their own placers and their own ruled counts.
+const LEGACY_ENEMY_SCATTER_ENABLED = false;
+// ★★★★ AND IT MUST RUN *AFTER* THE ROSTER, NOT BEFORE IT.
+//
+//   My first version pruned here, at literal-evaluation time. The census came
+//   back perfect — 185 a district, right names, right tiers, right HP — and
+//   745 bodies were wearing the wrong sprite.
+//
+// ★★★ scatterDistrictEnemies CLONES FROM LIVE NPCS. `pick(/vilerok/i)` finds a
+//   Vilerok already standing in the world and copies it. Pruning first deleted
+//   every template, so Vilerok, Vorugath and Morlisk all fell through to their
+//   `|| pick(/enemies\/mori\.png/i)` fallback and shipped as Mori in a Vilerok's
+//   name. Mori itself only survived because a tower guard happens to use the
+//   same sheet and tower guards are not pruned.
+//   ★★ Nothing in the census could have shown this. Names, counts, tiers and
+//     HP were all set explicitly in the clone opts; only the ART came from the
+//     base. It would have been found by looking at the screen, which is the
+//     one thing a headless suite cannot do — so the suite caught it sideways,
+//     through the `_vilerok` kill-counter flag going to zero.
+//   ★ The lesson is the ordering, and it is now impossible to get wrong: this
+//     is a FUNCTION called from the boot sequence, immediately after the pass
+//     that needs the templates alive.
+function retireLegacyEnemyScatter(){
+  if (LEGACY_ENEMY_SCATTER_ENABLED) return 0;
+  let cut = 0;
+  for (let i = NPCS.length - 1; i >= 0; i--){
+    const n = NPCS[i];
+    if (!n || !n.isEnemy || n.scene !== 'overworld') continue;
+    const id = n.id || '';
+    if (n._roamOf || n._scanobot) continue;                       // roster · survey net
+    if (/^(morvexar|penumbra|nymphysyl)_/.test(id)) continue;     // own placers
+    if (/tower_|seer|verdant_creeper|satyrbeast_p/i.test(id)) continue;
+    if (!/^(mori|vilerok|morlisk|daemon|vorugath)[_0-9]/.test(id)) continue;
+    NPCS.splice(i, 1); cut++;
+  }
+  if (cut) console.log(`[rp7b] v0.97.4 · legacy enemy scatter · ${cut} retired `
+    + '(superseded by DISTRICT_ENEMY_ROSTER · kill-counter flags live on the roster clones)');
+  return cut;
+}
 NPCS.forEach(n => {
   // v0.95.696 · was an unconditional `n.sheet.src = n.src`, which silently set
   // src to undefined for any NPC that carries a pre-built Image instead of a
@@ -16185,6 +16247,9 @@ setTimeout(() => { try {
   // finished at 230 against a target of 200.  A top-up that runs before the
   // thing it is topping up cannot count.
   try { scatterDistrictEnemies(); } catch(err){ console.warn('[rp7b] enemy scatter failed', err); }
+  // ★★★ AFTER the roster, never before · scatterDistrictEnemies clones its
+  //   sprites off the very bodies this retires.
+  try { retireLegacyEnemyScatter(); } catch(err){ console.warn('[rp7b] legacy retire failed', err); }
 } catch(err){ console.warn('[rp7b] tower guard build failed', err); } }, 0);
 
 // v0.95.477 · SCRAPJAW TOWER QUEST · resurrect the 6 tower Mori + the tower-boss
@@ -16366,10 +16431,19 @@ function resurrectScrapjawTowerPack(){
   // the ring math distribute them (safe near, sparse mid, dense far).  Other
   // districts keep flat scatter.  Per-district levels lock the ladder:
   //   Malezor  L5   ·  Zarvane   L25   ·  Andrannor L38  ·  Veridan L50
-  _pushMori('malezor',   60, 0xFEEDBA5, 6,  5);   // 60 attempts · density filter yields ~30-40 outside safe zone
-  _pushMori('zarvane',   80, 0xBEE5EED, 6, 25);
-  _pushMori('andrannor', 60, 0xC0FFEE1, 6, 38);
-  _pushMori('veridan',   50, 0x51DECAB, 6, 50);
+  // ★★★★ v0.97.4 · GATED WITH THE REST OF THE LEGACY SCATTER.
+  //   These four calls are the perimeter-Mori pass, and they are the reason
+  //   Malezor still read 314 and Zarvane 335 after the first prune: that prune
+  //   ran over the NPCS literal, and these push at BOOT, later. Same generation
+  //   of code, same job, superseded by the same table — DISTRICT_ENEMY_ROSTER
+  //   asks for 180 Mori in Malezor and these put 60 more underneath them.
+  //   ★ Flip LEGACY_ENEMY_SCATTER_ENABLED to restore all of it at once.
+  if (typeof LEGACY_ENEMY_SCATTER_ENABLED !== 'undefined' && LEGACY_ENEMY_SCATTER_ENABLED){
+    _pushMori('malezor',   60, 0xFEEDBA5, 6,  5);   // density filter yields ~30-40 outside safe zone
+    _pushMori('zarvane',   80, 0xBEE5EED, 6, 25);
+    _pushMori('andrannor', 60, 0xC0FFEE1, 6, 38);
+    _pushMori('veridan',   50, 0x51DECAB, 6, 50);
+  }
   // v0.95.497 · Daemon roster reworked (user 2026-08-16)
   //   Zarvane: NO daemons · roster is now Mori + Satyrbeast + 8 Vileroks
   //   Andrannor: daemon + skellor until Andrannor gets its own boss-type
@@ -24448,7 +24522,11 @@ const NEW_ENEMY_PLACEMENT = {
     //   district such as the newly added morvexar in netharion vorashil and
     //   xilnar outskirts." Ruled ADD, not move — the original 6/4/2 stands and
     //   the three dark districts join it. 24 world-wide.
-    counts: { korathen:6, baelgor:4, zarvane:2, netharion:4, vorashil:4, xilnar:4 },
+    // ★★ v0.97.4 · Creator: "add extra morvexar in korathen to make it the
+    //   hardest district. 6 here." → 6 + 6 = 12. Korathen carries twice what
+    //   any other district does, and Morvexar is T8, so this is the single
+    //   heaviest concentration of threat in Part One.
+    counts: { korathen:12, baelgor:4, zarvane:2, netharion:4, vorashil:4, xilnar:4 },
     // ★ "they do not fight in pacts" — each one is alone. No group aggro, no
     //   shared target, no calling for help.
     noPack: true,
@@ -26711,26 +26789,95 @@ const ENEMY_SPECIES_HABITAT = {
 // ★★ EXACT, NOT A TARGET. Every row sums to 200 and the suite fails if one
 //   does not, because "strict" was the word used and a roster that silently
 //   rounds is a roster you cannot trust to mean anything.
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.97.4 · THE ENEMY CANON · where every enemy in RP7 comes from
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   Creator, 2026-09-14: "everything comes from mori and daemon which come from
+//   corrupt humanoid and zyrex which comes from the hands of the seers who make
+//   the seers commanders spread plagues from seer HQs in each district. this is
+//   the enemy loop leading up to final war part 1 endgame war at the bridge of
+//   hope."
+//
+// ★★★ THIS IS WHY THE ROSTER CAN BE REBALANCED FREELY. Every enemy descends
+//   from two stems, and both stems are Seer-made — so adding a species is never
+//   a lore problem, only a placement one. "We can always decrease number of
+//   mori to fit other species in" is a statement about a supply chain that has
+//   one source, and the source is a faction the player is already fighting.
+//
+// ★★ AND IT MAKES THE SEER HQs MECHANICAL. A plague spreading out of a HQ in
+//   each district is the in-world reason the enemy population exists, respawns,
+//   and gets heavier the further east you go. The respawn timer is not a game
+//   convention here; it is the Seers still working.
+const ENEMY_LINEAGE = {
+  source: 'seers',
+  // the two stems · everything descends from one of these
+  stems: {
+    mori:   { from: 'corrupt humanoid', tier: 1 },
+    daemon: { from: 'corrupt zyrex',    tier: 2 },
+  },
+  vector: 'seer_commanders',            // who spreads it
+  origin: 'seer_hq',                    // one per district · the plague source
+  // where the loop ends
+  climax: { at: 'bridge_of_hope', event: 'part_one_endgame_war',
+            scale: 'marvel', ushers: ['part_two', 'luminary'] },
+};
+// ★ which stem a species descends from · used for lore, and for keeping any
+//   future rebalance honest about what it is trading away.
+const ENEMY_STEM_OF = {
+  mori:'mori', vilerok:'mori', vorugath:'mori', satyrbeast:'mori',
+  daemon:'daemon', morlisk:'daemon', nymphysyl:'daemon',
+  morvexar:'daemon', penumbra:'daemon', scanobot:'daemon',
+};
+
+// ★★★★ THE TIER CEILING · LAW, not a balance dial.
+//   Creator: "nothing will ever hit tier 10 though. only anciuxor (and rizer
+//   technically at level 100+)."
+// ★★ T9 is the hard maximum for an ENEMY, reserved for the fallen Dracolord /
+//   Astrum group if that idea is taken up. T10 belongs to exactly two beings in
+//   the entire setting, and neither of them is ever a roster entry.
+const ENEMY_TIER_MAX   = 9;
+const TIER_TEN_BEINGS  = ['anciuxor', 'rizer'];   // ★ and Rizer only past Lv100
+// ★ Lower Zyraxis — everything under the Bridge of Hope — is where the T8s and
+//   any T9 live. Part One's roster stops well short of that on purpose.
+const LOWER_ZYRAXIS_TIER_BAND = [7, 9];
+function enemyTierLegal(tier, opts){
+  const o = opts || {};
+  if (tier > ENEMY_TIER_MAX) return false;             // ★ T10 is never an enemy
+  return true;
+}
+
 const DISTRICT_ENEMY_ROSTER = {
   // ── Creator-authored, 2026-09-14 ──────────────────────────────────────
-  malezor:   { mori:180, vilerok:15, vorugath:5 },
-  // ★ +20 mori · his line read "150 mori and 30 satyrbeast" = 180. Ruled: fill
-  //   the gap with mori, the filler species everywhere else in his list.
-  zarvane:   { mori:170, satyrbeast:30 },
-  andrannor: { mori:150, daemon:30, morlisk:20 },
-  veridan:   { mori:100, satyrbeast:55, vilerok:30, vorugath:15 },
-  // ★ +40 mori · his line totalled 160. Same ruling.
-  netharion: { mori:90, nymphysyl:50, vorugath:35, vilerok:25 },
+  //
+  // ★★★ MORI IS THE BALLAST, and that is the Creator's own instruction:
+  //   "we can always decrease number of mori to fit other species of enemies
+  //   in." Every row below carries his exact HEAVY counts — 15 Vileroks in
+  //   Malezor, 50 Nymphysyl in Netharion, 70 Vorugath in Korathen — and mori
+  //   absorbs whatever the 200-250 district ceiling needs.
+  //
+  // ★★ WHY 185 AND NOT 200. Structural enemies that are not the roster —
+  //   30 Scanobots, 8 Seer HQ guards, ~7 tower guards, Verdant Creepers,
+  //   Morvexar, Penumbra — add 51-60 per district. At a 200 core the world
+  //   booted at 251-260 and every district sat just OVER the ceiling. 185
+  //   lands them at 236-245, inside the range with room for the next species.
+  //   ★ His authored heavies are untouched; only mori moved, by 15 a district.
+  malezor:   { mori:165, vilerok:15, vorugath:5 },
+  zarvane:   { mori:155, satyrbeast:30 },
+  andrannor: { mori:135, daemon:30, morlisk:20 },
+  veridan:   { mori:85,  satyrbeast:55, vilerok:30, vorugath:15 },
+  netharion: { mori:75,  nymphysyl:50, vorugath:35, vilerok:25 },
   // ── drafted from the curve his five draw · "we will scale the other
-  //    districts accordingly" · edit freely, the suite only checks they sum
-  //    to 200 and that nothing outside the known species appears ──────────
-  vorashil:  { mori:70, nymphysyl:45, vorugath:40, vilerok:25, satyrbeast:20 },
-  xilnar:    { mori:55, nymphysyl:50, vorugath:45, vilerok:30, morlisk:20 },
-  baelgor:   { mori:45, vorugath:55, vilerok:45, morlisk:35, daemon:20 },
-  thardin:   { mori:35, vorugath:55, vilerok:50, morlisk:40, daemon:20 },
-  korathen:  { mori:25, vorugath:70, vilerok:55, morlisk:35, daemon:15 },
+  //    districts accordingly" · edit freely; the suite only checks the row
+  //    sums to DISTRICT_ROSTER_TOTAL and the district lands in the range ──
+  vorashil:  { mori:55,  nymphysyl:45, vorugath:40, vilerok:25, satyrbeast:20 },
+  xilnar:    { mori:40,  nymphysyl:50, vorugath:45, vilerok:30, morlisk:20 },
+  baelgor:   { mori:30,  vorugath:55, vilerok:45, morlisk:35, daemon:20 },
+  thardin:   { mori:20,  vorugath:55, vilerok:50, morlisk:40, daemon:20 },
+  korathen:  { mori:10,  vorugath:70, vilerok:55, morlisk:35, daemon:15 },
 };
-const DISTRICT_ROSTER_TOTAL = 200;   // ★ every row · asserted, not assumed
+const DISTRICT_ROSTER_TOTAL = 185;        // the authored core, per district
+const DISTRICT_SPAWN_RANGE  = [200, 250]; // ★ the whole district, everything in
 
 function rosterTotalFor(dist){
   const R = DISTRICT_ENEMY_ROSTER[dist]; if (!R) return 0;
@@ -36113,7 +36260,17 @@ function emitGrassNoise(px, py){
 // a Mori that wanders out of the Korathen grass is a Korathen-grade Mori.
 // HP stays on the 125 multiple required by [[aov-combat-math]].
 function spawnWildMori(tileX, tileY, dist, opts){
-  const template = NPCS.find(n => n && n.id && n.id.startsWith('mori_') && n.src && n.src.includes('mori.png'));
+  // ★★★★ v0.97.4 · FOUND BY SPRITE, NOT BY ID PREFIX.
+  //   This used to require `id.startsWith('mori_')`, and the legacy-scatter
+  //   prune deleted every NPC whose id looked like that. The roster's Mori are
+  //   `roam_<dist>_<n>`, so the lookup matched nothing, spawnWildMori returned
+  //   null, and BOTH the grass-noise pull and the open-ground exploration
+  //   spawn silently stopped working — a whole mechanic gone with no error.
+  //   ★★ Caught by tools/verify_grass.js, not by mine: "walked 40 open-ground
+  //     steps in Korathen -> 0 spawned". ★ The second thing in one patch to
+  //     break because a system identified a creature by the SHAPE OF ITS ID
+  //     rather than by what it is. The sprite is what makes it a Mori.
+  const template = NPCS.find(n => n && n.isEnemy && n.src && n.src.includes('mori.png'));
   if (!template) return null;
   const band = (typeof TOWER_BY_DIST !== 'undefined' && TOWER_BY_DIST[dist]) ? TOWER_BY_DIST[dist] : null;
   const level = band ? band.moriLv : 2;
@@ -40439,7 +40596,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.3' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.4' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

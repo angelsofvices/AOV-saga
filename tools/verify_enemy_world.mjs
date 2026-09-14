@@ -1,3 +1,5 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 // ★★★★ v0.97.3 · THE AUTHORED ROSTER, MEASURED BY BOOTING IT.
 //
 //   Creator, 2026-09-14: "we need a strict 200 enemy spawn in each district
@@ -37,11 +39,14 @@ const mixOf = d => {
 
 H(`★ THE GAME BOOTED · ${Date.now() - t0}ms · ${G.NPCS.length} NPCs`);
 {
-  ok(enemies.length > 2500, `${enemies.length} overworld enemies standing`);
-  ok(roster.length === 2000, `★★★ ${roster.length} roster bodies · ten districts × 200, exactly`);
+  // ★ the threshold moved DOWN on purpose at v0.97.4: 296 legacy bodies were
+  //   retired and mori trimmed by 15 a district to bring every district inside
+  //   the 200-250 range. Fewer enemies, better distributed, is the result.
+  ok(enemies.length > 2300, `${enemies.length} overworld enemies standing`);
+  ok(roster.length === 1850, `★★★ ${roster.length} roster bodies · ten districts × 185, exactly`);
 }
 
-H('★★★ EVERY AUTHORED ROW SUMS TO 200 · the table checks itself');
+H('★★★ EVERY AUTHORED ROW SUMS TO THE CORE · the table checks itself');
 {
   for (const d of DISTS){
     const total = G.rosterTotalFor(d);
@@ -70,6 +75,35 @@ H('★★★ AND THE BOOTED WORLD MATCHES IT BODY FOR BODY');
   }
   ok(drift === 0, drift ? `${drift} districts drifted from their authored roster`
      : '★★★ not one district differs from the table by a single body');
+}
+
+H('★★★★ EVERY SPECIES WEARS ITS OWN SPRITE · the check the census could not make');
+{
+  // ★★★★ 745 BODIES ONCE SHIPPED AS MORI IN ANOTHER CREATURE'S NAME.
+  //   scatterDistrictEnemies clones sprites off live NPCs — `pick(/vilerok/i)`
+  //   finds a Vilerok standing in the world and copies it. The legacy prune
+  //   originally ran BEFORE that, deleting every template, so Vilerok, Vorugath
+  //   and Morlisk all fell through to their `|| pick(mori.png)` fallback.
+  //   ★★ The census was flawless throughout: right counts, right names, right
+  //     tiers, right HP — because those are set explicitly in the clone opts.
+  //     Only the ART came from the base. A headless suite cannot look at the
+  //     screen, so the only defence is to assert the sprite path itself.
+  const WANT = {
+    mori:/mori\.png/, daemon:/daemon\.png/, satyrbeast:/satyrbeast/,
+    morlisk:/morlisk/, vilerok:/vilerok/, vorugath:/vorugath/, nymphysyl:/nymphysyl/,
+  };
+  for (const [kind, re] of Object.entries(WANT)){
+    const mine = roster.filter(n => n._roamKind === kind);
+    if (!mine.length){ ok(false, `no ${kind} placed`); continue; }
+    const srcs = [...new Set(mine.map(n => (n.src || '').split('/').pop()))];
+    ok(srcs.length === 1 && re.test(srcs[0]),
+       `  ${kind.padEnd(11)} ${String(mine.length).padStart(4)} · ${srcs.join(', ')}`);
+  }
+  // ★ and the ordering that makes it true is asserted directly, so nobody
+  //   "tidies" the prune back up above the roster
+  ok(/scatterDistrictEnemies\(\);[\s\S]{0,400}?retireLegacyEnemyScatter\(\)/.test(
+       require('fs').readFileSync('/tmp/all.js', 'utf8')),
+     '★★★ and the legacy prune runs AFTER the roster in the boot sequence');
 }
 
 H('★★★ TERRAIN DECIDES WHERE · the half of the old model that survived');
@@ -107,32 +141,96 @@ H('★★★ TERRAIN DECIDES WHERE · the half of the old model that survived');
   ok(agree / n > 0.95, `★ the classifier reproduces the stored habitat for ${agree}/${n} bodies`);
 }
 
-H('★★ THE DIFFICULTY CURVE THE CREATOR AUTHORED · reported, not enforced');
+H('★★★★ KORATHEN IS THE HARDEST DISTRICT · the point of the extra six');
 {
+  // ★★★ MEASURED OVER EVERY ENEMY STANDING IN THE DISTRICT, not just the
+  //   roster. Morvexar is T8 and sits ABOVE the roster line, so a roster-only
+  //   mean would have missed the entire effect of the Creator's instruction
+  //   ("add extra morvexar in korathen to make it the hardest district").
+  //   ★ Before the extra six, Xilnar led on 3.99 to Korathen's 4.05-without —
+  //     Nymphysyl is T7 and lives in the three dark districts while Korathen's
+  //     roster ceiling is Vorugath at T6. Twelve T8 bodies is what settles it.
   const mt = d => {
-    const r = roster.filter(x => x._roamOf === d);
-    return +(r.reduce((s, x) => s + (TIER[x._roamKind] || 1), 0) / r.length).toFixed(2);
+    const list = enemies.filter(n => G.worldDistrictAt(n.tileX, n.tileY) === d);
+    return +(list.reduce((s, n) => s + (n.tier || 1), 0) / list.length).toFixed(2);
   };
   const tiers = DISTS.map(mt);
   console.log('     ' + DISTS.map((d, i) => `${d} ${tiers[i]}`).join(' · '));
-  // ★★★ NOT ASSERTED MONOTONIC, because the dips are in the Creator's own
-  //   numbers and are his to keep. They are printed so they are visible:
-  //     · Zarvane (1.30) is softer than Malezor (1.43) — Malezor carries 15
-  //       Vileroks and 5 Vorugath and Zarvane carries neither.
-  //     · Xilnar is the hardest district in the world, above Korathen, because
-  //       Nymphysyl is T7 and lives only in the three dark districts while
-  //       Korathen's ceiling is Vorugath at T6.
-  ok(tiers[0] > 1 && tiers[9] > 4, `★ the ramp runs ${tiers[0]} → ${tiers[9]}`);
   const peak = DISTS[tiers.indexOf(Math.max(...tiers))];
-  console.log(`     ★★ hardest district by mean tier: ${peak} (${Math.max(...tiers)})`);
-  ok(true, `  — reported for the Creator's eye · not a failure, these are his numbers`);
+  ok(peak === 'korathen', `★★★★ hardest district by mean tier: ${peak} (${Math.max(...tiers)})`);
+  ok(tiers[9] > tiers[6], `★★ Korathen ${tiers[9]} now leads Xilnar ${tiers[6]}`);
+  ok(tiers[0] < 2 && tiers[9] > 4, `★ and the ramp still runs ${tiers[0]} → ${tiers[9]}`);
+  // ★ the dips are the Creator's own numbers and stay his — printed, not failed
+  console.log('     ★ Zarvane dips below Malezor by design · Malezor carries 15 Vileroks and 5 Vorugath');
 }
 
-H('★★★ ABOVE THE 200 · minibosses and nets, and no double-placement');
+H('★★★★ THE ENEMY CANON · every enemy descends from two Seer-made stems');
+{
+  // Creator, 2026-09-14: "everything comes from mori and daemon which come from
+  // corrupt humanoid and zyrex which comes from the hands of the seers who make
+  // the seers commanders spread plagues from seer HQs in each district."
+  const L = G.ENEMY_LINEAGE;
+  ok(L.source === 'seers', 'the source of every enemy is the Seers');
+  ok(L.stems.mori.from === 'corrupt humanoid' && L.stems.daemon.from === 'corrupt zyrex',
+     '★ two stems · Mori from corrupt humanoid, Daemon from corrupt Zyrex');
+  ok(L.origin === 'seer_hq' && L.vector === 'seer_commanders',
+     '★★ spread by Seer commanders out of the Seer HQ in each district');
+  ok(L.climax.at === 'bridge_of_hope' && L.climax.ushers.includes('luminary'),
+     '★★★ and the loop ends at the Bridge of Hope, ushering in Part Two and Luminary');
+  // every species in the roster must trace to a stem
+  const unstemmed = [];
+  for (const d of DISTS)
+    for (const k of Object.keys(G.DISTRICT_ENEMY_ROSTER[d]))
+      if (!G.ENEMY_STEM_OF[k]) unstemmed.push(k);
+  ok(!unstemmed.length, unstemmed.length ? `no lineage for: ${[...new Set(unstemmed)].join(', ')}`
+     : '★★ every species in the roster traces to Mori or Daemon');
+
+  // ★★★★ THE TIER CEILING IS LAW. Creator: "nothing will ever hit tier 10
+  //   though. only anciuxor (and rizer technically at level 100+)."
+  ok(G.ENEMY_TIER_MAX === 9, `enemies cap at T${G.ENEMY_TIER_MAX}`);
+  ok(G.enemyTierLegal(9) === true && G.enemyTierLegal(10) === false,
+     '★★★ T9 is legal for an enemy and T10 is not — driven, not read');
+  ok(G.TIER_TEN_BEINGS.includes('anciuxor') && G.TIER_TEN_BEINGS.includes('rizer'),
+     `★★ T10 belongs to exactly two beings: ${G.TIER_TEN_BEINGS.join(' and ')}`);
+  const overCap = enemies.filter(n => (n.tier || 1) > G.ENEMY_TIER_MAX);
+  ok(!overCap.length, overCap.length ? `${overCap.length} enemies exceed the cap`
+     : '★★★ and not one enemy standing in the world breaks it');
+  ok(G.LOWER_ZYRAXIS_TIER_BAND[1] === 9,
+     '★ Lower Zyraxis is the band reserved for T7-T9 · Part One stops short on purpose');
+}
+
+H('★★★ THE SPAWN RANGE · minibosses and nets, and no double-placement');
 {
   const per = byDistrict(G, enemies);
   console.log('     total per district · ' + DISTS.map(d => `${d} ${per[d]}`).join(' · '));
-  ok(DISTS.every(d => per[d] >= 200), 'every district is at or above the 200 line');
+
+  // ★★★★ THE RANGE IS THE INVARIANT NOW, not the roster number.
+  //   Creator: "I want each district to be about 200-250 enemy spawns... just
+  //   keep the 200-250 range in tact." So this is the assertion that has to
+  //   survive every future species he sends — the authored core can move, the
+  //   range may not.
+  const [LO, HI] = G.DISTRICT_SPAWN_RANGE;
+  const out = DISTS.filter(d => per[d] < LO || per[d] > HI);
+  ok(!out.length, out.length ? `outside ${LO}-${HI}: ${out.map(d => `${d}:${per[d]}`).join(' ')}`
+     : `★★★ all ten districts inside ${LO}-${HI} `
+       + `(${Math.min(...DISTS.map(d => per[d]))}-${Math.max(...DISTS.map(d => per[d]))})`);
+  const headroom = HI - Math.max(...DISTS.map(d => per[d]));
+  ok(headroom >= 5, `★★ ${headroom} spawns of headroom before the ceiling — room for the next species`);
+
+  // ★★★ THE LEGACY SCATTER IS GONE. 296 hand-placed bodies from before the
+  //   roster existed were sitting underneath it and counted twice; Malezor
+  //   booted at 384 against an authored 180 Mori.
+  const legacy = enemies.filter(n => !n._roamOf && !n._scanobot
+    && !/^(morvexar|penumbra|nymphysyl)_/.test(n.id || '')
+    && !/tower_|seer|verdant_creeper|satyrbeast_p/i.test(n.id || '')
+    && /^(mori|vilerok|morlisk|daemon|vorugath)[_0-9]/.test(n.id || ''));
+  ok(legacy.length === 0, legacy.length ? `${legacy.length} legacy bodies survived the prune`
+     : '★★ not one pre-roster body left standing');
+  // ★ and the kill counters the prune could have broken are better off
+  const vk = enemies.filter(n => n._vilerok).length;
+  const vg = enemies.filter(n => n._vorugath).length;
+  ok(vk > 100 && vg > 100, `★★★ Kelthor's Purge still has ${vk} Vileroks and the Vorugath `
+     + `counter ${vg} — the roster clones inherit both flags, verified by counting`);
 
   // ★★★ NYMPHYSYL MOVED FROM HER NET TO THE ROSTER. If both placed her,
   //   Netharion's authored 50 would boot as ~56 and the table would be a lie.
@@ -145,9 +243,9 @@ H('★★★ ABOVE THE 200 · minibosses and nets, and no double-placement');
 
   // ★ MORVEXAR · ruled ADD, so the original 6/4/2 stands and three join it
   const morv = G.NPCS.filter(n => n && /^morvexar_/.test(n.id || ''));
-  ok(morv.length === 24, `★★ morvexar ${morv.length} · korathen 6 · baelgor 4 · zarvane 2 `
-     + '+ netharion 4 · vorashil 4 · xilnar 4');
-  for (const [d, n] of [['korathen',6],['baelgor',4],['zarvane',2],['netharion',4],['vorashil',4],['xilnar',4]]){
+  ok(morv.length === 30, `★★ morvexar ${morv.length} · korathen 12 (doubled to make it the `
+     + 'hardest district) · baelgor 4 · zarvane 2 · netharion 4 · vorashil 4 · xilnar 4');
+  for (const [d, n] of [['korathen',12],['baelgor',4],['zarvane',2],['netharion',4],['vorashil',4],['xilnar',4]]){
     const got = morv.filter(m => G.worldDistrictAt(m.tileX, m.tileY) === d).length;
     ok(got === n, `  ${d} ${got}`);
   }

@@ -73,7 +73,9 @@ def body_height(alpha, r, c, box, frac=0.26):
     return int(ys.max() - ys.min() + 1) if len(ys) else 0
 
 def measure(name):
-    path = f'assets/2D sprites/zyrex/attacks/attack_{name}.png'
+    # ★ accepts a bare species name (zyrex attack sheet) OR a path, so the same
+    #   measurer serves enemy banks without a second copy of the CC logic.
+    path = name if name.endswith('.png') else f'assets/2D sprites/zyrex/attacks/attack_{name}.png'
     alpha = np.array(Image.open(path).convert('RGBA'))[..., 3]
     own = owner_map(alpha)
     H, W = alpha.shape
@@ -115,7 +117,8 @@ def measure(name):
 
 for name in sys.argv[1:]:
     alpha, table, trims = measure(name)
-    print(f'\n// ── {name} ' + '─' * 40)
+    import os
+    print(f'\n// ── {os.path.basename(name)[:-4] if name.endswith(".png") else name} ' + '─' * 34)
     for row in table:
         print('      [' + ','.join(f'[{v[0]:4d},{v[1]:4d},{v[2]:4d},{v[3]:4d}]' for v in row) + '],')
     bodies = [body_height(alpha, r, 0, table[r][0]) for r in range(4)]
@@ -125,4 +128,6 @@ for name in sys.argv[1:]:
         print('   ★ trimmed off a neighbour\'s art:')
         for r, c, lost, total in trims:
             print(f'       r{r}c{c}  gave up {lost} px ({100*lost/total:.1f}% of its own)')
-    json.dump(table, open(f'/tmp/{name}_tbl.json', 'w'))
+    import os
+    key = os.path.basename(name)[:-4] if name.endswith('.png') else name
+    json.dump(table, open(f'/tmp/{key}_tbl.json', 'w'))

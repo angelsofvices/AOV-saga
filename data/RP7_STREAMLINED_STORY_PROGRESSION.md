@@ -267,8 +267,7 @@ Kept **separate from ordinary district progression.**
 |---|---|---|---|
 | **Sapphire** | **S1** | Intellect | first major resonance · Rizer's analytical/scientific nature |
 | **Ruby** | **S2** | Instinct / Rage | the emergency return to Malezor · parents kidnapped · Rakoron senses it |
-| **Pearl** | **S3** | Balance | Rizer's third major Gem resonance · **story/gameplay condition deliberately NOT yet established** |
-| — | **Luminary Form** | — | **separate from the S1/S2/S3 Gem structure** · natural Lv100 **+** Anciuxor bond |
+| **Pearl** | **S3 · LUMINARY FORM** | Balance | ★ **RULED 2026-09-13 — S3 and Luminary are ONE form.** Natural Lv100, as shipped. Story condition beyond that deliberately not yet established. |
 
 > ### ★★★ THE LAW UNDER ALL OF IT
 > **No Gem is inherently stronger than another.** A Gem possesses its natural
@@ -368,7 +367,7 @@ Full evidence, with quotes from both sides, in
 |---|---|---|---|
 | **R1** | Sapphire/S1 unlocks in **Malezor** from Rizer's own affinity | *"★ The S1 → S2 order is **locked**… S1 · Azurel (Vorashil)"* — and it leaves Vorashil with only Orryx I | **UNAPPLIED** |
 | **R2** | Ruby/S2 at the parents' abduction | — | ★ **RULED 2026-09-13 · SEE §E1** |
-| **R3** | **Luminary Form ≠ S3**; Luminary needs Lv100 **+** Anciuxor | S3 **is** Luminary in shipped canon and shipped art — `idle-luminary.png` live since v0.96.40, 22 sheets commissioned as the S3 set | **UNAPPLIED** |
+| **R3** | Luminary vs S3 | — | ★ **RULED 2026-09-13 · SEE §E5** |
 | **R4** | Part One finale moves **Korathen → Bridge of Hope**; Chiefs fought a third time | the shipped gate opens the Bridge on `xenoxilDefeated` — fighting him *on* it is circular; also retires the *"Throne Remains Empty"* ending | **UNAPPLIED** |
 | **R5** | Anciuxor's availability | — | ★ **RULED 2026-09-13 · SEE §E3** |
 | **R6** | Oatheus's summons **explained in Act IV** | — | ★ **RULED 2026-09-13 · SEE §E4** |
@@ -459,3 +458,31 @@ the district order, the §21.4 narrowing, the §21.5 use of Rakoron, the
 no-Xenoxil-at-Xilnar rule with its six grunts, the Chief rematches, the
 Oatheus-vacancy logic, "Upper Zyraxis" as a name, and the Lower Zyraxis hook that
 sets up Zoryn exactly. Those are merged and live.
+
+
+## E5 · ★★★ Luminary IS S3
+
+> **Creator, 2026-09-13:** *"luminary is s3."*
+
+**RULED. They are one form, not two.** The split in this document's first draft
+is retired.
+
+★ **Nothing in the build had to change, because the build already agreed.** Its
+form ladder is `normal → power_upgrade → luminary` — three forms, and Luminary is
+the third. `LUMINARY_UNLOCK_LV = 100` stands. The 22 commissioned `*-luminary.png`
+sheets remain the S3 set, and `idle-luminary.png` has been live since v0.96.40.
+
+★★ **And Pearl survives the merge intact.** The Luminary art direction was
+already *"white, **pearl** and warm gold"* before this progression named Pearl as
+the third Gem — so **Pearl → S3 → Balance → Luminary Form** is one chain that the
+shipped art was describing all along. That is the part of the new doc worth
+keeping: the *gem* was the missing label, not a missing form.
+
+> ### ★ ONE THING LEFT OPEN, DELIBERATELY
+> The retired split carried a requirement — *"natural Lv100 **+** Anciuxor
+> bond"*. With Luminary and S3 merged, that requirement no longer has a separate
+> form to attach to, and adding it to S3 would gate the third form behind the
+> entire post-game (world saved → Oatheus → all ten Gemlords → Anciuxor).
+> **The shipped Lv100 unlock is left exactly as it is.** If S3 should also
+> require the Anciuxor bond, that is a one-line change and a deliberate one —
+> say so and it is done. It is not being inferred here.

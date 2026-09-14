@@ -128,6 +128,25 @@ H('★★★ RULED 2026-09-13 · THE ENDGAME LADDER');
      `the law: Lv${LAWS.anciuxorRequires.level} + ${LAWS.anciuxorRequires.gemlords} Gemlords`);
 }
 
+H('★★★ LUMINARY IS S3 · one form, not two');
+{
+  // Creator 2026-09-13: "luminary is s3." The build already agreed — this
+  // asserts nobody re-splits them, because the split cost 22 commissioned
+  // sheets their meaning for about an hour.
+  ok(LAWS.forms && LAWS.forms.s3 === 'luminary',
+     `★★★ the law says S3 IS luminary (s1 ${LAWS.forms.s1} · s2 ${LAWS.forms.s2} · s3 ${LAWS.forms.s3})`);
+  ok(LAWS.s3Gem === 'pearl',
+     '★ and its gem is Pearl — which the Luminary art direction ("white, pearl and warm gold") already said');
+  // the shipped ladder must have exactly three forms, ending in luminary
+  const m = src.match(/const order = \['normal', 'power_upgrade'\];[\s\S]{0,200}?order\.push\('luminary'\)/);
+  ok(!!m, 'the form ladder is normal → power_upgrade → luminary');
+  ok(/const LUMINARY_UNLOCK_LV = 100;/.test(src),
+     '★ unlocked at Lv100, exactly as shipped — the merge changed no gameplay');
+  // and there must be no FOURTH form pretending to be S3
+  ok(!/order\.push\('s3'\)|rizerForm.*'s3'/.test(src),
+     '★★ and there is no separate "s3" form — that would orphan every *-luminary sheet');
+}
+
 H('★★ AND THE GATE IS ACTUALLY WIRED, not just written down');
 {
   ok(/function allTenGemlords\(\)/.test(src), 'allTenGemlords() exists');
@@ -169,7 +188,7 @@ H('★★★ NOTHING STILL CONTESTED HAS BEEN BUILT');
      '★ nor s1 — its source is contested too (R1)');
   const doc = fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/'
             + 'data/RULING_NEEDED_STORY_PROGRESSION_2026-09-13.md', 'utf8');
-  for (const r of ['R1','R3','R4','R7','R8'])
+  for (const r of ['R1','R4','R7','R8'])
     ok(doc.includes(r + ' ·'), `  ${r} has an entry with both sides quoted`);
 }
 

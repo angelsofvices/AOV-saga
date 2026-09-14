@@ -36,6 +36,11 @@ exploring. His curiosity leads to his first major supernatural development:
 **SAPPHIRE RESONANCE → S1** — Sapphire responds to Rizer's natural affinity for
 intellect.
 
+> ★★★ **Ruled 2026-09-13 (§E6): he is LEARNING S1 here, not gaining it.** The
+> blue-gem affinity is **innate and pre-game** — it is *why he can use astral
+> energy at all*. He **perfects** it at Vorashil. Malezor is the first stretch of
+> a ladder, not the start of the power.
+
 The abnormalities provide the first reason to leave Malezor.
 
 ---
@@ -48,7 +53,8 @@ relationships and begins investigating abnormal Zyrex/Astralite activity.
 Rakoron's presence and cave introduce the deeper history of the Gemlords
 **without explaining everything immediately**.
 
-- **Unlocks:** Zyrex catching/bonding · Experiment Table · Sapphire / S1
+- **Unlocks:** Zyrex catching/bonding · Experiment Table
+- **Learning:** S1 (innate affinity · perfected later at Vorashil)
 - **Next lead:** Zarvane
 
 ### II · ZARVANE — *Fight*
@@ -99,6 +105,10 @@ operational. Evidence points toward another Chief using Vorashil.
 
 ### VI · VORASHIL — *Expose Orryx*
 Rizer pursues Seer activity through the **Sky Roads**.
+
+★★★ **AND THIS IS WHERE S1 IS PERFECTED.** Rizer finds the **Sapphire Sword**
+and his **full S1 skill tree opens**. Azurel does not hand a boy a power — he
+finishes one the boy already had.
 
 **ORRYX — FIRST BATTLE.** Rizer defeats him. Having beaten both Chiefs he
 reasonably believes he is closing in on whoever commands them. The trail points
@@ -265,8 +275,8 @@ Kept **separate from ordinary district progression.**
 
 | resonance | form | meaning | condition |
 |---|---|---|---|
-| **Sapphire** | **S1** | Intellect | first major resonance · Rizer's analytical/scientific nature |
-| **Ruby** | **S2** | Instinct / Rage | the emergency return to Malezor · parents kidnapped · Rakoron senses it |
+| **Sapphire** | **S1** | Intellect | **innate** — see §E6. Learned before the game; **perfected at Vorashil** |
+| **Ruby** | **S2** | Instinct / Rage | **learned** in the Baelgor arc when the parents are taken; **perfected by the endgame** |
 | **Pearl** | **S3 · LUMINARY FORM** | Balance | ★ **RULED 2026-09-13 — S3 and Luminary are ONE form.** Natural Lv100, as shipped. Story condition beyond that deliberately not yet established. |
 
 > ### ★★★ THE LAW UNDER ALL OF IT
@@ -365,13 +375,13 @@ Full evidence, with quotes from both sides, in
 
 | # | the move | collides with | status |
 |---|---|---|---|
-| **R1** | Sapphire/S1 unlocks in **Malezor** from Rizer's own affinity | *"★ The S1 → S2 order is **locked**… S1 · Azurel (Vorashil)"* — and it leaves Vorashil with only Orryx I | **UNAPPLIED** |
+| **R1** | where S1 comes from | — | ★ **RULED 2026-09-13 · SEE §E6 — the conflict dissolved** |
 | **R2** | Ruby/S2 at the parents' abduction | — | ★ **RULED 2026-09-13 · SEE §E1** |
 | **R3** | Luminary vs S3 | — | ★ **RULED 2026-09-13 · SEE §E5** |
 | **R4** | Part One finale moves **Korathen → Bridge of Hope**; Chiefs fought a third time | the shipped gate opens the Bridge on `xenoxilDefeated` — fighting him *on* it is circular; also retires the *"Throne Remains Empty"* ending | **UNAPPLIED** |
 | **R5** | Anciuxor's availability | — | ★ **RULED 2026-09-13 · SEE §E3** |
 | **R6** | Oatheus's summons **explained in Act IV** | — | ★ **RULED 2026-09-13 · SEE §E4** |
-| **R7** | Lower Zyraxis is a **world below** | canon geography is **south** of Baelgor/Xilnar — a bridge, not a descent | **UNAPPLIED** |
+| **R7** | what Lower Zyraxis *is* | — | ★ **RULED 2026-09-13 · SEE §E7 — the conflict dissolved** |
 | **R8** | the Malezor kidnapping scene, **without Kelthor** | Creator: *"…up until **his death when the seers invade malezor and they kidnap your parents**"* | **UNAPPLIED** |
 
 ---
@@ -486,3 +496,86 @@ keeping: the *gem* was the missing label, not a missing form.
 > **The shipped Lv100 unlock is left exactly as it is.** If S3 should also
 > require the Anciuxor bond, that is a one-line change and a deliberate one —
 > say so and it is done. It is not being inferred here.
+
+## E6 · ★★★ EVERY FORM IS LEARNED, THEN PERFECTED
+
+> **Creator, 2026-09-13:** *"his natural blue gem affinity. the reason why he can
+> use astral energy. has to even before the game starts BUT he perfects it in
+> vorashil when he finds the sapphire sword and his full s1 skill tree opens. so
+> at the beginning of game he is learning s1, by vorashil he has it down pact. by
+> baeglor he learns s2, by endgame he has it down pact, after endgame he learn
+> s3, by end game part 3 he has it down pact to face zoryn at the pit of no
+> return."*
+
+**RULED — and it does not pick a winner, it reveals that both sides were
+describing different halves of the same thing.**
+
+★★★ **A form has two moments, not one.** It is **LEARNED**, and later it is
+**PERFECTED**. Every apparent contradiction in the S1 question came from two
+documents each naming one of them and assuming it was the whole event.
+
+| form | LEARNED | PERFECTED |
+|---|---|---|
+| **S1 · Sapphire** | ★ **before the game starts** — his natural blue-gem affinity, which is *why he can use astral energy at all*. Malezor is him **learning** it. | **Vorashil** — he finds the **Sapphire Sword**, and his **full S1 skill tree opens** |
+| **S2 · Ruby** | **Baelgor arc** — the parents are taken, the rage answers | **the endgame** |
+| **S3 · Pearl · Luminary** | **after the endgame** | **end of Part 3** — *"to face Zoryn at the Pit of No Return"* |
+
+### ★★ What this rescues
+
+- **Vorashil keeps its story function.** I flagged that moving S1 to Malezor
+  would leave Vorashil holding only Orryx I and make Azurel a Gemlord with no
+  purpose. It does not: **Vorashil is where S1 is PERFECTED**, and the Sapphire
+  Tearsword is the instrument. Azurel's role is intact, and it is a better role —
+  he does not hand a boy a power, he finishes one the boy already had.
+- **"S1 · Azurel (Vorashil)" was never wrong.** Nor was "Sapphire responds to
+  Rizer's natural affinity." The first describes the perfection, the second the
+  affinity. **No retcon, in either direction.**
+- ★★★ **And it repairs the S2 cost I flagged in §E1.** I recorded that Rakoron's
+  *twice-deferred* grant and Xenoxil's Tier VIII justification were built on S2
+  arriving late. Under this model they survive untouched: **S2 is LEARNED at
+  Baelgor and PERFECTED at the endgame**, so Rakoron's arrival can be the
+  perfection, and the Tier VIII fight is still met by a perfected S2. The
+  deferral is not retired — it moves from *granting* to *finishing*.
+
+### ★ The shape it gives the whole saga
+
+> **Learning a form is a story beat. Perfecting it is a boss.**
+
+Rizer is always one stage behind the thing he is about to face, and the game
+closes each gap exactly when he needs it closed. Part 3 ends with the last gap
+closing against Zoryn.
+
+> ### ★ ONE SMALL THING TO CONFIRM
+> The quote puts the Zoryn confrontation at the **Pit of No Return, end of
+> Part 3**. Current memory records Zoryn as the **Part 2** final boss. That may
+> be a renumber, or "Part 3" may mean the third act of Part 2 — **not assumed
+> either way.** Everything else in E6 is applied.
+
+## E7 · ★★★ THE BRIDGE IS THE BOUNDARY
+
+> **Creator, 2026-09-13:** *"lower zyraxis is just everything under BOH. upper
+> zyraxis is the 10 districts."*
+
+**RULED — and like §E6, this dissolves the conflict rather than settling it.**
+
+- **UPPER ZYRAXIS** = the **ten districts**. That is the whole of Part One's map,
+  and the name is new, uncontested, and now precise.
+- **LOWER ZYRAXIS** = **everything under the Bridge of Hope.**
+
+★★ **"Below" and "south" were never in conflict — they were measured from
+different things.** Canon said the Bridge runs *south* of Baelgor/Xilnar into the
+southern lands; the progression said the Seers *descend* into a world *below*.
+Both are true, because **"lower" is relative to the Bridge, not to a stratum.**
+Everything on the far side of it is Lower Zyraxis. No second world stacked
+underneath the first, and no retcon of the compass.
+
+★★★ **And it makes the Bridge of Hope load-bearing in exactly the way canon
+already had it.** It was described as *"the line between the political and the
+cosmic"* and *"a ceremonial corridor into the Part 2 southern lands."* It is now
+literally the border between the two halves of the planet — which is why
+crossing it ends Part One, and why the Seers fleeing across it is a
+**map-defining** retreat rather than just an escape.
+
+★ Note this leaves **§R4 untouched and slightly sharper**: if the Bridge is the
+boundary, whether the final battle happens **on** it is still the open question,
+and the shipped `xenoxilDefeated` gate still has to be reconciled either way.

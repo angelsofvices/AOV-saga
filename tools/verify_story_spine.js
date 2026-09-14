@@ -28,6 +28,8 @@ function grab(decl, end){
 const ctx = vm.createContext({ console });
 vm.runInContext(grab('const RP7_STORY_SPINE = [', '\n];'), ctx);
 vm.runInContext(grab('const RP7_STORY_LAWS = {', '\n};'), ctx);
+vm.runInContext(grab('const RP7_FORM_LADDER = {', '\n};'), ctx);
+vm.runInContext(grab('const ZYRAXIS_HALVES = {', '};'), ctx);
 vm.runInContext(grab('const ZYRAXIS_DISTRICTS = [', '\n];'), ctx);
 const SPINE = vm.runInContext('RP7_STORY_SPINE', ctx);
 const LAWS  = vm.runInContext('RP7_STORY_LAWS', ctx);
@@ -147,6 +149,31 @@ H('★★★ LUMINARY IS S3 · one form, not two');
      '★★ and there is no separate "s3" form — that would orphan every *-luminary sheet');
 }
 
+H('★★★ A FORM IS LEARNED, THEN PERFECTED');
+{
+  const L = vm.runInContext('RP7_FORM_LADDER', ctx);
+  const H2 = vm.runInContext('ZYRAXIS_HALVES', ctx);
+  // ★ The S1 question looked like a contradiction for a day because two docs
+  //   each named one of the two moments. Both are now on the record.
+  ok(/innate/.test(L.s1.learned), `S1 is LEARNED ${L.s1.learned}`);
+  ok(L.s1.perfected === 'vorashil', `★★★ and PERFECTED at ${L.s1.perfected} — ${L.s1.via}`);
+  const vor = SPINE.find(s => s.at === 'vorashil');
+  ok((vor.perfects || []).includes('s1'),
+     '★★ so Vorashil keeps its turn — it is not left holding only Orryx I');
+  ok((vor.unlocks || []).includes('sapphire_sword'), '  and the Sapphire Sword is its unlock');
+  const mal = SPINE.find(s => s.at === 'malezor' && s.n === 1);
+  ok((mal.learning || []).includes('s1') && !(mal.unlocks || []).includes('s1'),
+     '★ Malezor LEARNS S1 and does not grant it');
+  ok(L.s2.learned.includes('baelgor') && L.s2.perfected === 'endgame',
+     `S2 learned ${L.s2.learned} · perfected ${L.s2.perfected}`);
+  ok(L.s3.form === 'luminary' && L.s3.gem === 'pearl',
+     `★ S3 is Pearl/Balance and its form is ${L.s3.form}`);
+  // ★★★ THE BRIDGE IS THE BOUNDARY · "below" and "south" were never in conflict
+  ok(H2.boundary === 'bridge_of_hope',
+     `★★★ Lower Zyraxis is "${H2.lower}" — lower is relative to the BRIDGE, not a stratum`);
+  ok(/ten districts/.test(H2.upper), `and Upper Zyraxis is ${H2.upper}`);
+}
+
 H('★★ AND THE GATE IS ACTUALLY WIRED, not just written down');
 {
   ok(/function allTenGemlords\(\)/.test(src), 'allTenGemlords() exists');
@@ -188,7 +215,7 @@ H('★★★ NOTHING STILL CONTESTED HAS BEEN BUILT');
      '★ nor s1 — its source is contested too (R1)');
   const doc = fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/'
             + 'data/RULING_NEEDED_STORY_PROGRESSION_2026-09-13.md', 'utf8');
-  for (const r of ['R1','R4','R7','R8'])
+  for (const r of ['R4','R8'])
     ok(doc.includes(r + ' ·'), `  ${r} has an entry with both sides quoted`);
 }
 

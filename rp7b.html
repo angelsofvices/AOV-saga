@@ -9965,11 +9965,29 @@ const CREEPER_CELL = 16;             // tile size of a density bucket
 // ★★ v0.95.818 · DAEMON WALK · measured by COMPONENT OWNERSHIP, half-up cell
 // grid, overflow kept (it is the daemon's own art crossing the seam by ≤5px
 // into the neighbour's transparent margin — never into neighbour art).
+// ★★★★ v0.97.8 · RE-MEASURED · col 1 was drawing a sliver of col 0.
+//
+//   Creator: "make sure the daemon frames have no clipping or cell bleed"
+//
+// ★★★ THE BLEED WAS REAL AND IT WAS ONE COLUMN. The Daemon is drawn off-centre
+//   in col 0 — its component runs to absolute x=354, 41px PAST its own cell
+//   line. That overhang is legal and owned (a component may cross a cell; the
+//   CC canon exists for exactly this). What was not legal is that col 1's
+//   rectangle began at absolute x=344, ten pixels INSIDE col 0's creature — so
+//   every frame-2 draw carried a strip of frame 1's shoulder along its left
+//   edge. Rows 0, 2 and 3 all did it; row 2 was the worst at 23px.
+//   ★★ "A component may overhang its cell; a RECTANGLE may not contain a
+//     neighbour's art." The old table had the first half right and the second
+//     half wrong.
+//
+// ★ Measured by tools/measure_attack_boxes.py, which assigns every pixel to the
+//   frame that OWNS it and then trims any edge strip that is mostly somebody
+//   else's. The col-0 boxes are unchanged — their overhang was always correct.
 const DAEMON_WALK_BBOXES = [
-  [[154,18,201,240],[31,18,287,249],[91,21,180,242],[33,21,202,246]],
-  [[144,34,204,239],[98,34,203,238],[64,34,183,238],[16,34,205,238]],
-  [[145,39,206,239],[14,41,304,238],[84,41,181,237],[16,41,202,237]],
-  [[131,46,215,248],[21,46,274,249],[61,46,207,249],[25,47,195,248]],
+  [[ 154,  18, 201, 240],[ 123,  18, 196, 249],[  92,  21, 180, 242],[  34,  21, 202, 246]],
+  [[ 144,  35, 204, 239],[  99,  35, 203, 238],[  65,  35, 183, 238],[  17,  35, 205, 238]],
+  [[ 145,  40, 206, 239],[ 122,  42, 197, 238],[  85,  42, 181, 237],[  17,  42, 202, 237]],
+  [[ 131,  47, 215, 248],[  99,  47, 197, 249],[  62,  47, 207, 249],[  26,  48, 195, 248]],
 ];
 // ★★ v0.95.821 · DAEMON SPRINT · Creator: "daemon sprint animation. scale
 // same size as walking. they sprint when they see you across 8 tiles."
@@ -14852,6 +14870,10 @@ const MORI_BBOXES = [
       // v0.95.488 · Morlisk level scales with district band
       level: (s.y < 305 ? 50 : s.x >= 320 ? 62 : 50),   // Zarvane/Andrannor 50 · Veridan cliffs 62
       _morlisk: true,
+      // ★ v0.97.8 · skip fly col 2 · it is drawn at half the zoom of its
+      //   neighbours (torso 92px against 175-195px) and made the Morlisk pulse
+      //   2.2x every flap. See the _bankCols note in drawNPC.
+      _bankCols: { fly: [0, 1, 3] },
       _vSheets: {
         idle:  { img: null,     bboxes: MORLISK_IDLE_BBOXES  },
         fly:   { img: flyImg,   bboxes: MORLISK_FLY_BBOXES   },
@@ -27230,6 +27252,19 @@ const ROAM_HP   = { mori: 125, daemon: 250, morlisk: 350, vilerok: 500,
                     satyrbeast: 300, vorugath: 1000, nymphysyl: 1200,
                     scanobot: 125, penumbra: 800 };
 const ROAM_HP_FLAT = new Set(['scanobot']);
+// ★★★ v0.97.8 · PER-SPECIES DRAW SCALE · "make them the same size as mori"
+//
+//   drawNPC scales a creature so its TALLEST col-0 bbox is two tiles. Mori's
+//   tallest col-0 pose happens to be DOWN (265px), so a Mori facing you is
+//   exactly two tiles. The Daemon's tallest is UP (248px) while its DOWN is
+//   240px — so the pose you actually spend the game looking at drew at
+//   240/248 = 1.93 tiles, a little under a Mori's 2.00.
+// ★★ Comparing max-to-max compares two DIFFERENT POSES. 1.035 lines the two
+//   DOWN frames up to within half a percent, which is what "the same size as
+//   mori" means when you are standing in front of one.
+// ★ Deliberately NOT 1.10 — rendered side by side that overshoots and the
+//   Daemon becomes visibly the taller creature, which is a different bug.
+const ROAM_SCALE_MUL = { daemon: 1.035 };
 // ★ a clonable template for a species that lives only as an ART table.
 //   Returns the same shape buildNewEnemyNet pushes, minus the placement — so
 //   both paths draw one creature, not two that drift.
@@ -27364,6 +27399,7 @@ function scatterDistrictEnemies(){
           //   rogue. Setting isEnemy:true here would make the survey fleet
           //   hostile from minute one and skip the event entirely.
           isEnemy: kind !== 'scanobot',
+          ...(ROAM_SCALE_MUL[kind] ? { scaleMul: ROAM_SCALE_MUL[kind] } : {}),
           level: T.moriLv,
           tier: H.tier || ROAM_TIER[kind] || 1,
           hpMax: hp, hp,
@@ -27467,6 +27503,7 @@ function _respawnOneEnemy(dist, kind){
       mode: kind === 'mori' ? 'wander' : 'drainer',
       isEnemy: true, level: T.moriLv, tier: H.tier || ROAM_TIER[kind] || 1,
       hpMax: hp, hp,
+      ...(ROAM_SCALE_MUL[kind] ? { scaleMul: ROAM_SCALE_MUL[kind] } : {}),
       _astralOnly: kind === 'nymphysyl',
       _roamOf: dist, _roamKind: kind, _roamHab: hab, _respawned: true,
     }));
@@ -40898,7 +40935,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.7' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.8' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -61196,7 +61233,7 @@ function drawNPC(n){
     const _p = (performance.now() - n._atkStart) / (n._atkUntil - n._atkStart);
     _attackCol = Math.min(useCols - 1, Math.max(0, Math.floor(_p * useCols)));
   }
-  const col     = _attackCol >= 0            ? _attackCol
+  let col       = _attackCol >= 0            ? _attackCol
                 // ★ v0.95.823 · attackCycleMs · OPT-IN column walk for the
                 // generic attack bank.  Without it a non-moving striker holds
                 // idleFrame — the daemon would freeze on col 0 and the slash
@@ -61208,6 +61245,31 @@ function drawNPC(n){
                 : n.moving                ? (n.animFrame % n.cols)
                 : n.idleCycleMs            ? Math.floor(performance.now() / n.idleCycleMs) % useCols
                                           : ((n.idleFrame || 0) % n.cols);
+  // ★★★★ v0.97.8 · A BANK MAY OMIT A FRAME.
+  //
+  //   Creator: "make sure morlisks stays same size when they fly. rn they
+  //   shrinks on flight."
+  //
+  // ★★★ MEASURED, AND IT IS THE ART. Across every row of morlisk-fly the
+  //   creature's TORSO runs 195 / 175 / 92 / 180 px — the third frame is drawn
+  //   at roughly HALF the zoom of its neighbours. drawH = bh x scale, so it
+  //   renders at half size and the Morlisk pulses 2.2x every flap. The idle
+  //   sheet, for comparison, varies 1.06-1.43x.
+  //   ★★ No scale rule fixes that gracefully: normalising the outlier UP by
+  //     2.3x would draw a blurry giant with a 313px-wide wingspan. The frame is
+  //     simply off-model.
+  //
+  // ★ So the cycle SKIPS it. Three good frames instead of four, pulse 2.2x →
+  //   1.11x, no art regenerated and nothing else touched. `_bankCols` is opt-in
+  //   per bank, so every other creature keeps its shipped timing exactly.
+  //   ★★ Flagged for the Creator: re-shooting morlisk-fly col 2 at the same
+  //     zoom as its neighbours restores the fourth frame, and deleting one line
+  //     below brings it back.
+  if (n._bankCols && n._activeSheetKey && n._bankCols[n._activeSheetKey]){
+    const _map = n._bankCols[n._activeSheetKey];
+    const _i = n.moving ? (n.animFrame || 0) : Math.floor(performance.now() / 220);
+    col = _map[((_i % _map.length) + _map.length) % _map.length];
+  }
   const [bx, by, bw, bh] = bank[row][col];
   const sx = col * useCW + bx;
   const sy = row * useCH + by;
@@ -61524,6 +61586,53 @@ function tickNPC(n, dt){
 // This is deterministic instead: a grunt either HOLDS (idle, facing his posted
 // direction) or PACES a fixed line, out and back, forever.  Same seed, same
 // path, every visit.  `patrol` is [dx, dy, length]; absent, he stands.
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.97.8 · THE ZIG-ZAG · why every chaser staircased toward you
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   Creator, 2026-09-14: "make sure seer grunts run straight line, not the zig
+//   zag line they currently do. crepts have that same zig zag run too. idk why
+//   though."
+//
+// ★★★★ THEY SHARE IT BECAUSE THEY SHARE THE CODE. Seer Grunts and Crepts are
+//   both `mode: 'drainer'`, and the chase step chose its axis GREEDILY, every
+//   single step:
+//
+//       if (|dx| >= |dy|) go horizontal; else go vertical;
+//
+//   Approach a target diagonally and each step shortens the longer axis by one,
+//   which makes the OTHER axis longer — so the test flips on the very next
+//   step, and the next, and the next. right, down, right, down. That is a
+//   perfect staircase, and because the sprite's FACING follows the step, the
+//   creature also flips which way it is looking twice a second. The path was
+//   optimal and the animation was a seizure.
+//
+// ★★ THE FIX IS AXIS COMMITMENT, not a new pathfinder. Pick the longer axis,
+//   then STAY on it until that axis is exhausted or the way is blocked. The
+//   result is an L: a straight run, one turn, another straight run. Same step
+//   count, same arrival, and it reads as something hunting you rather than
+//   something vibrating at you.
+//
+// ★ Cleared the moment a chase ends, so the next one re-decides from scratch.
+function _chaseDirFor(n, dxp, dyp, blockedTest){
+  const ax = Math.abs(dxp), ay = Math.abs(dyp);
+  let axis = n._chaseAxis;
+  // ★ re-decide when we have no commitment, when the committed axis is spent,
+  //   or when the committed axis is walled off
+  const spent = (axis === 'x' && ax === 0) || (axis === 'y' && ay === 0);
+  if (!axis || spent) axis = (ax >= ay) ? 'x' : 'y';
+  let dir = axis === 'x' ? (dxp > 0 ? 'right' : 'left')
+                         : (dyp > 0 ? 'down'  : 'up');
+  if (blockedTest && blockedTest(dir)){
+    // committed axis is blocked · switch, and commit to the NEW one
+    axis = (axis === 'x') ? 'y' : 'x';
+    dir  = axis === 'x' ? (dxp > 0 ? 'right' : 'left')
+                        : (dyp > 0 ? 'down'  : 'up');
+  }
+  n._chaseAxis = axis;
+  return dir;
+}
+
 function seerPatrolStep(n){
   n.moving = false;
   if (!n._patrol){                       // a holder · idle, facing his post
@@ -61675,6 +61784,8 @@ function seerPatrolStep(n){
     // the AI is doing can never disagree: walking means patrolling, running
     // means you have been seen.
     n._chasing = (manh <= detectR);
+    // ★ a finished chase forgets its axis · the next one re-decides fresh
+    if (!n._chasing && manh > DAEMON_PROWL_R) n._chaseAxis = null;
     // ★★ v0.95.823 · THE PROWL · Creator: "make sure the walk cycle is
     // logic. hunting. preying."  A daemon that flips from aimless wander to
     // full sprint the frame you cross one line reads as a switch, not a
@@ -61684,9 +61795,12 @@ function seerPatrolStep(n){
     // 8 and it sprints; reach 1 and the claws come out.  The ladder:
     //   >16 wander · 9-16 prowl · <=8 sprint · 1 strike.
     if (isDaemon && manh > detectR && manh <= DAEMON_PROWL_R){
-      let pdir;
-      if (Math.abs(dxp) >= Math.abs(dyp)) pdir = dxp > 0 ? 'right' : 'left';
-      else                                pdir = dyp > 0 ? 'down'  : 'up';
+      // ★ v0.97.8 · the prowl had the identical greedy pick · same staircase,
+      //   just slower. A stalking predator that wobbles is not stalking.
+      const pdir = _chaseDirFor(n, dxp, dyp, d => {
+        const t = _DIR_VEC[d];
+        return !t || !walkable(n.tileX + t.dx, n.tileY + t.dy);
+      });
       const pv = _DIR_VEC[pdir];
       if (stepNPCTo(n, n.tileX + pv.dx, n.tileY + pv.dy, pdir)){
         n.moveCd = 340 + Math.random() * 160;   // stalking gait · unhurried, inevitable
@@ -61699,23 +61813,19 @@ function seerPatrolStep(n){
     if (manh > detectR){
       // wander step (bounded by wanderRadius if defined) — same code path as default
     } else {
-      // Chase step · prefer larger axis · try alt axis if blocked
-      let dir;
-      if (Math.abs(dxp) >= Math.abs(dyp)) dir = dxp > 0 ? 'right' : 'left';
-      else                                dir = dyp > 0 ? 'down'  : 'up';
+      // ★★★★ v0.97.8 · Chase step · COMMIT to an axis, do not re-pick each step.
+      //   The old line re-tested |dx| >= |dy| every step, which flips on a
+      //   diagonal approach and produced the staircase the Creator could see.
+      const dir = _chaseDirFor(n, dxp, dyp, d => {
+        const t = _DIR_VEC[d];
+        return !t || !walkable(n.tileX + t.dx, n.tileY + t.dy);
+      });
       const v = _DIR_VEC[dir];
       if (stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
         n.moveCd = stepCd;
       } else {
-        const altDir = (dir === 'left' || dir === 'right')
-          ? (dyp > 0 ? 'down' : 'up')
-          : (dxp > 0 ? 'right' : 'left');
-        const av = _DIR_VEC[altDir];
-        if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, altDir)){
-          n.moveCd = stepCd;
-        } else {
-          n.dir = dir; n.moving = false; n.moveCd = idleCd;
-        }
+        // ★ both axes refused · face the target and wait rather than jitter
+        n.dir = dir; n.moving = false; n.moveCd = idleCd;
       }
       return;
     }

@@ -24,7 +24,7 @@ window.MALEZOR_MOUNTAIN_PARTS = {
       "width": 384,
       "height": 133,
       "x": 0,
-      "y": 188,
+      "y": 187,
       "order": 0,
       "visible": true,
       "anchor": "top-left-of-sourceBounds"

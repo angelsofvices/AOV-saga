@@ -91,4 +91,10 @@ ok(/data-dir="\$\{dir\}"/.test(HTML)&&/toParty/.test(HTML),'rows carry a directi
 ok(/saveGame\(\); \} catch\(_\)\{\} switchDockTab\('zyrex'\)/.test(HTML),
    'a successful move SAVES and repaints — storage that vanishes on reload is not storage');
 
-console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(f ? 1 : 0);

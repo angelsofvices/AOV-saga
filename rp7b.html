@@ -59004,12 +59004,48 @@ function topUpDistrictCollectibles(){
   let cleared = 0, moved = 0;
   const propOn = (x, y) => WORLD_PROPS.find(q =>
     q && (q.footprint || []).some(([dx,dy]) => q.tileX+dx === x && q.tileY+dy === y));
+  // ★★★★ v0.97.9 · A RELOCATED COLLECTIBLE KEEPS ITS DISTRICT.
+  //
+  //   COLLECTIBLE_TARGET is PER DISTRICT — 40 fae / 10 life / 15 astralite each,
+  //   and the top-up pass fills each district up to it. So a stone that drifts
+  //   across a district line costs the world its arithmetic twice over: the
+  //   district it left drops to 9 and gets topped back to 10, and the district
+  //   it joined keeps 11. The world gains one collectible out of nowhere and
+  //   neither district is wrong on its own.
+  //
+  // ★★★ THIS IS A HAZARD I CLOSED, NOT A BUG I OBSERVED — and the distinction
+  //   is worth writing down because I got it wrong first. I added this while
+  //   chasing a 101-against-100 life-stone count, assuming a stone had drifted
+  //   across the Malezor line. It had not: two hand-placed stones had landed on
+  //   different TILES because the enemy redistribution shifted the seeded
+  //   scatter, and Malezor simply started with 11. The count did not move when
+  //   this shipped.
+  //   ★★ It stays because the hazard is real and cheap to close: the old
+  //     freeNear searched six tiles in every direction and asked only "is this
+  //     tile free" — a question that cannot notice it has left the county. The
+  //     day a collectible does drift, both districts' arithmetic breaks and
+  //     neither looks wrong on its own.
+  //
+  // ★ Same-district tiles are preferred at every radius, so the collectible
+  //   barely moves. The cross-district fallback stays, because a stone stranded
+  //   with no legal tile at home is worse than a stone one district over — but
+  //   it now WARNS instead of drifting silently.
   const freeNear = (x, y) => {
+    const home = (typeof worldDistrictAt === 'function') ? worldDistrictAt(x, y) : null;
+    let fallback = null;
     for (let r = 1; r <= 6; r++)
       for (let dy = -r; dy <= r; dy++)
-        for (let dx = -r; dx <= r; dx++)
-          if (free(x+dx, y+dy)) return [x+dx, y+dy];
-    return null;
+        for (let dx = -r; dx <= r; dx++){
+          const nx = x + dx, ny = y + dy;
+          if (!free(nx, ny)) continue;
+          if (home == null || worldDistrictAt(nx, ny) === home) return [nx, ny];
+          if (!fallback) fallback = [nx, ny];
+        }
+    if (fallback){
+      console.warn(`[rp7b] ★ collectible at ${x},${y} found no free tile inside `
+        + `${home} — relocated across the district line to ${fallback}`);
+    }
+    return fallback;
   };
   const unbury = (obj, gx, gy, place) => {
     if (!_propBlocked.has(gx+','+gy)) return;

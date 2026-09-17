@@ -101,4 +101,10 @@ ok(C.walkable(C.INTERIOR_RESEARCH_LAB.spawn.x, C.INTERIOR_RESEARCH_LAB.spawn.y),
    'the lab entrance tile is still walkable — no softlock');
 
 console.log(fails ? `\n❌ ${fails} failure(s)` : '\n✅ ALL CHECKS PASS');
-process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+process.exit(fails ? 1 : 0);

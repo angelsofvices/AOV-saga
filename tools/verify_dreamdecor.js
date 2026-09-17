@@ -112,4 +112,10 @@ for(let y=0;y<C.DREAMLAND_SIZE;y++)for(let x=0;x<C.DREAMLAND_SIZE;x++){
 console.log(`     ${deep} bright plateau tiles · ${thin} dark rim tiles`);
 ok(thin>0&&deep>0,'both textures actually get screen time — neither threshold swallows the other');
 
-console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(f ? 1 : 0);

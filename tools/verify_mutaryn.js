@@ -82,4 +82,10 @@ ok(/CITRINELORD OF ANDRANNOR/.test(C.POSTERS.mutaryn.title),
    `titled "${C.POSTERS.mutaryn.title}" — Citrinelord, and the art is gold-citrine`);
 ok(C.POSTERS.mutaryn.src.includes('gemlords/mutaryn.png'),'points at the gemlords/ folder like the other nine');
 
-console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(f ? 1 : 0);

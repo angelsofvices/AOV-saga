@@ -202,4 +202,9 @@ console.log('\n★★ v0.95.864 · THE BEAM PAYS · the eleventh kill site');
 }
 
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
-process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE.
+//   This suite printed "❌ N failure(s)" and then exited 0, so every
+//   automated sweep recorded it as PASSING. 34 suites did it; 13 of them
+//   were red at the time it was found, including ones reporting real
+//   defects. A suite that cannot fail its runner is a suite nobody reads.
+process.exit(f ? 1 : 0);;

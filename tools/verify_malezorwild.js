@@ -274,4 +274,10 @@ const ex=Object.entries(C.SPECIES).filter(([,v])=>v.poolExempt).map(([k])=>k);
 console.log(`     ${Object.keys(C.SPECIES).length} species checked · ${broke} rule breaks · ${ex.length} declared exempt (${ex.join(', ')})\n`);
 ok(broke===0,'★ ZERO unexplained breaks of tier x333 / canon types / MOVE_DEX resolution');
 
-console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(f ? 1 : 0);

@@ -25,22 +25,43 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.732 · SCANOBOTS · Thardin's survey net · 5 per district · passive until
 // the flip, then hostile everywhere, dropping scrap + a blue gem into a tiered
 // shop at Scrapjaw.
-try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={SCANOBOT_MIN_SPACING,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,scanobotTalk,PICKUP_KINDS,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
+try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={scatterDistrictEnemies,DISTRICT_ENEMY_ROSTER,retireLegacyEnemyScatter,SCANOBOT_MIN_SPACING,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,scanobotTalk,PICKUP_KINDS,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C,P=C.player;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
 
 console.log('\n1 · ★★ THE COUNT COMES FROM THE CONSTANT NOW\n');
-C.buildScanobotNet();
+// ★★★★ 2026-09-17 · SCANOBOTS ARE PLACED BY THE ROSTER NOW, not by their own
+//   net. v0.97.5 folded them into DISTRICT_ENEMY_ROSTER so they are counted
+//   against the Creator's 110-160 per-district spawn range; buildScanobotNet
+//   kept only the state machine. This suite still called the net and then
+//   asserted against an empty world.
+//   ★★ And it PASSED one of those assertions while doing it — "exactly 30 in
+//     every district · {}" is an every() over no districts, which is vacuously
+//     true. A test that cannot find its subject passes for the same reason a
+//     broken one does; that is twice in this file's history now.
+C.scatterDistrictEnemies();
+C.retireLegacyEnemyScatter();
+C.applyScanobotState();
 const bots=C.NPCS.filter(n=>n&&n._scanobot);
 // ★ v0.95.810 · the offsets table is GONE — placement is a seeded scatter
 //   across the whole district now.  What replaces the offsets check is the
 //   spacing law below, which is the property the Creator actually asked for.
-const want = C.SCANOBOT_PER_DIST * C.TOWER_NETWORK.length;
-ok(bots.length===want,`${bots.length} Scanobots seeded · ${C.SCANOBOT_PER_DIST} x ${C.TOWER_NETWORK.length} districts`);
+// ★ the count is the ROSTER's now · it differs per district (Thardin carries
+//   the most, because Thardin is where the tech was taken), so a single
+//   constant cannot express it any more.
+const wantPer = {};
+for (const T of C.TOWER_NETWORK) wantPer[T.dist] = (C.DISTRICT_ENEMY_ROSTER[T.dist]||{}).scanobot || 0;
+const want = Object.values(wantPer).reduce((a,b)=>a+b,0);
+ok(bots.length===want,`${bots.length} Scanobots seeded · the roster asks for ${want}`);
 const per={};bots.forEach(b=>per[b._scanobot]=(per[b._scanobot]||0)+1);
 ok(Object.keys(per).length===10,`spread over ${Object.keys(per).length} districts`);
-ok(Object.values(per).every(v=>v===C.SCANOBOT_PER_DIST),`exactly ${C.SCANOBOT_PER_DIST} in every district · `+JSON.stringify(per));
+// ★★★★ THIS LINE USED TO PASS ON AN EMPTY WORLD. `every()` over no districts is
+//   vacuously true, so "exactly 30 in every district · {}" printed a green tick
+//   while nothing at all had been placed. It now checks each district against
+//   the number the ROSTER asks for, and fails loudly if a district is missing.
+ok(Object.keys(per).length === 10 && C.TOWER_NETWORK.every(T => per[T.dist] === wantPer[T.dist]),
+   'every district holds exactly what the roster asks · ' + JSON.stringify(per));
 ok(C.buildScanobotNet()===0,'re-running the seeder adds none (idempotent · boot AND load both call it)');
 
 console.log('\n2 · ★★ EVERY DRONE STANDS SOMEWHERE LEGAL\n');
@@ -239,4 +260,10 @@ console.log('\n★★ 9 · JAILBREAKING SCANOBOTS\n');
   ok(/player\._dadPortalkeyWarned = true/.test(src),'and fires exactly once');
 }
 
-console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(f ? 1 : 0);

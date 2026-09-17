@@ -63,4 +63,10 @@ console.log('    modifiers 4-7 dispatch BEFORE face buttons 0-3');
 console.log('    so L2 (btn 6 -> shift) is live when X (btn 0) is handled');
 ok(src.includes('i >= 4 && i <= 7'),'two-pass dispatch present in source');
 console.log(f?('\n❌ '+f+' failure(s)'):'\n✅ ALL CHECKS PASS');
-process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+process.exit(f ? 1 : 0);

@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_notebook · v0.95.778 · Dad's Notebook · the POI index
 try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
-  ';globalThis.__C={ATHRENOLOGY_INDEX,NPCS,ENEMY_KINDS,enemyKindOf,notebookLogKill,notebookHint,notebookStanding,_migrateNotebook,renderZycellZycube,INVENTORY_META,NOTEBOOK_SECTIONS,NOTEBOOK_SCROLLS,notebookState,notebookHas,notebookVisit,notebookComplete,notebookFindScroll,notebookScrollsFor,notebookEntries,notebookProgress,notebookNotePropInteract,renderZycellNotebook,ZYCELL_PANELS,WORLD_PROPS,DISTRICT_WHEEL,TOWER_NETWORK,SPECIES,player,game,zycellPage,worldDistrictAt,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
+  ';globalThis.__C={scatterDistrictEnemies,retireLegacyEnemyScatter,ATHRENOLOGY_INDEX,NPCS,ENEMY_KINDS,enemyKindOf,notebookLogKill,notebookHint,notebookStanding,_migrateNotebook,renderZycellZycube,INVENTORY_META,NOTEBOOK_SECTIONS,NOTEBOOK_SCROLLS,notebookState,notebookHas,notebookVisit,notebookComplete,notebookFindScroll,notebookScrollsFor,notebookEntries,notebookProgress,notebookNotePropInteract,renderZycellNotebook,ZYCELL_PANELS,WORLD_PROPS,DISTRICT_WHEEL,TOWER_NETWORK,SPECIES,player,game,zycellPage,worldDistrictAt,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)fail++;};
@@ -293,6 +293,13 @@ H('15 · ★★ THE ENEMY FIELD LOG');
   const e=C.notebookEntries('enemies');
   ok(e.length===C.ENEMY_KINDS.length,`${e.length} enemy TYPES tracked, not individuals`);
   // ★ types, not instances · there are hundreds of Mori and they are ONE entry
+  // ★★★ 2026-09-17 · SEED THE WORLD THE WAY THE GAME DOES before counting it.
+  //   The Mori that fill Zyraxis are placed by scatterDistrictEnemies at boot,
+  //   not written into the NPCS literal — v0.97.4 retired the hand-placed
+  //   scatter that used to sit underneath the roster. Counting the literal
+  //   alone found 84 and reported the world nearly empty of its commonest
+  //   enemy.
+  try { C.scatterDistrictEnemies(); C.retireLegacyEnemyScatter(); } catch(_){}
   const mori=C.NPCS.filter(n=>C.enemyKindOf(n)==='mori').length;
   ok(mori>100,`${mori} Mori stand in the world`);
   ok(e.filter(x=>x.name==='MORI').length===1,'and they collapse to a single MORI entry');

@@ -121,4 +121,9 @@ const up = (i0 - 1 + list.length) % list.length;
 ok(list[up] === 'settings', `one press UP from home now lands on ${list[up]} (was ${list.length - 1} presses down)`);
 
 console.log(fails ? `\n❌ ${fails} failure(s)` : '\n✅ ALL CHECKS PASS');
-process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE.
+//   This suite printed "❌ N failure(s)" and then exited 0, so every
+//   automated sweep recorded it as PASSING. 34 suites did it; 13 of them
+//   were red at the time it was found, including ones reporting real
+//   defects. A suite that cannot fail its runner is a suite nobody reads.
+process.exit(fails ? 1 : 0);;

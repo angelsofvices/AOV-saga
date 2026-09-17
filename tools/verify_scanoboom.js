@@ -30,12 +30,13 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 let TICKS = [];
 global.setTimeout = (fn) => { TICKS.push(fn); return 0; };
 const flush = () => { const t = TICKS; TICKS = []; t.forEach(fn => { try { fn(); } catch(e){ console.log('   tick threw:', e.message); } }); };
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+';globalThis.__C={NPCS,player,game,buildScanobotNet,applyScanobotState,detonateScanobot,scanobotBlastBlock,scanobotInBlast,scanobotDrop,SCANOBOT_BLAST,BOOM_BLASTS,BOOM,BOOM_DEBRIS,drawBoomBlasts,GEM_ENTITIES,startMoriDeath};')();}
+try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+';globalThis.__C={scatterDistrictEnemies,retireLegacyEnemyScatter,NPCS,player,game,buildScanobotNet,applyScanobotState,detonateScanobot,scanobotBlastBlock,scanobotInBlast,scanobotDrop,SCANOBOT_BLAST,BOOM_BLASTS,BOOM,BOOM_DEBRIS,drawBoomBlasts,GEM_ENTITIES,startMoriDeath};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C,P=C.player,G=C.game;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
 TICKS=[];                       // drop anything boot queued
-C.buildScanobotNet();P.scanobotsRogue=true;C.applyScanobotState();
+// ★ v0.97.5 · the ROSTER places Scanobots · buildScanobotNet is state only
+C.scatterDistrictEnemies();C.retireLegacyEnemyScatter();P.scanobotsRogue=true;C.applyScanobotState();
 G.scene='overworld';P.baseAtk=25;P.hpMax=100;
 const bots=C.NPCS.filter(n=>n&&n._scanobot);
 
@@ -123,4 +124,10 @@ delete n6._scanoBoomed;P.x=n6.tileX+9;P.y=n6.tileY+9;
 C.detonateScanobot(n6);flush();
 ok(host.hp<40||host._dying,`a Mori inside the block wears it too (hp ${host.hp}, dying ${!!host._dying})`);
 
-console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(f ? 1 : 0);

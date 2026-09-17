@@ -97,4 +97,10 @@ ok(newTot < 15000, `district sweep (${newTot}) stays under the ~10k Malezor main
 ok(Math.ceil(300 / C.rizerKillXP({level:1,tier:1},'punch')) <= 20, 'Lv 1->2 is under 20 trash kills');
 
 console.log(fails ? `\n❌ ${fails} failure(s)` : '\n✅ ALL CHECKS PASS');
-process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+process.exit(fails ? 1 : 0);

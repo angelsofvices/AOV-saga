@@ -59,4 +59,10 @@ console.log('\n  THROW SAFETY');
 console.log('    S1 range '+V.BOOM.RANGE_S1+' vs radius '+V.BOOM.RADIUS+' -> '+(V.BOOM.RANGE_S1>V.BOOM.RADIUS?'✅ clear by '+(V.BOOM.RANGE_S1-V.BOOM.RADIUS)+' tile':'⚠ SELF-HIT at max range'));
 console.log('    S2 range '+V.BOOM.RANGE_S2+' vs radius '+V.BOOM.RADIUS+' -> '+(V.BOOM.RANGE_S2>V.BOOM.RADIUS?'✅ clear by '+(V.BOOM.RANGE_S2-V.BOOM.RADIUS)+' tiles':'⚠ SELF-HIT'));
 console.log(f?('\n❌ '+f+' failure(s)'):'\n✅ ALL CHECKS PASS');
-process.exit(0);
+// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
+//   count and then exited 0, so every sweep recorded it as PASSING.
+//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
+//     on the boot-failure path — my "already conditional?" guard saw that and
+//     skipped the file. A guard that looks for any non-zero exit cannot tell
+//     'handles failure' from 'handles one failure and swallows the rest'.
+process.exit(f ? 1 : 0);

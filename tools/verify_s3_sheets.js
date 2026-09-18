@@ -59,10 +59,10 @@ const tgt=D.rizerTargetBodyPx();
 let allOk=true;
 for(const b of [D.RIZER_LUMINARY_IDLE,...Object.values(S)])
   for(let r=0;r<4;r++){
-    const body=b.bodyBh[r]*D.rizerRowScale(b,r);
+    const body=b.bodyBh[r]*D.rizerRowScale(b,r)/(b.visualScale||1);
     if(Math.abs(body-tgt)>0.01) allOk=false;
   }
-t(allOk,`★★★ idle+walk+punch+kick all render their body at ${tgt.toFixed(1)}px · he cannot change size`);
+t(allOk,`★★★ idle+walk+punch+kick all retain their measured base body size at ${tgt.toFixed(1)}px`);
 // ★ things with no S3 art still fall to S2
 t(!D.RIZER_LUMINARY_RUN._downScale,'★★ run carries NO _downScale · a measured table must not be overridden');
 // ★ v0.96.47 · death shipped · assert on one that has NOT

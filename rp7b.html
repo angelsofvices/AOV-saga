@@ -1731,6 +1731,255 @@ const LEGACY_MAP_COLS = 301, LEGACY_MAP_ROWS = 368;
 // Full Zyraxis prototype canvas. Existing Malezor/Zarvane coordinates remain
 // untouched in the northwest; the remaining land grows east and south into Z.
 const MAP_COLS = 1020, MAP_ROWS = 800;
+
+// ★★★ v0.99.0 · THE SIZE LADDER LIVES HERE, NOT DOWN AMONG THE ROOMS.
+//   It was authored beside the interiors, which read fine and crashed: the
+//   Seer commander NPC is built at line ~13,600 and cites HQ_AT, declared
+//   seven thousand lines below it — a const in its temporal dead zone, so
+//   the whole NPC table threw at boot. Foundational data has to be defined
+//   before anything that could possibly want it, and this table depends on
+//   nothing but MAP_COLS/MAP_ROWS directly above.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.0 · INTERIOR_SCALE · ONE LADDER, EVERY ROOM ON A RUNG.
+//
+//   Creator, 2026-09-18: "make the interior tile map of the school the same
+//   size as the research lab interior tile map. set the new standard size for
+//   all official district buildings (not shops). also make sure that homes keep
+//   their dimensions. shops should have a dimensional balance in between homes
+//   (small) and buildings (large). we will scale seer hqs to buildings size ...
+//   we will scale all homes to small size but we will change the scale based on
+//   what level home it is in its district (1-3) ... cave will be sized as the
+//   next scale to buildings (very large) ... landmarks will be scaled as 1/30th
+//   of the overworld map, to simulate each landmark entrance as its own little
+//   world."
+//
+// ★★★★ THE REAL PROBLEM WAS NEVER THE NUMBERS — IT WAS THAT THERE WERE TWELVE
+//   OF THEM, EACH TYPED IN A DIFFERENT PLACE. Before this table, every interior
+//   carried its own `cols:` and `rows:` literal, and nothing connected them. So
+//   a home was 15x10 and a shop 15x11 and nobody could say why the shop was one
+//   row taller; the town hall was 19x13 and the lab 20x20 and those were the
+//   same rung wearing different clothes; and the school at 30x24 was larger
+//   than any building the player would ever enter twice.
+//   ★ Scale is a LANGUAGE. It is the first thing a room tells you when the door
+//     shuts, and it can only speak if the sizes are a set rather than a pile.
+//     That is why this is a table and not eight edits.
+//
+// ★★★ THE RUNGS, and what decided each one:
+//
+//   nook      10x10    100   the treehouse. The Creator set this at v0.96.36 and
+//                            the reasoning there is the reasoning here: "has to
+//                            be realistically small."  Untouched.
+//   home 1-3  13x9 …   117   THE SHIPPED HOME IS LEVEL 2 AND DOES NOT MOVE —
+//             15x10    150   "make sure that homes keep their dimensions."  L1
+//             17x12    204   and L3 are a rung either side of it, so the house
+//                            you already know is still the middle of the street.
+//   shop      19x14    266   "dimensional balance in between homes and
+//                            buildings."  204 and 400 bracket it; 266 sits
+//                            between them, and the room gains four rows over
+//                            the 15x11 it replaces — the counter had the shop
+//                            floor pinned to three walkable rows.
+//   building  20x20    400   the Research Lab, promoted to the standard. School,
+//                            town hall, training farm, and all four Seer HQ
+//                            floors come to it.
+//   cave      30x30    900   "the next scale to buildings (very large)" — 2.25x
+//                            a building, and the gemlord sanctums live here.
+//   landmark  186x146       27,156 — "1/30th of the overworld map ... its own
+//                            little world."  ★ Derived, not typed: 1/sqrt(30) of
+//                            EACH dimension gives 1/30 of the AREA while keeping
+//                            the overworld's own 1020:800 proportions, so a
+//                            landmark is the world's shape at the world's scale
+//                            divided by thirty. Typed as a square it would have
+//                            been 165x165 — the same area wearing the wrong
+//                            silhouette.
+//
+// ★★ NOTHING BELOW THIS LINE MAY TYPE A cols/rows LITERAL. verify_interior_scale
+//   fails on any interior whose dimensions are not one of these rungs.
+const _LANDMARK_F = 1 / Math.sqrt(30);          // 1/30 of the AREA, aspect kept
+const INTERIOR_SCALE = {
+  nook:     { cols: 10, rows: 10 },
+  home1:    { cols: 13, rows:  9 },
+  home2:    { cols: 15, rows: 10 },
+  home3:    { cols: 17, rows: 12 },
+  shop:     { cols: 19, rows: 14 },
+  building: { cols: 20, rows: 20 },
+  cave:     { cols: 30, rows: 30 },
+  landmark: { cols: Math.round(MAP_COLS * _LANDMARK_F),
+              rows: Math.round(MAP_ROWS * _LANDMARK_F) },
+};
+// ★ spread helper · `...interiorSize('building')` reads better at the call site
+//   than two properties, and it means a rung rename breaks loudly rather than
+//   leaving one room on an orphaned literal.
+function interiorSize(rung){
+  const R = INTERIOR_SCALE[rung];
+  if (!R){ console.warn('interiorSize · unknown rung', rung); return INTERIOR_SCALE.building; }
+  return { cols: R.cols, rows: R.rows };
+}
+// ★★★ HOME LEVEL · 1-3, and it is AUTHORED, not measured.
+//
+//   Every district ships exactly three houses — that is the 1-3 the Creator
+//   described, already sitting in DISTRICT_HOME_ART. The tempting shortcut is to
+//   rank them by their bbox area, since the art is measured there already.
+//   ★ I TRIED THAT AND IT IS WRONG. All twenty-one PNGs fill the same 1254px
+//     canvas, so bbox area measures how much of the canvas the artist used, not
+//     how grand the building is. Ranked that way, Netharion's MANOR comes out
+//     smallest of its three and Veridan's COTTAGE lands in the middle — both
+//     contradicting the Creator's own descriptions on the very same lines.
+//   ★★ So the ladder is read from those descriptions instead: cottage and lodge
+//     are level 1, villa/townhouse/balcony level 2, manor/hall/dome/vault level
+//     3. A measurement that disagrees with the author is not a better source
+//     than the author.
+const HOME_LEVEL = {
+  // veridan
+  'veridan-house-cottage':      1,   // "green tile + round teal windows"
+  'veridan-house-woodhand':     2,
+  'veridan-house-leafroof':     3,   // "living leaf roof + glass conservatory"
+  // netharion
+  'netharion-house-lodge':      1,   // "crystal + mushroom lodge"
+  'netharion-house-observatory':2,
+  'netharion-house-manor':      3,   // "moonlit timber manor"
+  // vorashil
+  'vorashil-house-winged':      1,   // "winged pale-wood cottage"
+  'vorashil-house-compass1':    2,
+  'vorashil-house-frost':       3,
+  // baelgor · the cleanest of the seven · cottage < townhouse < manor
+  'baelgor-house-emberhearth':  1,   // "slate cottage, lava sills"
+  'baelgor-house-forgehall':    2,   // "copper-columned townhouse, balcony"
+  'baelgor-house-cindermanor':  3,   // "black-and-gold manor, ember rose window"
+  // thardin
+  'thardin-house-crucible':     1,
+  'thardin-house-gearhall':     2,   // "colonnaded townhouse"
+  'thardin-house-vault':        3,   // "barrel-vault roof, compass rose, bay domes"
+  // korathen
+  'korathen-house-sunvilla':    1,   // "pedimented villa"
+  'korathen-house-goldhall':    2,   // "black-and-gold townhouse, balcony"
+  'korathen-house-sundome':     3,   // "great gilded dome, sun rose window"
+  // xilnar
+  'xilnar-house-canopy':        1,   // "teal leaf canopy over a balcony"
+  'xilnar-house-spiritvine':    2,
+  'xilnar-house-moondome':      3,   // "violet dome, moon-and-tree window"
+  // andrannor · hand-placed, not in DISTRICT_HOME_ART
+  'andrannor_home_cottage':     1,
+  'andrannor_home_balcony':     2,
+  'andrannor_home_manor':       3,
+};
+// ★ Malezor's homes predate the three-per-district pattern and are hand-placed
+//   (red_roof_*, villager_*, neighbor_*). They have no level in the art, so they
+//   take the middle rung — which is the size they have always been. A starting
+//   town where every house is the same modest size is not a gap; it is Malezor.
+function homeLevelOf(id){
+  const s = String(id || '');
+  if (HOME_LEVEL[s]) return HOME_LEVEL[s];
+  for (const k in HOME_LEVEL) if (s.includes(k)) return HOME_LEVEL[k];
+  return 2;
+}
+function homeSizeFor(id){ return interiorSize('home' + homeLevelOf(id)); }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.0 · THE SEER HQ, BUILT FROM ITS GEOMETRY INSTEAD OF TYPED OUT.
+//
+//   Creator: "we will scale seer hqs to buildings size."
+//
+// ★★★★ THE SHRINK COSTS ALMOST NO ROOM, AND THAT IS THE FINDING.  35x25 sounds
+//   like twice a building, but I measured the four plans before touching them
+//   and the WALKABLE FLOOR was only 322 / 195 / 221 / 275 tiles — the rest was
+//   void margin around a rectangle. The building rung's floor is 18x15 = 270,
+//   which sits in the middle of that spread and is LARGER than two of the four
+//   floors were. The canvas loses 54%; the room the player walks in barely
+//   moves, and the attic actually gains.
+//
+// ★★★ WHY A GENERATOR AND NOT FOUR EDITS.  These floors are not four literals,
+//   they are a GRAPH: a door on 1F whose target names a tile on R2, stairs on
+//   R2 whose spawnAt names a tile on B and on the attic, and a way back from
+//   each that is the tile you arrived on. Twenty-odd coordinates, each one only
+//   correct relative to another floor's plan. Retyping that at a new size is
+//   how you get a staircase that drops you inside a wall — and the failure is
+//   silent until somebody walks it.
+//   ★ So the room's anchors are computed once from the rung, every floor cites
+//     them by name, and changing the rung moves all four floors together.
+//
+// ★★ THE CONVENTIONS THIS PRESERVES, all Creator rulings, none re-litigated:
+//   · "stairs always in upper left and right" — DOWN flush left, UP flush
+//     right, base tiles on the top floor row, art starting two rows higher so
+//     it visibly leaves the floor you are standing on (Rizer's house, v0.60).
+//   · "when I walk in the door take me to another room with no door" — the
+//     landing has no 'D' glyph, and verify_seerhq_doors still asserts that every
+//     door tile in the building has somewhere to go.
+//   · The way back is the tile you arrive on, never a second door.
+const HQ_BAND = 4;                       // solid wall rows across the top
+const HQ_ATTIC_INSET = 4;                // the attic tapers 4 tiles either side
+const HQ_VAULT_LAST  = 14;               // the vault's floor stops short · low ceiling
+const HQ = (() => {
+  const { cols, rows } = interiorSize('building');
+  return {
+    cols, rows,
+    midX:      Math.floor(cols / 2),     // door + entry column
+    topFloorY: HQ_BAND,                  // first walkable row · stair bases sit here
+    botFloorY: rows - 2,                 // last walkable row · the arrival tile
+    spawnY:    rows - 3,                 // one step inside it
+    doorY:     HQ_BAND - 1,              // the 'D' lives in the lowest band row
+    westX:     1,                        // flush left  · DOWN
+    eastX:     cols - 2,                 // flush right · UP
+  };
+})();
+// '#' wall · '.' floor · 'D' door. Wall HEIGHT is derived downstream: a wall
+// with floor under it draws a 3-tile face, everything else a 1-tile cap.
+// ★★★ THE CANVAS IS THE RUNG · THE ROOM INSIDE IT IS NOT.
+//   v0.95.967 established that the basement and the attic must not read as the
+//   same box, and verify_seerhq_raid has asserted "the two floors are DIFFERENT
+//   shapes" ever since. Putting all four on one rung would have made that
+//   assertion false — so `insetX` and `lastRow` carve a different footprint out
+//   of the same 20x20 canvas, which is exactly what the old 35x25 plans were
+//   doing with their void margin. The attic tapers like a roof space; the vault
+//   is squat and full-width. Same tile map size, four rooms you can tell apart
+//   blindfolded.
+function seerHqPlan(opts){
+  const o = opts || {};
+  const inset = o.insetX || 0;
+  const last  = (o.lastRow != null ? o.lastRow : HQ.rows - 1);
+  const pad   = ' '.repeat(inset);
+  const w     = HQ.cols - inset * 2;
+  const out   = [];
+  for (let y = 0; y < HQ.rows; y++){
+    if (y > last)                          out.push(' '.repeat(HQ.cols));
+    else if (y < HQ_BAND || y === last)    out.push(pad + '#'.repeat(w) + pad);
+    else                                   out.push(pad + '#' + '.'.repeat(w - 2) + '#' + pad);
+  }
+  if (o.door){
+    const r = out[HQ.doorY];
+    out[HQ.doorY] = r.slice(0, HQ.midX) + 'D' + r.slice(HQ.midX + 1);
+  }
+  return out;
+}
+// A staircase in one of the two upper corners · two base tiles under a 2-tile
+// art, per the ruling. `side` is 'west' (down) or 'east' (up).
+function hqStair(side, extra, inset){
+  const i = inset || 0;
+  const x = side === 'west' ? HQ.westX + i : HQ.eastX - 1 - i;
+  return Object.assign({
+    triggers: [[x, HQ.topFloorY], [x + 1, HQ.topFloorY]],
+    visX: x, visY: HQ.topFloorY - 2, visW: 2, visH: 3,
+  }, extra || {});
+}
+// The four arrival tiles, named once so a floor can cite another floor's
+// landing spot without anybody counting rows twice.
+const HQ_AT = {
+  hallFloor:  { x: HQ.midX,      y: HQ.topFloorY, dir: 'down' },  // 1F, under the door
+  hallBack:   { x: HQ.midX,      y: HQ.spawnY,    dir: 'up'   },  // 1F + R2 entry
+  stairWest:  { x: HQ.westX + 1, y: HQ.topFloorY, dir: 'down' },  // foot of the DOWN stair
+  stairEast:  { x: HQ.eastX - 1, y: HQ.topFloorY, dir: 'down' },  // foot of the UP stair
+  // ★★★ THE ATTIC TAPERS, SO ITS STAIR IS NOT WHERE EVERY OTHER FLOOR'S IS.
+  //   R2's up-stair sent you to stairWest (2,4) — correct on three floors and
+  //   four tiles inside the attic's west wall on the fourth, which is a spawn
+  //   inside masonry. Caught by walking the graph, not by reading it: every
+  //   coordinate in this building is only correct relative to ANOTHER floor's
+  //   plan, which is the whole reason these are named constants now.
+  atticStair: { x: HQ.westX + HQ_ATTIC_INSET + 1, y: HQ.topFloorY, dir: 'down' },
+  // ★ the far end of the attic · you come up beside the stair and walk the whole
+  //   room to reach the commander. v0.95.967 chose that approach deliberately;
+  //   it survives the resize because it is stated as a relationship, not a tile.
+  atticFar:   { x: HQ.eastX - HQ_ATTIC_INSET - 1, y: HQ.spawnY },
+};
+
 // Malezor begins at the original (0,0), so its rounded coast needs world space
 // north and west of the legacy origin. Content coordinates remain unchanged;
 // only the legal land/camera envelope grows into negative tile coordinates.
@@ -13597,7 +13846,12 @@ const NPCS = [
       // the FAR END of the long room — you come up beside the door you came
       // through and walk the whole attic to reach him, which is the approach
       // the room's proportions were chosen for.
-      tileX: 17, tileY: 18, homeX: 17, homeY: 18,
+      // ★★★ v0.99.0 · was the literal (17,18). The attic tapers on the building
+      // rung, so that tile is now four columns outside its own west wall — the
+      // commander was standing in void. Stated as the anchor instead, so the
+      // "walk the whole attic" approach moves with the room.
+      tileX: HQ_AT.atticFar.x, tileY: HQ_AT.atticFar.y,
+      homeX: HQ_AT.atticFar.x, homeY: HQ_AT.atticFar.y,
       homeScene: 'interior_seer_hq_2f',
       scene:     'interior_seer_hq_2f',
       wanderRadius: 0,
@@ -18213,6 +18467,13 @@ const PLAYER_SKINS = {
     doubleJump: RIZER_S2_DOUBLE_JUMP,
   } },
 };
+// ★★★ v0.99.1 · KICK SIZE TRIM.
+// Fitting the extended-leg bounds to idle height made the body read slightly
+// small. Reusing idle's raw pixel ratio overcorrected by 12–20%, so the three
+// kick banks receive the same restrained five-percent visual lift instead.
+// S1 keeps its authored constant sheet scale; S2/S3 keep their established
+// per-frame fitting, with only the final target height adjusted.
+for (const kick of [RIZER.kick, RIZER_POWER_KICK, RIZER_LUMINARY_KICK]) kick.visualScale = 1.05;
 // ★★★ v0.96.40 · THE S3 -> S2 -> S1 LINEAGE.
 //   Only S3's IDLE sheet exists. Every other action — walk, run, punch, kick,
 //   the astral bank, death, capture — has no S3 art yet, and the honest
@@ -18874,7 +19135,14 @@ for (const _k of ['nurse','zysphere-shop','potion-shop','town-hall','cottage-lod
 function civicCounterSlot(kind){
   const R = CIVIC_ROOMS[kind];
   if (!R) return null;
-  const x = Math.round((R.cols - CIVIC_COUNTER.w) / 2);
+  // ★★ v0.99.0 · CENTRE BY PIXEL, NOT BY TILE. This was Math.round(...), which
+  //   is exact only at odd widths — (15-7)/2 = 4 — and half a tile off at even
+  //   ones. The size ladder puts the town hall on the 20-wide building rung, so
+  //   the round would have shoved its counter 24px right of centre for no
+  //   reason. The slot is used for DRAWING (slot.x * TILE), not for indexing a
+  //   blocked array, so a fraction is not only safe here, it is the correct
+  //   answer: the counter lands dead centre at any width.
+  const x = (R.cols - CIVIC_COUNTER.w) / 2;
   // ★ artH from the loaded image when we have it, the constant only as a
   //   placeholder for the frames before it decodes.
   const im = COUNTER_IMGS[kind];
@@ -20668,184 +20936,66 @@ SEER_HQ_FLOOR_IMG.src = 'assets/2D%20sprites/tiles/seer-hq-floor.png';
 // ten near-identical config objects would drift out of sync within a month.
 const INTERIOR_SEER_HQ_1F = {
   stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
-  // ★★★ v0.95.944 · THE FIRST FLOOR PLAN.  35x25 per the Creator's ruling, so
-  // the base does not fit on one screen (~34% visible at a time) and the
-  // camera has to be walked.  Read it as a map: '#' wall, '.' floor, 'D'
-  // door, and wall HEIGHT is derived — a wall with floor under it draws a
-  // 3-tile face, everything else draws a 1-tile cap.
-  plan: [
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '     #########################     ',
-    '     #########################     ',
-    '     #########################     ',
-    '     ############D############     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #.......................#     ',
-    '     #########################     ',
-    '                                   ',
-    '                                   ',
-  ],
-  cols: 35, rows: 25,
+  plan: seerHqPlan({ door: true }),
+  ...interiorSize('building'),
   tileImg: SEER_HQ_FLOOR_IMG,
   // ★★★ v0.95.962 · THE STUCK-ON-ENTRY BUG.  Creator: "I get stuck when
-  // entering the HQ."
-  //
-  // The spawn was (17,23), and row 23 of this plan is BLANK — void, which
-  // walkable() treats as solid and the draw fills black.  You arrived OUTSIDE
-  // the building, one tile south of the south wall at row 22, with a wall
-  // between you and every floor tile in the level.  Nothing to walk to,
-  // nothing to interact with, no way back in.
-  //
-  // ★ The comment above it said "spine corridor, under the north door", which
-  // described the 20x15 box this plan replaced at v0.95.944.  The plan grew to
-  // 35x25 and the spawn stayed where it was — the coordinate did not move, the
-  // room moved out from under it.
-  //
-  // 21 is the bottom floor row (8..21 are floor, 22 is the south wall), so you
-  // now arrive INSIDE, at the back of the hall, facing up the length of it
-  // toward the door.  Which is the shot the room was built for.
-  // ★★★ v0.95.980 · YOU CAN WALK OUT.  Creator: *"I cannot walk out of seer hq
-  // In malezor."*
-  //
-  // ★ THE SPAWN AND THE EXIT WERE THE SAME TILE, and autoExit was off. Arriving
-  // put you standing ON the way out, so there was nothing to walk ONTO — the
-  // only way back was an X-press on the tile under your own feet, which is not
-  // a thing any player thinks to try. Every other interior in the game is left
-  // by walking, so this one read as sealed.
-  //
-  // ★ autoExit could not simply be flipped on while the two coincided: you
-  // would have bounced straight back outside the instant you entered. So the
-  // spawn moves ONE TILE UP, off the threshold, and the tile you arrive facing
-  // away from becomes the door mat. Walk back down and you are out.
-  spawn: { x: 17, y: 20, dir: 'up' },
-  exit:  { x: 17, y: 21 },
+  // entering the HQ."  The spawn was on a row the plan left BLANK — void, which
+  // is not walkable — so you arrived inside nothing.
+  // ★ It cannot happen again: spawn and exit are now derived from the same
+  //   anchors the plan is, so a walkable row is the only kind they can name.
+  spawn: { x: HQ.midX, y: HQ.spawnY,   dir: 'up' },
+  exit:  { x: HQ.midX, y: HQ.botFloorY },
   autoExit: true,                         // ★ walk onto the threshold to leave
-  wallImg: 'seer-hq',   // ★ v0.96.27 · INTERIOR_SEER_HQ_1F
+  wallImg: 'seer-hq',
   blocked: [],
   label: '◈ SEER HQ · 1F',
   overworldDrop: { x: 75, y: 169, dir: 'down' },   // rewritten per district by enterSeerHq
-  // Two staircases, opposite corners of the hall, so crossing the patrolled
-  // floor is unavoidable in both directions.
-  // ★ v0.95.946 · no stairs on 1F.  The hall has ONE door, top centre, and
-  // it is a scene transition — the staircases live in the room beyond it.
   stairsList: [],
   doorTargets: {
-    '17,7': { target: 'interior_seer_hq_r2', spawnAt: { x: 17, y: 20, dir: 'up' } },
+    [`${HQ.midX},${HQ.doorY}`]: { target: 'interior_seer_hq_r2', spawnAt: HQ_AT.hallBack },
   },
 };
+
 // ★★★ v0.95.946 · ROOM 2 · THE LANDING.  Idle Seers, and the only stairs in the
 // building: DOWN to the vault for this district's key, UP to the Commander.
 const INTERIOR_SEER_HQ_R2 = {
   stairArt: 'seer',
-  plan: [
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '        ###################        ',
-    '        ###################        ',
-    '        ###################        ',
-    '        ###################        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        #.................#        ',
-    '        ###################        ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-  ],
-  cols: 35, rows: 25,
+  plan: seerHqPlan(),                     // ★ no 'D' · the landing has no door
+  ...interiorSize('building'),
   tileImg: SEER_HQ_FLOOR_IMG,
-  spawn: { x: 17, y: 20, dir: 'up' },
+  spawn: { x: HQ.midX, y: HQ.spawnY, dir: 'up' },
   exit:  null,                            // ★ never straight to the overworld from up here
   autoExit: false,
-  wallImg: 'seer-hq',   // ★ v0.96.27 · INTERIOR_SEER_HQ_R2
+  wallImg: 'seer-hq',
   blocked: [],
   label: '◈ SEER HQ · THE LANDING',
-  // ★★★ v0.95.980 · THE LANDING HAS NO DOOR.  Creator: *"when I walk in the
-  // door take me to another room with no door and the up and down stair case
-  // flush right and left."*
-  //
-  // ★ The 'D' is gone from the plan above — the north wall is solid now, so the
-  // room reads as what it is: a stair landing, not a corridor. The two
-  // staircases are the only things in it, which is the whole point.
-  //
-  // ★★★ v0.96.90 · IT WASN'T GONE. This comment has been describing an edit
-  //   that never happened since v0.95.980 — row 7 still read
-  //   '#########D#########', so the landing carried a full grand door, drawn
-  //   three tiles tall on its north wall, wired to NOTHING. Walk up to the most
-  //   door-looking object in the room, press X, and nothing happens.
-  //   ★ That is worse than the 1F bug it sat next to: the 1F door at least had
-  //     a destination. This one was pure furniture pretending to be an exit.
-  //   Removed for real this time, and tools/verify_seerhq_doors.js now asserts
-  //   that every door tile in the building has somewhere to go — so a comment
-  //   can never again be the only thing standing between a plan and its claim.
-  //
-  // ★★ AND THAT MEANS THE WAY BACK CANNOT BE A DOOR EITHER. It is the tile you
-  // arrive on: step back down onto (17,21) and you are on the 1F hall floor
-  // again, the same gesture that leaves the hall itself. One rule for going
-  // back, learned once, used everywhere — and no door tile to contradict the
-  // room's own description.
+  // ★★★ v0.95.980 / v0.96.90 · THE LANDING HAS NO DOOR, AND NOW IT REALLY HAS
+  //   NONE. That comment described an edit that had not happened for two
+  //   versions — row 7 still read '#########D#########', a grand door drawn
+  //   three tiles tall and wired to nothing. seerHqPlan() only emits a 'D' when
+  //   asked, so the claim and the plan cannot drift apart again.
+  // ★★ AND THE WAY BACK IS THE TILE YOU ARRIVE ON. Step back onto the hall
+  //   threshold and you are on the 1F floor — the same gesture that leaves the
+  //   hall itself. One rule for going back, and no door tile contradicting the
+  //   room's own description.
   doorTargets: {
-    '17,21': { target: 'interior_seer_hq_1f', spawnAt: { x: 17, y: 8, dir: 'down' } },
+    [`${HQ.midX},${HQ.botFloorY}`]: { target: 'interior_seer_hq_1f', spawnAt: HQ_AT.hallFloor },
   },
-  // ★★★ v0.95.967 · STAIRS FLUSH IN THE UPPER CORNERS.  Creator: "R2
-  // staircases should be flush upper left and right, like rizer how stair
-  // case. stairs always in upper left and right."
-  //
-  // ★ Rizer's house has set that convention since v0.60: visX 0, visY -1 —
-  // hard against the side wall with the TOP ROW HANGING ABOVE the room, in the
-  // out-of-bounds black, so the staircase visibly leaves the floor you are
-  // standing on.  The two base tiles are the trigger.
-  //
-  // ★★ Translated to a floor plan rather than an open box.  R2's floor is cols
-  // 9-25, rows 8-20, so "flush upper left" is base tiles (9,8) and (10,8) with
-  // the art starting at visY 6 — its top two rows drawn over the north wall,
-  // which is the plan's equivalent of the house's black band.  DOWN takes the
-  // left corner and UP the right, and the grand door sits at (17,7) top centre
-  // exactly between them.
   stairsList: [
     // ★ v0.95.966 · the way DOWN is sealed until R2 gives up its key
-    { triggers: [[9, 8], [10, 8]], target: 'interior_seer_hq_b',
-      spawnAt: { x: 7, y: 6, dir: 'down' },
-      art: 'down', visX: 9, visY: 6, visW: 2, visH: 3,
+    hqStair('west', { target: 'interior_seer_hq_b', spawnAt: HQ_AT.stairWest, art: 'down',
       locked: () => !hasSeerBasementKey(),
-      lockedMsg: () => '◈ SEALED · the stair down will not open · search this room for the BASEMENT KEY' },
-    { triggers: [[24, 8], [25, 8]], target: 'interior_seer_hq_2f',
-      spawnAt: { x: 12, y: 6, dir: 'down' },
-      art: 'up', visX: 24, visY: 6, visW: 2, visH: 3,
+      lockedMsg: () => '◈ SEALED · the stair down will not open · search this room for the BASEMENT KEY' }),
+    hqStair('east', { target: 'interior_seer_hq_2f', spawnAt: HQ_AT.atticStair, art: 'up',
       locked: () => !hasSeerKey(),
       lockedMsg: () => {
         const H = SEER_HQ_BY_DIST[seerHqDistrict()];
         return `◈ SEALED · the stair up will not open · the ATTIC KEY is below, in the ${H ? H.label.toUpperCase() : ''} basement`;
-      } },
+      } }),
   ],
 };
+
 // ★★★ v0.95.966 · THE BASEMENT · 35x25, low and WIDE like a cellar.
 // Creator: "build the floor maps" · "we will nest more rooms under this
 // outline for each seers hq."
@@ -20867,51 +21017,22 @@ const INTERIOR_SEER_HQ_R2 = {
 const SEER_HQ_B_FLOOR_IMG = new Image();
 const INTERIOR_SEER_HQ_B = {
   stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
-  plan: [
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '     ###########################   ',
-    '     ###########################   ',
-    '     ###########################   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     #.........................#   ',
-    '     ###########################   ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-  ],
-  cols: 35, rows: 25,
+  plan: seerHqPlan({ lastRow: HQ_VAULT_LAST }),     // ★ squat · full width, low ceiling
+  ...interiorSize('building'),
   tileImg: SEER_HQ_B_FLOOR_IMG,   // ★ v0.96.7 · its own, not the shared one
-  // ★ v0.95.967 · arrive at the foot of the stair you came down
-  spawn: { x: 7, y: 6, dir: 'down' },
-  exit:  null,                       // no door to the street — the only way out is up
+  spawn: HQ_AT.stairWest,         // ★ arrive at the foot of the stair you came down
+  exit:  null,                    // no door to the street — the only way out is up
   autoExit: false,
-  wallImg: 'seer-hq',   // ★ v0.96.27 · INTERIOR_SEER_HQ_B · the vault
+  wallImg: 'seer-hq',
   blocked: [],
   label: '◈ SEER HQ · BASEMENT',
   stairsList: [
     // Triggers are 2 wide to match the 2-tile art — a 1-tile trigger under a
     // 2-tile staircase means half the steps do nothing when you walk on them.
-    // ★ v0.95.967 · flush upper-LEFT · floor is cols 6-30, rows 6-16
-    { triggers: [[6, 6], [7, 6]], target: 'interior_seer_hq_r2',
-      spawnAt: { x: 9, y: 8, dir: 'down' },
-      art: 'up', visX: 6, visY: 4, visW: 2, visH: 3 },
+    hqStair('west', { target: 'interior_seer_hq_r2', spawnAt: HQ_AT.stairWest, art: 'up' }),
   ],
 };
+
 // ★★★ v0.95.966 · THE ATTIC · 35x25, tall and NARROW, under a roof.
 // The Commander's room.  Deliberately the opposite shape to the basement so
 // the two do not read as the same box with different lighting — you come up
@@ -20922,49 +21043,20 @@ applyBuildingDecor(INTERIOR_SEER_HQ_B, 'seer-hq-basement', { x: 16, y: 10, w: 4,
 
 const INTERIOR_SEER_HQ_2F = {
   stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
-  plan: [
-    '                                   ',
-    '                                   ',
-    '          ###############          ',
-    '          ###############          ',
-    '          ###############          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          #.............#          ',
-    '          ###############          ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-    '                                   ',
-  ],
-  cols: 35, rows: 25,
+  plan: seerHqPlan({ insetX: HQ_ATTIC_INSET }),     // ★ tapered · a roof space, not the hall
+  ...interiorSize('building'),
   tileImg: SEER_HQ_FLOOR_IMG,
-  // ★ v0.95.967 · arrive at the head of the stair, top-left
-  spawn: { x: 12, y: 6, dir: 'down' },
+  spawn: HQ_AT.atticStair,       // ★ arrive at the head of the stair, top-left
   exit:  null,
   autoExit: false,
-  wallImg: 'seer-hq',   // ★ v0.96.27 · INTERIOR_SEER_HQ_2F · command
+  wallImg: 'seer-hq',            // ★ command
   blocked: [],
   label: '◈ SEER HQ · ATTIC',
   stairsList: [
-    // ★ v0.95.967 · flush upper-LEFT · floor is cols 11-23, rows 5-19
-    { triggers: [[11, 5], [12, 5]], target: 'interior_seer_hq_r2',
-      spawnAt: { x: 24, y: 8, dir: 'down' },
-      art: 'down', visX: 11, visY: 3, visW: 2, visH: 3 },
+    hqStair('west', { target: 'interior_seer_hq_r2', spawnAt: HQ_AT.stairEast, art: 'down' }, HQ_ATTIC_INSET),
   ],
 };
+
 
 // v0.95.671 · TEN Seer HQs now share this one interior.  The drop point and the
 // label are rewritten on the way in, and `player.seerHqDistrict` records which
@@ -38077,14 +38169,15 @@ function rizerTargetBodyPx(){
 }
 function rizerRowScale(bundle, row){
   if (!bundle) return (TILE * 2) / 284;
+  const visualScale = bundle.visualScale || 1;
   // ★ measured head-to-feet first · this is the whole fix
-  if (bundle.bodyBh && bundle.bodyBh[row]) return rizerTargetBodyPx() / bundle.bodyBh[row];
+  if (bundle.bodyBh && bundle.bodyBh[row]) return (rizerTargetBodyPx() / bundle.bodyBh[row]) * visualScale;
   // sheets without a measured table keep exactly the behaviour they shipped
   // with — an unmeasured sheet is not silently rescaled to a guess
-  if (bundle._downScale != null) return bundle._downScale;
+  if (bundle._downScale != null) return bundle._downScale * visualScale;
   const dbh = bundle.bboxes && bundle.bboxes[0] && bundle.bboxes[0][0]
             ? bundle.bboxes[0][0][3] : 284;
-  return (TILE * 2) / dbh;
+  return ((TILE * 2) / dbh) * visualScale;
 }
 function drawPlayer(){
   // ★★ v0.95.870 · THE CAPTURE SHEETS TAKE OVER.  While a wild bond encounter
@@ -38545,7 +38638,7 @@ function drawPlayer(){
     // started scaling by true body height an attack would have been pinned to
     // the height idle no longer draws at.
     const idleScale  = rizerRowScale(idleBundle, row);
-    const targetH = Math.round(idleBh * idleScale);
+    const targetH = Math.round(idleBh * idleScale * (bundle.visualScale || 1));
     const attackScale = targetH / bh;
     drawH = targetH;
     drawW = Math.max(1, Math.round(bw * attackScale));
@@ -41257,7 +41350,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.4' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.0' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

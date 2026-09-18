@@ -1,19 +1,21 @@
 // v0.95.962 · the Seer HQ entry and its doors.
-const fs = require('fs');
+import fs from 'fs';
+import { hqFloor } from './lib/hq_floors.mjs';
 const H = fs.readFileSync('rp7b.html', 'utf8');
 let pass = 0, fail = 0;
 const t = (n, f) => { try { f(); console.log('  ok   ' + n); pass++; }
                       catch (e) { console.log('  FAIL ' + n + ' · ' + e.message); fail++; } };
 const ok = (c, m) => { if (!c) throw new Error(m); };
 
+// ★★★ v0.99.0 · was a regex over the source. The plans are generated from the
+// size ladder now, so the literal it looked for no longer exists — and a plan
+// that is computed is still a plan. Read the booted world instead.
 const cfg = (name) => {
+  const F = hqFloor(name);
   const at = H.indexOf(`const ${name} = {`);
-  const src = H.slice(at, H.indexOf('\n};', at));
-  const pm = /plan: \[([\s\S]*?)\n  \],/.exec(src);
-  const plan = pm ? [...pm[1].matchAll(/'([^']*)'/g)].map(m => m[1]) : null;
-  const g = k => { const m = new RegExp(k + ':\\s*\\{\\s*x:\\s*(\\d+),\\s*y:\\s*(\\d+)').exec(src);
-                   return m ? { x: +m[1], y: +m[2] } : null; };
-  return { src, plan, spawn: g('spawn'), exit: g('exit') };
+  return { src: H.slice(at, H.indexOf('};', at)),
+           plan: F.plan, spawn: F.spawn, exit: F.exit, cols: F.cols, rows: F.rows,
+           doorTargets: F.doorTargets, stairsList: F.stairsList, live: F.live };
 };
 // ★ v0.95.963 · with the wall layer off, '#' and 'D' are walkable floor
 const WALLS_ON = /const SEER_HQ_WALLS_ON = true/.test(H);
@@ -46,12 +48,21 @@ t('1F specifically · the reported bug', () => {
   // masonry ring; with walls off it is the void ring — checking for '#' either
   // side would pass only in one mode and silently stop meaning anything in the
   // other, which is how a test rots.
+  // ★★★ v0.99.0 · THE VOID MARGIN IS GONE, AND THAT IS THE POINT.
+  //   This scanned outward for a ' ' (or masonry) to prove the spawn sat inside
+  //   something that stops you. At 35x25 there was 54% blank canvas around the
+  //   room, so void was always the thing it found.
+  //   ★ On the building rung the plan IS the room: 20x20, wall ring at the
+  //     edges, no padding. Nothing to scan to — and the room is still bounded,
+  //     by the interior's own cols/rows rather than by a moat of nothing. So the
+  //     assertion asks the question it always meant: is the spawn enclosed?
   const row = c.plan[c.spawn.y];
-  const solid = ch => ch === ' ' || (WALLS_ON && ch === '#');
+  const solid = ch => ch === undefined || ch === ' ' || (WALLS_ON && ch === '#');
   let L = -1, R = -1;
-  for (let x = c.spawn.x; x >= 0; x--) if (solid(row[x])) { L = x; break; }
-  for (let x = c.spawn.x; x < row.length; x++) if (solid(row[x])) { R = x; break; }
-  ok(L >= 0 && R >= 0, `the spawn row has no boundary either side (L ${L}, R ${R})`);
+  for (let x = c.spawn.x; x >= -1; x--) if (solid(row[x])) { L = x; break; }
+  for (let x = c.spawn.x; x <= row.length; x++) if (solid(row[x])) { R = x; break; }
+  ok(L >= -1 && R >= 0 && R > L, `the spawn row has no boundary either side (L ${L}, R ${R})`);
+  ok(c.spawn.x > L && c.spawn.x < R, 'the spawn is not between its own two boundaries');
 });
 t('every floor tile is reachable from the spawn', () => {
   for (const n of ['INTERIOR_SEER_HQ_1F','INTERIOR_SEER_HQ_R2']){
@@ -78,7 +89,11 @@ t('the layer is one switch, and nothing was deleted to turn it off', () => {
   // targets, the art and both draw passes survive so flipping it back costs
   // nothing and re-authoring is never needed.
   ok(/const SEER_HQ_WALLS_ON = (true|false);/.test(H), 'no named switch');
-  ok(/plan: \[/.test(H), 'the floor plans were deleted');
+  // ★ v0.99.0 · was /plan: \[/ over the source. The plans are generated from
+  //   the size ladder now, so the literal is gone and the plans are not — ask
+  //   the booted objects, which is the only reading that survives a refactor.
+  for (const n of ['INTERIOR_SEER_HQ_1F','INTERIOR_SEER_HQ_R2','INTERIOR_SEER_HQ_2F','INTERIOR_SEER_HQ_B'])
+    ok(Array.isArray(cfg(n).plan) && cfg(n).plan.length > 0, `${n} has no plan`);
   ok(/doorTargets/.test(H), 'the door targets were deleted');
   ok(/SEER_DOOR_LOCKED_IMG/.test(H), 'the door art binding was deleted');
   ok(/_plan\.doors\.length/.test(H), 'the door draw pass was deleted');

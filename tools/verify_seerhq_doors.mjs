@@ -16,7 +16,9 @@
 // ★ So this suite does not check that doors exist. It checks that every door
 //   tile in the building HAS A DESTINATION, and that the destination is a real
 //   scene — the two things a comment cannot guarantee.
-const fs = require('fs'), vm = require('vm');
+import fs from 'fs';
+import vm from 'vm';   // ★ still needed below: the step-path block is DRIVEN against a synthetic door, which is the one place a fake context is the right tool
+import { hqGame } from './lib/hq_floors.mjs';
 const src = fs.readFileSync('/tmp/all.js', 'utf8');
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
@@ -32,17 +34,18 @@ function grabFn(n){ const i = src.indexOf('function ' + n + '('); if (i < 0) ret
 const FLOORS = ['INTERIOR_SEER_HQ_1F', 'INTERIOR_SEER_HQ_R2', 'INTERIOR_SEER_HQ_B', 'INTERIOR_SEER_HQ_2F'];
 const SCENES = { INTERIOR_SEER_HQ_1F:'interior_seer_hq_1f', INTERIOR_SEER_HQ_R2:'interior_seer_hq_r2',
                  INTERIOR_SEER_HQ_B:'interior_seer_hq_b',  INTERIOR_SEER_HQ_2F:'interior_seer_hq_2f' };
-const ctx = vm.createContext({ console, Map, Set, Math, Object });
-vm.runInContext([
-  // ★ every image the four floor configs reference · stubbed, since this suite
-  //   is about where doors GO, not what they look like
-  ...[...new Set([...src.matchAll(/\b(SEER_HQ_[A-Z0-9_]*IMG)\b/g)].map(m => m[1]))]
-      .map(n => `const ${n}={};`),
-  'const SEER_HQ_WALLS_ON=' + /const SEER_HQ_WALLS_ON = (\w+);/.exec(src)[1] + ';',
-  'const _planCache=new Map();',
-  ...FLOORS.map(grabObj), grabFn('floorPlan'), grabFn('planDoorAt'),
-].join('\n'), ctx);
-const R = e => vm.runInContext(e, ctx);
+// ★★★★ v0.99.0 · WAS A HAND-BUILT VM. This suite used to slice the four floor
+//   literals out of rp7b.html, stub every image they name, and eval them in a
+//   fresh vm context. That is a faithful reproduction of the objects only while
+//   they are self-contained literals — the moment v0.99.0 built them from the
+//   size ladder, the slice pulled in calls to seerHqPlan(), interiorSize() and
+//   hqStair() that the stub context had never heard of, and the suite died
+//   before its first assertion.
+//   ★ Booting the real game is both less code and more honest: floorPlan() and
+//     planDoorAt() are then the SHIPPED functions operating on the SHIPPED
+//     objects, rather than my reconstruction of both.
+const G = hqGame(['floorPlan','planDoorAt','SEER_HQ_WALLS_ON']);
+const R = expr => new Function('G', 'with (G) { return (' + expr + '); }')(G);
 
 H(`★ SEER_HQ_WALLS_ON = ${R('SEER_HQ_WALLS_ON')}`);
 console.log('      (walls off turns every "#" into floor — so a door is the only');
@@ -70,15 +73,22 @@ H('★★★ EVERY DOOR TILE HAS A DESTINATION');
 
 H('★★ THE 1F DOOR LEADS TO R2, AND R2 LEADS BACK');
 {
-  const t = R("planDoorAt(INTERIOR_SEER_HQ_1F, 17, 7)");
-  ok(!!t && t.target === 'interior_seer_hq_r2', '1F (17,7) → interior_seer_hq_r2');
-  ok(!!t.spawnAt, `and names where you land: ${JSON.stringify(t && t.spawnAt)}`);
-  ok(R("floorPlan(INTERIOR_SEER_HQ_1F).blocked.has('17,7')"), 'the door tile itself is solid');
-  ok(!R("floorPlan(INTERIOR_SEER_HQ_1F).blocked.has('17,8')"),
+  // ★★★ v0.99.0 · (17,7) and (17,21) were the 35x25 tiles. Every official
+  //   building is on one rung now, so a door's position is a RELATIONSHIP —
+  //   the hall's door is at the middle of the lowest wall-band row, and the way
+  //   back is the hall's own threshold. Cite the anchors the building is built
+  //   from and this check never needs touching again.
+  const D = { x: G.HQ.midX, y: G.HQ.doorY };
+  const t = G.planDoorAt(G.INTERIOR_SEER_HQ_1F, D.x, D.y);
+  ok(!!t && t.target === 'interior_seer_hq_r2', `1F (${D.x},${D.y}) → interior_seer_hq_r2`);
+  ok(!!(t && t.spawnAt), `and names where you land: ${JSON.stringify(t && t.spawnAt)}`);
+  ok(G.floorPlan(G.INTERIOR_SEER_HQ_1F).blocked.has(`${D.x},${D.y}`), 'the door tile itself is solid');
+  ok(!G.floorPlan(G.INTERIOR_SEER_HQ_1F).blocked.has(`${D.x},${D.y + 1}`),
      '★ and the tile you press X from is standable');
-  const b = R("planDoorAt(INTERIOR_SEER_HQ_R2, 17, 21)");
-  ok(!!b && b.target === 'interior_seer_hq_1f', 'R2 (17,21) → back to the hall');
-  ok(b.spawnAt && b.spawnAt.x === 17 && b.spawnAt.y === 8,
+  const BK = { x: G.HQ.midX, y: G.HQ.botFloorY };
+  const b = G.planDoorAt(G.INTERIOR_SEER_HQ_R2, BK.x, BK.y);
+  ok(!!b && b.target === 'interior_seer_hq_1f', `R2 (${BK.x},${BK.y}) → back to the hall`);
+  ok(b.spawnAt && b.spawnAt.x === G.HQ.midX && b.spawnAt.y === G.HQ.topFloorY,
      `★ landing you under the door at (${b.spawnAt.x},${b.spawnAt.y}), not at the far end of the hall`);
 }
 
@@ -89,7 +99,9 @@ H('★★ R2 IS A LANDING, NOT A CORRIDOR · the phantom door is gone');
   ok(north.length === 0,
      north.length ? `★ R2 still draws a grand door on its north wall at ${JSON.stringify(north)} — wired to nothing`
                   : 'no door on the north wall — the comment and the plan finally agree');
-  ok(R('INTERIOR_SEER_HQ_R2.plan')[7].indexOf('D') === -1, "row 7 carries no 'D'");
+  ok(!G.INTERIOR_SEER_HQ_R2.plan.some(r => r.includes('D')),
+     "★ no row of the landing carries a 'D' · was pinned to row 7, which stopped "
+   + 'being the wall band the moment the building changed rung');
   const stairs = R('INTERIOR_SEER_HQ_R2.stairsList || []');
   ok(stairs.length === 2, `and the landing has its two staircases (${stairs.length})`);
   const targets = stairs.map(s => s.target).sort();

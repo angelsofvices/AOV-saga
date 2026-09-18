@@ -1,5 +1,6 @@
 // v0.95.966 · the raid formula · R2 -> basement key -> basement -> attic key -> attic.
-const fs = require('fs');
+import fs from 'fs';
+import { hqFloor, hqGame } from './lib/hq_floors.mjs';
 const H = fs.readFileSync('rp7b.html', 'utf8');
 let pass = 0, fail = 0;
 const t = (n, f) => { try { f(); console.log('  ok   ' + n); pass++; }
@@ -7,11 +8,14 @@ const t = (n, f) => { try { f(); console.log('  ok   ' + n); pass++; }
 const ok = (c, m) => { if (!c) throw new Error(m); };
 const WALLS_ON = /const SEER_HQ_WALLS_ON = true/.test(H);
 const isFloor = ch => '.SCG'.includes(ch) || (!WALLS_ON && ch === '#');
+// ★★★ v0.99.0 · was a regex over the source. The plans are generated from the
+// size ladder now, so the literal is gone and the plans are not. Read the world.
 const cfg = name => {
+  const F = hqFloor(name);
   const at = H.indexOf(`const ${name} = {`);
-  const src = H.slice(at, H.indexOf('\n};', at));
-  const pm = /plan: \[([\s\S]*?)\n  \],/.exec(src);
-  return { src, plan: pm ? [...pm[1].matchAll(/'([^']*)'/g)].map(m => m[1]) : null };
+  return { src: H.slice(at, H.indexOf('};', at)),
+           plan: F.plan, spawn: F.spawn, exit: F.exit, cols: F.cols, rows: F.rows,
+           doorTargets: F.doorTargets, stairsList: F.stairsList, live: F.live };
 };
 const chests = [...(/const SEER_HQ_CHESTS = \[([\s\S]*?)\n\];/.exec(H)[1])
   // ★ whitespace-tolerant.  The table is column-aligned, so `tileY:  7` has
@@ -26,7 +30,12 @@ t('the basement and the attic are no longer open boxes', () => {
   ['INTERIOR_SEER_HQ_B','INTERIOR_SEER_HQ_2F'].forEach(n => {
     const c = cfg(n);
     ok(c.plan, `${n} has no plan`);
-    ok(c.plan.length === 25 && c.plan[0].length === 35, `${n} is ${c.plan[0].length}x${c.plan.length}, not 35x25`);
+    // ★ v0.99.0 · was a frozen 35x25. The Creator put every official building
+    //   on one rung, so the size is INTERIOR_SCALE.building — cite the ladder
+    //   rather than a literal, and the next rung change costs no edit here.
+    const B = hqGame().INTERIOR_SCALE.building;
+    ok(c.plan.length === B.rows && c.plan[0].length === B.cols,
+       `${n} is ${c.plan[0].length}x${c.plan.length}, not the building rung ${B.cols}x${B.rows}`);
     ok(!/cols: 14/.test(c.src), `${n} still declares the old 14-wide box`);
   });
 });
@@ -113,7 +122,9 @@ t('every staircase is hard against a side wall, base on the top floor row', () =
     c.plan.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === '.') pts.push([x, y]); }));
     const L = Math.min(...pts.map(p => p[0])), R = Math.max(...pts.map(p => p[0]));
     const T = Math.min(...pts.map(p => p[1]));
-    const stairs = [...c.src.matchAll(/art: '(up|down)', visX: (\d+), visY: (-?\d+), visW: (\d+), visH: (\d+)/g)];
+    // ★ v0.99.0 · the stairs are built by hqStair() now, so there is no
+    //   `visX: 9` literal to scrape. The live objects carry the same fields.
+    const stairs = c.stairsList.map(S => [null, S.art, S.visX, S.visY, S.visW, S.visH]);
     ok(stairs.length, `${n} has no staircase`);
     stairs.forEach(m => {
       const [a, vx, vy, vw, vh] = [m[1], +m[2], +m[3], +m[4], +m[5]];
@@ -149,13 +160,23 @@ t('every trigger, landing and spawn is a walkable tile', () => {
 
 console.log('\n5 · the commander is in the room');
 t('he stands inside the new attic plan', () => {
-  const at = H.indexOf("homeScene: 'interior_seer_hq_2f'");
-  const src = H.slice(at - 400, at);
-  const m = /tileX: (\d+), tileY: (\d+)/.exec(src);
-  ok(m, 'no commander tile');
+  // ★★★ v0.99.0 · was a regex for `tileX: 17, tileY: 18` in the source. His tile
+  //   is an expression now (HQ_AT.atticFar), because the literal put him four
+  //   columns outside the tapered attic's west wall the moment it was resized —
+  //   he was standing in void. So ask the BOOTED NPC where he is. A body's
+  //   position is a fact about the world, and it was only ever a fact about the
+  //   file by coincidence.
+  const G = hqGame(['NPCS']);
+  const cmd = (G.NPCS || []).find(n => n && n.homeScene === 'interior_seer_hq_2f');
+  ok(cmd, 'no commander in the attic');
   const plan = cfg('INTERIOR_SEER_HQ_2F').plan;
-  const ch = (plan[+m[2]] || '')[+m[1]];
-  ok(isFloor(ch), `commander at (${m[1]},${m[2]}) stands on '${ch === ' ' ? 'VOID' : ch}'`);
+  const ch = (plan[cmd.tileY] || '')[cmd.tileX];
+  ok(isFloor(ch), `commander at (${cmd.tileX},${cmd.tileY}) stands on '${ch === ' ' || ch === undefined ? 'VOID' : ch}'`);
+  // ★ and the approach v0.95.967 chose survives: you arrive at the stair and
+  //   walk the length of the room to reach him.
+  const st = G.HQ_AT.atticStair;
+  const far = Math.abs(cmd.tileX - st.x) + Math.abs(cmd.tileY - st.y);
+  ok(far >= 12, `he is only ${far} tiles from the stair · the attic stopped being a walk`);
 });
 
 console.log(`\n${fail ? '✗' : '★'} ${pass} passed · ${fail} failed\n`);

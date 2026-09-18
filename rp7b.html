@@ -11972,6 +11972,10 @@ const NPCS = [
           '*tail flicks · claws out*  A Rizer with no net?  That is not hunting · that is asking.',
           'Take mine.  Feet quiet, breath quieter · that\'s how you catch a fae.',
           '*hands you a woven-vine Fae Net*  Bring me stories of the ones you catch.  Hunt well, little Rizer.',
+          // ★ v0.99.1 · Creator: "it is canon that the farmer cheetah is her
+          //   student."  Said from her side as well as Vireta's, because canon
+          //   that only one of two people mentions reads as one person's claim.
+          '*over her shoulder, already walking*  And tell Vireta her module still shows.  I counted yours before you were through the gate.',
         ]});
         return;
       }
@@ -12119,6 +12123,39 @@ const NPCS = [
           showDialog({ speaker: 'PROFESSOR ELARION', lines: [
             '*small nod*  Wear your R.A.I.D. proudly, graduate.',
             'Bond well · fight fair · the world is watching.',
+          ]});
+          return;
+        }
+        // ★★★★ v0.99.1 · THE ACADEMY FAVOURS. Creator: "the elephant professor
+        //   outside will give you side quests to increase your bond level by 20
+        //   each time."
+        //   ★ Every goal is a counter the game already keeps — towers restored,
+        //     species in the notebook, Zyrex owned, allies called, districts
+        //     walked. Nothing here stores its own progress, so a favour cannot
+        //     end up claiming something the world disagrees with.
+        const AT = elarionTask();
+        if (AT){
+          if (elarionTaskDone(AT)){
+            player.elarionStage = elarionStage() + 1;
+            try { bumpRizerBond('rizerAcademyTask'); } catch(_){}
+            try { awardRizerXP(400); } catch(_){}
+            try { playSFX('confirm'); } catch(_){}
+            showToast(`★ ACADEMY FAVOUR ${player.elarionStage}/${ELARION_TASKS.length} · +20 RIZER BOND`, 3400);
+            const nx = elarionTask();
+            showDialog({ speaker: 'PROFESSOR ELARION', lines: [
+              '*sets down his pen without hurrying*  So you did it.',
+              `*writes one line*  The Academy records a favour.  That is twenty toward your bond, and bond is the only currency out there that nobody mints.`,
+              nx ? `*looks up over the spectacles*  Next, if you are willing: ${nx.label.toLowerCase()}.`
+                 : '*closes the book*  That is every favour I have.  The rest of the planet will have to ask you itself.',
+            ]});
+            return;
+          }
+          let prog = 0; try { prog = AT.have(); } catch(_){}
+          showDialog({ speaker: 'PROFESSOR ELARION', lines: [
+            '*adjusts spectacles*  Keep your R.A.I.D. close, young Rizer.',
+            `*taps the ledger*  The Academy would like a favour: ${AT.label}.`,
+            `*peers*  ${prog} of ${AT.need}.  No hurry — it is a favour, not an order.`,
+            'Twenty toward your bond when it is done.  Come back and tell me.',
           ]});
           return;
         }
@@ -13722,6 +13759,61 @@ const NPCS = [
       //   ledger — it is now a register of where everyone went.
       onInteract: () => {
         player.stats = player.stats || {};
+        player.items = player.items || {};
+        // ★★★★ v0.99.1 · THE SPHERES. Creator: "make sure the giraffe professor
+        //   lady gifts u 8 zysphere once you get your first zyrex from dad."
+        //   ★ Gated on starterChosen, which is the flag Dad's handover sets —
+        //     so this cannot fire before you have something to practise on, and
+        //     the one-time flag means it cannot fire twice.
+        if (player.starterChosen && !player.viretaSpheresGifted){
+          player.viretaSpheresGifted = true;
+          player.items.zysphere = (player.items.zysphere || 0) + VIRETA_SPHERE_GIFT;
+          try { playItemGain('zysphere'); } catch(_){}
+          try { playSFX('confirm'); } catch(_){}
+          try { awardRizerXP(250); } catch(_){}
+          try { bumpRizerBond('zyrexStudy'); } catch(_){}
+          showToast(`★ Received: ${VIRETA_SPHERE_GIFT}× Zysphere · Prof. Vireta`, 3200);
+          showDialog({ speaker: 'PROF. VIRETA', lines: [
+            '*looks up, and keeps looking up — she is a good deal taller than the desk*',
+            'So Ardin gave you one.  *she says it without surprise*  Then the module starts today.',
+            `*sets eight spheres on the ledger, one at a time*  ${VIRETA_SPHERE_GIFT} Zyspheres.  Not a gift — an enrolment.`,
+            'A sphere does not catch anything, Rizer.  It holds the moment a Zyrex decides.  Your bond makes the moment; the sphere only remembers it.',
+            '*taps the page*  Bring me three, and we will talk about what you noticed.',
+            // ★ the Creator's canon line, delivered by the person it is about
+            '*almost an afterthought*  Kaizari sat where you are standing.  She still writes.',
+          ]});
+          return;
+        }
+        // ★★★ THE LADDER · "she will continue to give you quests based on catch
+        //   zyrex."  Progress is read from the party and the PC — the Zyrex you
+        //   actually have — so the register can never disagree with the world.
+        const T = viretaTask();
+        if (player.viretaSpheresGifted && T){
+          const have = zyrexOwnedCount();
+          if (have >= T.need){
+            player.viretaStage = viretaStage() + 1;
+            player.items.zysphere = (player.items.zysphere || 0) + T.spheres;
+            try { playItemGain('zysphere'); } catch(_){}
+            try { playSFX('confirm'); } catch(_){}
+            try { awardRizerXP(T.rxp); } catch(_){}
+            try { bumpRizerBond('zyrexStudy'); } catch(_){}
+            showToast(`★ FIELD MODULE ${player.viretaStage}/${VIRETA_TASKS.length} · +${T.spheres}× Zysphere`, 3400);
+            const nx = viretaTask();
+            showDialog({ speaker: 'PROF. VIRETA', lines: [
+              `*counts without appearing to count*  ${have}.  ${T.line}`,
+              `*slides the spheres across*  ${T.spheres} more.  Spend them badly; that is what they are for.`,
+              nx ? `*writes the next line in the register*  ${nx.need}, when you are ready.`
+                 : '*closes the ledger*  You are past the module, Rizer.  Go and teach somebody.',
+            ]});
+            return;
+          }
+          showDialog({ speaker: 'PROF. VIRETA', lines: [
+            `*checks the register*  ${have} of ${T.need}.`,
+            T.line,
+            '*returns to the page*  A sphere thrown at a Zyrex that has not decided is a sphere you have taught nothing with.',
+          ]});
+          return;
+        }
         const found = (typeof classmatesFound === 'function') ? classmatesFound() : 0;
         showDialog({ speaker: 'PROF. VIRETA', lines: [
           '*peers up from her ledger*  Welcome back to Malezor Academy · I run the bond-cycle module under Prof Elarion.',
@@ -41440,7 +41532,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.0' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.1' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -47915,6 +48007,12 @@ const BOND_EVENTS = {
   // like the starter's 333; the starter had to place the first rung because
   // nothing was bondable at 0, whereas this is a step ALONG the climb to 666.
   rizerRaidcard:  { path:'rizer', pts:20,  label:'★ the Academy knows your name' },
+  // ★★ v0.99.1 · Creator: "the elephant professor outside will give you side
+  //   quests to increase your bond level by 20 each time."  20 is not a number
+  //   I picked — it is where this table already puts a significant one-off
+  //   (rizerAlly 20, rizerRaidcard 20), so an Academy favour is worth exactly
+  //   what bonding an ally is worth, which is the right claim for it to make.
+  rizerAcademyTask: { path:'rizer', pts:20,  label:'★ a favour for the Academy' },
 
   // ═══ v0.95.998 · FOUR FARMABLE ROUTES ═════════════════════════════════════
   // Creator: "implement new ways for rizer to gain bond points to be able to
@@ -47959,6 +48057,61 @@ function bondLedger(){
   if (!player.bondLedger) player.bondLedger = { zyrex:0, rizer:0 };
   return player.bondLedger;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.1 · THE TWO PROFESSORS · one teaches catching, one teaches the world.
+//
+//   Creator, 2026-09-18: "make sure the giraffe professor lady gifts u 8
+//   zysphere once you get your first zyrex from dad. she will continue to give
+//   you quests based on catch zyrex. it is canon that the farmer cheetah is her
+//   student. the elephant professor outside will give you side quests to
+//   increase your bond level by 20 each time."
+//
+// ★★★ THE DIVISION OF LABOUR IS THE DESIGN. Vireta is inside the Academy and
+//   her ladder is about the BEASTS — she hands you the spheres and then keeps
+//   asking for more Zyrex. Elarion is outside it and his is about the WORLD —
+//   towers, districts, species recorded. Two professors who each want something
+//   different from you is a reason to visit two rooms.
+//
+// ★★ EVERY GOAL IS A COUNTER THE GAME ALREADY KEEPS. Not one of these tasks
+//   needs a new flag to measure progress — they read the party, the PC, the
+//   notebook register and the tower table. A quest whose progress is stored
+//   separately from the thing it is about is a quest that can disagree with the
+//   world, and this codebase has been bitten by exactly that before.
+function zyrexOwnedCount(){
+  const party = (player.party || []).filter(Boolean).length;
+  const pc    = (player.pcZyrex || []).filter(Boolean).length;
+  return party + pc;
+}
+// ── VIRETA · the giraffe-mystic · catching ────────────────────────────────
+const VIRETA_SPHERE_GIFT = 8;            // Creator's number
+const VIRETA_TASKS = [
+  { need: 3,  spheres: 5,  rxp: 150, line: 'Three is a habit, not an accident.' },
+  { need: 6,  spheres: 8,  rxp: 300, line: 'Six.  You are choosing them now, not meeting them.' },
+  { need: 10, spheres: 12, rxp: 600, line: 'Ten.  The register calls that a faction.' },
+  { need: 15, spheres: 16, rxp: 1000, line: 'Fifteen.  Kaizari had eleven when she left my module.' },
+  { need: 21, spheres: 24, rxp: 1800, line: '★ Twenty-one.  I have nothing left to set you.' },
+];
+function viretaStage(){ return Math.min(VIRETA_TASKS.length, player.viretaStage || 0); }
+function viretaTask(){ return VIRETA_TASKS[viretaStage()] || null; }
+// ── ELARION · the elephant scholar · the world ────────────────────────────
+// Each favour is worth rizerAcademyTask = 20 bond, per the Creator.
+const ELARION_TASKS = [
+  { id: 'towers',  label: 'Reconnect a district · bring a radio tower back online',
+    have: () => Object.keys(player.scrapjawTowersRestored || {}).length + (player.radioTowerFixed ? 1 : 0),
+    need: 1 },
+  { id: 'species', label: 'Record five species in the field · the notebook keeps them',
+    have: () => Object.keys((notebookState().seen) || {}).length, need: 5 },
+  { id: 'faction', label: 'Bond three Zyrex · the Academy wants the pattern, not the count',
+    have: () => zyrexOwnedCount(), need: 3 },
+  { id: 'allies',  label: 'Walk with an ally · call one to your side from the ZyPhone',
+    have: () => (player.factionContacts || []).length, need: 1 },
+  { id: 'district',label: 'Cross into a second district on foot',
+    have: () => Object.keys(player.visitedDistricts || {}).length, need: 2 },
+];
+function elarionStage(){ return Math.min(ELARION_TASKS.length, player.elarionStage || 0); }
+function elarionTask(){ return ELARION_TASKS[elarionStage()] || null; }
+function elarionTaskDone(T){ try { return !!T && T.have() >= T.need; } catch(_){ return false; } }
+
 function bumpRizerBond(eventKey, mult){
   const E = BOND_EVENTS[eventKey];
   if (!E) return 0;
@@ -53390,6 +53543,50 @@ function buildQuestLog(){
       status: (player.faeCollected||0) >= 5 ? 'complete' : 'active',
       steps: [ { done: (player.faeCollected||0) >= 5, label: `Catch 5 fae (${player.faeCollected||0}/5)` } ],
       reward: 'Astral energy bonus',
+    });
+  }
+  // ★★★ v0.99.1 · THE TWO PROFESSORS' LADDERS, in the log with everything else.
+  //   A repeating quest that lives only in an NPC's dialogue is a quest the
+  //   player has to remember they were given. Both of these read their progress
+  //   from the same functions the professors do, so the MISSIONS page cannot
+  //   show a number the professor would disagree with.
+  if (player.starterChosen){
+    const T = (typeof viretaTask === 'function') ? viretaTask() : null;
+    const have = (typeof zyrexOwnedCount === 'function') ? zyrexOwnedCount() : 0;
+    const stage = (typeof viretaStage === 'function') ? viretaStage() : 0;
+    quests.push({
+      title: `Malezor · Field Module ${Math.min(stage + 1, VIRETA_TASKS.length)}`,
+      at: { npc: 'sub_prof_vireta' },
+      giver: 'Prof. Vireta · Malezor Academy',
+      status: T ? 'active' : 'complete',
+      steps: [
+        { done: !!player.viretaSpheresGifted, label: `Collect ${VIRETA_SPHERE_GIFT} Zyspheres from Prof. Vireta` },
+        // ★ "4/3" is a true number and a confusing one — it means GO AND TELL
+        //   HER, not that the step is broken. Say that instead.
+        ...VIRETA_TASKS.map((v, i) => ({
+          done: stage > i,
+          label: `Bond ${v.need} Zyrex` + (stage > i ? ''
+                 : have >= v.need && i === stage ? ' · ready to report' : ` · ${have}/${v.need}`),
+        })),
+      ],
+      reward: T ? `${T.spheres}× Zysphere · ${T.rxp} RXP` : '★ module complete',
+    });
+  }
+  if (player.raidCardGifted){
+    const A = (typeof elarionTask === 'function') ? elarionTask() : null;
+    const st = (typeof elarionStage === 'function') ? elarionStage() : 0;
+    quests.push({
+      title: 'Malezor · Academy Favours',
+      at: { npc: 'professor_elarian' },
+      giver: 'Professor Elarion · outside the Academy',
+      status: A ? 'active' : 'complete',
+      steps: ELARION_TASKS.map((t, i) => {
+        let n = 0; try { n = t.have(); } catch(_){}
+        return { done: st > i,
+                 label: t.label + (st > i ? ''
+                        : n >= t.need && i === st ? ' · ready to report' : ` · ${n}/${t.need}`) };
+      }),
+      reward: A ? '+20 Rizer bond · 400 RXP each' : '★ every favour repaid',
     });
   }
   return { expeditions, quests };

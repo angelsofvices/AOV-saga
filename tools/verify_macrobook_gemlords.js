@@ -36,6 +36,8 @@ vm.runInNewContext(fs.readFileSync(path.join(root,'macrobook-gemlords.js'),'utf8
 const names = ['Rakoron','Ivirium','Mutaryn','Emeralix','Eurakeon','Azurel','Obsidius','Ambrevon','Oathane','Oatheus'];
 const forbidden = /Egnellahc|Soul Split|Ultharis|Third Dimension|World Gem|Space Gem|First Four|Final Four|Xenoxil|Ophira|Orryx|kidnapp|\bdies?\b|defeat|Empty Throne|\bmissing\b|\babsent\b/i;
 const dialog = elements['gemlord-dialog'];
+assert.ok(!html.includes('id="gemlord-portrait"'),'Gemlord profile overlay should not contain a portrait');
+assert.ok(!html.includes('class="gemlord-portrait-wrap"'),'Gemlord profile overlay should be text-only');
 for (let i=0;i<gallery.length;i++) {
   const item = gallery[i];
   assert.ok(fs.existsSync(path.join(root,decodeURIComponent(item.src))),`missing portrait: ${item.src}`);
@@ -44,8 +46,6 @@ for (let i=0;i<gallery.length;i++) {
   assert.equal(dialog.open,true); assert.ok(body.classes.has('gemlord-open'));
   assert.equal(focused,elements['gemlord-close']);
   assert.equal(elements['gemlord-title'].textContent,names[i]);
-  assert.equal(elements['gemlord-portrait'].src,item.src);
-  assert.ok(elements['gemlord-portrait'].alt.includes(names[i]));
   for (const field of ['lore','presence','fieldnote']) {
     const prose = elements[`gemlord-${field}`].textContent;
     assert.ok(prose.length > 65,`${names[i]} missing ${field}`);
@@ -71,4 +71,4 @@ for (const file of ['macrobook-gemlords.css','macrobook-gemlords.js']) {
   assert.ok(html.includes(`"${file}"`) && fs.existsSync(path.join(root,file)));
 }
 for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
-console.log('PASS: 10 portraits and clickable names, district-overlay name routing, public canon profiles, spoiler boundary, modal open/close, focus return, scroll lock, navigation wrapping, arrow keys, backdrop dismissal, asset references and script syntax.');
+console.log('PASS: 10 gallery portraits and clickable names, image-free public canon profile overlays, district-overlay name routing, spoiler boundary, modal open/close, focus return, scroll lock, navigation wrapping, arrow keys, backdrop dismissal, asset references and script syntax.');

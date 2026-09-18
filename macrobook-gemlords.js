@@ -3,7 +3,6 @@
    boundary in RP7_CANON_NINTH_TENTH_GEM_FORMATIONS.md §8. Plot outcomes,
    private bonds, the IX/X origin, and Obsidius's hidden role stay outside. */
 (() => {
-  const root = 'assets/2D%20sprites/decor/gemlords/';
   const profiles = [
     {id:'rakoron',name:'Rakoron',district:'District I · Malezor',rank:'Gemlord of the Beastlands',gem:'Ruby',principle:'Body · Instinct',
       lore:'Rakoron is the living Ruby will beneath Malezor. He embodies physical force, predatory instinct, survival, and the discipline required to keep strength from becoming mindless violence.',
@@ -56,10 +55,6 @@
     const p = profiles[selected];
     const fields = {counter:`GEMLORD ${String(selected + 1).padStart(2,'0')} / 10`,title:p.name,district:p.district,rank:p.rank,gem:p.gem,principle:p.principle,lore:p.lore,presence:p.presence,fieldnote:p.note};
     Object.entries(fields).forEach(([key,value]) => { document.getElementById(`gemlord-${key}`).textContent = value; });
-    const portrait = document.getElementById('gemlord-portrait');
-    portrait.src = `${root}${p.id}.png`;
-    portrait.alt = `${p.name}, ${p.rank}`;
-    document.getElementById('gemlord-caption').textContent = `${p.name} · ${p.gem}`;
     triggers.forEach(trigger => trigger.setAttribute('aria-expanded',String(trigger.dataset.gemlord === p.id)));
     dialog.scrollTop = 0;
   }

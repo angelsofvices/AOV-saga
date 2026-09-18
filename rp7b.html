@@ -2759,6 +2759,13 @@ const AUDIO = {
     mom:          new Audio('audio/sfx-mom.mp3'),            // v0.95.91 · Mom greeting VO on interact
     yara:         new Audio('audio/sfx-yara.mp3'),           // v0.95.377 · Yara VO on interact
     itemGain:     new Audio('audio/sfx-item-gain.mp3'),      // v0.95.398 · classic pickup jingle · plays on any first-time item gain (not coins)
+    // ★★ v0.99.2 · Creator: "play this sfx when we confirm a button press in the
+    //   zyphone. only when we click X. keep all other menu button sounds the
+    //   same."  The confirm had no voice of its own — walking the cursor beeped
+    //   and pressing X handed straight off to whatever the control did, so the
+    //   one press that COMMITS to something was the one press with no sound
+    //   attached to the act of pressing.
+    menuClick:    new Audio('audio/sfx-menu-click.mp3'),
     elarian:      new Audio('audio/sfx-elarian.mp3'),        // v0.95.126 · "You're a wizard" VO on Prof Elarion interact
     nurseRein:    new Audio('audio/sfx-nurse-rein.mp3'),     // v0.95.128 · sakura chime VO on Nurse Rein interact
     heal:         new Audio('audio/sfx-heal.mp3'),           // v0.95.150 · magical shim for RHP/ZHP heal items (ales/potions/elixirs)
@@ -2865,6 +2872,10 @@ if (AUDIO.sfx.corsunUfo) AUDIO.sfx.corsunUfo.volume = 0.85;
 //     in one game should sit at the same perceived level. 0.55 x 10^(-2.4/20)
 //     = 0.42. That is the whole reason for this number.
 if (AUDIO.sfx.newMessage) AUDIO.sfx.newMessage.volume = 0.42;
+// ★ v0.99.2 · the X-confirm click layers UNDER whatever the pressed control
+//   plays (a spend chime, a page turn, a refusal). At the 0.55 default it read
+//   as a second event; at 0.38 it reads as the press itself.
+if (AUDIO.sfx.menuClick) AUDIO.sfx.menuClick.volume = 0.38;
 // ★★★ v0.96.39 · THE THREE IMPACTS · metered, then STAGED at +2 dB per weight.
 //   Raw files:  light RMS -19.1 peak -0.4 · medium -20.0 peak -0.9
 //               heavy RMS -10.0 peak  0.0  ← nine dB hotter, and CLIPPING
@@ -3041,6 +3052,11 @@ function worldFrozen(){
 // and unattended animation should be frozen.
 const _UI_SFX = new Set([
   'menuOpen', 'menuClose', 'confirm', 'cursor', 'select', 'blip',
+  'menuClick',                    // ★ v0.99.2 · the ZyPhone X-confirm · the phone
+                                  //   opens over a frozen world, so a UI sound
+                                  //   that is not on this list is a UI sound
+                                  //   nobody in the phone will ever hear
+
   'deny', 'error', 'doorLock', 'pageTurn', 'notify',
   'cancel',                       // recall ping · the pair to 'confirm'
   'zyrexGo', 'takeFive',          // v0.95.729 · deploy + recall VO
@@ -41532,7 +41548,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.1' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.2' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45905,7 +45921,15 @@ function handleZycellKey(k){
     if (k === 'arrowright'){ try { playSFX('cursor'); } catch(_){} return true; }
     if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
       const el = items[game._zycellItemIdx];
-      if (el) el.click();
+      // ★★★ v0.99.2 · THE CONFIRM CLICK. Creator: "only when we click X."
+      //   This is the one X path that ACTIVATES a control — the other (on the
+      //   nav rail) enters the content pane, which is navigation and keeps its
+      //   cursor beep. So the sound goes here and nowhere else, and it plays
+      //   BEFORE el.click() so the press is heard as the cause of whatever the
+      //   control then does rather than as an echo after it.
+      //   ★ Nothing else is touched: every control keeps the sound it already
+      //     plays, per "keep all other menu button sounds the same."
+      if (el){ try { playSFX('menuClick'); } catch(_){} el.click(); }
       return true;
     }
     // v0.95.579 · SQUARE (J) · Faction · swap this Zyrex with the NEXT party slot

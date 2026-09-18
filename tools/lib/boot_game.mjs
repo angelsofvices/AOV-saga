@@ -69,13 +69,13 @@ export function bootGame({ runBootTasks = true } = {}){
     'DISTRICT_WHEEL','wheelQuarterAt','worldDistrictAt','isWorldLandTile','isWorldBorderTile',
     '_propBlocked','walkable','game','player','SETTLEMENT_DOCTRINE','SETTLEMENT_QUARTERS',
     '_townAnchors','_districtPOIs','DISTRICT_ROAM_TARGET','ROAM_MIN_FROM_TOWN',
-    'scatterDistrictEnemies','buildScanobotNet','buildNewEnemyNet','siteEnemyTile',
+    'scatterDistrictEnemies','retireLegacyEnemyScatter','buildScanobotNet','buildNewEnemyNet','siteEnemyTile',
     'NEW_ENEMY_PLACEMENT','newEnemyCountFor','_makeWorldRng','_scanobotWalkable',
     'enemyHabitatAt','ENEMY_HABITATS','ENEMY_SPECIES_HABITAT','districtScaleOf',
     'DISTRICT_ENEMY_ROSTER','DISTRICT_ROSTER_TOTAL','DISTRICT_SPAWN_RANGE','rosterTotalFor','siteRosterTile',
     'ENEMY_LINEAGE','ENEMY_STEM_OF','ENEMY_BRANCH_OF','rosterCountFor','ROSTER_GATED','siteInTown','townCoreOf','ROSTER_MIN_SPACING','TOWN_CIVIC_CLEAR','TOWN_HOME_CLEAR','topUpGatedRoster','applyScanobotState','LEGACY_ENEMY_SCATTER_ENABLED','ENEMY_TIER_MAX','TIER_TEN_BEINGS','LOWER_ZYRAXIS_TIER_BAND','enemyTierLegal',
     'tickEnemyRespawn','ENEMY_RESPAWN_MS','queueEnemyRespawn','_enemyRespawnQueue',
-    'BOULDERS','_fae','COLLECTIBLE_TARGET','_chaseDirFor','ROAM_SCALE_MUL','DAEMON_WALK_BBOXES'];
+    'WORLD_MIN_COL','WORLD_MIN_ROW','MAP_COLS','MAP_ROWS','BOULDERS','_fae','COLLECTIBLE_TARGET','_chaseDirFor','ROAM_SCALE_MUL','DAEMON_WALK_BBOXES'];
   const tail = ';globalThis.__G = {' + EXPORTS.map(n =>
       `${n}: (typeof ${n} !== 'undefined' ? ${n} : undefined)`).join(',') + '};';
 

@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.732 · SCANOBOTS · Thardin's survey net · 5 per district · passive until
 // the flip, then hostile everywhere, dropping scrap + a blue gem into a tiered
 // shop at Scrapjaw.
-try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={scatterDistrictEnemies,DISTRICT_ENEMY_ROSTER,retireLegacyEnemyScatter,SCANOBOT_MIN_SPACING,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,scanobotTalk,PICKUP_KINDS,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
+try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={WORLD_MIN_ROW,WORLD_MIN_COL,scatterDistrictEnemies,DISTRICT_ENEMY_ROSTER,retireLegacyEnemyScatter,SCANOBOT_MIN_SPACING,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,scanobotTalk,PICKUP_KINDS,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C,P=C.player;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
@@ -65,7 +65,13 @@ ok(Object.keys(per).length === 10 && C.TOWER_NETWORK.every(T => per[T.dist] === 
 ok(C.buildScanobotNet()===0,'re-running the seeder adds none (idempotent · boot AND load both call it)');
 
 console.log('\n2 · ★★ EVERY DRONE STANDS SOMEWHERE LEGAL\n');
-const oob=bots.filter(b=>!(b.tileX>=0&&b.tileY>=0&&b.tileX<C.MAP_COLS&&b.tileY<C.MAP_ROWS));
+// ★★★★ 2026-09-17 · THE COMMENT BELOW WAS RIGHT AND THIS LINE IGNORED IT.
+//   Three lines down, since v0.95.810: "tileX>0 was the wrong test all along —
+//   Malezor genuinely extends into NEGATIVE x". This assertion kept testing
+//   against 0 anyway and flagged nine drones standing on perfectly good land in
+//   Malezor and Zarvane. The world starts at WORLD_MIN_COL/WORLD_MIN_ROW
+//   (-100, -45), and that is what "off the map" has to mean.
+const oob=bots.filter(b=>!(b.tileX>=C.WORLD_MIN_COL&&b.tileY>=C.WORLD_MIN_ROW&&b.tileX<C.MAP_COLS&&b.tileY<C.MAP_ROWS));
 ok(oob.length===0,`none off the map (${oob.length}) — the first pass put two at y=-1 and y=-7`);
 // ★ v0.95.810 · tileX>0 was the wrong test all along — Malezor genuinely
 // extends into NEGATIVE x (the Rubypaw chest sits at x=-54), so positive-

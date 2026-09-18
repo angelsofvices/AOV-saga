@@ -27163,6 +27163,14 @@ function siteInTown(dist, x, y){
 //   6-tile minimum means two enemies are never both on screen in the same
 //   glance without you having chosen to walk between them.
 const ROSTER_MIN_SPACING = 6;    // hard floor, Chebyshev
+// ★★★★ v0.97.9 · A SPECIES MAY DEMAND MORE ROOM THAN THE FLOOR.
+//   Creator, on the survey net: "spread out all scanobots around the map. there
+//   should never be 2 scanobots within 12x12 tiles." That is a ruled number,
+//   and when Scanobots moved into the roster at v0.97.5 they silently inherited
+//   the generic 6-tile floor instead — the net stopped being a net.
+// ★ Measured against SAME-SPECIES neighbours only, because that is what the
+//   ruling says: two drones twelve tiles apart, not a drone and a Mori.
+const ROSTER_KIND_SPACING = { scanobot: 12 };
 const ROSTER_SPACE_CAP   = 14;   // past this, more elbow room stops counting
 const ROSTER_SITE_TRIES  = 48;
 const _SG_SHIFT = 3;             // 8-tile buckets
@@ -27208,7 +27216,7 @@ function makeSpaceGrid(){
 //     sprites".
 //   ★ Habitat is weighted heavier than room, so a Satyrbeast still chooses a
 //     forest over a lonely meadow — but between two forests it takes the emptier.
-function siteRosterTile(dist, kind, rng, occupied, grid){
+function siteRosterTile(dist, kind, rng, occupied, grid, kindGrid){
   const D = ZYRAXIS_DISTRICT_BY_ID[dist]; if (!D) return null;
   const H = ENEMY_SPECIES_HABITAT[kind] || {};
   let best = null, bestScore = -1;
@@ -27221,11 +27229,24 @@ function siteRosterTile(dist, kind, rng, occupied, grid){
     const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
     if (worldDistrictAt(x, y) !== dist) continue;
     if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+    // ★★★★ v0.97.9 · THE RIVER. _scanobotWalkable has rejected Veridan's river
+    //   since the drones were written; siteRosterTile never did, so every
+    //   roster body — 2,000 of them — was free to stand in the water. It was
+    //   invisible because the boot-time placement sanitizer quietly relocated
+    //   the ones that landed there, which is a repair bill, not a design.
+    //   ★ Caught by verify_scanobot, whose harness does NOT run the sanitizer
+    //     and therefore judges the siter's RAW output. A pass that only looks
+    //     right after something else tidies up after it is not placing legally.
+    if (typeof isVeridanRiverTile === 'function' && isVeridanRiverTile(x, y)) continue;
     if (_propBlocked.has(x + ',' + y)) continue;
     if (occupied.has(x + ',' + y)) continue;
     if (siteInTown(dist, x, y)) continue;                  // HARD · the inner town
     const room = grid.nearest(x, y, ROSTER_SPACE_CAP);
     if (room < ROSTER_MIN_SPACING) continue;               // HARD · never stacked
+    // ★ and a species with a ruled spacing of its own must clear it against
+    //   its OWN kind, across district lines too
+    const kindMin = ROSTER_KIND_SPACING[kind] || 0;
+    if (kindMin && kindGrid && kindGrid.nearest(x, y, kindMin) < kindMin) continue;
     const hab = enemyHabitatAt(dist, x, y) || 'meadow';
     // ★★★ MULTIPLICATIVE NOISE ON THE HABITAT TERM, or it monopolises.
     //   `affinity * 1.6 + room` came back 100% of Mori in meadow and 100% of
@@ -27372,6 +27393,15 @@ function scatterDistrictEnemies(){
   const occupied = new Set();
   for (const n of NPCS) if (n && n.scene === 'overworld' && n.tileX != null)
     occupied.add(n.tileX + ',' + n.tileY);
+  // ★ per-kind grids are WORLD-WIDE, not per district — "never two scanobots
+  //   within 12x12" does not stop being true at a district line.
+  const kindGrids = {};
+  for (const k of Object.keys(ROSTER_KIND_SPACING)){
+    kindGrids[k] = makeSpaceGrid();
+    for (const n of NPCS)
+      if (n && n._roamKind === k && n.scene === 'overworld' && n.tileX != null)
+        kindGrids[k].add(n.tileX, n.tileY);
+  }
 
   for (const T of TOWER_NETWORK){
     const dist = T.dist;
@@ -27399,11 +27429,12 @@ function scatterDistrictEnemies(){
                : Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40));
       let got = 0;
       for (let i = 0; i < want; i++){
-        const spot = siteRosterTile(dist, kind, rng, occupied, grid);
+        const spot = siteRosterTile(dist, kind, rng, occupied, grid, kindGrids[kind]);
         if (!spot) continue;                       // counted below, never faked
         const [x, y, hab] = spot;
         occupied.add(x + ',' + y);
         grid.add(x, y);
+        if (kindGrids[kind]) kindGrids[kind].add(x, y);
         NPCS.push(_cloneEnemyTo(base, `roam_${dist}_${made}`, x, y, {
           name: kind.charAt(0).toUpperCase() + kind.slice(1),
           dir: ['up','down','left','right'][Math.floor(rng() * 4)],
@@ -27650,11 +27681,23 @@ function scanobotsAreRogue(){ return !!player.scanobotsRogue; }
 // is handled separately below so a drone does not invalidate its own tile.
 function _scanobotWalkable(x, y){
   try {
-    // ★ Bounds FIRST. isWorldLandTile does not reject negatives, and Malezor's
-    // tower sits at y=14 with offsets reaching -21, so the first honest run of
-    // this seeder put drones at y=-1 and y=-7 — off the top of the world, in a
-    // district worldDistrictAt still cheerfully reported as 'malezor'.
-    if (!(x >= 0 && y >= 0 && x < MAP_COLS && y < MAP_ROWS)) return false;
+    // ★★★★ v0.97.9 · BOUNDS FIRST — AGAINST THE REAL WORLD, NOT ZERO.
+    //
+    //   The old guard was `x >= 0 && y >= 0`, written when drones appeared at
+    //   y=-1 and y=-7 and that looked like "off the top of the world". It is
+    //   not: WORLD_MIN_COL is -100 and WORLD_MIN_ROW is -45, so the world
+    //   genuinely extends a long way into negative coordinates. Malezor's whole
+    //   western side lives there — the Rubypaw chest sits at x=-54 and the
+    //   player's own home region reaches past x=-30.
+    //   ★★ So this line declared roughly an eighth of Malezor unwalkable, and
+    //     the original y=-1 bug was never about the sign: those tiles fail
+    //     isWorldLandTile on the very next line, which is the check that
+    //     actually knew the answer.
+    //   ★ verify_scanobot has carried the correction in a comment since
+    //     v0.95.810 — "positive-coordinate checks measure nothing" — three lines
+    //     below an assertion that was still doing exactly that. The note was
+    //     right and nothing acted on it.
+    if (!(x >= WORLD_MIN_COL && y >= WORLD_MIN_ROW && x < MAP_COLS && y < MAP_ROWS)) return false;
     if (typeof isWorldLandTile === 'function'   && !isWorldLandTile(x, y))   return false;
     if (typeof isWorldBorderTile === 'function' &&  isWorldBorderTile(x, y)) return false;
     if (typeof isVeridanRiverTile === 'function'&&  isVeridanRiverTile(x, y))return false;
@@ -40950,7 +40993,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.8' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.97.9' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

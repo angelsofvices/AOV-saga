@@ -1145,7 +1145,7 @@
           <button class="zyNav" data-zynav="faction"     style="text-align:left; padding:10px 12px; border:1px solid var(--zy-line); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">◇  FACTION</button>
           <button class="zyNav" data-zynav="weapons"     style="text-align:left; padding:10px 12px; border:1px solid var(--zy-line); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">⚔  WEAPONS</button>
           <button class="zyNav" data-zynav="map"         style="text-align:left; padding:10px 12px; border:1px solid var(--zy-line); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🗺  MAP</button>
-          <button class="zyNav" data-zynav="expeditions" style="text-align:left; padding:10px 12px; border:1px solid var(--zy-line); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">📋  EXPEDITIONS</button>
+          <button class="zyNav" data-zynav="missions"    style="text-align:left; padding:10px 12px; border:1px solid var(--zy-line); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">📋  MISSIONS</button>
           <button class="zyNav" data-zynav="contacts"    style="text-align:left; padding:10px 12px; border:1px solid var(--zy-line); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">👥  CONTACTS</button>
           <button class="zyNav" data-zynav="leaderboard" style="text-align:left; padding:10px 12px; border:1px solid var(--zy-line); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🏆  NOVARIAN RECORD</button>
           <button class="zyNav" data-zynav="settings"    style="text-align:left; padding:10px 12px; border:1px solid var(--zy-line); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">⚙  SETTINGS</button>
@@ -41137,7 +41137,7 @@ function pingNextObjective(){
 function openZycellAt(page){
   if (!(player.items?.zphone > 0)){ return false; }
   try {
-    zycellPage = page;
+    zycellPage = (typeof _zycellPageKey === 'function') ? _zycellPageKey(page) : page;
     if (page !== 'notebook') game._nbSection = null;   // ★ v0.95.778
     if (typeof openZphonePanel === 'function') openZphonePanel();
     return true;
@@ -41234,13 +41234,21 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.1' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.2' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
   '[rp7b] BUILD TAG DRIFT · codex - gamedex must be 11 ([[aov-codex-gamedex-sync]])');
 
-const ZYCELL_PANELS = ['home','notebook','zycube','rizer','faction','weapons','map','expeditions','contacts','leaderboard','settings'];
+const ZYCELL_PANELS = ['home','notebook','zycube','rizer','faction','weapons','map','missions','contacts','leaderboard','settings'];
+// ★ v0.98.2 · the page formerly called EXPEDITIONS.  Creator: "call the page
+//   missions and keep the subpages expeditions and quests."  zycellPage is a
+//   plain `let` reset to 'home' on load and never written to a save, so the key
+//   moves without a migration — but the OLD WORD is still reachable from the
+//   Notebook route and from anything that learned it, so it aliases rather than
+//   404s to HOME.  A rename that silently drops callers is not a rename.
+const ZYCELL_PAGE_ALIAS = { expeditions: 'missions' };
+function _zycellPageKey(p){ return ZYCELL_PAGE_ALIAS[p] || p; }
 let zycellPage = 'home';
 function paintZycellNav(){
   const p = document.getElementById('zphonePanel');
@@ -42866,7 +42874,7 @@ function paintZycellContent(){
     faction:     renderZycellFaction,
     weapons:     renderZycellWeapons,
     map:         renderZycellMap,
-    expeditions: renderZycellExpeditions,
+    missions:    renderZycellMissions,
     contacts:    renderZycellContacts,
     leaderboard: renderZycellLeaderboard,
     settings:    renderZycellSettings,
@@ -42936,7 +42944,7 @@ function paintZycellContent(){
 // card's own sizing instead and the grid is untouched.
 function _zyWidgetClick(el, ev){
   if (ev) ev.stopPropagation();
-  const target = el && el.dataset ? el.dataset.zywidget : null;
+  const target = el && el.dataset ? _zycellPageKey(el.dataset.zywidget) : null;
   if (!target || !ZYCELL_PANELS.includes(target)) return;
   zycellPage = target;
   if (target !== 'notebook') game._nbSection = null;
@@ -42951,6 +42959,7 @@ function _zyWidgetClick(el, ev){
 // ★ `flex` keeps a card that was sized by its parent's flex row (INVENTORY and
 // CREDITS sit side by side) from collapsing inside the shell.
 function _zyWidget(page, html, flex){
+  page = _zycellPageKey(page);
   const known = ZYCELL_PANELS.includes(page);
   if (!known) return html;                    // ★ unknown target · render inert
   return `<div data-zywidget="${page}" onclick="_zyWidgetClick(this, event)"
@@ -44054,42 +44063,249 @@ function renderZycellMap(){
     </div>`;
 }
 
-// ── EXPEDITIONS · quest tracker from buildQuestLog ──────────────────
-function renderZycellExpeditions(){
-  const log = (typeof buildQuestLog === 'function') ? buildQuestLog() : { expeditions:[], quests:[] };
-  const list = (title, items, headerColor) => {
-    if (!items.length) return _zySection(title, `<div style="color:var(--zy-muted); text-align:center; padding:12px 8px; line-height:1.6;">· none yet ·<br><span style="font-size:9px; color:var(--zy-muted-2);">talk to allies to unlock quests</span></div>`, headerColor);
-    const rows = items.map(q => {
-      const done = q.steps.filter(s => s.done).length;
-      const total = q.steps.length;
-      const pct = total ? Math.round(done / total * 100) : 0;
-      const pill = q.status === 'complete' ? '<span style="color:var(--zy-ok);">✓ DONE</span>'
-                 : q.status.startsWith('active') ? '<span style="color:var(--zy-gold);">● ACTIVE</span>'
-                 : '<span style="color:var(--zy-blue);">▸ AVAIL</span>';
-      // ★★ v0.95.995 · every quest row is a FOCUS STOP now. The panel used to
-      // render two sections whose bodies held no control at all, so its only
-      // two stops were the section wrappers and X did nothing on either — and
-      // the inner list is capped at max-height:200px, so with more than about
-      // three quests the rest could not be reached by any input.
-      // ★ Tapping a row reads out its next unfinished step, which is the thing
-      // a player actually opens this panel to find out.
-      const _next = (q.steps.find(st => !st.done) || {}).label || 'all steps complete';
-      return `<div data-zyitem="quest_${String(q.title).replace(/\W+/g,'_').toLowerCase()}"
-        onclick="try{showToast('\u25c8 ${String(q.title).replace(/'/g,"\\'")} \u00b7 next: ${String(_next).replace(/'/g,"\\'")}',3600);playSFX('cursor');}catch(_){}"
-        style="padding:8px 10px; margin-bottom:6px; background:rgba(0,0,0,0.4); border-left:3px solid var(--zy-gold); cursor:pointer;">
-        <div style="display:flex; justify-content:space-between; font-size:11px;"><span style="color:#fff; font-weight:bold;">${q.title}</span>${pill}</div>
-        <div style="color:var(--zy-cyan); font-size:10px; margin-top:2px;">${q.giver}</div>
-        <div style="color:var(--zy-text); font-size:10px; margin-top:4px;">Progress ${done}/${total} · ${pct}%</div>
-      </div>`;
-    }).join('');
-    // ★ v0.95.995 · the max-height:200px inner scroller was unreachable — the
-    // wheel is killed inside the phone and no key targets an inner element.
-    // #zycellContent is the one real scroller; let it do the job.
-    return _zySection(title, rows, headerColor);
-  };
-  return list('📋 EXPEDITIONS · MAIN', log.expeditions, 'var(--zy-violet)') + list('◆ QUESTS · SIDE', log.quests, 'var(--zy-gold)');
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ MISSIONS · v0.98.2 · one page, two kinds, and a queue for what's done
+//
+//   Creator, 2026-09-17: "give me a better expeditions page. call the page
+//   missions and keep the subpages expeditions and quests. upgrade the ui on
+//   this page. bi/dual page of both types of missions plus a queue for all
+//   complete missions"
+//
+// ★★★★ THE OLD PANEL THREW AWAY MOST OF WHAT buildQuestLog ALREADY GAVE IT.
+//   Every entry it emits carries six fields. The tracker rendered three:
+//
+//     title  ✓      steps  ✗  → collapsed to "Progress 4/5 · 80%".  The ONE
+//     giver  ✓                  thing you open a quest log to find out — WHICH
+//     status ✓                  step is next — was computed, put in a toast,
+//                               and never drawn.
+//     reward ✗  → 14 of 14 missions declare one. None was ever on screen.
+//     at     ✗  → already resolvable to a world tile: the minimap has been
+//                 pinning these since v0.95.9xx via _questAnchor.
+//
+//   ★ So the "upgrade the ui" ask is mostly not new data. It is drawing the
+//     data that was already there. The step list, the reward and the location
+//     all come out of the same buildQuestLog call the old panel made.
+//
+// ★★★ AND THE COMPLETED ONES WERE CLOGGING THE BOARD. Seven of the fourteen
+//   entries on a normal save read ✓ DONE, sorted first because they unlock
+//   first, so the live work was below the fold on a panel whose inner scroller
+//   was already reachable only by arrow key. The ARCHIVE tab is the fix the
+//   Creator asked for and it is also what makes the dual board fit.
+//
+// ★★ WHY 'missions' IS A REAL RENAME AND NOT A LABEL SWAP. zycellPage is a
+//   plain module-level `let`, reset to 'home' on every load and never written
+//   to a save — so the key can move without a migration. _zycellPageAlias
+//   still maps the old name, because openZycellAt('expeditions') is reachable
+//   from the Notebook and from any future caller that learned the old word.
+const MISSION_TABS = [
+  ['board',       '◫ BOARD',       'both kinds, side by side'],
+  ['expeditions', '▣ EXPEDITIONS', 'the main story chain'],
+  ['quests',      '◆ QUESTS',      'side work and favours'],
+  ['archive',     '✓ ARCHIVE',     'everything finished'],
+];
+const MISSION_TINT = { expeditions: 'var(--zy-violet)', quests: 'var(--zy-gold)' };
+function missionTab(id){
+  if (!MISSION_TABS.some(t => t[0] === id)) return;
+  game._missionTab = id;
+  // ★ a tab is a new list · carrying the old scroll offset lands you in the
+  //   middle of something shorter. paintZycellContent preserves scroll on a
+  //   same-page repaint, which is right for a refresh and wrong for this.
+  try { const c = document.getElementById('zycellContent'); if (c) c._zyHtmlCache = null; } catch(_){}
+  game._zycellItemIdx = 0;
+  try { playSFX('cursor'); } catch(_){}
+  try { paintZycellContent(); const c = document.getElementById('zycellContent'); if (c) c.scrollTop = 0; } catch(_){}
 }
+// Expand/collapse one mission card.  Keyed by title because that is the only
+// stable identity buildQuestLog gives an entry — it rebuilds the array from
+// flags on every call, so an index would point at a different mission the
+// moment one unlocks.
+function missionToggle(key){
+  game._missionOpen = game._missionOpen || {};
+  game._missionOpen[key] = !game._missionOpen[key];
+  try { playSFX('cursor'); } catch(_){}
+  try { paintZycellContent(); } catch(_){}
+}
+function _missionKey(title){ return String(title).replace(/\W+/g,'_').toLowerCase(); }
+// Where is it, in words.  ★ Resolved by _questAnchor — the SAME resolver the
+// minimap pins use — so the panel can never name a place the map does not mark.
+function _missionWhere(q){
+  try {
+    const at = (typeof _questAnchor === 'function') ? _questAnchor(q.at) : null;
+    if (!at) return null;
+    const d = (typeof worldDistrictAt === 'function') ? worldDistrictAt(at.x, at.y) : null;
+    const dist = Math.round(Math.hypot(at.x - player.x, at.y - player.y));
+    return { x: at.x, y: at.y, district: d ? String(d).toUpperCase() : null, dist };
+  } catch(_){ return null; }
+}
+function renderZycellMissions(){
+  const log  = (typeof buildQuestLog === 'function') ? buildQuestLog() : { expeditions:[], quests:[] };
+  const tab  = game._missionTab || 'board';
+  const open = game._missionOpen || {};
+  const isDone = q => String(q.status || '').startsWith('complete');
+  const E = log.expeditions || [], Q = log.quests || [];
+  const eLive = E.filter(q => !isDone(q)), eDone = E.filter(isDone);
+  const qLive = Q.filter(q => !isDone(q)), qDone = Q.filter(isDone);
+  const allDone = eDone.length + qDone.length, allN = E.length + Q.length;
 
+  // ── one card · compact by default, opens to steps + reward + location ────
+  const card = (q, kind, dense) => {
+    const tint  = MISSION_TINT[kind];
+    const key   = _missionKey(q.title);
+    const done  = q.steps.filter(s => s.done).length, total = q.steps.length;
+    const pct   = total ? Math.round(done / total * 100) : 0;
+    const fin   = isDone(q);
+    const isOpen = !!open[key];
+    const next  = (q.steps.find(s => !s.done) || {}).label || null;
+    const where = _missionWhere(q);
+    const pill  = fin      ? `<span style="color:var(--zy-ok);">✓ DONE</span>`
+                : next     ? `<span style="color:var(--zy-gold);">● ACTIVE</span>`
+                :            `<span style="color:var(--zy-blue);">▸ AVAIL</span>`;
+    // ★ the title carries a chapter prefix on story entries ("Malezor · Ch 1 ·
+    //   The First Morning"). In a 2-up board that wraps to three lines and the
+    //   useful half is last. Split it: prefix small above, name big.
+    const bits = String(q.title).split('·').map(s => s.trim());
+    const name = bits.length > 1 ? bits.pop() : q.title;
+    const pre  = bits.length ? bits.join(' · ') : '';
+    const steps = isOpen ? `
+      <div style="margin-top:7px; padding-top:6px; border-top:1px solid rgba(79,179,255,0.16);">
+        ${q.steps.map(s => `<div style="display:flex; gap:6px; font-size:10px; line-height:1.55;
+              color:${s.done ? 'var(--zy-muted-2)' : 'var(--zy-text)'};">
+            <span style="color:${s.done ? 'var(--zy-ok)' : tint}; width:11px; flex-shrink:0;">${s.done ? '✓' : '○'}</span>
+            <span style="${s.done ? 'text-decoration:line-through; opacity:.72;' : ''}">${s.label}</span>
+          </div>`).join('')}
+        ${q.reward ? `<div style="margin-top:6px; color:var(--zy-gold); font-size:10px; letter-spacing:.04em;">
+             ◆ REWARD · <span style="color:var(--zy-text);">${q.reward}</span></div>` : ''}
+        ${where ? `<div style="margin-top:3px; color:var(--zy-cyan); font-size:9px; letter-spacing:.05em;">
+             ⌖ ${where.district ? where.district + ' · ' : ''}tile ${where.x},${where.y} · ${where.dist} tiles out</div>` : ''}
+      </div>` : '';
+    return `
+      <div data-zyitem="mission_${key}" onclick="try{missionToggle('${key}');}catch(e){console.warn(e);}"
+        title="${isOpen ? 'collapse' : 'open steps, reward and location'}"
+        style="padding:8px 10px; margin-bottom:6px; cursor:pointer; position:relative;
+               background:${isOpen ? 'rgba(79,179,255,0.07)' : 'rgba(4,8,20,0.55)'};
+               border:1px solid ${isOpen ? tint : 'rgba(79,179,255,0.14)'};
+               border-left:3px solid ${fin ? 'var(--zy-ok)' : tint};
+               clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+          <div style="min-width:0;">
+            ${pre ? `<div style="color:var(--zy-muted-2); font-size:8px; letter-spacing:.16em;">${pre}</div>` : ''}
+            <div style="color:#fff; font-weight:bold; font-size:11px; line-height:1.3;">${name}</div>
+          </div>
+          <div style="font-size:9px; white-space:nowrap; flex-shrink:0;">${pill}</div>
+        </div>
+        ${dense ? '' : `<div style="color:var(--zy-cyan); font-size:9px; margin-top:2px; letter-spacing:.03em;">${q.giver}</div>`}
+        <!-- the progress rail · fill + the count, one line -->
+        <div style="display:flex; align-items:center; gap:7px; margin-top:6px;">
+          <div style="flex:1; height:4px; background:rgba(0,0,0,0.6); border:1px solid ${tint}33;">
+            <div style="height:100%; width:${pct}%; background:${fin ? 'var(--zy-ok)' : tint};
+                 box-shadow:0 0 6px ${fin ? 'var(--zy-ok)' : tint};"></div>
+          </div>
+          <span style="color:var(--zy-muted); font-size:9px; letter-spacing:.06em;">${done}/${total}</span>
+          <span style="color:${tint}; font-size:8px; opacity:.8;">${isOpen ? '▾' : '▸'}</span>
+        </div>
+        ${!isOpen && next ? `<div style="margin-top:4px; color:var(--zy-gold); font-size:9px; letter-spacing:.03em;
+             overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">▸ ${next}</div>` : ''}
+        ${steps}
+      </div>`;
+  };
+  const empty = (msg, sub) => `
+    <div style="color:var(--zy-muted); text-align:center; padding:18px 8px; line-height:1.7; font-size:11px;">
+      · ${msg} ·<br><span style="font-size:9px; color:var(--zy-muted-2);">${sub}</span></div>`;
+
+  // ── the column head · used by the board and by each single-type tab ──────
+  const colHead = (label, tint, n, of) => `
+    <div style="display:flex; align-items:baseline; justify-content:space-between;
+                border-bottom:1px solid ${tint}; padding-bottom:5px; margin-bottom:8px;">
+      <span style="color:${tint}; font:bold 10px 'Courier New',monospace; letter-spacing:.16em;">${label}</span>
+      <span style="color:var(--zy-muted); font:9px 'Courier New',monospace; letter-spacing:.08em;">${n} LIVE · ${of} DONE</span>
+    </div>`;
+
+  // ── the tab strip · ONE data-zyrow, so LEFT/RIGHT walks it and UP/DOWN
+  //    drops into the list beneath, which is exactly how it looks ───────────
+  const tabs = `
+    <div style="display:flex; gap:5px; margin-bottom:10px;">
+      ${MISSION_TABS.map(([id,label,hint]) => {
+        const on = id === tab;
+        const n  = id === 'board'       ? eLive.length + qLive.length
+                 : id === 'expeditions' ? E.length
+                 : id === 'quests'      ? Q.length
+                 :                        allDone;
+        return `<button data-zyitem="mtab_${id}" data-zyrow="mtab"
+          onclick="try{missionTab('${id}');}catch(e){console.warn(e);}" title="${hint}"
+          style="flex:1; padding:7px 4px; cursor:pointer; font:bold 10px 'Courier New',monospace;
+                 letter-spacing:.08em; background:${on ? 'var(--zy-fill-sel)' : 'rgba(4,8,20,0.55)'};
+                 color:${on ? 'var(--zy-blue-hi)' : 'var(--zy-muted)'};
+                 border:1px solid ${on ? 'var(--zy-blue)' : 'rgba(79,179,255,0.18)'};
+                 ${on ? 'box-shadow:inset 0 -2px 0 var(--zy-gold);' : ''}">
+          ${label} <span style="opacity:.7; font-size:9px;">${n}</span></button>`;
+      }).join('')}
+    </div>`;
+
+  // ── the ledger · one line that says where the whole campaign stands ──────
+  const pct = allN ? Math.round(allDone / allN * 100) : 0;
+  const ledger = `
+    <div class="zy-panel" style="margin-bottom:10px; padding:8px 12px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px;">
+        <span style="color:var(--zy-blue); font:bold 11px 'Courier New',monospace; letter-spacing:.16em;">MISSION LEDGER</span>
+        <span style="color:var(--zy-text); font:bold 11px 'Courier New',monospace;">${allDone} <span
+              style="color:var(--zy-muted);">/ ${allN} COMPLETE · ${pct}%</span></span>
+      </div>
+      <div style="height:6px; background:rgba(0,0,0,0.6); border:1px solid rgba(79,179,255,0.25);">
+        <div style="height:100%; width:${pct}%;
+             background:linear-gradient(90deg, var(--zy-violet), var(--zy-blue), var(--zy-gold));"></div>
+      </div>
+      <div style="display:flex; gap:14px; margin-top:6px; font:9px 'Courier New',monospace; letter-spacing:.06em;">
+        <span style="color:var(--zy-violet);">▣ EXPEDITIONS ${eDone.length}/${E.length}</span>
+        <span style="color:var(--zy-gold);">◆ QUESTS ${qDone.length}/${Q.length}</span>
+        <span style="color:${eLive.length + qLive.length ? 'var(--zy-cyan)' : 'var(--zy-muted-2)'};">
+          ● ${eLive.length + qLive.length} IN PROGRESS</span>
+      </div>
+    </div>`;
+
+  // ── the four views ──────────────────────────────────────────────────────
+  let body;
+  if (tab === 'board'){
+    // ★★ THE DUAL BOARD. Two columns at ≥620px, one below the other under it —
+    //   the phone is a viewport-filling overlay and the Creator plays windowed,
+    //   so a hard 2-up would have pushed the right column off the edge. The
+    //   breakpoint is on the CONTAINER via a grid auto-fit, not a media query,
+    //   because the nav and rail eat 400px of whatever the window reports.
+    body = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(258px, 1fr)); gap:12px;">
+        <div>${colHead('▣ EXPEDITIONS · MAIN', 'var(--zy-violet)', eLive.length, eDone.length)}
+          ${eLive.length ? eLive.map(q => card(q, 'expeditions', true)).join('')
+                         : empty('main chain clear', 'talk to allies to open the next chapter')}</div>
+        <div>${colHead('◆ QUESTS · SIDE', 'var(--zy-gold)', qLive.length, qDone.length)}
+          ${qLive.length ? qLive.map(q => card(q, 'quests', true)).join('')
+                         : empty('no side work open', 'townsfolk hand these out — go and be seen')}</div>
+      </div>`;
+  } else if (tab === 'archive'){
+    // ★ the queue · both kinds, newest unlock last, tagged by which it was
+    const rows = [...eDone.map(q => [q,'expeditions']), ...qDone.map(q => [q,'quests'])];
+    body = rows.length
+      ? `<div>${colHead('✓ COMPLETED QUEUE', 'var(--zy-ok)', 0, rows.length)}
+           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(258px, 1fr)); gap:0 12px;">
+             ${rows.map(([q,k]) => card(q, k, true)).join('')}</div></div>`
+      : empty('nothing finished yet', 'completed missions queue up here');
+  } else {
+    const [items, tint, label] = tab === 'expeditions'
+      ? [E, 'var(--zy-violet)', '▣ EXPEDITIONS · MAIN']
+      : [Q, 'var(--zy-gold)',   '◆ QUESTS · SIDE'];
+    const liveN = items.filter(q => !isDone(q)).length;
+    // ★ live first, finished after · the old panel let buildQuestLog's unlock
+    //   order decide, which put seven ✓ DONE rows above the work.
+    const sorted = [...items.filter(q => !isDone(q)), ...items.filter(isDone)];
+    body = `<div>${colHead(label, tint, liveN, items.length - liveN)}
+      ${sorted.length ? sorted.map(q => card(q, tab, false)).join('')
+                      : empty('none yet', 'talk to allies to unlock missions')}</div>`;
+  }
+  const hint = `
+    <div style="margin-top:10px; color:var(--zy-muted-2); font:9px 'Courier New',monospace;
+                letter-spacing:.06em; line-height:1.6;">
+      Ⓐ opens a mission · steps, reward and where to go &nbsp;·&nbsp; ← → switches view
+    </div>`;
+  return tabs + ledger + body + hint;
+}
 // ── CONTACTS · bond-gated call list ────────────────────────────────
 // v0.95.462 · Contact-call spawn · trusted contacts (bond >= 100) teleport to
 // Rizer's overworld tile when dialed · original home saved to _phoneHomeX/Y /
@@ -44957,7 +45173,7 @@ function renderZycellHome(){
       </div>
       <div style="display:flex; flex-direction:column; gap:10px;">
         ${_zyWidget('notebook',    liveWorld)}
-        ${_zyWidget('expeditions', mission)}
+        ${_zyWidget('missions', mission)}
         ${_zyWidget('map',         map)}
         ${dateTime}
         ${depthCam}
@@ -52129,7 +52345,7 @@ function useZycubeItem(key){
       }
       // v0.95.414 · Notebook click routes into the ZyPhone EXPEDITIONS tab
       // Falls back to the standalone hero placeholder if the phone isn't unlocked
-      if (openZycellAt('expeditions')) return;
+      if (openZycellAt('missions')) return;
       openDadsNotebook();
       return;
     }

@@ -13620,9 +13620,13 @@ const NPCS = [
       src:   'assets/2D%20sprites/npcs/zoryn.png',
       staticSprite: true,   // v0.95.599 · required alongside staticBBox
       staticBBox: [46, 40, 176, 275],   // row 0 col 2 approximation
-      // v0.95.600 · front-right desk in the expanded 30×24 classroom · off to Rizer's side
-      tileX: 27, tileY: 20,
-      homeX: 27, homeY: 20,
+      // ★★ v0.99.0 · was (27,20), the front-right desk of a 30x24 classroom.
+      //   The Academy is on the building rung now and column 27 does not exist —
+      //   he was sitting seven tiles outside his own school. Stated as the
+      //   corner it always meant: two in from the east wall, two up from the
+      //   south, which is the front-right desk in any classroom.
+      tileX: INTERIOR_SCALE.building.cols - 3, tileY: INTERIOR_SCALE.building.rows - 4,
+      homeX: INTERIOR_SCALE.building.cols - 3, homeY: INTERIOR_SCALE.building.rows - 4,
       homeScene: 'interior_malezor_school',
       scene:     'interior_malezor_school',
       dir: 'down',
@@ -13756,20 +13760,31 @@ const NPCS = [
     // ★ v0.95.946 · 1F is one hall with one door, so it holds a light guard --
     // two posted either side of the door.  The six IDLE Seers the Creator asked
     // for live in R2, the landing, which is the room the door opens onto.
+    // ★★★ v0.99.0 · POSTS, NOT TILES. These were absolute coordinates in a
+    //   35x25 canvas — (20,9) and (23,15) sat four and six columns outside the
+    //   20x20 hall the moment the Creator put every building on one rung, so two
+    //   of the four guards were standing in void. They do not throw and they do
+    //   not draw; they are simply gone, and the hall reads as under-guarded for
+    //   no reason anybody would think to look for.
+    //   ★ Each post is now a fraction of the room's width and a row counted from
+    //     the top of the floor, so the guard either side of the door stays
+    //     either side of the door at any rung.
+    const _hqX = f => Math.round(HQ.westX + (HQ.eastX - HQ.westX) * f);
+    const _hqY = r => HQ.topFloorY + r;
     const HALL = [
-      { x: 14, y:  9, dir: 'right', v: 'A' },
-      { x: 20, y:  9, dir: 'left',  v: 'B' },
-      { x: 11, y: 15, dir: 'down',  v: 'A', patrol: [1, 0, 4] },
-      { x: 23, y: 15, dir: 'down',  v: 'B', patrol: [-1, 0, 4] },
+      { x: _hqX(0.28), y: _hqY(3),  dir: 'right', v: 'A' },
+      { x: _hqX(0.72), y: _hqY(3),  dir: 'left',  v: 'B' },
+      { x: _hqX(0.16), y: _hqY(9),  dir: 'down',  v: 'A', patrol: [1, 0, 4] },
+      { x: _hqX(0.84), y: _hqY(9),  dir: 'down',  v: 'B', patrol: [-1, 0, 4] },
     ];
     // ★ THE LANDING · idle until contact, per v0.95.943
     const LANDING = [
-      { x: 12, y: 10, dir: 'down',  v: 'A' },
-      { x: 17, y: 10, dir: 'down',  v: 'B' },
-      { x: 22, y: 10, dir: 'down',  v: 'A' },
-      { x: 12, y: 15, dir: 'right', v: 'B', patrol: [1, 0, 3] },
-      { x: 22, y: 15, dir: 'left',  v: 'A', patrol: [-1, 0, 3] },
-      { x: 17, y: 17, dir: 'down',  v: 'B' },
+      { x: _hqX(0.20), y: _hqY(4),  dir: 'down',  v: 'A' },
+      { x: _hqX(0.50), y: _hqY(4),  dir: 'down',  v: 'B' },
+      { x: _hqX(0.80), y: _hqY(4),  dir: 'down',  v: 'A' },
+      { x: _hqX(0.20), y: _hqY(9),  dir: 'right', v: 'B', patrol: [1, 0, 3] },
+      { x: _hqX(0.80), y: _hqY(9),  dir: 'left',  v: 'A', patrol: [-1, 0, 3] },
+      { x: _hqX(0.50), y: _hqY(12), dir: 'down',  v: 'B' },
     ];
     function hqGrunt(s, i){
       const idle = seerGruntSheet(s.v, 'idle'), walk = seerGruntSheet(s.v, 'walk');
@@ -19151,42 +19166,83 @@ function civicCounterSlot(kind){
     : CIVIC_COUNTER.artH;
   return { x, y: CIVIC_COUNTER.row, w: CIVIC_COUNTER.w, artH };
 }
+// ★★★★ v0.99.0 · FURNITURE IS A RELATIONSHIP, NOT A COORDINATE.
+//
+//   These tables were authored against a 15x11 room, and almost every entry in
+//   them is secretly a statement about a WALL: "[1,3] and [1,5]" means beds down
+//   the west wall, "[13,8]" means a crate in the south-east corner, and
+//   "[4,2]..[10,2]" is not furniture at all — it is the counter's own footprint,
+//   which civicCounterSlot() already computes.
+//   ★★ Moving the shops to the 19x14 rung and the town hall to 20x20 would have
+//     left every one of those literals pointing at open floor: the counter row
+//     two tiles left of the counter, the east-wall crates stranded mid-room, the
+//     rug off-centre. Same numbers, different room, silently wrong.
+//   ★ So the counter tiles are DERIVED from the slot, and the rest are written
+//     as offsets from the wall they belong to. `w` = width-relative (negative
+//     counts back from the east wall), `h` likewise from the south.
+const CIVIC_WEST = 1;                     // first walkable column
+const CIVIC_BAND = CIVIC_COUNTER.row;     // the row the counter stands on
 const CIVIC_ROOMS = {
   'nurse': {
-    label: 'INFIRMARY', decor: 'nurse', cols: 15, rows: 11,
-    // ★★ v0.96.15 · beds down the west wall · counter on THE BAND (see below)
-    blocked: [[1,3],[1,5],[1,6],[1,8],[1,9],
-              [4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[10,2],
-              [13,3]],
-    rug: { x: 5, y: 6, w: 5, h: 3 },
+    label: 'INFIRMARY', decor: 'nurse', ...INTERIOR_SCALE.shop,
+    // ★★ v0.96.15 · beds down the west wall · counter on THE BAND (derived)
+    beds:  [3, 5, 6, 8, 9],               // rows, against the west wall
+    props: [{ dx: -2, dy: 3 }],           // supply trolley, two in from the east wall
   },
   'zysphere-shop': {
-    label: 'ZYSPHERE SHOP', decor: 'zysphere-shop', cols: 15, rows: 11,
-    blocked: [[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[10,2],
-              [1,8],[1,9],[13,8],[13,9]],
-    rug: { x: 5, y: 6, w: 5, h: 3 },
+    label: 'ZYSPHERE SHOP', decor: 'zysphere-shop', ...INTERIOR_SCALE.shop,
+    props: [{ dx: 0, dy: -3 }, { dx: 0, dy: -2 }, { dx: -2, dy: -3 }, { dx: -2, dy: -2 }],
   },
   'potion-shop': {
-    label: 'POTION SHOP', decor: 'potion-shop', cols: 15, rows: 11,
-    blocked: [[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[10,2],
-              [1,4],[1,5],[13,4],[13,5]],
-    rug: { x: 5, y: 6, w: 5, h: 3 },
+    label: 'POTION SHOP', decor: 'potion-shop', ...INTERIOR_SCALE.shop,
+    props: [{ dx: 0, dy: 4 }, { dx: 0, dy: 5 }, { dx: -2, dy: 4 }, { dx: -2, dy: 5 }],
   },
   'town-hall': {
-    label: 'TOWN HALL', decor: 'town-hall', cols: 19, rows: 13,
-    // a civic bench aisle and a clerk's dais at the head of the room
-    blocked: [[6,2],[7,2],[8,2],[9,2],[10,2],[11,2],[12,2],
-              [3,5],[4,5],[5,5],[13,5],[14,5],[15,5],
-              [3,7],[4,7],[5,7],[13,7],[14,7],[15,7]],
-    rug: { x: 7, y: 8, w: 5, h: 3 },
+    // ★★ the one CIVIC_ROOM that is NOT a shop. Creator: "set the new standard
+    //   size for all official district buildings (not shops)" — a town hall is
+    //   the most official building in a district, so it leaves the shop rung it
+    //   was sharing and joins the buildings.
+    label: 'TOWN HALL', decor: 'town-hall', ...INTERIOR_SCALE.building,
+    // a civic bench aisle · two rows of pews either side of a central aisle
+    benches: [{ row: 5 }, { row: 7 }],
   },
   'cottage-lodge': {
-    label: 'LODGE', decor: 'cottage-lodge', cols: 15, rows: 11,
-    blocked: [[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[10,2],
-              [1,8],[1,9],[13,8],[13,9]],
-    rug: { x: 5, y: 6, w: 5, h: 3 },
+    label: 'LODGE', decor: 'cottage-lodge', ...INTERIOR_SCALE.shop,
+    props: [{ dx: 0, dy: -3 }, { dx: 0, dy: -2 }, { dx: -2, dy: -3 }, { dx: -2, dy: -2 }],
   },
 };
+// Build one room's solid tiles from its description · the only place that turns
+// a relationship back into a coordinate.
+function civicBlocked(kind){
+  const R = CIVIC_ROOMS[kind];
+  if (!R) return [];
+  const out = [];
+  const east = R.cols - 2;                       // last walkable column
+  const south = R.rows - 1;
+  // ★ the counter, wherever civicCounterSlot puts it — one source, so the solid
+  //   tiles can never sit beside the art instead of under it.
+  const slot = civicCounterSlot(kind);
+  if (slot) for (let i = 0; i < slot.w; i++) out.push([Math.round(slot.x) + i, CIVIC_BAND]);
+  for (const r of (R.beds || [])) out.push([CIVIC_WEST, r]);
+  for (const p of (R.props || [])){
+    const x = p.dx >= 0 ? CIVIC_WEST + p.dx : east + p.dx + 1;
+    const y = p.dy >= 0 ? p.dy : south + p.dy;
+    out.push([x, y]);
+  }
+  for (const b of (R.benches || [])){
+    const aisle = R.cols >> 1;
+    for (let d = 2; d <= 4; d++){ out.push([aisle - d, b.row]); out.push([aisle + d, b.row]); }
+  }
+  return out;
+}
+// The rug sits centred on the floor between the counter band and the south wall.
+function civicRug(kind){
+  const R = CIVIC_ROOMS[kind];
+  if (!R) return null;
+  const w = 5, h = 3;
+  return { x: Math.round((R.cols - w) / 2),
+           y: Math.round((CIVIC_BAND + R.rows - h) / 2), w, h };
+}
 // ★ v0.96.27 · room kind -> wall band. The two shops share 'shop': they are the
 //   same kind of premises and the Creator's set ships one shop wall, not two.
 const CIVIC_WALL = {
@@ -19218,13 +19274,13 @@ function makeCivicInterior(kind, dist){
     //   the same per-kind vocabulary as the floor, the rug and the counter —
     //   one data row per room, ten districts deep.
     wallImg: CIVIC_WALL[kind] || 'malezor',
-    blocked: R.blocked.map(t => t.slice()),
+    blocked: civicBlocked(kind),
     label: `${R.label} · ${String(dist).toUpperCase()}`,
     civic: kind, civicDistrict: dist,
   };
   // ★★ THE PATTERN. One call, so a room cannot end up with the right floor and
   //    the wrong rug — the pairing is what the player is being taught.
-  applyBuildingDecor(cfg, R.decor, R.rug);
+  applyBuildingDecor(cfg, R.decor, civicRug(kind));
   CIVIC_CACHE[id] = cfg;
   return cfg;
 }
@@ -19403,10 +19459,14 @@ INTERIOR_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.pn
 // tile just south of the cave prop at (22, 8) facing down.  Wall art matches
 // Malezor palette so the transition from Malezor overworld reads clean.
 const INTERIOR_CAVE = {
-  cols: 20, rows: 40,
+  // ★★ v0.99.0 · Creator: "cave will be sized as the next scale to buildings
+  //   (very large). this is the gemlord cave idea."  2.25x a building.
+  ...interiorSize('cave'),
   tileImg: new Image(),
-  spawn: { x: 10, y: 38, dir: 'up' },
-  exit:  { x: 10, y: 39 },
+  // ★ were (10,38) and (10,39) — the mouth of a 20x40 shaft. On the cave rung
+  //   row 38 is eight rows past the floor, so the player spawned in nothing.
+  spawn: { x: INTERIOR_SCALE.cave.cols >> 1, y: INTERIOR_SCALE.cave.rows - 2, dir: 'up' },
+  exit:  { x: INTERIOR_SCALE.cave.cols >> 1, y: INTERIOR_SCALE.cave.rows - 1 },
   autoExit: true,
   overworldDrop: { x: 22, y: 8, dir: 'down' },
   wallImg: 'malezor',
@@ -20660,12 +20720,18 @@ const RUG_BBOX = [102, 456, 1050, 342];
 // Crazy's house · 15x15 wood floor (same tile as player home) · Crazy
 // wanders inside · player interacts to talk / recruit as companion.
 const INTERIOR_CRAZY_HOME = {
-  cols: 15, rows: 15,
+  // ★ v0.99.0 · was 15x15, which is no rung at all — five rows taller than every
+  //   other Malezor house for no reason anyone wrote down. Noot's place is a
+  //   Malezor home, so it takes the Malezor level: the middle one.
+  ...interiorSize('home2'),
   tileImg: new Image(),
-  spawn: { x: 7, y: 13, dir: 'up' },
-  exit:  { x: 7, y: 14 },
+  // ★ derived · rows 13/14 were the bottom of a 15-row room and are past the
+  //   floor of a 10-row one
+  spawn: { x: INTERIOR_SCALE.home2.cols >> 1, y: INTERIOR_SCALE.home2.rows - 2, dir: 'up' },
+  exit:  { x: INTERIOR_SCALE.home2.cols >> 1, y: INTERIOR_SCALE.home2.rows - 1 },
   // v0.95.656 · front-door mat · Crazy's place is a HOUSE, so it gets one
-  rug: { x: 6, y: 14, w: 3, h: 1, key: pickDoormatKey('interior_crazy_home') },
+  rug: { x: (INTERIOR_SCALE.home2.cols >> 1) - 1, y: INTERIOR_SCALE.home2.rows - 1, w: 3, h: 1,
+         key: pickDoormatKey('interior_crazy_home') },
   wallImg: 'home',   // ★ v0.96.27 · INTERIOR_CRAZY_HOME · Noot's house · a Malezor home like any other
 };
 INTERIOR_CRAZY_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
@@ -20673,7 +20739,10 @@ INTERIOR_CRAZY_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-fl
 // Zyrex Research Lab · 20×20 · Dad's workplace (v0.80).  Player enters
 // from door (10, 19) south-center · Dad stands in upper-right corner.
 const INTERIOR_RESEARCH_LAB = {
-  cols: 20, rows: 20,
+  // ★ v0.99.0 · the lab was the size the Creator named as the standard, so the
+  //   numbers do not change — but they stop being ITS numbers and become the
+  //   rung's, which is what makes the standard a standard.
+  ...interiorSize('building'),
   tileImg: new Image(),
   spawn: { x: 10, y: 18, dir: 'up' },
   exit:  { x: 10, y: 19 },
@@ -20693,7 +20762,7 @@ applyBuildingDecor(INTERIOR_RESEARCH_LAB, 'research-lab', { x: 8, y: 13, w: 4, h
 // Same footprint as Dad's Research Lab (20×20) · wood plank + green trim floor
 // Unlocked once player has 10+ fae AND 1+ Zyrex in party
 const INTERIOR_TRAINING_FARM = {
-  cols: 20, rows: 20,
+  ...interiorSize('building'),   // ★ v0.99.0 · same footprint, now cited not copied
   tileImg: new Image(),
   spawn: { x: 10, y: 18, dir: 'up' },
   exit:  { x: 10, y: 19 },
@@ -21330,10 +21399,18 @@ function seerHqFloorLabel(scene){
 // after all 10 are cleared.  Opens once Prof Elarion gifts the RAID Card.
 // v0.95.600 · Malezor Academy · resized to 30×24 tile classroom
 const INTERIOR_MALEZOR_SCHOOL = {
-  cols: 30, rows: 24,
+  // ★★★ v0.99.0 · Creator: "make the interior tile map of the school the same
+  //   size as the research lab interior tile map. set the new standard size for
+  //   all official district buildings (not shops)."  It was 30x24 = 720 tiles,
+  //   three and a third screens for a room with two bodies in it — the largest
+  //   interior a player enters twice, and the emptiest. The Academy is an
+  //   official district building, so it comes to the rung with the rest of them.
+  ...interiorSize('building'),
   tileImg: (typeof INTERIOR_HOME !== 'undefined') ? INTERIOR_HOME.tileImg : new Image(),
-  spawn: { x: 15, y: 23, dir: 'up' },
-  exit:  { x: 15, y: 23 },
+  // ★ derived from the rung, not retyped · spawn/exit sat on row 23, which is
+  //   past the bottom of a 20-row room
+  spawn: { x: INTERIOR_SCALE.building.cols >> 1, y: INTERIOR_SCALE.building.rows - 1, dir: 'up' },
+  exit:  { x: INTERIOR_SCALE.building.cols >> 1, y: INTERIOR_SCALE.building.rows - 1 },
   autoExit: true,
   wallImg: 'town-hall',   // ★ v0.96.27 · INTERIOR_MALEZOR_SCHOOL · a civic institution, not a house
   blocked: [],
@@ -21783,15 +21860,28 @@ function openDevInteriorFor(prop){
 const MALEZOR_HOME_INTERIORS = {};
 function makeMalezorHomeInterior(sceneId){
   if (MALEZOR_HOME_INTERIORS[sceneId]) return MALEZOR_HOME_INTERIORS[sceneId];
+  // ★★★ v0.99.0 · THE HOME KEEPS ITS DIMENSIONS, AND GAINS A LEVEL.
+  //   Creator: "make sure that homes keep their dimensions ... we will scale all
+  //   homes to small size but we will change the scale based on what level home
+  //   it is in its district (1-3)."  Level 2 IS the shipped 15x10, so the house
+  //   every player already knows is unchanged and the other two sit either side
+  //   of it.
+  //   ★ Every anchor below was a literal tuned to 15 wide — spawn x:7 is the
+  //     centre of 15, and the doormat's x:6 is (15-3)/2. Hardcoded, a level-1
+  //     house would have put its door two tiles off centre and a level-3 house
+  //     four. They are relationships now, so the door is centred at any rung.
+  const size = homeSizeFor(sceneId);
+  const midX = size.cols >> 1;
   const cfg = {
-    cols: 15, rows: 10,
+    ...size,
     tileImg: new Image(),
-    spawn: { x: 7, y: 9, dir: 'up' },
-    exit:  { x: 7, y: 9 },
+    spawn: { x: midX, y: size.rows - 1, dir: 'up' },
+    exit:  { x: midX, y: size.rows - 1 },
     // v0.95.610 · Doormat picked deterministically per home id · 1 of 8
     // rugs from DOORMAT_KEYS · overrides the default RUG_IMG at render time.
-    rug:   { x: 6, y: 9, w: 3, h: 1, key: pickDoormatKey(sceneId) },
+    rug:   { x: midX - 1, y: size.rows - 1, w: 3, h: 1, key: pickDoormatKey(sceneId) },
     wallImg: 'home',   // ★ v0.96.27 · makeMalezorHomeInterior · every generated Malezor house
+    homeLevel: homeLevelOf(sceneId),
   };
   cfg.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
   MALEZOR_HOME_INTERIORS[sceneId] = cfg;

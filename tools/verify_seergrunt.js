@@ -213,10 +213,18 @@ function fbTable(which){
   const seg = src.slice(i, nxt > i ? nxt : i + 8000);
   const a = seg.indexOf('attack: {');
   if(a<0) return null;
-  const m = seg.slice(a).match(/foot:\s*(\[\[[\s\S]{0,260}?\]\])/);
+  // ★★ and the pattern demanded `[[` with NOTHING between the brackets, while
+  //   every table in the file is written `foot: [\n     [293,...`. Two separate
+  //   reasons the same parser could not see data that exists.
+  const m = seg.slice(a).match(/foot:\s*(\[\s*\[[\s\S]{0,400}?\]\s*\])/);
   return m ? JSON.parse(m[1].replace(/\s+/g,'')) : null;
 }
-const FB={A:fbTable(0), B:fbTable(1)};
+// ★★★★ 2026-09-17 · fbTable WAS CALLED WITH 0 AND 1 while it searches for
+//   `${v}: {` — so it looked for "0: {" and "1: {" inside SEER_GRUNT_ART, whose
+//   keys are A and B. It could never find the tables, and the assertion below
+//   reported "footBaselines declared for both grunts" as a FAILURE against data
+//   that has been sitting in the file all along.
+const FB={A:fbTable('A'), B:fbTable('B')};
 ok(!!FB.A && !!FB.B, 'footBaselines declared for both grunts');
 for(const k of ['A','B']){
   if(!FB[k]) continue;
@@ -284,7 +292,22 @@ console.log('\n4 · ★ SIZE · they scale with threat, not with their pyrotechn
 // A stays on the attack sheet's 209 until his idle lands; B moved to his IDLE
 // standing 256 at v0.95.696 — scaling a character off a crouch made him grow
 // the moment he stopped swinging.
-ok(/standBh:\s*212/.test(src), 'Grunt A yardstick is 212 — her IDLE standing height (was the 209 crouch)');
+// ★★★★ 2026-09-17 · A LITERAL BECAME A RELATIONSHIP — which is exactly what
+//   was done to Grunt B four lines down, and for the same reason. B's note
+//   reads: "was a literal /standBh:\s*256/. The redelivered idle sheet measures
+//   255. Assert the RELATIONSHIP." A's was left as a hard 212 and the idle
+//   sheet has since been redelivered too; it now measures 206, so the literal
+//   was demanding a number no sheet on disk produces — while verify_grunts, in
+//   the same repo, demanded the measured value. Two suites, one field, two
+//   answers.
+// ★ The yardstick is her IDLE STANDING height and must be taller than the
+//   crouch it replaced. That is the property; the digits are an artefact of
+//   whichever export shipped last.
+{ const m = src.match(/standBh:\s*(\d+),\s*scaleMul:\s*1\.075/);
+  const ref = m ? +m[1] : 0;
+  const crouch = Math.min(...[0,1,2,3].map(r => M.A.bbox[r][0][3]));
+  ok(ref > crouch && ref >= 195 && ref <= 225,
+     `Grunt A yardstick is ${ref} — her IDLE standing height, above the ${crouch} crouch`); }
 // v0.95.735 · was a literal /standBh:\s*256/. The redelivered idle sheet
 // measures 255. Assert the RELATIONSHIP — the yardstick is the standing
 // idle height, not the crouch — which is what this check is actually for.

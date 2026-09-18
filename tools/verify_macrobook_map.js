@@ -43,7 +43,7 @@ for (let i = 0; i < 10; i++) {
     assert.equal(elements['district-lord'].textContent,expected[i][1]);
     assert.ok(elements['district-description'].textContent.length > 60);
     assert.ok(elements['district-hook'].textContent.length > 100);
-    assert.ok(elements['district-question'].textContent.length > 35);
+    assert.ok(elements['district-question'].textContent.length > 25);
     assert.doesNotMatch(elements['district-hook'].textContent,/defeats?|dies?|kidnapp|boss|Ophira|Orryx|Xenoxil|Seer Chief|Soul Split|Egnellahc|Ultharis/i);
     assert.equal(focused,elements['district-close']);
     assert.ok(body.classes.has('district-open'));

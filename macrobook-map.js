@@ -63,8 +63,11 @@
   function show(index) {
     selected = (index + districts.length) % districts.length;
     const d = districts[selected];
-    const fields = {counter:`DISTRICT ${d.roman} / X`, title:d.name, land:d.land, known:d.known, lord:d.lord, gem:d.gem, description:d.description, hook:d.hook, question:d.question};
+    const fields = {counter:`DISTRICT ${d.roman} / X`, title:d.name, land:d.land, known:d.known, gem:d.gem, description:d.description, hook:d.hook, question:d.question};
     Object.entries(fields).forEach(([id, text]) => { document.getElementById(`district-${id}`).textContent = text; });
+    const lord = document.getElementById('district-lord');
+    lord.textContent = d.lord;
+    lord.dataset.gemlord = d.lord.toLowerCase();
     triggers.forEach(({element, index:i}) => element.setAttribute('aria-expanded', String(i === selected)));
     dialog.scrollTop = 0;
   }

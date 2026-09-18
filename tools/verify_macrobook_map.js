@@ -9,7 +9,7 @@ let focused;
 class Element {
   constructor(tag = 'div') {
     this.tagName = tag; this.children = []; this.attributes = {}; this.events = {};
-    this.classes = new Set(); this.textContent = ''; this.scrollTop = 0;
+    this.classes = new Set(); this.textContent = ''; this.scrollTop = 0; this.dataset = {};
     this.classList = {add:c => this.classes.add(c), remove:c => this.classes.delete(c)};
   }
   setAttribute(k,v) { this.attributes[k] = String(v); }
@@ -41,6 +41,7 @@ for (let i = 0; i < 10; i++) {
     assert.equal(dialog.open,true);
     assert.equal(elements['district-title'].textContent,expected[i][0]);
     assert.equal(elements['district-lord'].textContent,expected[i][1]);
+    assert.equal(elements['district-lord'].dataset.gemlord,expected[i][1].toLowerCase());
     assert.ok(elements['district-description'].textContent.length > 60);
     assert.ok(elements['district-hook'].textContent.length > 100);
     assert.ok(elements['district-question'].textContent.length > 25);

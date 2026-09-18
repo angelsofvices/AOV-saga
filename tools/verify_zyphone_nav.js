@@ -54,12 +54,25 @@ t(/id="zySaveBtn"|SAVE STATE/.test(HTML), 'the SAVE/LOAD section still exists');
 
 /* ── 3 · NO DEAD PAGES · every panel must offer a focus stop ────────────── */
 {
-  const PANELS = ['Home','Notebook','Zycube','Rizer','Faction','Weapons','Map',
-                  'Expeditions','Contacts','Leaderboard','Settings'];
+  // ★★★ v0.98.3 · READ THE DISPATCHER, DO NOT RETYPE IT.
+  //   This list was eleven hardcoded names, and it went red the day the
+  //   EXPEDITIONS page was renamed to MISSIONS — not because a panel had lost
+  //   its controls, which is the only thing this check is about, but because a
+  //   literal in a suite had gone stale. A test that has to be updated whenever
+  //   a page is renamed is a test that will eventually be updated by deleting it.
+  //   ★ paintZycellContent's `map` object IS the binding between a panel key and
+  //     its renderer. Parsing it means this check follows every future rename,
+  //     every new panel and every removal with no edit at all.
+  const DISPATCH = /const map = \{([\s\S]*?)\n  \};/.exec(HTML);
+  t(!!DISPATCH, 'the paintZycellContent dispatch map was found');
+  const PANELS = [...(DISPATCH ? DISPATCH[1] : '').matchAll(/(\w+):\s*(renderZycell\w+),/g)]
+                   .map(m => ({ key: m[1], fn: m[2] }));
+  t(PANELS.length >= 11, `${PANELS.length} panels read out of the dispatch map`);
   const CLICKY = /<button|onclick=|role="button"|zy-click|data-zyitem/;
-  for (const p of PANELS){
-    const i = HTML.indexOf(`function renderZycell${p}(`);
-    if (i < 0) { no(`renderZycell${p} not found`); continue; }
+  for (const { key, fn: FN } of PANELS){
+    const p = key;
+    const i = HTML.indexOf(`function ${FN}(`);
+    if (i < 0) { no(`${FN} not found`); continue; }
     // to the next top-level function
     const j = HTML.indexOf('\nfunction ', i + 10);
     let body = HTML.slice(i, j > i ? j : i + 9000);

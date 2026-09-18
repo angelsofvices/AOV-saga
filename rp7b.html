@@ -41234,7 +41234,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.2' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.3' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -43162,7 +43162,19 @@ function renderZycellFaction(){
     // tag, so DOWN moved you one cell to the RIGHT and RIGHT did nothing at
     // all. _stepRow() has collapsed same-row runs into single units since
     // v0.95.809 — the faction panel simply never opted in.
-    cells.push(`<div class="zyFactionSlot" data-slot="${i}" ${filled ? `data-zyitem="fac_${i}" data-zyrow="fac_r${Math.floor(i/2)}" data-zysummon="${i}" data-zyswap="${i}" data-zyexamine="${i}"` : ''}
+    // ★★★ v0.98.3 · AN EMPTY SLOT IS STILL A CELL. Creator: "make sure all
+    // phone UI menus are accessible fully by controller."  Only FILLED slots
+    // were enrolled, which cost two things: the three empty cells could be
+    // clicked by mouse (they answer "recruit more Zyrex to fill it") and
+    // reached by nothing else — and, worse, the 2-wide grid LOST ITS RIGHT
+    // COLUMN on the last partly-filled row.  With five Zyrex, slot 4 sat alone
+    // in fac_r2 and RIGHT dead-stopped there, because its partner carried no
+    // row tag to walk to.  v0.95.995 opted this grid into data-zyrow so it
+    // "navigates the way it LOOKS"; half a row does not look like this grid.
+    // ★ The slot is enrolled with its row and NOTHING else: data-zysummon /
+    //   zyswap / zyexamine stay off, and both handlers already guard on
+    //   `!= null`, so Triangle and Square simply pass over an empty cell.
+    cells.push(`<div class="zyFactionSlot" data-slot="${i}" data-zyitem="fac_${i}" data-zyrow="fac_r${Math.floor(i/2)}" ${filled ? `data-zysummon="${i}" data-zyswap="${i}" data-zyexamine="${i}"` : ''}
       style="position:relative; border:2px solid ${isOut ? 'var(--zy-ok)' : filled ? 'var(--zy-blue)' : 'rgba(79,179,255,0.3)'}; background:${filled ? 'rgba(20,50,120,0.55)' : 'rgba(0,0,0,0.4)'}; padding:10px; min-height:96px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; transition:transform 120ms, box-shadow 120ms;"
       onmouseover="this.style.transform='scale(1.03)';this.style.boxShadow='0 0 14px rgba(79,179,255,0.5)'"
       onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">

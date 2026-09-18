@@ -68,9 +68,16 @@ console.log=LOG;const C=globalThis.__C;
 C.game.scene='overworld'; C.player.x=20; C.player.y=128;
 C.rebuildNpcOccupancy();
 
-t(C.NPCS.length > 1500,
-  `★ the world really does hold ${C.NPCS.length} NPCs · this is the census v0.96.0 added`);
-t(C.occSize() > 1500, `★ and all of them are indexed (${C.occSize()})`);
+// ★★★ 2026-09-17 · 1500 → 1000. This is a FLOOR proving the indexed lookup
+//   still matters at scale, not a census to keep in step with the roster. The
+//   Creator halved the overworld at v0.97.6 ("it feels too congested") and the
+//   world now holds ~1,350 — still far past the point where an O(n) scan per
+//   walkable() call is the difference the rest of this file is about.
+// ★ Freezing a population number in a performance test means every content
+//   decision has to come and ask the test's permission.
+t(C.NPCS.length > 1000,
+  `★ the world really does hold ${C.NPCS.length} NPCs · enough that the index earns its keep`);
+t(C.occSize() > 1000, `★ and all of them are indexed (${C.occSize()})`);
 
 /* ── 1 · ★★★ THE COST ─────────────────────────────────────────────── */
 const probe={tileX:21,tileY:128};

@@ -64,9 +64,12 @@ if (!C.TOWNSFOLK_ENABLED){
   const gone = must.filter(id => !C.NPCS.some(n => n && n.id === id));
   ok(gone.length === 0, gone.length ? 'LOST: '+gone.join(', ')
      : `every named NPC survives (${must.length} checked, including both professors)`);
-  ok(C.NPCS.length > 400, `${C.NPCS.length} NPCs still live — the world did not empty out`);
+  // ★ 400 → 250 · a floor meaning "holding the townsfolk back did not empty the
+  //   world", re-based after the v0.97.6 halving. The claim is about townsfolk,
+  //   not about the size of the enemy roster.
+  ok(C.NPCS.length > 250, `${C.NPCS.length} NPCs still live — the world did not empty out`);
   const en = C.NPCS.filter(n => n && n.isEnemy).length;
-  ok(en > 300, `${en} enemies untouched`);
+  ok(en > 200, `${en} enemies untouched`);
   const dangling = ids.filter(id => (_src.match(new RegExp("'"+id+"'", 'g')) || []).length > 1);
   ok(dangling.length === 0, `no held-back id is referenced elsewhere (${dangling.length} would dangle)`);
 

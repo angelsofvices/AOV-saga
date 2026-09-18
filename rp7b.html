@@ -924,6 +924,29 @@
     }
     .rzBar.is-sel .rzName{ color:var(--zy-gold,#ffd23f) !important; text-shadow:0 0 8px rgba(255,210,63,.5); }
     .rzGrid button:hover:not(:disabled){ filter:brightness(1.35); }
+    /* ★ the pending band · what the focused button would add, drawn on the bar */
+    .rzPend{ position:absolute; left:0; right:0; pointer-events:none;
+             animation:rzPendPulse 1.1s ease-in-out infinite; }
+    @keyframes rzPendPulse{ 0%,100%{ opacity:.45; } 50%{ opacity:.95; } }
+
+    /* ══ THE CURSOR RING · v0.98.4 ══════════════════════════════════════
+       ★★★★ `outline` is painted OUTSIDE the border box, and the v0.98.0 skin
+       clips every button, panel and nav row to a notched polygon. Everything
+       outside that polygon is discarded, so the gold cursor ring was drawn and
+       then thrown away — on every clipped control in the phone, for four
+       builds, which is why the attribute buttons showed no highlight.
+       ★ An INSET ring is inside the border box, so the clip cannot touch it.
+         !important is required and earned here: every one of these controls
+         carries its colour in an inline style attribute. ─────────────────── */
+    .zy-focus{
+      box-shadow: inset 0 0 0 2px var(--zy-gold,#ffd23f),
+                  inset 0 0 20px rgba(255,210,63,0.20) !important;
+      border-color: var(--zy-gold,#ffd23f) !important;
+      filter: brightness(1.16);
+    }
+    /* ★ a bare row (no clip, no border of its own) still reads better with the
+       old outline, and an unclipped element shows both harmlessly. */
+    .zy-focus:not(button){ background-image:linear-gradient(rgba(255,210,63,0.07),rgba(255,210,63,0.07)); }
 
     /* ★ reduced motion and small screens keep the texture but drop the glow,
        because a 6-inch phone at arm's length does not need bloom. */
@@ -41234,7 +41257,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.3' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.4' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45329,9 +45352,24 @@ function _zycellPaintFocus(){
   const cursor = game._zycellItemIdx || 0;
   items.forEach((el, i) => {
     if (game._zycellFocus === 'content' && i === cursor){
+      // ★★★★ v0.98.4 · AN OUTLINE CANNOT SURVIVE A clip-path, AND I GAVE EVERY
+      //   BUTTON IN THIS PHONE A clip-path AT v0.98.0.
+      //   Creator: "when I try to select the 1 or 5 incremental boost for
+      //   attributes I dont see the highlighted button."
+      //   ★ `outline` is painted OUTSIDE the border box and `outline-offset:2px`
+      //     pushes it further out still — and the ZyPhone skin clips every
+      //     button, panel and nav row to a notched polygon. Everything outside
+      //     that polygon is discarded by the compositor, so the gold cursor ring
+      //     was being drawn and then thrown away. Not just here: on every
+      //     clipped control in the phone, for four builds.
+      //   ★★ So focus moves to a CLASS, and the class marks position with an
+      //     INSET ring, which is inside the border box and therefore survives
+      //     the clip. The inline outline stays for anything unclipped.
+      el.classList.add('zy-focus');
       el.style.outline = '2px solid #ffd66b';
       el.style.outlineOffset = '2px';
     } else {
+      el.classList.remove('zy-focus');
       el.style.outline = '';
     }
   });
@@ -45347,13 +45385,14 @@ function _zycellPaintFocus(){
   // and a no-op on every panel that does not use it.
   try {
     const fe = (game._zycellFocus === 'content') ? items[cursor] : null;
-    zyAttrHilite(fe && fe.getAttribute ? fe.getAttribute('data-zyattr') : null);
+    zyAttrHilite(fe && fe.getAttribute ? fe.getAttribute('data-zyattr') : null,
+                 fe && fe.getAttribute ? +(fe.getAttribute('data-zyamt') || 0) : 0);
   } catch(_){}
 }
 // Light one bar and show its detail line.  Called by the cursor painter and by
 // hover, so mouse and controller land in the same place.  Null = leave the
 // first detail showing rather than blanking the rail to an empty box.
-function zyAttrHilite(key){
+function zyAttrHilite(key, amount){
   const bars = document.querySelectorAll('[data-zybar]');
   if (!bars.length) return;
   bars.forEach(b => b.classList.toggle('is-sel', !!key && b.getAttribute('data-zybar') === key));
@@ -45365,6 +45404,33 @@ function zyAttrHilite(key){
     if (on) shown = true;
   });
   if (!shown && rows.length) rows[0].style.display = 'block';
+  // ★★★ THE PENDING BAND · Creator: "idk whats triggering the upgrade count."
+  //   The count moved and nothing on screen connected the press to the change.
+  //   Now the bar draws the delta BEFORE you commit: land on +10 and a pulsing
+  //   band sits on top of the fill showing exactly where it would land.
+  //   ★ Computed from the same numbers the bar itself is drawn from — pool,
+  //     cap and what rizerSpend would actually grant — so the preview cannot
+  //     promise a point the spend would refuse.
+  try {
+    const n = Math.max(0, +amount || 0);
+    document.querySelectorAll('[data-zypend]').forEach(el => {
+      const k = el.getAttribute('data-zypend');
+      if (!key || k !== key || !n){ el.style.display = 'none'; return; }
+      const pool  = rizerAttrPool(player.rizerLvl || 1) + (player.matrixAP || 0);
+      const top   = Math.max(1, Math.min(RIZER_STAT_MAX_PTS, pool));
+      const have  = rizerAttrs()[k] || 0;
+      const give  = Math.min(n, rizerAttrUnspent(), RIZER_STAT_MAX_PTS - have);
+      if (give <= 0){ el.style.display = 'none'; return; }
+      const from = Math.min(100, (have / top) * 100);
+      const to   = Math.min(100, ((have + give) / top) * 100);
+      const c    = (RIZER_ATTR_META[k] || {}).color || '#ffd23f';
+      el.style.display  = 'block';
+      el.style.bottom   = from.toFixed(1) + '%';
+      el.style.height   = Math.max(0.6, to - from).toFixed(1) + '%';
+      el.style.background = `repeating-linear-gradient(-45deg, ${c} 0 4px, rgba(255,255,255,.85) 4px 8px)`;
+      el.style.boxShadow  = `0 0 10px ${c}`;
+    });
+  } catch(_){}
 }
 function _zycellScrollFocusIntoView(){
   // Only call this when the cursor position INTENTIONALLY changes (arrow
@@ -65548,9 +65614,34 @@ function buildRizerAttrPanel(where){
   ];
   const ORDER = GROUPS.reduce((s,g) => s.concat(g.keys), []);
 
-  // ── the grid template · ONE template drives the graph and the controls, so
-  //    every button sits under its own bar at every width ──────────────────
-  const COLS = '34px ' + GROUPS.map(g => '16px ' + g.keys.map(() => 'minmax(0,1fr)').join(' ')).join(' ');
+  // ── ONE grid template drives the graph and the controls, so every button
+  //    sits under its own bar at every width ─────────────────────────────
+  //
+  // ★★★★ v0.98.4 · THE BARS OWN THE WHOLE WIDTH NOW.
+  //   Creator, with a screenshot at ~1500px: "make the bars full size in the UI
+  //   horizontally."  The template was `34px` for a tier gutter plus a `16px`
+  //   spine per group — 82px of chrome before a single bar, and the spines fell
+  //   BETWEEN columns so the rotated group names read as though they belonged
+  //   to whichever bar they happened to sit beside.
+  //   ★ Both are gone. The tier label lives INSIDE its own buttons, which
+  //     already say +1 / +10 / MAX, so the gutter was labelling a label. The
+  //     group names move to captions ABOVE their columns, where a caption can
+  //     span its group and cannot be misread as belonging to one bar.
+  const COLS = ORDER.map(() => 'minmax(0,1fr)').join(' ');
+
+  // ★★★★ AND THE SCALE IS WHAT YOU HAVE EARNED, NOT WHAT THE ENDGAME ALLOWS.
+  //   At Lv 1 a player holds 33 points against a 666-per-stat ceiling, so every
+  //   bar drew at 3% and the graph read as five empty boxes — for the first
+  //   twenty levels. That is a true picture of the endgame and a useless
+  //   picture of the game you are playing.
+  //   ★ BAR_TOP is the most this ONE stat could be holding right now: your whole
+  //     lifetime pool, capped at the per-stat ceiling. It converges on the real
+  //     666 at Lv 20 and never moves again, so the honest lifetime read is what
+  //     you see for 80 levels — and before then the bar answers the question a
+  //     new player is actually asking, which is "how much of what I HAVE is in
+  //     here". The 666 is still printed above every bar.
+  const BAR_TOP = Math.max(1, Math.min(CAP, pool));
+  const pctOf   = v => Math.max(0, Math.min(100, (v / BAR_TOP) * 100));
 
   // ★ the build read · reuses the archetype names that already exist rather
   //   than inventing titles. Purely descriptive — it names your distribution,
@@ -65569,51 +65660,39 @@ function buildRizerAttrPanel(where){
   const RING = 2 * Math.PI * 26;
   const ringOn = (prime / 99) * RING;
 
-  // group labels · rotated caps in the 16px spine column, 2K's own device
-  const spines = GROUPS.map(g => `
-      <div style="align-self:stretch; display:flex; align-items:center; justify-content:center;">
-        <span class="rzVert" style="color:var(--zy-gold,#ffd23f); font:bold 10px 'Courier New',monospace;
-              opacity:.85;">${g.label}</span>
-      </div>`);
+  const rowCells = fn => ORDER.map(fn).join('');
 
-  // Build the three grid rows explicitly (a template literal per row keeps the
-  // column arithmetic in one place instead of in three).
-  const rowCells = (fn) => {
-    let out = '', i = 0;
-    for (const g of GROUPS){
-      out += `<div></div>`;
-      for (const k of g.keys) out += fn(k, i++);
-    }
-    return out;
-  };
-  const rowCellsSpine = (fn) => {
-    let out = '', i = 0, gi = 0;
-    for (const g of GROUPS){
-      out += spines[gi++];
-      for (const k of g.keys) out += fn(k, i++);
-    }
-    return out;
-  };
+  // group captions · one cell each, spanning its group's columns
+  const capsRow = GROUPS.map(g => `
+      <div style="grid-column:span ${g.keys.length}; text-align:center; padding-bottom:5px;
+                  border-bottom:1px solid rgba(255,210,63,0.3); margin-bottom:7px;">
+        <span style="color:var(--zy-gold,#ffd23f); font:bold 9px 'Courier New',monospace;
+              letter-spacing:.30em; opacity:.9;">${g.label}</span>
+      </div>`).join('');
 
-  const capRow = `<div></div>` + rowCells(k => `
+  const capRow = rowCells(k => `
       <div style="text-align:center; color:var(--zy-muted,#7386a8);
                   font:bold 9px 'Courier New',monospace; letter-spacing:.08em;">${CAP}<div
            style="color:var(--zy-muted-2,#55617d); font-size:8px; letter-spacing:.04em;">${ceil[k]}</div></div>`);
 
-  const barRow = `<div></div>` + rowCellsSpine(k => {
+  const barRow = rowCells(k => {
     const M     = RIZER_ATTR_META[k];
     const pts   = a[k];
     const maxed = CAP - pts <= 0;
-    const own   = Math.min(100, (pts / CAP) * 100);
-    const buy   = Math.min(100, (Math.min(CAP, pts + free) / CAP) * 100);
+    const own   = pctOf(pts);
+    const buy   = pctOf(Math.min(CAP, pts + free));
     return `
-      <div class="rzBar" data-zybar="${k}" onmouseenter="try{zyAttrHilite('${k}');}catch(_){}" style="height:178px;">
+      <div class="rzBar" data-zybar="${k}" onmouseenter="try{zyAttrHilite('${k}');}catch(_){}" style="height:236px;">
         <div class="rzShaft">
           <div class="rzFill" style="height:${buy.toFixed(1)}%; background:
                  repeating-linear-gradient(45deg, ${M.color}30 0 3px, transparent 3px 7px), ${M.color}12;"></div>
           <div class="rzFill" style="height:${own.toFixed(1)}%; background:
                  linear-gradient(180deg, ${M.color} 0%, ${M.color}cc 45%, ${M.color}5e 100%);
                  box-shadow:0 0 12px ${M.color}55;"></div>
+          <!-- the PENDING band · exactly what the focused button would add.
+               ★ Creator: "idk whats triggering the upgrade count." Now the bar
+                 shows the answer before you press, not after. -->
+          <div class="rzPend" data-zypend="${k}" style="display:none;"></div>
         </div>
         ${buy > own ? `<div class="rzCap" style="bottom:calc(${buy.toFixed(1)}% - 1px); background:${M.color}70;"></div>` : ''}
         <div class="rzCap" style="bottom:calc(${own.toFixed(1)}% - 1px);
@@ -65626,7 +65705,7 @@ function buildRizerAttrPanel(where){
       </div>`;
   });
 
-  const valRow = `<div></div>` + rowCells(k => `
+  const valRow = rowCells(k => `
       <div style="text-align:center; padding-top:5px;">
         <div style="color:#fff; font:bold 16px 'Courier New',monospace; line-height:1;">${a[k]}</div>
         <div style="color:${RIZER_ATTR_META[k].color}; font:bold 9px 'Courier New',monospace;
@@ -65634,24 +65713,22 @@ function buildRizerAttrPanel(where){
       </div>`);
 
   // ── the control grid · three tiers x five stats, columns aligned to bars ──
-  const tierRow = (n, label, id) => `
-      <div style="color:var(--zy-gold,#ffd23f); font:bold 10px 'Courier New',monospace;
-                  letter-spacing:.10em; text-align:right; padding-right:4px;">${label}</div>`
-    + rowCells(k => {
-        const room = CAP - a[k];
-        const live = free > 0 && room > 0;
-        const give = Math.min(n, free, room);
-        const M    = RIZER_ATTR_META[k];
-        return `<button ${live ? `data-zyitem="attr_${k}_${id}" data-zyrow="tier_${id}" data-zyattr="${k}"` : 'disabled'}
-          onmouseenter="try{zyAttrHilite('${k}');}catch(_){}"
-          onclick="try{rizerSpend('${k}',${n});}catch(e){console.warn(e);}"
-          title="${live ? `+${give} into ${M.label}` : (room <= 0 ? `${M.label} is at max` : 'no points to spend')}"
-          style="width:100%; background:${live ? 'rgba(6,10,22,0.75)' : 'rgba(6,10,22,0.3)'};
-                 color:${live ? M.color : 'var(--zy-muted-2,#55617d)'};
-                 border:1px solid ${live ? M.color + '99' : 'rgba(79,179,255,0.14)'};
-                 padding:5px 0; font:bold 11px 'Courier New',monospace; letter-spacing:.06em;
-                 cursor:${live ? 'pointer' : 'not-allowed'};">${label}</button>`;
-      });
+  const tierRow = (n, label, id) => rowCells(k => {
+    const room = CAP - a[k];
+    const live = free > 0 && room > 0;
+    const give = Math.min(n, free, room);
+    const M    = RIZER_ATTR_META[k];
+    return `<button ${live ? `data-zyitem="attr_${k}_${id}" data-zyrow="tier_${id}" data-zyattr="${k}" data-zyamt="${give}"` : 'disabled'}
+      onmouseenter="try{zyAttrHilite('${k}',${live ? give : 0});}catch(_){}"
+      onmouseleave="try{zyAttrHilite('${k}',0);}catch(_){}"
+      onclick="try{rizerSpend('${k}',${n});}catch(e){console.warn(e);}"
+      title="${live ? `+${give} into ${M.label}` : (room <= 0 ? `${M.label} is at max (${CAP})` : `no AP · level up to earn more`)}"
+      style="width:100%; background:${live ? 'rgba(6,10,22,0.75)' : 'rgba(6,10,22,0.22)'};
+             color:${live ? M.color : 'var(--zy-muted-2,#55617d)'};
+             border:1px solid ${live ? M.color + '99' : 'rgba(79,179,255,0.10)'};
+             padding:6px 0; font:bold 11px 'Courier New',monospace; letter-spacing:.06em;
+             ${live ? '' : 'opacity:.45;'} cursor:${live ? 'pointer' : 'not-allowed'};">${label}</button>`;
+  });
 
   // ── the detail rail · one line, for the bar the cursor is on ─────────────
   const details = ORDER.map((k, i) => `
@@ -65725,18 +65802,23 @@ function buildRizerAttrPanel(where){
     <div style="font-family:'Courier New',monospace;">
       ${card}
       ${banner}
-      <div class="rzGraph" style="display:grid; grid-template-columns:${COLS}; gap:0 5px; align-items:end;">
+      <div class="rzGraph" style="display:grid; grid-template-columns:${COLS}; gap:0 7px; align-items:end;">
+        ${capsRow}
         ${capRow}
         ${barRow}
         ${valRow}
       </div>
       <div style="height:1px; background:linear-gradient(90deg, transparent, var(--zy-gold,#ffd23f), transparent);
                   opacity:.45; margin:10px 0 9px;"></div>
-      <div class="rzGrid" style="display:grid; grid-template-columns:${COLS}; gap:5px; align-items:center;">
+      <div class="rzGrid" style="display:grid; grid-template-columns:${COLS}; gap:6px; align-items:center;">
         ${tierRow(1, '+1', 'p1')}
         ${tierRow(10, '+10', 'p10')}
         ${tierRow(CAP, 'MAX', 'max')}
       </div>
+      ${free > 0 ? '' : `<div style="margin-top:7px; text-align:center; color:var(--zy-muted,#7386a8);
+             font:bold 10px 'Courier New',monospace; letter-spacing:.10em;">
+           ◈ 0 AP · every upgrade is locked until you level${lvl >= RIZER_LEVEL_CAP ? ' · max level' : ` · Lv ${lvl+1} grants ${rizerAttrPool(lvl+1) - pool}`}
+         </div>`}
       <div class="zy-panel" style="margin-top:11px; min-height:42px; font:10px 'Courier New',monospace;
                                    line-height:1.65; letter-spacing:.03em;">
         ${details}

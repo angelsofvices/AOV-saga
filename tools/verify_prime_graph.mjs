@@ -142,18 +142,48 @@ H('★★★ THE TWO GRIDS SHARE ONE TEMPLATE · or every button lies');
   ok(t.length === 2, `${t.length} grid templates in the panel`);
   ok(t[0] === t[1], `★★★ graph and controls use the SAME column track · ${t[0]}`);
   const cells = t[0].split(/\s+(?![^(]*\))/);
-  ok(cells.length === 1 + 3 + 5, `${cells.length} tracks · 1 tier gutter + 3 group spines + 5 bars`);
-  ok(cells[0] === '34px', 'track 0 is the tier-label gutter');
-  ok(cells.filter(c => c === '16px').length === 3, 'three 16px spines · one per group');
-  ok(cells.filter(c => c === 'minmax(0,1fr)').length === 5, 'five elastic bar tracks');
-  // ★★★ AND NOTHING PINS ITSELF. The three rows stay in register because each
-  //   emits exactly 9 cells and AUTO-PLACEMENT flows them. My first cut left a
-  //   `grid-row:1` on the group spines from an earlier design — which yanked
-  //   all three rotated labels up into the CAP row, where the numbers live,
-  //   while the bars sat in row 2 with empty gaps beside them. Auto-placement
-  //   and explicit placement in the same grid is how a layout drifts silently.
+  // ★★★ v0.98.4 · THE BARS OWN THE WHOLE WIDTH.
+  //   Creator, with a 1500px screenshot: "make the bars full size in the UI
+  //   horizontally." The template carried a 34px tier gutter and a 16px spine
+  //   per group — 82px of chrome before a single bar — and the spines fell
+  //   BETWEEN columns, so a rotated group name read as if it belonged to
+  //   whichever bar it happened to sit beside. Both are gone: the tier label is
+  //   inside its own buttons, and the group names are captions above, spanning
+  //   their columns.
+  ok(cells.length === 5, `${cells.length} tracks · five bars and nothing else`);
+  ok(cells.every(c => c === 'minmax(0,1fr)'),
+     '★★★ every track is elastic · no fixed gutter takes width off the bars');
+  ok(!/34px|16px/.test(t[0]), '★ the tier gutter and the group spines are gone from the template');
+  ok(/grid-column:span/.test(MID), '★★ the group captions SPAN their columns · a caption that spans '
+     + 'a group cannot be misread as belonging to one bar, which is what the between-column spines did');
   ok(!/grid-row\s*:/.test(MID),
      '★★★ no cell pins its own row · the register is auto-placement, one source of truth');
+}
+
+H('★★★★ THE SCALE IS WHAT YOU HAVE EARNED · the empty-graph problem');
+{
+  // ★★★★ At Lv 1 a player holds 33 points against a 666-per-stat ceiling, so
+  //   every bar drew at 3% and the graph read as five empty boxes — for twenty
+  //   levels. A true picture of the endgame and a useless picture of the game
+  //   you are playing. BAR_TOP is the most ONE stat could be holding right now:
+  //   the whole lifetime pool, capped at 666. It converges on the real ceiling
+  //   at Lv 20 and never moves again.
+  const L1 = sheet(1, { def: 23, atk: 10 });                 // the Creator's screenshot
+  const h1 = [...L1.matchAll(/class="rzFill" style="height:([\d.]+)%/g)].map(m => +m[1]);
+  const own1 = h1.filter((_,i) => i % 2);                    // [buy, own] per bar
+  const defOwn = own1[ORDER.indexOf('def')], atkOwn = own1[ORDER.indexOf('atk')];
+  ok(Math.abs(defOwn - 23/33*100) < 0.2,
+     `★★★ Lv 1 · DEF 23 of a 33-point pool draws at ${defOwn}%, not ${(23/666*100).toFixed(1)}%`);
+  ok(Math.abs(atkOwn - 10/33*100) < 0.2, `★ and ATK 10 at ${atkOwn}%`);
+  ok(L1.includes('666'), '★★ the true 666 ceiling is still printed above every bar · the scale moved, the truth did not');
+  // ★★ CONVERGENCE. pool passes 666 at Lv 20, and from there the bar IS the
+  //   lifetime read for eighty levels.
+  const at = lvl => { const H = sheet(lvl, { def: 333 });
+    return [...H.matchAll(/class="rzFill" style="height:([\d.]+)%/g)].map(m => +m[1])
+             .filter((_,i) => i % 2)[ORDER.indexOf('def')]; };
+  ok(at(20) === 50, `★★★ by Lv 20 the pool reaches 666 and 333 draws at ${at(20)}% · the honest half-way mark`);
+  ok(at(60) === 50, `★★ and never moves again · Lv 60 draws the same ${at(60)}%`);
+  ok(at(10) > 50, `★ below that the scale is tighter · Lv 10 draws 333 at ${at(10)}%, because 333 is most of what you own`);
 }
 
 H('★★★ THE BARS SAY WHAT THE NUMBERS SAY');
@@ -237,6 +267,62 @@ H('★ THE FRESH SHEET · Lv 1, the archetype you leave the room with');
   ok(heights.filter((h,i) => i%2).every(h => h === 0), 'every owned zone is empty');
   ok(heights.filter((h,i) => !(i%2)).every(h => h > 0),
      '★★ and every affordance zone is NOT · a new player can see where 33 points reach');
+}
+
+H('★★★★ THE CURSOR RING · an outline cannot survive a clip-path');
+{
+  // ★★★★ I BROKE THIS AT v0.98.0 AND IT TOOK FOUR BUILDS TO SURFACE.
+  //   Creator: "when I try to select the 1 or 5 incremental boost for
+  //   attributes I dont see the highlighted button."
+  //   `outline` paints OUTSIDE the border box and outline-offset:2px pushes it
+  //   further out; the ZyPhone skin clips every button, panel and nav row to a
+  //   notched polygon, and the compositor discards everything outside it. The
+  //   gold ring was being drawn and thrown away — on every clipped control in
+  //   the phone, not just this panel.
+  const css = page => page.slice(page.indexOf('<style'), page.lastIndexOf('</style>'));
+  const CSS = css(fs.readFileSync('rp7b.html', 'utf8'));
+  ok(/#zphonePanel button\{[\s\S]{0,200}clip-path:/.test(CSS),
+     'the skin does clip every button · that is the cause, and it stays, it is the look');
+  ok(/\.zy-focus\{[\s\S]*?box-shadow:\s*inset/.test(CSS),
+     '★★★ the cursor ring is now INSET · inside the border box, so the clip cannot reach it');
+  ok(/el\.classList\.add\('zy-focus'\)/.test(src) && /el\.classList\.remove\('zy-focus'\)/.test(src),
+     '★★ and the painter toggles a class · one rule to restyle, instead of four inline literals per stop');
+  ok(/el\.style\.outline = '2px solid #ffd66b'/.test(src),
+     '★ the inline outline stays for unclipped rows · both is harmless, neither would have been');
+}
+
+H('★★★ THE PENDING BAND · what is triggering the upgrade count');
+{
+  // Creator: "idk whats triggering the upgrade count." The number moved and
+  // nothing on screen connected the press to the change.
+  ok(/data-zypend="/.test(MID), 'every bar carries a pending band');
+  ok((MID.match(/data-zypend=/g) || []).length === 5, 'one per stat');
+  ok(/data-zyamt="/.test(MID), '★★ and every live button declares what it would actually grant');
+  // ★ the amount on the button is min(tier, free, room) — the same clamp
+  //   rizerSpend applies. A preview that promises a point the spend refuses is
+  //   worse than no preview.
+  const amts = [...MID.matchAll(/data-zyattr="(\w+)" data-zyamt="(\d+)"/g)].map(m => [m[1], +m[2]]);
+  ok(amts.length === 15, `${amts.length} buttons declare an amount`);
+  const free = 109, A = { hp:240, def:90, atk:180, special:60, speed:120 };
+  const want = [];
+  for (const n of [1, 10, CAP]) for (const k of ORDER) want.push([k, Math.min(n, free, CAP - A[k])]);
+  ok(JSON.stringify(amts) === JSON.stringify(want),
+     '★★★ each is min(tier, free, room) · the same clamp rizerSpend applies');
+  ok(/zyAttrHilite\(key, amount\)/.test(src), '★ the hilite hook takes the amount');
+  ok(/rizerAttrUnspent\(\), RIZER_STAT_MAX_PTS - have/.test(src),
+     '★★ and re-clamps at paint time against live state, not against the markup it was rendered with');
+}
+
+H('★★ THE DEAD PANEL SAYS WHY · the Creator was pressing buttons that were correctly refusing');
+{
+  // The screenshot showed Lv 1, 33/33 spent, every button disabled — working as
+  // designed, and nothing on screen said so except a hover tooltip.
+  const DRY = sheet(1, { def: 23, atk: 10 });
+  ok(!scan(DRY).some(e => e.item), 'no live stops when the pool is empty · correct');
+  ok(/0 AP · every upgrade is locked until you level/.test(DRY),
+     '★★★ and the panel now says so in the control block, where the dead buttons are');
+  ok(/Lv 2 grants 33/.test(DRY), '★★ with the number that unlocks them');
+  ok(/no AP · level up to earn more/.test(DRY), '★ and every dead button carries the reason');
 }
 
 console.log(f ? `\n❌ ${f} failed` : '\n✅ vertical graph · arrows match the layout · one template · bars agree with the numbers');

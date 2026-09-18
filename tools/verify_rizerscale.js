@@ -54,7 +54,7 @@ global.performance = { now: () => 0 };
 global.alert = noop; global.confirm = () => true; global.prompt = () => null;
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 
-const EXPORT = ';globalThis.__C={RIZER,rizerRowScale,rizerTargetBodyPx,TILE,DIR_ROW,BBOX_FALLBACK};';
+const EXPORT = ';globalThis.__C={RIZER,rizerRowScale,rizerTargetBodyPx,TILE,DIR_ROW,BBOX_FALLBACK,RIZER_HEAD_SCALE};';
 
 try { new Function(src + EXPORT)(); } catch(e){ console.log('boot error:', e.message.slice(0,300)); }
 const FS=require('fs'); const src2 = FS.readFileSync('/tmp/all.js','utf8');
@@ -156,10 +156,27 @@ console.log('\n5 · ★★ ONE HELPER, TWO CALLERS\n');
 console.log('\n6 · UNMEASURED SHEETS ARE NOT SILENTLY RESCALED\n');
 {
   ok(!C.RIZER.punch.bodyBh, 'the punch sheet has no bodyBh table');
-  const p = C.rizerRowScale(C.RIZER.punch, 2);
-  const legacy = (C.TILE*2)/C.RIZER.punch.bboxes[0][0][3];
-  ok(Math.abs(p - legacy) < 1e-9,
-     '★ so it keeps exactly the scale it shipped with · a sheet nobody measured is not');
+  // ★★★★ v0.99.3 · THIS RULE WAS RETIRED BY DIRECTIVE, AND THE OLD ASSERTION
+  //   WAS THE BUG'S ALIBI.
+  //   It used to demand that an unmeasured sheet keep `(TILE*2)/box` — the flat
+  //   scale it shipped with. That sounds conservative and was in fact the defect:
+  //   one number, from the DOWN column-0 box, used for all four directions,
+  //   while idle's own scale runs 0.513/0.581/0.584/0.560. A flat fallback can
+  //   match idle in AT MOST ONE direction, so sixteen banks were a different
+  //   size depending on which way Rizer faced — kick at 88/77/77/80% of idle.
+  //   ★ Creator, 2026-09-18: "make sure rizer is the same size in all frames ...
+  //     use rizers idle head DLRU scale as the universal anchor."
+  //   So the rule is inverted: an unmeasured sheet is anchored to IDLE'S ROW
+  //   SCALE. What survives of the old intent — no silent guessing — is that the
+  //   multiplier is never invented: it is either measured (verify_rizer_head_anchor)
+  //   or derived to preserve the size that sheet has always drawn on DOWN.
+  const idleRow = r => C.rizerRowScale(C.RIZER.idle, r);
+  const hs = C.RIZER_HEAD_SCALE[String(C.RIZER.punch.key || '').toLowerCase()] || 1;
+  ok(Math.abs(C.rizerRowScale(C.RIZER.punch, 2) - idleRow(2) * hs) < 1e-9,
+     `★★★ an unmeasured sheet now rides the anchor · punch = idleRowScale(row) x ${hs}`);
+  const flat = (C.TILE*2)/C.RIZER.punch.bboxes[0][0][3];
+  ok(Math.abs(C.rizerRowScale(C.RIZER.punch, 2) - flat) > 1e-6,
+     '★★ and is NOT the old flat box scale · that was the thing being fixed');
   console.log('       rescaled to a guess.  Only the three locomotion sheets change.');
 }
 

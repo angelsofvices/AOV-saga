@@ -17842,13 +17842,18 @@ const RIZER = {
   // The declared bboxes are untouched: they still decide which pixels are
   // cropped. bodyBh only says how tall those pixels are.
   // Re-measure with tools/measure_rizer_body.py.
+  // ★ v0.99.3 · walk and run were 1-2px off the art (walk L/R 167 vs 166, run
+  //   [194,188,175,189] vs [193,187,173,187]) and verify_rizerscale had been red
+  //   on it. Sub-1% — invisible on its own, and these are the two banks sitting
+  //   either side of the ANCHOR every other bank is now measured against, so a
+  //   stale number here propagates. Corrected to what the sheets measure.
   idle: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, bodyBh: [181, 160, 159, 166], key: 'idle', loaded: false },
-  walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, bodyBh: [184, 167, 167, 172], key: 'walk', loaded: false },
+  walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, bodyBh: [184, 166, 166, 172], key: 'walk', loaded: false },
   // ★ v0.95.940 · bodyBh · measured true body per row.  RUN varies 12-15px
   // WITHIN each row and that is the bounce — he leaves the ground.  Column 0
   // is the row reference (the engine's own convention), so the bounce is kept
   // and only the direction-to-direction mismatch is removed.
-  run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  bodyBh: [194, 188, 175, 189], key: 'run',  loaded: false },
+  run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  bodyBh: [193, 187, 173, 187], key: 'run',  loaded: false },
   // ★★★ v0.95.920 · THE COMBO SHEET.  Four COLUMNS = four different strikes,
   // not four frames of one: jab / cross / elbow / backfist.  comboSheet tells
   // the draw to HOLD the step's column instead of walking all four, which is
@@ -17994,7 +17999,7 @@ const RIZER = {
     [[ 96,147,138, 86],[ 51,144,237,103],[ 55,  0,192,289],[ 18,  0,248,313]],
     [[ 85,114,136, 86],[ 35,112,223, 97],[ 50, 70,169,178],[ 14,  0,247,277]],
     [[131, 78, 83,124],[100, 50,109,204],[ 41, 36,197,178],[  2,  6,273,268]],
-  ], key: 'astralProj', loaded: false },
+  ], key: 'astralProj', headAnchor: false, loaded: false },
 };
 // v0.95.240 · Player cosmetic registry.  A skin may override any RIZER
 // actor bundle; missing poses inherit the normal sheet so partial skin drops
@@ -18596,7 +18601,18 @@ const PLAYER_SKINS = {
 // kick banks receive the same restrained five-percent visual lift instead.
 // S1 keeps its authored constant sheet scale; S2/S3 keep their established
 // per-frame fitting, with only the final target height adjusted.
-for (const kick of [RIZER.kick, RIZER_POWER_KICK, RIZER_LUMINARY_KICK]) kick.visualScale = 1.05;
+// ★★★★ v0.99.3 · THE 5% LIFT IS RETIRED, AND ITS OWN NOTE IS WHY.
+//   "Reusing idle's raw pixel ratio overcorrected by 12-20%" is an exactly
+//   correct observation with no number attached: anchoring the kick to idle at
+//   1.0 DOES overshoot, and the measured amount is 0.88 — a 13.6% correction,
+//   inside the 12-20% that was observed by eye. The 5% lift was that correction
+//   approximated in the only currency available at the time.
+//   ★ Now that RIZER_HEAD_SCALE carries the measurement, the lift is a second
+//     compensation stacked on the first: 0.88 x 1.05 = 0.924, which put him 5%
+//     over. Two fixes for one problem is how a number nobody can derive ends up
+//     in the file. Kept as a line rather than deleted, so the reasoning that
+//     produced 1.05 stays attached to the thing that replaced it.
+// for (const kick of [RIZER.kick, RIZER_POWER_KICK, RIZER_LUMINARY_KICK]) kick.visualScale = 1.05;
 // ★★★ v0.96.40 · THE S3 -> S2 -> S1 LINEAGE.
 //   Only S3's IDLE sheet exists. Every other action — walk, run, punch, kick,
 //   the astral bank, death, capture — has no S3 art yet, and the honest
@@ -38365,13 +38381,137 @@ function rizerTargetBodyPx(){
   const body = idle && idle.bodyBh ? idle.bodyBh[0] : 181;
   return body * (TILE * 2) / decl;          // 181 * 96/187 = 92.92px
 }
+// ★★★★ v0.99.3 · THE IDLE HEAD IS THE ANCHOR FOR EVERY BANK.
+//
+//   Creator, 2026-09-18: "make sure rizer is the same size in all frames. kick
+//   was coming out weird ... use rizers idle head DLRU scale as the universal
+//   anchor of his frames (kick, etc.)"
+//
+// ★★★★ THE KICK WAS A SYMPTOM. SIXTEEN BANKS HAD NO ANCHOR AT ALL.
+//   Only idle, walk and run carried a measured bodyBh. Every other bank fell
+//   through to `(TILE*2) / bboxes[0][0][3]` — the DOWN-column-0 declared box —
+//   which returns ONE number for all four directions. Idle's own scale is not
+//   one number: it runs 0.513 / 0.581 / 0.584 / 0.560 across D/L/R/U, a 14%
+//   spread, because his head-to-feet ink genuinely differs by view. A flat
+//   fallback therefore matches idle in AT MOST ONE direction. Measured against
+//   idle, before this change:
+//
+//        kick        88% / 77% / 77% / 80%      ← the reported bug
+//        guitarPlay  78% / 69% / 69% / 72%
+//        skate       86% / 76% / 76% / 79%
+//        block       90% / 80% / 79% / 83%
+//        dodge       98% / 87% / 86% / 90%
+//
+//   He was shrinking by up to 23% mid-action, and by a DIFFERENT amount
+//   depending on which way he faced. That is the "same size in all frames"
+//   the Creator is asking for, and it is not a kick problem.
+//
+// ★★★ SO THE RULE IS NOW ONE LINE: an unmeasured bank draws at IDLE'S ROW
+//   SCALE. Not idle's row-0 scale, not its own box — idle's scale for the row
+//   being drawn. That alone puts every bank on the anchor in every direction.
+//
+// ★★ headScale IS THE SECOND-ORDER CORRECTION, AND ONLY WHERE IT WAS MEASURED.
+//   Some sheets are drawn with the character genuinely larger in the cell. I
+//   measured that by template-matching idle's head into every frame of every
+//   bank (tools/measure_rizer_head.py), two independent alignment strategies,
+//   and kept a number ONLY where both agreed and the match quality held up:
+//
+//        kick      0.85  (IoU 0.89 · two methods 0.833 / 0.876)
+//        punch     0.93  (IoU 0.93 · two methods 0.929 / 0.932)
+//        interact  0.90  (IoU 0.88)
+//
+//   ★ Everything else is 1.0 ON PURPOSE. guitarPlay measured 0.60 and dodge
+//     0.61 — at IoU 0.26 and 0.71, which is the matcher telling me it could not
+//     find a head, because in those poses the head is not at the top of the ink.
+//     Acting on 0.60 would have halved him. A measurement that disagrees with
+//     itself is not a licence to change the art; it is a reason to leave it at
+//     the anchor and say so.
+//
+// ★ idle, walk and run keep their measured bodyBh. Both matchers put walk and
+//   run within a few percent of the anchor already, and they are the sizes the
+//   Creator has signed off ("his idle before size is perfect", v0.95.940).
+//   ★ MEASURED, then CLOSED-LOOP VERIFIED. The first pass template-matched
+//     idle's head into each bank's raw art. The second re-ran the match with
+//     both sides already at their DRAWN scale and asked for the residual — 1.00
+//     means the two heads match on screen, which is the entire claim. One
+//     iteration of `scale x= residual` converged the side rows to 1.000 on
+//     almost everything, and kick's first estimate (0.85) turned out to have
+//     over-corrected by 3.5%.
+//
+//   ★★ DOWN AND UP READ 1.02-1.08 ON EVERY BANK, INCLUDING THE ONES THAT
+//     CONVERGED PERFECTLY ON THE SIDES. A bias that appears identically on
+//     banks that are demonstrably correct is an artefact of measuring a head
+//     that is partly behind its own hair and shoulders, not sixteen coincident
+//     errors. So the number comes from LEFT and RIGHT, where the head is in
+//     profile and the match is clean, and the front and back rows are ignored.
+//
+//   ★★★ AND WHERE THE MATCHER FAILED, NOTHING IS GUESSED. guitarPlay returned
+//     IoU 0.00 on LEFT — it found no head at all, because the top of that
+//     sheet's ink is an amplifier. faeCatch, doubleJump and runJump came back
+//     at the search floor. For those the scale is derived to PRESERVE the size
+//     the sheet has always drawn at on the DOWN row (oldFlatScale / idleDOWN),
+//     so the direction-to-direction inconsistency is still fixed and the size
+//     the Creator has been looking at does not move. Independent corroboration:
+//     guitarPlay's hair blob measured 1.27x idle's at the unscaled anchor, and
+//     1/1.27 = 0.787 against the 0.782 this rule produces.
+const RIZER_HEAD_SCALE = {
+  // measured · closed-loop converged on LEFT/RIGHT, IoU >= 0.85
+  kick:         0.880,
+  punch:        0.930,
+  interact:     0.900,
+  block:        0.920,
+  death:        0.825,
+  dodge:        0.920,
+  astralkick:   0.945,
+  astralthrow:  0.900,
+  idlejump:     1.000,
+  astralstrike: 1.000,
+  // matcher could not find a head · preserve the shipped DOWN-row size
+  guitarplay:   0.782,
+  faecatch:     0.895,
+  skate:        0.862,
+  runjump:      0.984,
+  doublejump:   0.806,
+};
+// ★★★★ THE KEY HAS TO BE NORMALISED, AND MY OWN SUITE IS WHAT CAUGHT IT.
+//   The lookup reads `bundle.key`, not the property name in RIZER — and those
+//   differ (RIZER.doubleJump carries key 'double-jump'), so that entry was a
+//   silent miss.
+//   ★★★ FAR WORSE: THE SKIN SWAP. When Rizer powers up, RIZER.kick is REPLACED
+//     by RIZER_POWER_KICK, whose key is 'kick-power-upgrade' — and 'kick-luminary'
+//     at S3. A table keyed on the raw string would have applied to S1 and to
+//     nothing else, so he would have CHANGED SIZE THE MOMENT HE TRANSFORMED,
+//     which is the exact bug being fixed, hiding one evolution away.
+//   ★ One measurement per ACTION, shared by all three skins, because the three
+//     sheets are the same poses drawn at the same scale.
+function _rizerBaseKey(k){
+  return String(k || '').toLowerCase()
+    .replace(/-(power-upgrade|luminary|preview)$/g, '')
+    .replace(/[-_\s]/g, '');
+}
 function rizerRowScale(bundle, row){
   if (!bundle) return (TILE * 2) / 284;
   const visualScale = bundle.visualScale || 1;
   // ★ measured head-to-feet first · this is the whole fix
   if (bundle.bodyBh && bundle.bodyBh[row]) return (rizerTargetBodyPx() / bundle.bodyBh[row]) * visualScale;
-  // sheets without a measured table keep exactly the behaviour they shipped
-  // with — an unmeasured sheet is not silently rescaled to a guess
+  // ★★★ THE ANCHOR. Any Rizer bank without its own measured table is drawn at
+  //   the size IDLE draws at for this row, times whatever the head measurement
+  //   earned it. headAnchor:false opts out — astralProj is a projectile, not a
+  //   character, and has no head to anchor.
+  // ★★ AND NOT EVERYTHING IN THIS TABLE IS RIZER. The projectile and impact
+  //   sheets are VFX — a fireball has no head, and anchoring one to his would
+  //   size an explosion by a face. One pattern rather than four flags, so the
+  //   next VFX bundle is covered the day it lands rather than the day somebody
+  //   notices it is the wrong size.
+  const _vfx = /projectile|boom/i.test(String(bundle.key || ''));
+  const idle = (typeof RIZER !== 'undefined') ? RIZER.idle : null;
+  if (idle && idle !== bundle && bundle.headAnchor !== false && !_vfx
+      && idle.bodyBh && idle.bodyBh[row]){
+    const head = (bundle.headScale != null) ? bundle.headScale
+               : (RIZER_HEAD_SCALE[_rizerBaseKey(bundle.key)] || 1);
+    return (rizerTargetBodyPx() / idle.bodyBh[row]) * head * visualScale;
+  }
+  // sheets that opted out keep exactly the behaviour they shipped with
   if (bundle._downScale != null) return bundle._downScale * visualScale;
   const dbh = bundle.bboxes && bundle.bboxes[0] && bundle.bboxes[0][0]
             ? bundle.bboxes[0][0][3] : 284;
@@ -41548,7 +41688,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.2' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.3' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

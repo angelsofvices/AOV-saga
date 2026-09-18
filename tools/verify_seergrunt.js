@@ -199,32 +199,40 @@ console.log('     would hoist him ~0.6 tiles into the air while facing right.\n'
 // that is what these attack-sheet assertions are about.
 function fbTable(which){
   const v = which===0 ? 'A' : 'B';
-  // v0.95.699 · SEER_GRUNT_ART was hoisted out of the SEER_PRESENCE IIFE to
-  // module scope, so its keys are indented 2 spaces now, not 6. Anchor on the
-  // table name and find the variant inside it rather than on whitespace.
+  // ★★★★ 2026-09-17 · TWO REAL PARSER FAULTS, both of which made this report a
+  //   missing table as a missing FEATURE.
+  //   1. The window was bounded by `indexOf("B: {", i+1)`. That works for A and
+  //      overruns for B, because there IS no next variant — so B's slice ran on
+  //      past the end of SEER_GRUNT_ART and the foot values it compared were
+  //      read out of VERDANT_CREEPER_ART further down the file.
+  //   2. The table regex ended `\]\s*\]`, which cannot cross the trailing comma
+  //      every one of these tables is written with: `[210,210,209,209],\n  ]`.
+  // ★ Bound the search at the END OF THE OBJECT by brace-matching, so it can
+  //   never wander into the next creature no matter what is added below it.
   const t = src.indexOf('const SEER_GRUNT_ART');
-  const i = src.indexOf(`${v}: {`, t);
+  if (t < 0) return null;
+  let j = src.indexOf('{', t), d = 0;
+  do { if (src[j]==='{') d++; else if (src[j]==='}') d--; j++; } while (d && j < src.length);
+  const table = src.slice(t, j);
+  const i = table.indexOf(`${v}: {`);
   if(i<0) return null;
-  // Window must not be a magic character count: adding walk+run to Grunt A
-  // pushed his attack block past a 2600-char lookahead and this returned null,
-  // failing a check about foot baselines because it could not FIND the table.
-  // Bound the slice at the NEXT variant instead, so it grows with the data.
-  const nxt = src.indexOf("B: {", i+1);
-  const seg = src.slice(i, nxt > i ? nxt : i + 8000);
+  const nxt = v === 'A' ? table.indexOf('B: {', i+1) : table.length;
+  const seg = table.slice(i, nxt > i ? nxt : table.length);
   const a = seg.indexOf('attack: {');
   if(a<0) return null;
-  // ★★ and the pattern demanded `[[` with NOTHING between the brackets, while
-  //   every table in the file is written `foot: [\n     [293,...`. Two separate
-  //   reasons the same parser could not see data that exists.
-  const m = seg.slice(a).match(/foot:\s*(\[\s*\[[\s\S]{0,400}?\]\s*\])/);
-  return m ? JSON.parse(m[1].replace(/\s+/g,'')) : null;
+  const m = seg.slice(a).match(/foot:\s*(\[[\s\S]{0,500}?\]\s*,?\s*\])/);
+  return m ? JSON.parse(m[1].replace(/\s+/g,'').replace(/,\s*\]/g,']')) : null;
 }
-// ★★★★ 2026-09-17 · fbTable WAS CALLED WITH 0 AND 1 while it searches for
-//   `${v}: {` — so it looked for "0: {" and "1: {" inside SEER_GRUNT_ART, whose
-//   keys are A and B. It could never find the tables, and the assertion below
-//   reported "footBaselines declared for both grunts" as a FAILURE against data
-//   that has been sitting in the file all along.
-const FB={A:fbTable('A'), B:fbTable('B')};
+
+// ★★★ 2026-09-17 · I "FIXED" THIS CALL SITE WITHOUT READING THE FUNCTION.
+//   fbTable(0)/fbTable(1) looked wrong — the keys are A and B — so I changed it
+//   to fbTable('A')/fbTable('B'). But line 1 of fbTable is
+//   `const v = which===0 ? 'A' : 'B'`, so passing 'A' is not ===0 and BOTH
+//   calls then read Grunt B. The slice ran past the end of SEER_GRUNT_ART and
+//   the foot values it compared came out of VERDANT_CREEPER_ART.
+//   ★ The 0/1 convention was correct all along. The only real bug was the
+//     regex below. Reverted.
+const FB={A:fbTable(0), B:fbTable(1)};
 ok(!!FB.A && !!FB.B, 'footBaselines declared for both grunts');
 for(const k of ['A','B']){
   if(!FB[k]) continue;

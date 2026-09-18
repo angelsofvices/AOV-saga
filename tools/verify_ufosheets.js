@@ -123,8 +123,17 @@ for r in range(4):
   ok(off===0,`★ all 16 bboxes re-measure to what the code declares (${off} off)`);
   // ★ the tell of the old fault: row 1/2 bboxes spanned 281/229 rows because
   //   they were measuring the foreign chunks.  The real lateral art is 119.
-  ok(C.UFO_DASH_BBOXES[1].every(b=>b[3]===119)&&C.UFO_DASH_BBOXES[2].every(b=>b[3]===119),
-     '★ lateral frames measure their REAL 119px height — the 281/229 was the foreign nose inflating the box');
+  // ★★★ 2026-09-17 · `=== 119` → a BAND, because two suites were demanding
+  //   different things of the same table. This one wanted a uniform 119;
+  //   verify_ufo wants every box to match its art exactly, and the art measures
+  //   117-119. A literal cannot satisfy both and the art is the authority.
+  // ★ What this assertion is actually FOR is in its own note: the old fault had
+  //   these frames at 281 and 229 because the box was swallowing a neighbouring
+  //   nose. 115-125 catches that a mile off and does not argue with the pixels.
+  //   ★★ A 2px spread is 1.7% — invisible. It is not the Morlisk case, where a
+  //     frame drawn at half zoom pulsed the creature 2.2x.
+  ok([1,2].every(r=>C.UFO_DASH_BBOXES[r].every(b=>b[3]>=115&&b[3]<=125)),
+     '★ lateral frames measure their REAL ~119px height — the 281/229 was the foreign nose inflating the box');
 }
 
 H('4 · ★★ ONE UFO PER ATTACK');

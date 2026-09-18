@@ -42,8 +42,9 @@ for (let i = 0; i < 10; i++) {
     assert.equal(elements['district-title'].textContent,expected[i][0]);
     assert.equal(elements['district-lord'].textContent,expected[i][1]);
     assert.ok(elements['district-description'].textContent.length > 60);
-    const view = elements['district-preview'].attributes.viewBox.split(' ').map(Number);
-    assert.ok(view.every(Number.isFinite) && view[2] > 0 && view[3] > 0);
+    assert.ok(elements['district-hook'].textContent.length > 100);
+    assert.ok(elements['district-question'].textContent.length > 35);
+    assert.doesNotMatch(elements['district-hook'].textContent,/defeats?|dies?|kidnapp|boss|Ophira|Orryx|Xenoxil|Seer Chief|Soul Split|Egnellahc|Ultharis/i);
     assert.equal(focused,elements['district-close']);
     assert.ok(body.classes.has('district-open'));
     elements['district-close'].emit('click');
@@ -63,9 +64,10 @@ dialog.emit('click',{clientX:200,clientY:100}); assert.ok(dialog.open);
 dialog.emit('click',{clientX:10,clientY:10}); assert.equal(dialog.open,false);
 assert.equal(focused,regions[0]);
 assert.ok(!html.includes('IT HAS GONE WRONG BEFORE'));
+assert.ok(!html.includes('id="district-preview"'));
 for (const file of ['macrobook-map.css','macrobook-map.js','assets/2D sprites/decor/zyraxis-worldmap.png']) {
   assert.ok(fs.existsSync(path.join(root,file)),`Missing ${file}`);
 }
 // Parse every inline script as well as the separately executed atlas script.
 for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
-console.log('PASS: all 10 map regions and list buttons, lore matches, preview bounds, open/close, focus return, scroll lock, keyboard entry, next/previous wrapping, backdrop dismissal, assets and script syntax.');
+console.log('PASS: all 10 map regions and list buttons, lore matches, image-free overlays, spoiler-free story hooks and questions, open/close, focus return, scroll lock, keyboard entry, next/previous wrapping, backdrop dismissal, assets and script syntax.');

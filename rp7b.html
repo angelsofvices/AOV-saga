@@ -857,6 +857,74 @@
     }
     #zycellClose:hover{ background: rgba(255,77,94,0.18) !important; }
 
+    /* ══ THE PRIME GRAPH · v0.98.1 ══════════════════════════════════════
+       ★★★★ Creator, 2026-09-17, with the NBA 2K27 MyCAREER attribute screen:
+            "make the rizer panel (upgrades) section like this. learn the way
+             2k does it. make it a vertical graph. be smart. retheme"
+
+       ★★★ WHAT 2K IS ACTUALLY DOING, because copying the picture is not the
+       job — the picture is the product of four decisions:
+
+         1 · THE BAR IS A COLUMN, NOT A LINE. Vertical, skewed into a shallow
+             3D shaft with a lit top face. Height is the read; you compare a
+             build at a glance the way you compare a bar chart, which is the
+             whole reason it beats the row of progress bars we had.
+         2 · THREE ZONES, NOT TWO. Filled (owned) · headroom to the CAP ·
+             and the cap tick. 2K's middle zone is "what your MyPOINTS can
+             buy right now" — an affordance, drawn as part of the bar.
+         3 · COLOUR IS THE GROUP. Finishing blue, Shooting green, Playmaking
+             yellow, Defense red, each with its name set in large rotated
+             caps beside the run.
+         4 · NUMBERS BRACKET THE BAR. Max above, current below. Nothing in
+             the middle competes with the shape.
+
+       ★★ WHERE I DEPARTED, and why. 2K colours BY GROUP because 25 attributes
+       need collapsing into 4 reads. We have five, and three of them already
+       own a colour the player learned from the HUD — red HP, gold stamina,
+       blue astral. Recolouring those to suit a grouping would break a mapping
+       the game teaches in its first fight. So the BARS keep their canon hue
+       and the GROUPS are marked by gap, gold bracket and rotated gold name.
+       Same information, one fewer contradiction. ────────────────────────── */
+    .rzGraph{ --rzSkew:-7deg; }
+    .rzBar{ position:relative; transition:filter .12s linear; }
+    .rzShaft{
+      position:absolute; inset:0; overflow:hidden;
+      transform:skewX(var(--rzSkew)); transform-origin:bottom center;
+      background:linear-gradient(180deg, rgba(4,6,14,.92), rgba(10,16,38,.72));
+      border:1px solid rgba(79,179,255,.22);
+      transition:box-shadow .12s linear, border-color .12s linear;
+    }
+    /* ★ the tick rungs · 2K segments its fill so you can count, not just look */
+    .rzShaft::after{
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background:repeating-linear-gradient(to top,
+        rgba(0,0,0,.55) 0 1px, transparent 1px 8px);
+      opacity:.55;
+    }
+    .rzFill{ position:absolute; left:0; right:0; bottom:0; }
+    /* ★ the lit top face · a 3px parallelogram is the entire 3D illusion */
+    .rzCap{
+      position:absolute; left:0; right:0; height:3px;
+      transform:skewX(var(--rzSkew)); transform-origin:bottom center;
+      pointer-events:none;
+    }
+    /* ★ bottom-to-top text · writing-mode + a 180 turn, so no counter-skew
+       maths and no transform-origin guessing. The label sits OUTSIDE the
+       skewed stack, which is why it stays upright while the shaft leans. */
+    .rzVert{
+      writing-mode:vertical-rl; transform:rotate(180deg);
+      letter-spacing:.20em; text-transform:uppercase; white-space:nowrap;
+      user-select:none;
+    }
+    .rzName{ transition:color .12s linear, text-shadow .12s linear; }
+    .rzBar.is-sel{ filter:brightness(1.3) saturate(1.1); }
+    .rzBar.is-sel .rzShaft{
+      border-color:var(--zy-gold,#ffd23f) !important;
+      box-shadow:0 0 14px rgba(255,210,63,.32), inset 0 0 20px rgba(255,210,63,.08);
+    }
+    .rzBar.is-sel .rzName{ color:var(--zy-gold,#ffd23f) !important; text-shadow:0 0 8px rgba(255,210,63,.5); }
+    .rzGrid button:hover:not(:disabled){ filter:brightness(1.35); }
+
     /* ★ reduced motion and small screens keep the texture but drop the glow,
        because a 6-inch phone at arm's length does not need bloom. */
     @media (max-width: 720px){
@@ -41166,7 +41234,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.0' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.98.1' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45041,6 +45109,34 @@ function _zycellPaintFocus(){
   });
   const nav = document.getElementById('zycellNav');
   if (nav) nav.style.opacity = game._zycellFocus === 'content' ? '0.55' : '1';
+  // ★★ v0.98.1 · A CONTROL MAY NAME A DISPLAY IT OWNS.
+  // The prime graph needs 2K's selection behaviour: land on a column and its
+  // BAR lights and its detail line swaps in. The cursor paints `outline` on
+  // the focused element and nothing else, which is right for a list and blind
+  // for a chart — the thing you are pointing at is 180px above the thing you
+  // are standing on.  ★ Rather than teach the painter about attributes, the
+  // button carries `data-zyattr` and the painter forwards it. Generic, opt-in,
+  // and a no-op on every panel that does not use it.
+  try {
+    const fe = (game._zycellFocus === 'content') ? items[cursor] : null;
+    zyAttrHilite(fe && fe.getAttribute ? fe.getAttribute('data-zyattr') : null);
+  } catch(_){}
+}
+// Light one bar and show its detail line.  Called by the cursor painter and by
+// hover, so mouse and controller land in the same place.  Null = leave the
+// first detail showing rather than blanking the rail to an empty box.
+function zyAttrHilite(key){
+  const bars = document.querySelectorAll('[data-zybar]');
+  if (!bars.length) return;
+  bars.forEach(b => b.classList.toggle('is-sel', !!key && b.getAttribute('data-zybar') === key));
+  const rows = document.querySelectorAll('[data-zydetail]');
+  let shown = false;
+  rows.forEach(d => {
+    const on = !!key && d.getAttribute('data-zydetail') === key;
+    d.style.display = on ? 'block' : 'none';
+    if (on) shown = true;
+  });
+  if (!shown && rows.length) rows[0].style.display = 'block';
 }
 function _zycellScrollFocusIntoView(){
   // Only call this when the cursor position INTENTIONALLY changes (arrow
@@ -64762,7 +64858,12 @@ const RIZER_ATTR_MAX       = 3330;     // pool at level 100 · the page's ceilin
 const RIZER_ATTR_META = {
   hp:      { label: 'HP',      icon: '❤', color: '#ff6b6b', blurb: 'max health · 50 → 250' },
   atk:     { label: 'ATK',     icon: '⚔', color: '#ff9c66', blurb: 'raises base attack (all melee + astral)' },
-  def:     { label: 'DEF',     icon: '🛡', color: '#4fb3ff', blurb: 'reduces all incoming damage' },
+  // ★ v0.98.1 · DEF moves off #4fb3ff. It shared a hex with SPECIAL, which was
+  // invisible in a list of rows and unreadable as two adjacent bars in the
+  // prime graph. SPECIAL's blue is CANON (it is the astral bar on the HUD);
+  // DEF's was just the default, so DEF is the one that moves. Violet is the
+  // ZyPhone's cosmic undertone and reads as shielding.
+  def:     { label: 'DEF',     icon: '🛡', color: '#b268ff', blurb: 'reduces all incoming damage' },
   speed:   { label: 'STAMINA', icon: '⚡', color: '#ffd66b', blurb: 'yellow bar lasts longer · sprint + dodge · faster melee combos' },
   special: { label: 'SPECIAL', icon: '◆', color: '#4fb3ff', blurb: 'blue bar lasts longer · A3/A4 casts' },
 };
@@ -65143,6 +65244,42 @@ const RIZER_ARCHETYPES = {
 // hit repeatedly — FAE_UNLOCK_COUNT vs a hardcoded REQ, SEER_GRUNT_ART vs a
 // stale bbox table — where the two drift and the player sees a number that
 // disagrees with what the game actually does.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ THE PRIME GRAPH · v0.98.1 · the 2K attribute screen, re-grammared
+//
+//   Creator, 2026-09-17, with the NBA 2K27 MyCAREER upgrade screen attached:
+//   "make the rizer panel (upgrades) section like this. learn the way 2k does
+//    it. make it a vertical graph. be smart. retheme"
+//
+// ★★★ THE FIVE-BAR PROBLEM, AND WHY I DID NOT SOLVE IT BY INVENTING BARS.
+//   2K's screen is dense because it has twenty-five attributes. We have five.
+//   The obvious move is to pad the graph out with each stat's DERIVED outputs
+//   — max HP, sprint seconds, dodge count, combo rate, A3 casts — and that is
+//   exactly the wrong move, because every one of those is a LINEAR function of
+//   its parent's fraction. Nine extra bars, all of them the same height as the
+//   bar beside them. That is noise wearing the costume of data.
+//   ★ So: five bars, made to carry the weight, and the derived numbers go where
+//     they are actually useful — one detail line, for the bar you are on.
+//
+// ★★★★ WHAT I ADDED THAT 2K HAS AND WE DID NOT: THE AFFORDANCE ZONE.
+//   2K's bar has three parts and the middle one is the point of the screen —
+//   "here is what your MyPOINTS can buy RIGHT NOW". We have the same fact and
+//   never drew it: min(666, spent + free). A player with 40 unspent points can
+//   see, without arithmetic, how far each stat would go. That is the single
+//   most useful thing on the old panel's missing list.
+//
+// ★★★ CONTROLLER LAYOUT IS A LAYOUT DECISION, NOT A STYLING ONE.
+//   Standing ruling (v0.95.809): "right arrow goes right in the column. down
+//   goes down a row to the next stat ... no inner cell wrapping." That was
+//   written for horizontal rows. Turn the graph vertical and obeying the words
+//   would betray the intent — DOWN would walk you sideways across the screen.
+//   ★ The grid is therefore transposed, not the handler: the +1 / +10 / MAX
+//     buttons form THREE ROWS OF FIVE beneath the graph, one column per bar.
+//     LEFT/RIGHT walks the five stats (bars run left to right — it looks right).
+//     UP/DOWN steps the tiers, holding your column (they are stacked — it looks
+//     right). Dead stop at both ends, list-level wrap only. Same handler, same
+//     ruling, and now the arrows match what the eye sees. Not one line of the
+//     shared _stepRow changed.
 function buildRizerAttrPanel(where){
   const a       = rizerAttrs();
   const lvl     = player.rizerLvl || 1;
@@ -65151,7 +65288,7 @@ function buildRizerAttrPanel(where){
   const free    = rizerAttrUnspent();
   const atPc    = where === 'dock';
   const fresh   = spent === 0;
-  const poolPct = Math.min(100, (pool / RIZER_ATTR_MAX) * 100);
+  const CAP     = RIZER_STAT_MAX_PTS;
   // Live effect readout · every number here is produced by the SAME function
   // combat calls, so the panel cannot claim an effect the game does not apply.
   const effect = {
@@ -65161,69 +65298,226 @@ function buildRizerAttrPanel(where){
     speed:   `×${rizerStaminaFactor().toFixed(2)} stamina · ${(100 / (STAMINA_SPRINT_DRAIN / rizerStaminaFactor())).toFixed(1)}s sprint · ${Math.floor(100 / (STAMINA_DODGE_COST / rizerStaminaFactor()))} dodges · combo ×${(1/rizerMeleeRecovery()).toFixed(2)}`,
     special: `×${rizerSpecialFactor().toFixed(2)} diamond · ${Math.floor(100 / (10 / rizerSpecialFactor()))} A3 casts`,
   };
-  const rows = RIZER_ATTR_KEYS.map(k => {
-    const M    = RIZER_ATTR_META[k];
-    const bar  = Math.min(100, (a[k] / RIZER_STAT_MAX_PTS) * 100);   // the real per-stat ceiling
-    const can  = free > 0;
-    // ★★ v0.95.807 · EVERY BUTTON IS ITS OWN FOCUS STOP.  Creator: "allow me
-    // to edit all stat buttons in this panel. dont just highlight the full
-    // middle panel."  The section wrapper used to be the only target — the
-    // cursor landed on the whole panel and X fired the FIRST +1 it found.
-    // Explicit data-zyitem per button (only while it is alive; a disabled
-    // button must not eat a cursor stop) makes all fifteen walkable.
-    const btn  = (n, label) => `<button ${can ? `data-zyitem="attr_${k}_${label.replace(/\+/g,'p')}" data-zyrow="attr_${k}"` : 'disabled'}
-        onclick="try{rizerSpend('${k}',${n});}catch(e){console.warn(e);}"
-        style="background:${can ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.25)'}; color:${can ? M.color : '#556'};
-               border:1px solid ${can ? M.color : '#334'}; padding:4px 8px; min-width:38px;
-               font:bold 11px 'Courier New',monospace; cursor:${can ? 'pointer' : 'not-allowed'};">${label}</button>`;
+  // The short form that fits under a 60px bar · the long form lives in the
+  // detail rail. Both are the same live functions; neither is a second copy.
+  const tick = {
+    hp:      `${rizerHpMaxFromAttrs()} HP`,
+    atk:     `${rizerBaseAtkFromAttrs().toFixed(0)} ATK`,
+    def:     `−${Math.round((1 - rizerDefMult()) * 100)}%`,
+    speed:   `×${rizerStaminaFactor().toFixed(2)}`,
+    special: `×${rizerSpecialFactor().toFixed(2)}`,
+  };
+  // What the stat reads at 666 · the number 2K prints above the bar.
+  const ceil = { hp: '250 HP', atk: '125 ATK', def: '−75%', speed: '×5.00', special: '×5.00' };
+
+  // ★ DISPLAY ORDER ONLY. RIZER_ATTR_KEYS is the canon order and the maths
+  //   order; it is not reordered here or anywhere. The graph groups by what
+  //   the stat DOES, which is a presentation question.
+  const GROUPS = [
+    { label: 'VITALS', keys: ['hp','def'] },
+    { label: 'OUTPUT', keys: ['atk','special'] },
+    { label: 'MOTION', keys: ['speed'] },
+  ];
+  const ORDER = GROUPS.reduce((s,g) => s.concat(g.keys), []);
+
+  // ── the grid template · ONE template drives the graph and the controls, so
+  //    every button sits under its own bar at every width ──────────────────
+  const COLS = '34px ' + GROUPS.map(g => '16px ' + g.keys.map(() => 'minmax(0,1fr)').join(' ')).join(' ');
+
+  // ★ the build read · reuses the archetype names that already exist rather
+  //   than inventing titles. Purely descriptive — it names your distribution,
+  //   it does not become a stored stat.
+  const TITLE = { hp:'JUGGERNAUT', atk:'BRAWLER', def:'SENTINEL', speed:'SCOUT', special:'CHANNELER' };
+  let build = 'UNWRITTEN';
+  if (spent > 0){
+    const sorted = RIZER_ATTR_KEYS.slice().sort((x,y) => a[y] - a[x]);
+    build = (a[sorted[1]] >= a[sorted[0]] * 0.9) ? 'BALANCED' : TITLE[sorted[0]];
+  }
+  // ★ PRIME · 2K's OVR ring. spent/3330 on a 0-99 face, with your LEVEL's
+  //   ceiling as the "MAX" beneath it — which is exactly what 2K's "88 MAX"
+  //   means: not the game's limit, the limit YOU have earned the right to.
+  const prime    = Math.round((spent / RIZER_ATTR_MAX) * 99);
+  const primeCap = Math.round((pool  / RIZER_ATTR_MAX) * 99);
+  const RING = 2 * Math.PI * 26;
+  const ringOn = (prime / 99) * RING;
+
+  // group labels · rotated caps in the 16px spine column, 2K's own device
+  const spines = GROUPS.map(g => `
+      <div style="align-self:stretch; display:flex; align-items:center; justify-content:center;">
+        <span class="rzVert" style="color:var(--zy-gold,#ffd23f); font:bold 10px 'Courier New',monospace;
+              opacity:.85;">${g.label}</span>
+      </div>`);
+
+  // Build the three grid rows explicitly (a template literal per row keeps the
+  // column arithmetic in one place instead of in three).
+  const rowCells = (fn) => {
+    let out = '', i = 0;
+    for (const g of GROUPS){
+      out += `<div></div>`;
+      for (const k of g.keys) out += fn(k, i++);
+    }
+    return out;
+  };
+  const rowCellsSpine = (fn) => {
+    let out = '', i = 0, gi = 0;
+    for (const g of GROUPS){
+      out += spines[gi++];
+      for (const k of g.keys) out += fn(k, i++);
+    }
+    return out;
+  };
+
+  const capRow = `<div></div>` + rowCells(k => `
+      <div style="text-align:center; color:var(--zy-muted,#7386a8);
+                  font:bold 9px 'Courier New',monospace; letter-spacing:.08em;">${CAP}<div
+           style="color:var(--zy-muted-2,#55617d); font-size:8px; letter-spacing:.04em;">${ceil[k]}</div></div>`);
+
+  const barRow = `<div></div>` + rowCellsSpine(k => {
+    const M     = RIZER_ATTR_META[k];
+    const pts   = a[k];
+    const maxed = CAP - pts <= 0;
+    const own   = Math.min(100, (pts / CAP) * 100);
+    const buy   = Math.min(100, (Math.min(CAP, pts + free) / CAP) * 100);
     return `
-      <div style="display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid rgba(79,179,255,0.15);">
-        <div style="width:96px; color:${M.color}; font:bold 12px 'Courier New',monospace; letter-spacing:.08em;">${M.icon} ${M.label}</div>
-        <div style="width:52px; text-align:right; color:#fff; font:bold 15px 'Courier New',monospace;">${a[k]}</div>
-        <div style="flex:1;">
-          <div style="height:6px; background:rgba(0,0,0,0.55); border:1px solid ${M.color}44;">
-            <div style="height:100%; width:${bar.toFixed(1)}%; background:${M.color};"></div>
-          </div>
-          <div style="color:#8ff; font-size:9px; margin-top:3px; letter-spacing:.04em;">${effect[k]} · ${M.blurb}</div>
+      <div class="rzBar" data-zybar="${k}" onmouseenter="try{zyAttrHilite('${k}');}catch(_){}" style="height:178px;">
+        <div class="rzShaft">
+          <div class="rzFill" style="height:${buy.toFixed(1)}%; background:
+                 repeating-linear-gradient(45deg, ${M.color}30 0 3px, transparent 3px 7px), ${M.color}12;"></div>
+          <div class="rzFill" style="height:${own.toFixed(1)}%; background:
+                 linear-gradient(180deg, ${M.color} 0%, ${M.color}cc 45%, ${M.color}5e 100%);
+                 box-shadow:0 0 12px ${M.color}55;"></div>
         </div>
-        <div style="display:flex; gap:4px;">${btn(1,'+1')}${btn(10,'+10')}${btn(RIZER_STAT_MAX_PTS,'MAX')}</div>
+        ${buy > own ? `<div class="rzCap" style="bottom:calc(${buy.toFixed(1)}% - 1px); background:${M.color}70;"></div>` : ''}
+        <div class="rzCap" style="bottom:calc(${own.toFixed(1)}% - 1px);
+             background:linear-gradient(90deg,#fff,${M.color}); box-shadow:0 0 8px ${M.color};"></div>
+        <div style="position:absolute; inset:0; display:flex; align-items:flex-end;
+                    justify-content:center; padding-bottom:9px; pointer-events:none;">
+          <span class="rzVert rzName" style="color:${maxed ? 'var(--zy-gold,#ffd23f)' : M.color};
+                font:bold 11px 'Courier New',monospace; text-shadow:0 1px 3px #000;">${M.label}${maxed ? ' ★' : ''}</span>
+        </div>
       </div>`;
-  }).join('');
+  });
+
+  const valRow = `<div></div>` + rowCells(k => `
+      <div style="text-align:center; padding-top:5px;">
+        <div style="color:#fff; font:bold 16px 'Courier New',monospace; line-height:1;">${a[k]}</div>
+        <div style="color:${RIZER_ATTR_META[k].color}; font:bold 9px 'Courier New',monospace;
+                    letter-spacing:.05em; margin-top:2px;">${tick[k]}</div>
+      </div>`);
+
+  // ── the control grid · three tiers x five stats, columns aligned to bars ──
+  const tierRow = (n, label, id) => `
+      <div style="color:var(--zy-gold,#ffd23f); font:bold 10px 'Courier New',monospace;
+                  letter-spacing:.10em; text-align:right; padding-right:4px;">${label}</div>`
+    + rowCells(k => {
+        const room = CAP - a[k];
+        const live = free > 0 && room > 0;
+        const give = Math.min(n, free, room);
+        const M    = RIZER_ATTR_META[k];
+        return `<button ${live ? `data-zyitem="attr_${k}_${id}" data-zyrow="tier_${id}" data-zyattr="${k}"` : 'disabled'}
+          onmouseenter="try{zyAttrHilite('${k}');}catch(_){}"
+          onclick="try{rizerSpend('${k}',${n});}catch(e){console.warn(e);}"
+          title="${live ? `+${give} into ${M.label}` : (room <= 0 ? `${M.label} is at max` : 'no points to spend')}"
+          style="width:100%; background:${live ? 'rgba(6,10,22,0.75)' : 'rgba(6,10,22,0.3)'};
+                 color:${live ? M.color : 'var(--zy-muted-2,#55617d)'};
+                 border:1px solid ${live ? M.color + '99' : 'rgba(79,179,255,0.14)'};
+                 padding:5px 0; font:bold 11px 'Courier New',monospace; letter-spacing:.06em;
+                 cursor:${live ? 'pointer' : 'not-allowed'};">${label}</button>`;
+      });
+
+  // ── the detail rail · one line, for the bar the cursor is on ─────────────
+  const details = ORDER.map((k, i) => `
+      <div data-zydetail="${k}" style="display:${i === 0 ? 'block' : 'none'};">
+        <span style="color:${RIZER_ATTR_META[k].color}; font-weight:bold;">${RIZER_ATTR_META[k].icon} ${RIZER_ATTR_META[k].label}</span>
+        <span style="color:var(--zy-muted,#7386a8);"> · ${RIZER_ATTR_META[k].blurb}</span><br>
+        <span style="color:var(--zy-cyan,#7fe9ff);">${effect[k]}</span>
+        <span style="color:var(--zy-muted-2,#55617d);"> · ${a[k]} / ${CAP} pts${
+          free > 0 && CAP - a[k] > 0 ? ` · ${Math.min(free, CAP - a[k])} affordable now` : ''}</span>
+      </div>`).join('');
+
+  // ── the player card · 2K's header, in Rizer's palette ────────────────────
+  const card = `
+    <div class="zy-panel" style="display:flex; align-items:center; gap:14px; margin-bottom:12px;">
+      <div style="flex:1; min-width:0;">
+        <div style="color:var(--zy-blue,#4fb3ff); font:bold 13px 'Courier New',monospace; letter-spacing:.14em;">RIZER PRIME</div>
+        <div style="display:inline-block; margin-top:5px; padding:3px 8px; border:1px solid var(--zy-gold,#ffd23f);
+                    color:var(--zy-gold,#ffd23f); font:bold 10px 'Courier New',monospace; letter-spacing:.12em;
+                    clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);">${build}</div>
+        <div style="margin-top:6px; color:var(--zy-muted,#7386a8); font:10px 'Courier New',monospace; letter-spacing:.06em;">
+          LV ${lvl} &nbsp;·&nbsp; POOL ${spent}/${pool} &nbsp;·&nbsp; LIFETIME CAP ${RIZER_ATTR_MAX}
+        </div>
+      </div>
+      <div style="flex-shrink:0; position:relative; width:64px; height:64px;">
+        <svg viewBox="0 0 64 64" style="width:64px; height:64px; transform:rotate(-90deg);">
+          <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(79,179,255,0.18)" stroke-width="5"/>
+          <circle cx="32" cy="32" r="26" fill="none" stroke="${free > 0 ? 'var(--zy-gold,#ffd23f)' : 'var(--zy-blue,#4fb3ff)'}"
+                  stroke-width="5" stroke-dasharray="${ringOn.toFixed(1)} ${RING.toFixed(1)}" stroke-linecap="butt"/>
+        </svg>
+        <div style="position:absolute; inset:0; display:flex; flex-direction:column;
+                    align-items:center; justify-content:center; pointer-events:none;">
+          <div style="color:#fff; font:bold 20px 'Courier New',monospace; line-height:1;">${prime}</div>
+          <div style="color:var(--zy-muted,#7386a8); font:bold 7px 'Courier New',monospace; letter-spacing:.14em;">PRIME</div>
+        </div>
+      </div>
+      <div style="flex-shrink:0; text-align:right; min-width:86px;">
+        <div style="color:${free > 0 ? 'var(--zy-gold,#ffd23f)' : 'var(--zy-muted-2,#55617d)'};
+                    font:bold 22px 'Courier New',monospace; line-height:1;">◆ ${free}</div>
+        <div style="color:var(--zy-muted,#7386a8); font:bold 9px 'Courier New',monospace; letter-spacing:.14em; margin-top:3px;">AP UNSPENT</div>
+        <div style="color:var(--zy-muted-2,#55617d); font:9px 'Courier New',monospace; letter-spacing:.06em; margin-top:4px;">
+          ${primeCap} PRIME MAX @ LV ${lvl}
+        </div>
+      </div>
+    </div>`;
+
   // Presets only while the sheet is untouched — see applyRizerArchetype.
   const presets = fresh && free > 0 ? `
-    <div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,214,107,0.3);">
-      <div style="color:#ffd66b; font:bold 10px 'Courier New',monospace; letter-spacing:.14em; margin-bottom:6px;">◆ ARCHETYPE PRESETS · spends all ${free}</div>
+    <div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,210,63,0.28);">
+      <div style="color:var(--zy-gold,#ffd23f); font:bold 10px 'Courier New',monospace; letter-spacing:.14em; margin-bottom:6px;">◆ ARCHETYPE PRESETS · spends all ${free}</div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
         ${Object.entries(RIZER_ARCHETYPES).map(([id,A]) => `
           <button data-zyitem="preset_${id}" data-zyrow="presets" onclick="try{applyRizerArchetype('${id}');}catch(e){console.warn(e);}"
-            style="background:rgba(0,0,0,0.5); color:#ffd66b; border:1px solid #ffd66b; padding:6px 10px;
+            style="background:rgba(6,10,22,0.7); color:var(--zy-gold,#ffd23f); border:1px solid var(--zy-gold,#ffd23f); padding:6px 10px;
                    font:bold 10px 'Courier New',monospace; letter-spacing:.06em; cursor:pointer; text-align:left;">
-            ${A.name}<br><span style="color:#8ff; font-weight:normal; font-size:9px;">${A.tag}</span>
+            ${A.name}<br><span style="color:var(--zy-cyan,#7fe9ff); font-weight:normal; font-size:9px;">${A.tag}</span>
           </button>`).join('')}
       </div>
     </div>` : '';
+
   const banner = free > 0
-    ? `<div style="background:rgba(255,214,107,0.14); border:1px solid #ffd66b; padding:8px 10px; margin-bottom:10px;
-                   color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.08em;">
-         ★ ${free} POINT${free === 1 ? '' : 'S'} UNSPENT${atPc && lvl === 1 ? ' · this is your starting archetype' : ''}
+    ? `<div style="background:rgba(255,210,63,0.12); border:1px solid var(--zy-gold,#ffd23f); padding:7px 10px; margin-bottom:10px;
+                   color:var(--zy-gold,#ffd23f); font:bold 11px 'Courier New',monospace; letter-spacing:.08em;">
+         ★ ${free} POINT${free === 1 ? '' : 'S'} TO SPEND${atPc && lvl === 1 ? ' · THIS IS THE ARCHETYPE YOU LEAVE THE ROOM WITH' : ''}
        </div>`
-    : `<div style="background:rgba(0,0,0,0.35); border:1px solid rgba(79,179,255,0.3); padding:8px 10px; margin-bottom:10px;
-                   color:#8ff; font:11px 'Courier New',monospace; letter-spacing:.06em;">
-         All ${spent} points allocated · next level grants ${lvl >= RIZER_LEVEL_CAP ? '0 (max level)' : rizerAttrPool(lvl+1) - pool} more
+    : `<div style="background:rgba(6,10,22,0.5); border:1px solid rgba(79,179,255,0.28); padding:7px 10px; margin-bottom:10px;
+                   color:var(--zy-cyan,#7fe9ff); font:11px 'Courier New',monospace; letter-spacing:.06em;">
+         ALL ${spent} POINTS ALLOCATED · next level grants ${lvl >= RIZER_LEVEL_CAP ? '0 (max level)' : rizerAttrPool(lvl+1) - pool} more
        </div>`;
+
   return `
     <div style="font-family:'Courier New',monospace;">
+      ${card}
       ${banner}
-      <div style="display:flex; justify-content:space-between; align-items:baseline; font-size:10px; color:#8ff; letter-spacing:.10em; margin-bottom:4px;">
-        <span>LIFETIME POOL · Lv ${lvl}</span><span style="color:#fff;">${spent} / ${pool} spent · cap ${RIZER_ATTR_MAX}</span>
+      <div class="rzGraph" style="display:grid; grid-template-columns:${COLS}; gap:0 5px; align-items:end;">
+        ${capRow}
+        ${barRow}
+        ${valRow}
       </div>
-      <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(79,179,255,0.35); margin-bottom:10px;">
-        <div style="height:100%; width:${poolPct.toFixed(1)}%; background:linear-gradient(90deg,#4fb3ff,#c060ff);"></div>
+      <div style="height:1px; background:linear-gradient(90deg, transparent, var(--zy-gold,#ffd23f), transparent);
+                  opacity:.45; margin:10px 0 9px;"></div>
+      <div class="rzGrid" style="display:grid; grid-template-columns:${COLS}; gap:5px; align-items:center;">
+        ${tierRow(1, '+1', 'p1')}
+        ${tierRow(10, '+10', 'p10')}
+        ${tierRow(CAP, 'MAX', 'max')}
       </div>
-      ${rows}
+      <div class="zy-panel" style="margin-top:11px; min-height:42px; font:10px 'Courier New',monospace;
+                                   line-height:1.65; letter-spacing:.03em;">
+        ${details}
+      </div>
       ${presets}
-      <div style="margin-top:10px; color:#667; font-size:9px; line-height:1.6; letter-spacing:.04em;">
-        <b style="color:#c060ff;">AP</b> 33.3 per level · 3,330 at Lv 100 &nbsp;·&nbsp; <b style="color:#8ff;">RXP</b> buys levels · 1,000,000 at Lv 100<br>
+      <div style="margin-top:10px; color:var(--zy-muted-2,#55617d); font-size:9px; line-height:1.6; letter-spacing:.04em;">
+        <b style="color:var(--zy-violet,#b268ff);">AP</b> 33.3 per level · 3,330 at Lv 100 &nbsp;·&nbsp;
+        <b style="color:var(--zy-cyan,#7fe9ff);">RXP</b> buys levels · 1,000,000 at Lv 100 &nbsp;·&nbsp;
+        <b style="color:var(--zy-muted,#7386a8);">666 cap per stat</b><br>
         <b style="color:#886;">points cannot be reassigned once spent</b>
       </div>
     </div>`;

@@ -19,7 +19,12 @@
 //   WHAT IS IN THE WORLD, not what it looks like.
 import fs from 'fs';
 
-export function bootGame({ runBootTasks = true } = {}){
+// ★ v0.98.1 · `extra` lets a caller name symbols this list does not carry.
+//   EXPORTS is a fixed list because the vm has no way to enumerate a wrapper's
+//   lexical scope — a top-level `const` exists by NAME and never becomes a
+//   context property, which is the trap this file was written to close. Rather
+//   than grow the list for every one-off, a caller passes what it needs.
+export function bootGame({ runBootTasks = true, extra = [] } = {}){
   const noop = () => {};
   const CTX = new Proxy({}, { get: () => () => ({ addColorStop: noop, width: 0, height: 0, data: [] }) });
   const el = () => ({
@@ -76,7 +81,8 @@ export function bootGame({ runBootTasks = true } = {}){
     'ENEMY_LINEAGE','ENEMY_STEM_OF','ENEMY_BRANCH_OF','rosterCountFor','ROSTER_GATED','siteInTown','townCoreOf','ROSTER_MIN_SPACING','TOWN_CIVIC_CLEAR','TOWN_HOME_CLEAR','topUpGatedRoster','applyScanobotState','LEGACY_ENEMY_SCATTER_ENABLED','ENEMY_TIER_MAX','TIER_TEN_BEINGS','LOWER_ZYRAXIS_TIER_BAND','enemyTierLegal',
     'tickEnemyRespawn','ENEMY_RESPAWN_MS','queueEnemyRespawn','_enemyRespawnQueue',
     'WORLD_MIN_COL','WORLD_MIN_ROW','MAP_COLS','MAP_ROWS','BOULDERS','_fae','COLLECTIBLE_TARGET','_chaseDirFor','ROAM_SCALE_MUL','DAEMON_WALK_BBOXES'];
-  const tail = ';globalThis.__G = {' + EXPORTS.map(n =>
+  const NAMES = EXPORTS.concat(extra);
+  const tail = ';globalThis.__G = {' + NAMES.map(n =>
       `${n}: (typeof ${n} !== 'undefined' ? ${n} : undefined)`).join(',') + '};';
 
   new Function(all + tail)();
@@ -89,7 +95,7 @@ export function bootGame({ runBootTasks = true } = {}){
     for (const d of deferred){ try { d.fn(); } catch(_){} }
     // re-read: the builders pushed into the SAME array object, but re-export
     // anything that may have been reassigned
-    for (const n of EXPORTS) if (globalThis.__G[n] === undefined) {}
+    for (const n of NAMES) if (globalThis.__G[n] === undefined) {}
   }
   return G;
 }

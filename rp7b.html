@@ -6841,10 +6841,14 @@ const WORLD_PROPS = [
       return f;
     })(),
     door: [0, 0],
-    onInteract: () => {
-      try { playSFX('doorLock'); } catch(_){}
-      showToast("◈ THE BLOODSCENT LODGE · hunters' guild of tracking and Beast bonding · sealed for now", 3000);
-    },
+    // ★★★ v0.99.4 · THE DOOR OPENS. Creator: "allow the door to be unlocked."
+    //   It read "sealed for now" and played doorLock — correct while there was
+    //   nothing behind it, and a lie the moment there was. The interior exists;
+    //   the door is the only thing that was still refusing.
+    //   ★ The room is deliberately EMPTY: "dont add anything in the world yet,
+    //     just the tiles." So the toast says what the building is rather than
+    //     pretending the guild is staffed.
+    onInteract: () => { try { enterBloodscentLodge(); } catch(err){ console.warn('lodge', err); } },
   },
   {
     id: 'malezor_the_first_den',
@@ -20903,6 +20907,85 @@ const INTERIOR_TRAINING_FARM = {
 // ★ v0.96.7 · the Creator's Malezor decor pack · paw-shield rug + sandstone floor
 applyBuildingDecor(INTERIOR_TRAINING_FARM, 'beast-farm', { x: 8, y: 10, w: 4, h: 3 });
 
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.99.4 · THE BLOODSCENT LODGE · tiles only, and a shape of its own.
+//
+//   Creator, 2026-09-18: "bloodscent lodge tile map asset single. wire into
+//   rp7. allow the door to be unlocked. dont add anything in the world yet,
+//   just the tiles. return by walking back down out of imaginary door. give it
+//   its own shape. the unwalkable area will be black."
+//
+// ★★★ THE PLAN USES ONLY '.' AND VOID — NO '#' ANYWHERE, ON PURPOSE.
+//   floorPlan() has three states: floor, wall, and void-drawn-as-black. The
+//   wall state is gated on SEER_HQ_WALLS_ON, which is currently FALSE — so a
+//   '#' in any plan is silently WALKABLE right now. "The unwalkable area will
+//   be black" is therefore not a styling note, it is the correct
+//   implementation: void is unconditionally blocked and unconditionally black,
+//   and it cannot be turned into floor by a switch that belongs to another
+//   building.
+//
+// ★★ THE SHAPE. A great hall with two trophy wings pushed out east and west,
+//   narrowing to an entry throat you walk down to leave. Nothing is square
+//   about it and the silhouette reads before the furniture does — which is the
+//   point of giving a named place its own footprint rather than another box.
+//
+// ★ 206 walkable tiles inside the 20x20 building rung. The canvas is the rung;
+//   the room inside it is not — the same doctrine the Seer HQ floors follow.
+const INTERIOR_BLOODSCENT_LODGE = {
+  ...interiorSize('building'),
+  plan: [
+    '                    ',
+    '    ............    ',
+    '    ............    ',
+    '    ............    ',
+    '    ............    ',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '    ............    ',
+    '    ............    ',
+    '    ............    ',
+    '    ............    ',
+    '      ........      ',
+    '       ......       ',
+    '        ....        ',
+    '        ....        ',
+    '        ....        ',
+    '        ....        ',
+    '                    ',
+  ],
+  tileImg: new Image(),
+  // ★ "return by walking back down out of imaginary door" — there is no door
+  //   tile and no door art. The last floor tile of the throat IS the threshold,
+  //   and autoExit fires when you step onto it, which is the same gesture that
+  //   leaves every other interior in the game.
+  spawn: { x: 10, y: 17, dir: 'up' },
+  exit:  { x: 10, y: 18 },
+  autoExit: true,
+  blocked: [],
+  label: '◈ BLOODSCENT LODGE',
+};
+INTERIOR_BLOODSCENT_LODGE.tileImg.src = 'assets/2D%20sprites/tiles/bloodscent-lodge-floor.png';
+// ★★ THE DOOR IS UNLOCKED, AND IT IS A FLAG RATHER THAN A CONSTANT.
+//   Creator: "allow the door to be unlocked." Open by default so it can be
+//   walked today; routed through a named predicate so the day it wants a key,
+//   one function changes and every entry point already asks it.
+function bloodscentLodgeUnlocked(){ return player.bloodscentLodgeLocked !== true; }
+function enterBloodscentLodge(){
+  if (!bloodscentLodgeUnlocked()){
+    try { showToast('◈ BLOODSCENT LODGE · the door does not give', 2600); } catch(_){}
+    try { playSFX('doorLock'); } catch(_){}
+    return false;
+  }
+  // ★ NOTHING IS PLACED IN THE WORLD YET, by instruction — so there is no door
+  //   prop to remember where you came from. overworldReturn is left to whatever
+  //   the caller set, exactly as enterInterior handles every other interior.
+  enterInterior('interior_bloodscent_lodge', INTERIOR_BLOODSCENT_LODGE,
+                '◈ BLOODSCENT LODGE · walk back down to leave');
+  return true;
+}
+
 // v0.95.325 · RIZER'S TREEHOUSE HIDEOUT · empty 5×5 wood floor room · autoExit
 // walk-through door mirrors player home · spawn on the rug tile, walk out
 // through the same tile to leave
@@ -34147,6 +34230,7 @@ function interiorConfig(scene){
   if (scene === 'interior_research_lab')return INTERIOR_RESEARCH_LAB;
   if (scene === 'interior_training_farm')return INTERIOR_TRAINING_FARM;
   if (scene === 'interior_treehouse')return INTERIOR_TREEHOUSE;
+  if (scene === 'interior_bloodscent_lodge') return INTERIOR_BLOODSCENT_LODGE;   // ★ v0.99.4
   if (scene === DREAMLAND_SCENE)       return INTERIOR_DREAMLAND;   // v0.95.719
   // ★ v0.96.38 · the six inner levels · built on demand, cached per domain
   if (typeof scene === 'string' && scene.startsWith('dreamland_realm_')){
@@ -41688,7 +41772,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.3' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.4' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

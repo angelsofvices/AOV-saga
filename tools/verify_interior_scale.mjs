@@ -33,7 +33,8 @@ const H  = t => console.log('\n' + t);
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['INTERIOR_SCALE','interiorSize','HOME_LEVEL','homeLevelOf','homeSizeFor',
   'INTERIOR_HOME','INTERIOR_HOME_2F','INTERIOR_CRAZY_HOME','INTERIOR_RESEARCH_LAB','INTERIOR_TRAINING_FARM',
-  'INTERIOR_MALEZOR_SCHOOL','INTERIOR_TREEHOUSE','INTERIOR_CAVE','INTERIOR_SEER_HQ_1F','INTERIOR_SEER_HQ_2F',
+  'INTERIOR_MALEZOR_SCHOOL','INTERIOR_TREEHOUSE','INTERIOR_CAVE','INTERIOR_BLOODSCENT_LODGE',
+  'bloodscentLodgeUnlocked','floorPlan','INTERIOR_SEER_HQ_1F','INTERIOR_SEER_HQ_2F',
   'INTERIOR_SEER_HQ_R2','INTERIOR_SEER_HQ_B','CIVIC_ROOMS','makeCivicInterior','civicBlocked','civicRug',
   'civicCounterSlot','makeMalezorHomeInterior','MAP_COLS','MAP_ROWS','NPCS','interiorConfig','HQ'] });
 console.log = _L;
@@ -79,6 +80,7 @@ H('★★★ EVERY INTERIOR SITS ON A RUNG · no strays');
   const NAMED = {
     INTERIOR_TREEHOUSE: 'nook', INTERIOR_RESEARCH_LAB: 'building', INTERIOR_TRAINING_FARM: 'building',
     INTERIOR_MALEZOR_SCHOOL: 'building', INTERIOR_CAVE: 'cave',
+    INTERIOR_BLOODSCENT_LODGE: 'building',
     INTERIOR_SEER_HQ_1F: 'building', INTERIOR_SEER_HQ_2F: 'building',
     INTERIOR_SEER_HQ_R2: 'building', INTERIOR_SEER_HQ_B: 'building',
   };
@@ -132,7 +134,8 @@ H('★★★★ NOTHING IS WALLED OFF · flood fill from every spawn to every ex
 {
   const rooms = [];
   for (const n of ['INTERIOR_HOME','INTERIOR_HOME_2F','INTERIOR_CRAZY_HOME','INTERIOR_RESEARCH_LAB',
-                   'INTERIOR_TRAINING_FARM','INTERIOR_MALEZOR_SCHOOL','INTERIOR_TREEHOUSE','INTERIOR_CAVE'])
+                   'INTERIOR_TRAINING_FARM','INTERIOR_MALEZOR_SCHOOL','INTERIOR_TREEHOUSE','INTERIOR_CAVE',
+                   'INTERIOR_BLOODSCENT_LODGE'])
     rooms.push([n.replace('INTERIOR_',''), G[n]]);
   for (const k of Object.keys(G.CIVIC_ROOMS)) rooms.push(['civic:' + k, G.makeCivicInterior(k, 'malezor')]);
   for (const id of ['veridan-house-cottage','baelgor-house-forgehall','netharion-house-manor','redroof_3'])
@@ -140,7 +143,14 @@ H('★★★★ NOTHING IS WALLED OFF · flood fill from every spawn to every ex
 
   for (const [name, I] of rooms){
     if (!I){ ok(false, `${name} · no config`); continue; }
+    // ★★★ v0.99.4 · A SHAPED ROOM KEEPS ITS EDGES IN THE PLAN, NOT IN blocked.
+    //   The Bloodscent Lodge carries an empty `blocked` and a 20-row plan whose
+    //   void is the unwalkable area. Flood-filling on cfg.blocked alone would
+    //   have walked straight through the black and declared 400 tiles reachable
+    //   in a 206-tile room — a green tick for a room it never entered.
     const solid = new Set((I.blocked || []).map(t => t[0] + ',' + t[1]));
+    const _P = (typeof G.floorPlan === 'function') ? G.floorPlan(I) : null;
+    if (_P) for (const k of _P.blocked) solid.add(k);
     const inB = (x, y) => x >= 0 && y >= 0 && x < I.cols && y < I.rows;
     const walk = (x, y) => inB(x, y) && !solid.has(x + ',' + y);
     const sp = I.spawn, ex = I.exit || I.spawn;

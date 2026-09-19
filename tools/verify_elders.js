@@ -42,7 +42,7 @@ for(const e of C.DISTRICT_ELDERS){
 }
 const named=C.DISTRICT_ELDERS.filter(e=>e.id);
 console.log(`\n     ${named.length}/10 elders exist · ${C.DISTRICT_ELDERS.filter(e=>e.built).length} ladder(s) built`);
-ok(named.length>=2,'at least Kelthor and Omniris are named');
+ok(named.length>=2,'at least Kelthor and Ivelith are named');
 ok(C.DISTRICT_ELDERS.every(e=>e.steps===8),'every elder runs an 8-step ladder');
 ok(C.DISTRICT_ELDERS.every(e=>!!e.handoff),'every link declares how it hands off to the next');
 
@@ -71,7 +71,7 @@ const kelthor=C.NPCS.find(x=>x&&x.id==='kelthor');
 const omniris=C.NPCS.find(x=>x&&x.id==='omniris');
 const foongus=C.NPCS.find(x=>x&&x.id==='foongus');
 ok(C.contactEligible(kelthor)===true,'Kelthor · elder    · Humanoid        -> phone book YES');
-ok(C.contactEligible(omniris)===true,'Omniris · elder    · Humanoid/Aura   -> phone book YES');
+ok(C.contactEligible(omniris)===true,'Omniris · teacher  · Humanoid/Aura   -> phone book YES');
 ok(C.contactEligible(foongus)===true,'Foongus · TRAINER  · Creature/Nature -> phone book YES (Creator override)');
 ok(!C.DISTRICT_ELDERS.some(e=>e.id==='foongus'),'Foongus is NOT in the elder chain — trainer and elder are separate roles');
 ok(!!foongus._combatTrainer,`he is tagged _combatTrainer: ${foongus._combatTrainer}`);

@@ -10,7 +10,11 @@
 ## ★★★★ BATCH 1 · THE PEOPLE WHO GIVE THE MAIN QUEST
 *Blocks: 8 districts of dialogue, the expedition spine, the whole tightening pass.*
 
-Per §6.5b: **MASTERS are HAEMEN (humanoid). ELDERS are AETHREN (not humanoid).**
+Per **§6.5c (2026-09-18, supersedes §6.5b)**: **ELDERS are HAEMEN (humanoid) and
+OUTRANK Masters. Kelthor is an ELDER. Dad is a MASTER. Expeditions come from
+ELDERS only.** (§6.5b had this exactly backwards — Elders as non-humanoid peers
+of Masters — and the eight Elder sheets delivered 2026-09-18 are all visibly
+people, which is what settled it.)
 
 > ★★★★ **HALVED 2026-09-01. Creator: *"every district has either an elder or a master."***
 > **Ten officers, not twenty — and Kelthor and Omniris are two of them. EIGHT new figures.**

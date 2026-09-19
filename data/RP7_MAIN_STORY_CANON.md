@@ -165,7 +165,49 @@ The draft's Andrannor nightclub is **CLUB VX**. The build has a prop `club_50`, 
 canon has **Club 50** run by ally **Vladimir Valenov**, dealing cheap faedust to the
 inner city. Same venue renamed, or two clubs?
 
-### 6.5b ★★★★ SUPERSEDED SAME DAY · **MASTERS = HAEMEN · ELDERS = AETHREN**
+### 6.5c ★★★★ **SUPERSEDES 6.5b IN FULL** · 2026-09-18 · **ELDERS ARE HAEMEN AND OUTRANK MASTERS**
+
+> **Creator, 2026-09-18:** *"all elders will be in front of their town hall like
+> kelthor is. you will get district missions from them. make omniris give you
+> quests. all expeditions will be from elders. **elders are haemen. they
+> superceed masters. kethor is an elder. dad is a master. rizer is a rizer.**"*
+
+★★★★ **This reverses §6.5b on every point it made.** Both are kept below,
+because a canon file that quietly deletes the ruling it replaced teaches nobody
+anything — and §6.5b was itself marked "SUPERSEDED SAME DAY", so this office has
+now been ruled on three times and the reasoning needs to stay legible.
+
+| | §6.5b (2026-09-01) | **§6.5c (2026-09-18) · CURRENT** |
+|---|---|---|
+| ELDER class | AETHREN · **not** humanoid | ★ **HAEMEN · humanoid** |
+| MASTER class | HAEMEN · humanoid | HAEMEN · humanoid *(unchanged)* |
+| rank | **peers** — both give expeditions | ★★★ **ELDER OUTRANKS MASTER** |
+| Kelthor | a **MASTER**, "Warden" retired | ★★ **an ELDER.** "Warden Kelthor" stands |
+| Dad | a Beastmaster **under Kelthor** | ★ **a MASTER** |
+| Rizer | — | ★ **a Rizer.** His own thing, under neither |
+| expeditions | from **both** classes, 10 total | ★★★★ **from ELDERS ONLY** |
+
+★★★ **THE BUILD HAD ALREADY DRIFTED THIS WAY, AND THE ART SETTLED IT.**
+`DISTRICT_ELDERS` has carried `being:'Humanoid/…'` for every Elder since it was
+written, and the eight sheets delivered 2026-09-18 are all visibly people — a
+sunpriestess, a beastkeeper, a forge-dwarf, an engineer. §6.5b's "the Elder
+speaks for the land, and is not a human being" never reached the sprites. This
+ruling ratifies what was drawn rather than asking for eight redraws.
+
+★★ **WHAT §6.5b GOT THAT SURVIVES.** Its central image is still the best thing
+written about this office: *"The Master speaks for the people; the Elder speaks
+for the land."* Under §6.5c the Elder is a person who speaks for the land — which
+is what a Choirmother, a Grovewarden and a Nullkeeper each already look like.
+
+★ **OMNIRIS.** §6.5b flagged his Humanoid-primary flip "for reversal, not
+changed here", on the reasoning that an Elder cannot be humanoid. That reasoning
+is gone: Elders are Haemen now. **The flip stands, the reversal is cancelled**,
+and per today's ruling he gives quests. He is a TEACHER, not an Elder — the
+2026-09-18 elder rework separated teaching from the civic Elder chain.
+
+---
+
+### 6.5b ★★★★ SUPERSEDED — first by the same day's ruling, then by §6.5c above · **MASTERS = HAEMEN · ELDERS = AETHREN**
 
 > **Creator, 2026-09-01:** *"masters are haemen. elders are aethren. **kelthor is the main beastmaster of malezor.** both classes give you expedition missions (10 in total). npcs still give quests."*
 

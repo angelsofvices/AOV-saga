@@ -5970,7 +5970,14 @@ const DISTRICT_ELDERS = [
     teaches:'The Sunlit Choir', seat:'Sunlit Temple', at:[114,292],
     steps:8, built:false, handoff:'TBD -> Andrannor' },
   { dist:'andrannor', id:'mora', name:'Beastkeeper Mora', being:'Humanoid/Creature',
-    teaches:'The Creaturewilds', seat:'Obsidian Archive', at:[310,327],
+    // ★★ v0.99.7 · was [310,327], two tiles off the hall's centre line. Creator:
+    //   "all elders will be in front of their town hall like kelthor is." Kelthor
+    //   stands at his hall's door column, four south — offset (0,+4) — and seven
+    //   of the nine already matched him exactly. Andrannor could not: a building
+    //   occupies rows +3 to +6 directly in front of its hall, so +4 is inside a
+    //   wall. ★ He keeps the COLUMN, which is the part you read, and takes the
+    //   nearest clear row on it: (0,+2).
+    teaches:'The Creaturewilds', seat:'Obsidian Archive', at:[312,327],
     steps:8, built:false, handoff:'TBD -> Veridan' },
   { dist:'veridan',   id:'selis', name:'Grovewarden Selis', being:'Humanoid/Nature',
     teaches:'The Great Tree', seat:'Verdant Solarium', at:[520,259],
@@ -6114,6 +6121,20 @@ function buildDistrictElderNpcs(){
       onInteract:(n) => {
         try { registerContact(n); setActiveContact(n); } catch(_){}
         try { playSFX('confirm'); } catch(_){}
+        // ★★★ v0.99.7 · MEETING AN ELDER IS AN EVENT THE LOG CAN SEE.
+        //   Creator: "you will get district missions from them." A district's
+        //   expedition cannot appear before you have met the person whose
+        //   expedition it is — and "met" has to be a FACT, not an inference
+        //   from bond points, or the log starts guessing.
+        try {
+          player.eldersMet = player.eldersMet || {};
+          if (!player.eldersMet[e.id]){
+            player.eldersMet[e.id] = true;
+            try { bumpRizerBond('rizerAlly'); } catch(_){}
+            try { showToast(`★ ${e.name.toUpperCase()} · ${e.dist.toUpperCase()} EXPEDITION OPEN`, 3600); } catch(_){}
+            try { pingNextObjective(); } catch(_){}
+          }
+        } catch(_){}
         showDialog({ speaker:e.name.toUpperCase(), lines:art.lines });
       },
     };
@@ -9661,7 +9682,33 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
-      onInteract: () => { showToast('◈ MALEZOR GEAR SHOP · Closed for now.', 2400); playSFX('doorLock'); },
+      // ★★★★ v0.99.7 · THE GEAR SHOP IS THE WORKBENCH NOW.
+      //   Creator, 2026-09-18: "craft field workstation by interacting with the
+      //   gear shop. UI opens. cost is 20 scrap metal for one workstation."
+      //
+      // ★★★ IT OPENS THE SAME BENCH, NOT A SECOND ONE. The field-workstation
+      //   suite already asserts that crafting on the deployed station opens the
+      //   SAME panel as home — "able to craft on the go" means the same
+      //   recipes. A gear shop with its own private crafting UI would be the
+      //   third copy of one system and the first to drift.
+      // ★★ And it TEACHES the recipe on the way in. Noot still teaches it, but
+      //   gating the shop's own product behind having met a wanderer means a
+      //   player can stand at the counter with 20 scrap and be told nothing.
+      //   grantFieldStationRecipe is idempotent, so meeting them in either
+      //   order costs nothing.
+      onInteract: () => {
+        try { playSFX('menuOpen'); } catch(_){}
+        let learned = false;
+        try { learned = grantFieldStationRecipe(); } catch(_){}
+        const scrap = (player.items && player.items.scrap_metal) || 0;
+        if (!learned){
+          try { showToast(scrap >= FIELD_STATION_SCRAP
+            ? `◈ MALEZOR GEAR SHOP · ${scrap} scrap · a Field Workstation costs ${FIELD_STATION_SCRAP}`
+            : `◈ MALEZOR GEAR SHOP · Field Workstation ${FIELD_STATION_SCRAP} scrap · you have ${scrap}`,
+            3000); } catch(_){}
+        }
+        try { openExperimentPanel(); } catch(err){ console.warn('[rp7b] gear shop bench', err); }
+      },
     };
   })(),
   // ── ZARVANE CACTI · scattered naturally · 1-3 clusters (v0.83) ──
@@ -41919,7 +41966,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.6' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.7' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -53656,6 +53703,22 @@ function kelthorNextRung(){
 function kelthorLadderComplete(){ return !kelthorNextRung(); }
 
 function buildQuestLog(){
+  // ★★★★ v0.99.7 · AN EXPEDITION IS AN ELDER'S. FULL STOP.
+  //
+  //   Creator, 2026-09-18: "you will get district missions from them. ALL
+  //   expeditions will be from elders."
+  //
+  // ★★★ So the Malezor opening moved. Ch 1-4 — Mom's kitchen, walking Yara to
+  //   school, Dad's starter, the egg on the path — were EXPEDITIONS, and they
+  //   are given by a mother, a sister, a father and a world event. Not one of
+  //   them is an Elder. Zoryn's map went the same way.
+  //   ★ They are QUESTS now. That is not a demotion: it is the prologue being
+  //     called the prologue. You are at home, with your family, before anyone
+  //     has sent you anywhere — and the moment Kelthor does, the expedition
+  //     spine starts and every rung of it belongs to a district's Elder.
+  //   ★★ The rule is now checkable in one line, which is the point of having
+  //     it: if it is an expedition, an Elder gave it. verify_elder_quests
+  //     fails on any expedition whose giver is not in DISTRICT_ELDERS.
   const expeditions = [];
   const quests      = [];
   // ══════════════════════════════════════════════════════════════════════
@@ -53679,7 +53742,7 @@ function buildQuestLog(){
   // Quest 1 · The First Morning · Mom gives it · trigger = Mom's first talk
   // (Mom's onInteract sets zycubeGifted on turn 1 → treat that as the trigger)
   if (zc){
-    expeditions.push({
+    quests.push({
       title: 'Malezor · Ch 1 · The First Morning',
       at: [22, 106],
       giver: 'Mom · Kitchen · Malezor home',
@@ -53696,7 +53759,7 @@ function buildQuestLog(){
 
   // Quest 2 · Walk Yara to School · Yara gives it · trigger = talking to Yara
   if (player.yaraMet || raid){
-    expeditions.push({
+    quests.push({
       title: 'Malezor · Ch 2 · Walk Yara to School',
       at: { prop:'malezor_school' },
       giver: 'Yara · upstairs · Malezor home',
@@ -53714,7 +53777,7 @@ function buildQuestLog(){
   // Quest 3 · Your First Bond · Dad gives it · trigger = Dad's dialogue
   if (player.dadStarterQuestGiven || st){
     const dad = !!player.dadStarterQuestGiven;
-    expeditions.push({
+    quests.push({
       title: 'Malezor · Ch 3 · Your First Bond',
       at: { prop:'malezor_research_facility' },
       giver: 'Dad · Research Facility 2F',
@@ -53735,7 +53798,7 @@ function buildQuestLog(){
   {
     const hasEgg = (player.items?.elzebub_egg||0) >= 1;
     if (hasEgg || eg){
-      expeditions.push({
+      quests.push({
         title: 'Malezor · Ch 4 · An Egg by the Path',
         at: [22, 106],
         giver: 'World event · outside Malezor home',
@@ -53809,7 +53872,7 @@ function buildQuestLog(){
   // Legacy · Zoryn's Town Map (Zoryn gives it · trigger = Zoryn's first talk
   // which sets townMapGifted immediately · one-hit ally quest)
   if (player.townMapGifted){
-    expeditions.push({
+    quests.push({
       title: 'Where\'s Your Map?',
       giver: 'Zoryn · Malezor overworld',
       status: 'complete',
@@ -53984,6 +54047,100 @@ function buildQuestLog(){
       reward: A ? '+20 Rizer bond · 400 RXP each' : '★ every favour repaid',
     });
   }
+  // ★★★ v0.99.7 · OMNIRIS GIVES QUESTS. Creator: "make omniris give you quests."
+  //
+  //   He has run a four-trial ladder in his onInteract since v0.96.13 and has
+  //   never had an entry of his own in the log — he appeared only as a STEP
+  //   inside Kelthor's "ladder complete" row, "Find OMNIRIS at the Zarvane
+  //   oasis". A teacher with four trials and no quest is four objectives the
+  //   player is told once, in dialogue, and then has to remember.
+  //
+  // ★★ A QUEST, NOT AN EXPEDITION. He is a TEACHER — the 2026-09-18 rework
+  //   separated teaching from the civic Elder chain, and §6.5c is explicit that
+  //   expeditions come from Elders only. His trials are the best example in the
+  //   game of what a quest is for.
+  //
+  // ★ Every row reads the SAME live value the trial itself gates on, so the log
+  //   cannot claim progress he would refuse: the road flag, the Soulphish
+  //   count, the stillness timer, the party's best bond.
+  if (player.omnirisStep){
+    const OS = player.omnirisStep || {};
+    const caught = player.soulphishCaught || 0;
+    const bestBond = Math.max(0, ...((player.party || []).filter(Boolean).map(z => z.bond || 0)));
+    const roadOpen = (typeof districtRoadOpen === 'function') ? !!districtRoadOpen('zarvane') : true;
+    const TRIALS = [
+      { k:'s1', name:'The Watcher on the Rim',
+        prog: roadOpen ? '' : ' · the Malezor tower still stands' },
+      { k:'s2', name:'Still Water',
+        prog: OS.s2 ? '' : ` · ${Math.min(8, caught)}/8 Soulphish` },
+      { k:'s3', name:'The Unblinking',
+        prog: OS.s3 ? '' : (player._omnirisStillT0 ? ' · running · stand still' : ' · 30 seconds without moving') },
+      { k:'s4', name:'Read the Beast',
+        prog: OS.s4 ? '' : ` · closest bond ${Math.round(bestBond)}%, needs 60%` },
+    ];
+    const doneN = TRIALS.filter(t => OS[t.k]).length;
+    quests.push({
+      title: `Zarvane · Omniris · Trial ${Math.min(doneN + 1, TRIALS.length)}`,
+      at: { npc: 'omniris' },
+      giver: 'Omniris · the Zarvane oasis',
+      status: doneN >= TRIALS.length ? 'complete' : 'active',
+      steps: TRIALS.map((t, i) => ({
+        done: !!OS[t.k],
+        label: `Trial ${i + 1} · ${t.name}${OS[t.k] ? '' : t.prog}`,
+      })),
+      // ★ he SAYS "eight trials" in his own dialogue and four are written. The
+      //   log says which it is rather than quietly implying the ladder is done.
+      reward: doneN >= TRIALS.length
+        ? '✓ four trials passed · the rest are still being cut'
+        : '→ Rizer bond · RXP · the next trial',
+    });
+  }
+
+  // ★★★★ v0.99.7 · THE EXPEDITION SPINE · ONE PER DISTRICT, EACH AN ELDER'S.
+  //
+  //   Creator: "all elders will be in front of their town hall like kelthor is.
+  //   you will get district missions from them. all expeditions will be from
+  //   elders."
+  //
+  // ★★★ WHAT THIS DOES **NOT** DO IS INVENT EIGHT LADDERS. DISTRICT_ELDERS
+  //   records `steps:8, built:false` for everyone but Kelthor, and that flag is
+  //   the truth: those rungs are not written. Emitting eight 8-step
+  //   expeditions with placeholder rows would put sixteen fictional objectives
+  //   on the MISSIONS page and make the completion meter a lie.
+  //   ★ So an unbuilt expedition carries the ONE step that is real and
+  //     completable today — find that Elder, in front of their town hall — and
+  //     says plainly that the ladder is still being cut. The moment a ladder is
+  //     authored, `built:true` and its steps replace the placeholder.
+  try {
+    for (const E of (typeof DISTRICT_ELDERS !== 'undefined' ? DISTRICT_ELDERS : [])){
+      if (!E.id || E.id === 'kelthor') continue;      // Kelthor's ladder is authored above
+      const met = !!(player.eldersMet && player.eldersMet[E.id]);
+      // ★★★★ A DISTRICT YOU HAVE NEVER SET FOOT IN HAS NO MISSION FOR YOU.
+      //   My first cut pushed all nine unconditionally, so a BRAND NEW SAVE
+      //   opened MISSIONS to nine expeditions for districts it had never seen —
+      //   the board was never empty, the ledger never read 0/0, and
+      //   verify_missions went red on its fresh-save case. It was also a map
+      //   spoiler: the whole route, named, before leaving the house.
+      //   ★ Gated on having WALKED there (or already met them), which is the
+      //     fact "you will get district missions from them" actually depends on.
+      //     Not gated on `met` alone — that would hide the one step that tells
+      //     you to go and find them, which is circular.
+      const here = !!(player.visitedDistricts && player.visitedDistricts[E.dist]);
+      if (!met && !here) continue;
+      expeditions.push({
+        title: `${E.dist.charAt(0).toUpperCase() + E.dist.slice(1)} · ${E.name}`,
+        at: { npc: E.id },
+        giver: `${E.name} · ${E.seat}`,
+        status: met ? 'active' : 'available',
+        steps: [
+          { done: met, label: `Find ${E.name} in front of the ${E.dist.charAt(0).toUpperCase() + E.dist.slice(1)} town hall` },
+          { done: false, label: E.built ? `Begin ${E.teaches}`
+                                        : `${E.teaches} · ${E.steps} rungs, still being cut` },
+        ],
+        reward: `${E.teaches} · ${E.dist.toUpperCase()} expedition`,
+      });
+    }
+  } catch(_){}
   return { expeditions, quests };
 }
 

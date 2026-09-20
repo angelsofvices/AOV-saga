@@ -19782,6 +19782,52 @@ INTERIOR_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.pn
 // Exit is the bottom-center tile · autoExit steps player back onto the stairs
 // tile just south of the cave prop at (22, 8) facing down.  Wall art matches
 // Malezor palette so the transition from Malezor overworld reads clean.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.14 · THE GEMLORD CAVE HAD EXACTLY ONE WALL.
+//
+//   Creator: "fix collision on all gemlord cave borders and stairs. stairs
+//   three tiles wide. cave has an imaginary z axis second story"
+//
+// ★★★★ walkable() blocks row 0 for any cfg with a wallImg — `if (cfg.wallImg
+//   && y === 0) return false` — and NOTHING else. Driven and mapped, the 30x30
+//   cave came back with 869 of 900 tiles open: the entire left column, right
+//   column and bottom row were walkable floor with the wall band painted over
+//   them. On the old 10x25 tunnel the shaft art reached the grid edge and the
+//   grid bound was the wall, so one band was enough. At the v0.99.0 cave rung
+//   the room grew to 30x30 and that stopped being true.
+//
+// ★★★ ONE definition of the border, shared by both floors. A 2F that disagreed
+//   with its 1F about where the rock is would be a bug you only find by
+//   walking into it on one floor and not the other.
+const CAVE_STAIR_X = 14;    // 3 tiles wide · columns 14-16, centred on a 30-wide room
+const CAVE_STAIR_W = 3;     // ★ Creator: "stairs three tiles wide"
+const CAVE_STAIR_Y = 1;     // landing row · immediately inside the top wall band
+const CAVE_LAND = { x: CAVE_STAIR_X + 1, y: CAVE_STAIR_Y + 1, dir: 'down' };
+// ★★★ visH=5 IS ARITHMETIC, NOT TASTE. The stair sprite is 712x1054 and
+//   [[image-never-stretch-console-fullscreen]] fits it inside visW x visH at
+//   its OWN aspect, so the box height decides the drawn width. At visH=3 a
+//   3-tile footprint renders 2.03 tiles wide — a stair the Creator asked to be
+//   three wide, drawn two wide, with a tile of bare floor either side. Width
+//   only saturates at visH>=5 (3.00 x 4.44 tiles); 6 buys nothing. The box
+//   hangs 4 rows above the room, which the camera clamp crops exactly the way
+//   it already crops INTERIOR_HOME's stairwell.
+const CAVE_STAIR_VIS_H = 5;
+const CAVE_STAIR_VIS = {
+  visX: CAVE_STAIR_X, visW: CAVE_STAIR_W, visH: CAVE_STAIR_VIS_H,
+  visY: CAVE_STAIR_Y - (CAVE_STAIR_VIS_H - 1),   // bottom-anchored ON the trigger row
+};
+function caveStairTriggers(){
+  const out = [];
+  for (let i = 0; i < CAVE_STAIR_W; i++) out.push([CAVE_STAIR_X + i, CAVE_STAIR_Y]);
+  return out;   // all three tiles trigger · a 3-wide stair you can only take from the middle is 1 wide
+}
+// The rock ring. `isBlocked` is the O(1) predicate the engine already prefers
+// "for maps too big to list" — a 30x30 border is 116 tiles and cfg.blocked is
+// scanned linearly on EVERY step.
+function caveBorderBlocked(cfg, x, y, exit){
+  if (exit && x === exit.x && y === exit.y) return false;   // the mouth stays open
+  return x === 0 || y === 0 || x === cfg.cols - 1 || y === cfg.rows - 1;
+}
 const INTERIOR_CAVE = {
   // ★★ v0.99.0 · Creator: "cave will be sized as the next scale to buildings
   //   (very large). this is the gemlord cave idea."  2.25x a building.
@@ -19794,6 +19840,39 @@ const INTERIOR_CAVE = {
   autoExit: true,
   overworldDrop: { x: 22, y: 8, dir: 'down' },
   wallImg: 'malezor',
+  isBlocked: (x, y) => caveBorderBlocked(INTERIOR_CAVE, x, y, INTERIOR_CAVE.exit),
+  // ★★ UP. The shaft has always "gone up" and the player spawns at the bottom
+  //   facing up, so the stair belongs at the far end of that walk, not beside
+  //   the door.
+  stairs: {
+    ...CAVE_STAIR_VIS,
+    triggers: caveStairTriggers(),
+    target: 'interior_cave_2f',
+    spawnAt: { ...CAVE_LAND },
+  },
+};
+// ★★★ THE IMAGINARY Z AXIS. There is no third dimension in this engine, so a
+//   "second story" is a second scene that shares the first's footprint, its
+//   floor art and its walls, and is reachable only by the staircase. Landing
+//   one tile BELOW the stair on both floors — never ON a trigger — is what
+//   stops the 1s cooldown from being the only thing between you and a
+//   ping-pong up-down-up.
+// ★★ Deliberately no `exit` and no `autoExit`: the upper floor has no mouth to
+//   the overworld, and the stair is the only way out. INTERIOR_HOME_2F is the
+//   proven precedent for an exit-less upper floor — every consumer of cfg.exit
+//   either guards it or names its interior directly.
+const INTERIOR_CAVE_2F = {
+  ...interiorSize('cave'),
+  tileImg: INTERIOR_CAVE.tileImg,          // same rock · it is the same cave
+  spawn: { ...CAVE_LAND },
+  wallImg: 'malezor',
+  isBlocked: (x, y) => caveBorderBlocked(INTERIOR_CAVE_2F, x, y, null),
+  stairs: {
+    ...CAVE_STAIR_VIS,
+    triggers: caveStairTriggers(),         // ★ the SAME staircase, seen from above
+    target: 'interior_cave',
+    spawnAt: { ...CAVE_LAND },
+  },
 };
 // v0.95.367 · Interior swapped to Rakoron-specific dark-red pebble floor
 // (was generic brown rakoron-cave-floor.png) · dedicated interior tile
@@ -34488,6 +34567,7 @@ function interiorConfig(scene){
     return null;
   }
   if (scene === 'interior_cave')        return INTERIOR_CAVE;
+  if (scene === 'interior_cave_2f')     return INTERIOR_CAVE_2F;
   if (scene === 'interior_crazy_home')  return INTERIOR_CRAZY_HOME;
   if (MALEZOR_HOME_INTERIORS[scene])    return MALEZOR_HOME_INTERIORS[scene];
   return null;
@@ -42055,7 +42135,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.13' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.14' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

@@ -41986,7 +41986,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.9' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.10' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -50107,7 +50107,7 @@ function callFactionSummonAll(on){
     // ★ v0.95.827 · the old radius-1/2/3 ring packed Zyrex shoulder to
     // shoulder — 1 tile apart and touching Rizer.  The call-faction ring now
     // IS the summon formation: same 48 stations, same spacing law, one table.
-    const RING = SUMMON_FORMATION;
+    const RING = partyFormation();   // ★ v0.99.10 · stepped by the widest body
     party.forEach((z, i) => {
       // ★ v0.95.718 · this path ALSO had `if (!spriteDef) return;` — the same
       // dead end as toggleFactionSummon, in a second place, silently skipping
@@ -56877,26 +56877,98 @@ function quickSummonStashAll(){
 // Rings run 2..10 rather than 2..6: a half-plane holds fewer stations per ring
 // (5 · 9 · 13 · 17 · 21), so five rings are needed to keep 48+ available and
 // preserve the old call-faction cap.
-const SUMMON_FORMATION = (function(){
-  const out = [];
-  for (const r of [2, 4, 6, 8, 10]){
-    const ring = [];
-    for (let lx = -r; lx <= r; lx += 2)
-      for (let ly = 0; ly <= r; ly += 2)          // ★ ly >= 0 · never in front
-        if (Math.max(Math.abs(lx), Math.abs(ly)) === r) ring.push([lx, ly]);
-    // fill each ring by angle so early summons flank Rizer evenly rather
-    // than queueing along one row.
-    // ★ v0.95.915 · but BEHIND outranks BESIDE.  ly === 0 is level with Rizer,
-    // which passes "never in front" and still is not what the Creator asked
-    // for ("spawns them behind you") -- and a station level with him is one
-    // turn away from being in his path.  Strictly-behind stations are handed
-    // out first; the flankers are still there when the ring fills up.
-    ring.sort((a, b) => ((a[1] === 0) - (b[1] === 0))
-                     || (Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0])));
-    out.push(...ring);
+// ★★★★ v0.99.10 · THE LATTICE STEPS BY THE WIDEST BODY IN THE PARTY.
+//
+//   Creator, 2026-09-20: "instead of zyrex overlapping each other, I want them
+//   all spread out so they are visible. the sprites are beautiful. I just want
+//   it to look like a full screen team grab when we are idle."
+//
+// ★★★★ THE .827 SPACING LAW WAS NEVER VIOLATED — IT WAS MEASURING THE WRONG
+//   THING. Every station is Chebyshev >= 2 from every other, so no two Zyrex
+//   can share a TILE. But a tile is 48px and these bodies are not:
+//
+//       anciuxor 5 tiles wide · solcryst 4 · rakoron 4 · ten more at 3
+//
+//   A 5-wide body standing 2 tiles from its neighbour overlaps it by three.
+//   The rule held perfectly and the picture still clumped, because "no two
+//   occupy one tile" and "no two pictures overlap" are different claims and
+//   only the first was ever being made.
+//
+// ★★★ SO THE STEP IS NOW A MEASUREMENT, not the constant 2. wildBodyFootprint
+//   already knows how wide each species DRAWS — it has been computing exactly
+//   this for wild-body collision since v0.95.9xx — so the party's widest member
+//   sets the lattice, rounded up to even. Chebyshev >= step >= maxWidth means
+//   two spans of half-width (maxWidth-1)/2 cannot touch: the separation is
+//   proved by the geometry again, this time about the right quantity.
+//
+// ★★ AND EVERYTHING .827 AND .874 ESTABLISHED SURVIVES, because scaling an
+//   integer lattice is still an isometry under a right-angle rotation: offsets
+//   stay even, stations stay strictly behind him (ly >= 0), strictly-behind
+//   still outranks beside, and the rings still fill by angle so the team flanks
+//   him evenly instead of queueing along one row.
+const _FORM_CACHE = {};
+// ★★★★ THE FORMATION IS WIDE AND SHALLOW, BECAUSE THE VIEWPORT IS.
+//   20x11 tiles with Rizer centred gives about ten tiles of room to each SIDE
+//   and only five BEHIND him. A square lattice stepped by the widest body puts
+//   the first station six tiles back the moment Anciuxor joins — off the bottom
+//   of the screen, which is the exact opposite of "a full screen team grab".
+//   ★ So the two axes are stepped independently: sideways by how wide a body
+//     DRAWS (that is what was overlapping), backwards by how DEEP it draws
+//     (never more than two tiles), and the depth is capped at four so the back
+//     rank stays on screen.
+const FORM_MAX_BEHIND = 4;
+// ★ The viewport is 20x11 tiles with Rizer centred, so ±10 is exactly the edge
+//   and a body standing there is half off the screen. ±9 is the last column
+//   that reads.
+const FORM_MAX_SIDE = 9;
+function summonFormation(stepX, stepY){
+  stepX = Math.max(2, Math.ceil((stepX || 2) / 2) * 2);
+  stepY = Math.max(2, Math.ceil((stepY || 2) / 2) * 2);
+  const key = stepX + 'x' + stepY;
+  if (_FORM_CACHE[key]) return _FORM_CACHE[key];
+  const out = [], seen = new Set();
+  // rows first, near to far: the team fans out ACROSS the screen behind him
+  for (let ly = stepY; ly <= FORM_MAX_BEHIND; ly += stepY){
+    const row = [];
+    for (let lx = -FORM_MAX_SIDE; lx <= FORM_MAX_SIDE; lx += stepX) row.push([lx, ly]);
+    // centre-out, so a small team sits directly behind him and grows sideways
+    row.sort((a, b) => Math.abs(a[0]) - Math.abs(b[0]) || a[0] - b[0]);
+    for (const p of row){ const k = p.join(','); if (!seen.has(k)){ seen.add(k); out.push(p); } }
   }
+  // then the flanks, level with him — still never IN FRONT (ly >= 0)
+  for (let lx = stepX; lx <= FORM_MAX_SIDE; lx += stepX)
+    for (const sx of [lx, -lx]){
+      const k = sx + ',0';
+      if (!seen.has(k)){ seen.add(k); out.push([sx, 0]); }
+    }
+  // and finally deeper ranks for a very large faction, if it ever needs them
+  for (let ly = FORM_MAX_BEHIND + stepY; ly <= FORM_MAX_BEHIND + stepY * 4; ly += stepY)
+    for (let lx = -FORM_MAX_SIDE; lx <= FORM_MAX_SIDE; lx += stepX){
+      const k = lx + ',' + ly;
+      if (!seen.has(k)){ seen.add(k); out.push([lx, ly]); }
+    }
+  _FORM_CACHE[key] = out;
   return out;
-})();
+}
+// How wide and how deep does the widest Zyrex standing with you actually DRAW?
+// ★ Cheap: the party is small and wildBodyFootprint memoises per species.
+function partyFormationStep(){
+  let w = 2, d = 2;
+  try {
+    for (const z of (player.party || [])){
+      if (!z || !z.speciesId) continue;
+      const f = wildBodyFootprint(z.speciesId);
+      if (!f) continue;
+      w = Math.max(w, (f.left || 0) + (f.right || 0) + 1);
+      d = Math.max(d, (f.depth || 0) + 1);
+    }
+  } catch(_){}
+  return [w, d];
+}
+// The default table stays a 2-step lattice so anything that reads it directly
+// behaves exactly as it did; the live stations come from partyFormation().
+const SUMMON_FORMATION = summonFormation(2, 2);
+function partyFormation(){ const [w, d] = partyFormationStep(); return summonFormation(w, d); }
 // ★ The basis is the direction he last WALKED, not the direction he is FACING.
 // Turning on the spot to look around must not make the whole team scramble to
 // re-form; only travelling does.  Derived from his own tile deltas, so nothing
@@ -56989,7 +57061,8 @@ function _formationTile(n){
       else n._driftOff = null;
     }
   } catch(_){}
-  const F = SUMMON_FORMATION[(n._formSlot || 0) % SUMMON_FORMATION.length];
+  const _FORM = partyFormation();   // ★ v0.99.10 · stepped by the widest body
+  const F = _FORM[(n._formSlot || 0) % _FORM.length];
   const facing = _formationBasis();
   const R = n._driftOff || _formationRotate(F[0], F[1], facing);
   let tx = player.x + R[0], ty = player.y + R[1];

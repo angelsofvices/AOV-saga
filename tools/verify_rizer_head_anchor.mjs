@@ -89,7 +89,17 @@ H('★★★ EVERY HEAD SCALE IS A MEASUREMENT, AND IN THE RANGE A MEASUREMENT C
   // ★★★ EVERY KEY MUST RESOLVE THROUGH THE SAME NORMALISER THE GAME USES.
   //   This is the check that caught the real bug: RIZER.doubleJump carries
   //   key 'double-jump', so a table entry spelled doubleJump was a silent miss.
+  // ★★★★ AND THE WEAPON BUNDLES COUNT AS BANKS. This check used to scan only
+  //   the RIZER table, so the three weapon consts were invisible to it —
+  //   which is the SAME blind spot that let v0.99.3 enlarge the pearlbow by
+  //   32% without a single assertion noticing. A check that cannot see a bank
+  //   cannot guard it.
+  const WEAPON_BUNDLES = ['RIZER_PEARLBOW','RIZER_RUBYPAW_SWORD','RIZER_EMERALD_AXE',
+                          'RIZER_SAPPHIRE_SWORD'];
+  const G3 = (() => { const L3 = console.log; console.log = () => {};
+    const g = bootGame({ extra: WEAPON_BUNDLES }); console.log = L3; return g; })();
   const names = new Set(banks.map(([, b]) => baseKey(b.key)));
+  for (const n of WEAPON_BUNDLES) if (G3[n]) names.add(baseKey(G3[n].key));
   const orphan = Object.keys(T).filter(k => !names.has(k));
   ok(orphan.length === 0, orphan.length ? `★ names nothing: ${orphan.join(', ')}` : '★ every key resolves to a live bank');
   ok(T.kick === 0.88, `★★★ kick is ${T.kick} — the reported bug. It was drawing at 77% of idle in profile`);
@@ -124,6 +134,47 @@ H('★★★ NO BANK CARRIES A HAND-TUNED LIFT ON TOP OF THE MEASUREMENT');
   ok(lifted.length === 0,
      lifted.length ? `★ still lifted: ${lifted.map(([k, b]) => k + ' x' + b.visualScale).join(', ')}`
                    : '★★★ no anchored bank stacks a visualScale on its head measurement');
+}
+
+H('★★★★ THE WEAPON BUNDLES ARE ANCHORED TOO · they were the hole in v0.99.3');
+{
+  // ★★★★ Creator, v0.99.9: "rizer gets larger when he fires the pearlbow ...
+  //   jump dodge punch are fine."  v0.99.3 anchored every bank in the RIZER
+  //   TABLE and missed these — they are separate consts, so they fell to
+  //   headScale 1.0 with nothing measured, and that ENLARGED three of them.
+  //   The pearlbow went 76% of idle to 100%: a 32% jump, next to a punch that
+  //   sits at 93%. This section exists so the next bundle declared outside the
+  //   table cannot repeat it.
+  const W = [['RIZER_PEARLBOW', 0.763], ['RIZER_RUBYPAW_SWORD', 0.827],
+             ['RIZER_EMERALD_AXE', 0.959]];
+  const G2 = (() => { const L2 = console.log; console.log = () => {};
+    const g = bootGame({ extra: ['RIZER_PEARLBOW','RIZER_RUBYPAW_SWORD','RIZER_EMERALD_AXE',
+      'RIZER_SAPPHIRE_SWORD','RIZER','rizerRowScale','RIZER_HEAD_SCALE','TILE','rizerTargetBodyPx'] });
+    console.log = L2; return g; })();
+  for (const [name, want] of W){
+    const b = G2[name];
+    if (!ok(!!b, `${name} exists`)) continue;
+    const key = String(b.key || '').toLowerCase().replace(/[-_\s]/g, '');
+    ok(G2.RIZER_HEAD_SCALE[key] === want,
+       `  ${name.replace('RIZER_','').padEnd(16)} headScale ${G2.RIZER_HEAD_SCALE[key]} · measured against what it SHIPPED at`);
+    // ★★ the whole point: one size in every direction
+    const rel = D.map((_, r) => G2.rizerRowScale(b, r) / G2.rizerRowScale(G2.RIZER.idle, r));
+    const spread = (Math.max(...rel) - Math.min(...rel)) * 100;
+    ok(spread < 0.01, `     ★★ ${Math.round(rel[0]*100)}% of idle in all four directions (spread ${spread.toFixed(2)}%)`);
+    // ★★★ and it is the size it drew at before the anchor touched it
+    const flat = (G2.TILE * 2) / b.bboxes[0][0][3];
+    const idleDown = G2.rizerTargetBodyPx() / G2.RIZER.idle.bodyBh[0];
+    ok(Math.abs(rel[0] - flat / idleDown) < 0.002,
+       `     ★★★ and it matches its shipped DOWN size exactly · the size was given back, not guessed`);
+  }
+  // ★ the pearlbow specifically, because that is the one he saw
+  const bow = G2.RIZER_PEARLBOW, punch = G2.RIZER.punch;
+  const bowRel = G2.rizerRowScale(bow, 0) / G2.rizerRowScale(G2.RIZER.idle, 0);
+  ok(bowRel < 0.8,
+     `★★★★ firing the pearlbow draws him at ${Math.round(bowRel*100)}% of idle, not 100% · `
+   + 'he no longer grows when he looses an arrow');
+  ok(G2.rizerRowScale(bow, 0) < G2.rizerRowScale(punch, 0),
+     '★★ and smaller than the punch he fires it from, as the art has it');
 }
 
 H('★ THE ANCHOR ITSELF IS STILL THE SHIPPING IDLE');

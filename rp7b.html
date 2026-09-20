@@ -38744,6 +38744,26 @@ const RIZER_HEAD_SCALE = {
   astralthrow:  0.900,
   idlejump:     1.000,
   astralstrike: 1.000,
+  // ★★★★ v0.99.9 · THE WEAPON BUNDLES · MY OWN v0.99.3 REGRESSION.
+  //   Creator: "rizer gets larger when he fires the pearlbow ... jump dodge
+  //   punch are fine."  He was right and it was mine.
+  //   ★ v0.99.3 anchored every unmeasured Rizer bank to idle's head. It reached
+  //     the banks in the RIZER table and MISSED these, which are separate
+  //     consts — RIZER_PEARLBOW, RIZER_RUBYPAW_SWORD, RIZER_EMERALD_AXE. With
+  //     no entry here they fell to headScale 1.0 with nothing measured, and
+  //     that silently ENLARGED them: the pearlbow went 76% of idle → 100%, a
+  //     32% jump. Punch sits at 93% and reads fine, which is exactly why the
+  //     bow looked wrong beside it.
+  //   ★★ The template matcher CANNOT measure these. He is holding a bow limb
+  //     or an axe head, so the top of the ink is not his head — the same
+  //     failure as guitarPlay's amplifier. LEFT and RIGHT disagreed by 25% and
+  //     rubypaw pinned both to the search floor. So the v0.99.3 rule applies:
+  //     where the matcher fails, PRESERVE THE SHIPPED SIZE rather than guess.
+  //     These three are exactly the ratios they drew at before v0.99.3 — the
+  //     per-direction consistency is kept, the size is given back.
+  pearlbow:     0.763,
+  rubypawsword: 0.827,
+  emeraldaxe:   0.959,
   // matcher could not find a head · preserve the shipped DOWN-row size
   guitarplay:   0.782,
   faecatch:     0.895,
@@ -41966,7 +41986,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.8' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.9' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -55114,6 +55134,21 @@ const SUMMONABLE_SPRITES = {
   // ★ scaleMul 1.05 · a T7 siege spider should stand over the Rizer.
   xytabyte: {
     src: 'assets/2D%20sprites/zyrex/xytabyte.png',
+    // ★★★★ v0.99.9 · HIS SIDE ROWS SHIP SWAPPED. Creator: "xytabyte is walking
+    //   backwards on left and right animations."
+    //   ★ Looked at the ART rather than the table: in sheet row 1 the cannon
+    //     barrel points RIGHT, and in row 2 it points LEFT. The sheet order is
+    //     DOWN / RIGHT / LEFT / UP, not the canon DOWN / LEFT / RIGHT / UP — so
+    //     every step drew the pose facing the way he had just come from. That
+    //     is the moonwalk, exactly.
+    //   ★★ The v0.95.979 note called this "the cleanest sheet delivered this
+    //     session · RIGHT a true mirror of LEFT at 0.97". Both halves are true
+    //     and neither says WHICH row is which: a perfect mirror pair is the one
+    //     case where an audit CANNOT tell you the bands are the wrong way
+    //     round. The audit was not wrong; it was answering a different question.
+    //   ★ rowMap, not a re-cut: the pixels are fine, and the bboxes are indexed
+    //     by SHEET row, so remapping the facing leaves them correct.
+    rowMap: { down:0, right:1, left:2, up:3 },
     bboxes: [
       [[ 24, 52,264,265],[ 26, 28,265,289],[ 25, 52,266,265],[ 26, 34,264,281]],
       [[ 17, 66,272,237],[ 17, 66,273,237],[ 18, 66,273,237],[ 18, 66,274,237]],
@@ -57122,6 +57157,13 @@ function makeZyrexFollower(z, opts){
   base.bboxes  = spriteDef.bboxes;
   base.cellW   = spriteDef.cellW;
   base.cellH   = spriteDef.cellH;
+  // ★★★ v0.99.9 · CARRY THE rowMap ACROSS. The wild-body draw reads d.rowMap
+  //   straight off the sprite def, but this builder copied bboxes, scale, cell
+  //   size and the bob and silently dropped it — so a sheet with swapped bands
+  //   faced correctly in the wild and backwards the moment you summoned it.
+  //   One of two paths honouring a field is worse than neither, because it
+  //   looks fixed.
+  base.rowMap  = spriteDef.rowMap || null;
   base.cols    = 4; base.rows = 4;
   base.uniformScale = true;
   base.scaleMul = spriteDef.scaleMul || 1;

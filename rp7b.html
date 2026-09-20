@@ -2674,6 +2674,7 @@ const AUDIO = {
     elzoran:      new Audio('audio/sfx-elzoran.mp3'),        // v0.95.205 · Smoke-the-Dragon growl on Elzoran interact
     astralstrike: new Audio('audio/sfx-astralstrike.mp3'),   // v0.95.212 · A3 handblast cast SFX
     readyToBlast: new Audio('audio/sfx-ready-to-blast.mp3'), // v0.95.493 · Rizer VO on SPECIAL max fill
+    kaboom:       new Audio('audio/sfx-ha-kaboom.mp3'),     // v0.99.13 · "ha kaboom!" · thrown trick chest that actually caught an enemy
     okayBuddy:    new Audio('audio/sfx-okay-buddy.mp3'),     // v0.95.494 · Rizer VO on HP dropping ≤20%
     astralkickKo: new Audio('audio/sfx-astralkick-ko.mp3'),  // v0.95.494 · Rizer VO on astralkick KO
     astralstrikeKo: new Audio('audio/sfx-astralstrike-ko.mp3'), // v0.95.494 · Rizer VO on astralstrike KO
@@ -3002,6 +3003,12 @@ const RVOX_PRIORITY = {
   levelUp: 90, levelUpChime: 92, gotBag: 90, gotPhone: 90, timeToShred: 88,
   // 80 · KO callouts
   astralkickKo: 80, astralstrikeKo: 80, swordKillVox: 78,
+  // ★★★ v0.99.13 · 79 · OVER swordKillVox, UNDER the astral KOs. A boom kill
+  //   routes through creditRizerKill(n,'boom'), which plays the EQUIPPED
+  //   weapon's kill vox — and no weapon was involved in a chest you threw. At
+  //   77 the sword would have talked over the explosion. At 79 the explosion
+  //   wins the line it earned, and a genuine astral KO still outranks it.
+  kaboom: 79,
   // 75 · sleep beat (rare but character-defining)
   yawnBed: 75,
   // 70 · consumption / power beats
@@ -26070,6 +26077,7 @@ function detonateBoomChest(b, skinId){
     // blast is not uniformly lethal across 49 tiles.
     const blastMult = (d) => d === 0 ? BOOM.DMG_CENTER
                      : BOOM.DMG_RING * (1 - ((d - 1) / BOOM.RADIUS) * 0.6);
+    let _enemiesHit = 0;
     for (const n of NPCS){
       if (n.scene !== game.scene || !n.isEnemy || n._dying) continue;
       const dx = Math.abs(n.tileX - b.tileX), dy = Math.abs(n.tileY - b.tileY);
@@ -26077,10 +26085,24 @@ function detonateBoomChest(b, skinId){
       if (d > BOOM.RADIUS) continue;
       const dmg = playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId);
       n.hp = (n.hp == null ? n.hpMax || 125 : n.hp) - dmg;
+      _enemiesHit++;
       spawnHitFx(n.tileX, n.tileY, 'ultimate');
       // v0.95.649 · BOOM kills paid ZERO RXP and never booked the kill
       if (n.hp <= 0){ startMoriDeath(n); creditRizerKill(n, 'boom'); }
     }
+    // ★★★★ v0.99.13 · "HA KABOOM!"  Creator: "play this rvox when rizer
+    //   explodes a trick chest barrel AND damage is done to an enemy".
+    //   ★★★ The gate is _enemiesHit, not the detonation. Rizer gloating at an
+    //   empty crater is the whole way this line could go wrong, and a thrown
+    //   chest landing on nothing is the COMMON case — the AOE is 3x3 and the
+    //   throw is 4-8 tiles. Counting the loop that already exists is the only
+    //   honest test of "damage was done to an enemy"; detonation is not.
+    //   ★★ Chains need no special handling: a sympathetic chest re-enters here
+    //   and _rvoxLive drops any second call at equal priority while one plays,
+    //   so a five-chest chain says it once.
+    //   ★ Deliberately NOT on the onInteract path above — opening one in your
+    //   hands damages only the player, and there is nothing to crow about.
+    if (_enemiesHit > 0){ try { playSFX('kaboom'); } catch(_){} }
     // Rizer is not immune — stand in your own blast and you wear it.
     {
       const dx = Math.abs(player.x - b.tileX), dy = Math.abs(player.y - b.tileY);
@@ -42033,7 +42055,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.12' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.13' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

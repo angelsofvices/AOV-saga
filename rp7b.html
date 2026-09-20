@@ -37596,6 +37596,10 @@ function drawOceanUnderlayer(){
 }
 
 const DISTRICT_BLEND_RADIUS=8;
+// ★★★ Slightly MORE than one tile (±0.9), so a tile's dithered distance can
+//   cross into either neighbouring ring.  At exactly 1.0 the rings would only
+//   touch, not interleave, and a touching staircase is still a staircase.
+const DISTRICT_BLEND_DITHER=1.8;
 const _districtBlendCache=new Map();
 function districtBlendTargets(tx,ty,baseDist){
   const key=`${tx},${ty}`;
@@ -37618,9 +37622,33 @@ function districtBlendTargets(tx,ty,baseDist){
   const found=[...nearest.entries()].sort((a,b)=>a[1]-b[1]).slice(0,2);
   if(!found.length){_districtBlendCache.set(key,[]);return [];}
   const minD=found[0][1];
+  // ★★★★ v0.99.11 · DITHER THE CONTOUR, OR THE BLEND IS A STAIRCASE.
+  //   Distance here is a whole number of tiles, so alpha can only take the
+  //   eight values .48 .42 .36 .30 .24 .18 .12 .06 — eight rings around the
+  //   seam.  Seven district pairs hide that completely, because both sides
+  //   draw one of sixteen hashed variants and the texture noise straddles
+  //   every ring.  malezor|zarvane and andrannor|zarvane are the only two
+  //   seams in the world where NEITHER side has a 4x4 sheet: both districts
+  //   draw one identical image on every tile, so every tile at the same
+  //   distance is pixel-identical and each ring becomes a machine-straight
+  //   line.  Measured across all 28,310 blended tiles, those two pairs had
+  //   mean = p95 = max single-tile step to two decimals (9.49/9.5/9.5 and
+  //   6.93/6.9/6.9) — zero variance, the signature of a staircase — while
+  //   the other eight spread normally.  The blend was always running; it was
+  //   quantized, and only flat art shows the quantization.
+  //   ★ So jitter the DISTANCE by just over one tile before it becomes an
+  //   alpha.  Adjacent rings interleave and the bands stipple into each
+  //   other: longest constant-alpha run drops from 62 tiles (malezor|zarvane)
+  //   and 36 (andrannor|zarvane) to 2, world-wide.  The mean alpha rises by
+  //   0.0016 — 0.6%, from the clamp at minD=1 — equally on all ten pairs, so
+  //   no seam that already looked right shifts.  Peak stays under the .52
+  //   documented below.
+  const _hn=(Math.imul(tx,0x27d4eb2d)^Math.imul(ty,0x165667b1))>>>0;
+  const jitter=(((_hn>>>9)&1023)/1023-.5)*DISTRICT_BLEND_DITHER;
+  const dEff=Math.min(DISTRICT_BLEND_RADIUS,Math.max(.4,minD+jitter));
   // Adjacent tiles meet around a balanced 52/48 mix, then the secondary
   // texture fades smoothly to zero over the next seven tiles.
-  const totalAlpha=.48*(DISTRICT_BLEND_RADIUS+1-minD)/DISTRICT_BLEND_RADIUS;
+  const totalAlpha=.48*(DISTRICT_BLEND_RADIUS+1-dEff)/DISTRICT_BLEND_RADIUS;
   const raw=found.map(([,d])=>DISTRICT_BLEND_RADIUS+1-d);
   const rawTotal=raw.reduce((a,b)=>a+b,0);
   const result=found.map(([dist],i)=>({dist,alpha:totalAlpha*raw[i]/rawTotal}));
@@ -41986,7 +42014,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.10' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.11' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

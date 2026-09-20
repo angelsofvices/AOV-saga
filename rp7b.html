@@ -41966,7 +41966,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.7' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.8' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -62965,6 +62965,76 @@ function drawNPC(n){
 // of home.  Follow: trails player 2 steps behind via player.trail buffer.
 // Interact toggles mode (see NPC.onInteract).
 const _DIR_VEC = { up:{dx:0,dy:-1}, down:{dx:0,dy:1}, left:{dx:-1,dy:0}, right:{dx:1,dy:0} };
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.8 · ONE ROAM VOCABULARY · FOUR PROFILES, EVERY BODY ON ONE.
+//
+//   Creator, 2026-09-20: "make sure that all npcs that have walk and fly
+//   traversals in the overworld go in patterns like steelden. dont just have
+//   them walk one or two tiles and stop and go back. we want npcs to feel
+//   alive. apply a global npc and zyrex roam pattern based on 4 categories of
+//   npc or zyrex function. idle, fly, walking, grazing. quest npcs stay idle
+//   blinking. general npcs and wild zyrex have natural roam patterns."
+//
+// ★★★★ WHY THEY PACED. The wander step picked a FRESH UNIFORM DIRECTION EVERY
+//   STEP. That is a textbook random walk: expected displacement after n steps
+//   is √n, not n — so a body with a 6-tile radius spent its life inside two
+//   tiles of home, stepping out and immediately back. Nothing was broken;
+//   the model was simply the wrong one. And it is the SAME defect as the
+//   v0.97.8 chase zig-zag, which was fixed by committing to an axis — in the
+//   function that never got the same treatment.
+//
+// ★★★ THE FIX IS A LEG. Pick a heading, hold it for several tiles, then pick
+//   again — weighted against turning straight back, because an about-face is
+//   how pacing reads even with long legs. Travel comes out of persistence, not
+//   out of speed, so nothing here moves faster than it did.
+//
+// ★★ AND THE FOUR PROFILES ARE FOUR JOBS, not four speeds:
+//   · idle     a post. Quest NPCs do not wander off mid-conversation.
+//   · walking  someone going somewhere. Long legs, few pauses.
+//   · grazing  an animal feeding. One or two steps, then a long head-down
+//              pause — the pause IS the behaviour, the walking is incidental.
+//   · fly      flight. Longest legs, fastest pace, widest range, and the only
+//              profile that passes `flying` to walkable() so it can cross the
+//              water and the rocks a walker has to go around.
+const NPC_ROAM = {
+  idle:    { legMin: 0, legMax:  0, pause: 1.00, pauseMs: [9e9, 9e9],   paceMs: [0, 0],     radius:  0, fly: false },
+  walking: { legMin: 3, legMax:  7, pause: 0.16, pauseMs: [600, 1700],  paceMs: [150, 320], radius:  6, fly: false },
+  grazing: { legMin: 1, legMax:  2, pause: 0.55, pauseMs: [1500, 3600], paceMs: [280, 520], radius:  3, fly: false },
+  fly:     { legMin: 5, legMax: 12, pause: 0.06, pauseMs: [250, 700],   paceMs: [95, 180],  radius: 10, fly: true  },
+};
+// ★★★ THESE FLY BECAUSE THEY HAVE A FLY SHEET, which is evidence rather than
+//   my taxonomy: an artist drew each of them a flight bank.
+const ROAM_FLIERS = new Set(['morlisk','aetherwing','anciuxor','auraxion','elzoran','skybeam']);
+// ★★ AND THESE GRAZE. Wild Zyrex resolve from their own SPECIES type below —
+//   Beast and Nature feed — so this set only names the non-Zyrex animals the
+//   species table cannot answer for.
+const ROAM_GRAZERS = new Set(['satyrbeast']);
+// Resolve once, then cache on the body: this runs inside the NPC tick and
+// there are ~1,350 of them.
+function roamProfileFor(n){
+  if (n._roamProf) return n._roamProf;
+  let key = 'walking';
+  const kind = String(n._roamKind || n.speciesId || n.id || '').replace(/[_0-9]+$/, '');
+  if (n.roam && NPC_ROAM[n.roam])                       key = n.roam;       // explicit wins
+  else if (n.mode === 'stationary' || n.mode === 'idle' ||
+           (n.wanderRadius || 0) === 0)                 key = 'idle';       // ★ quest NPCs
+  else if (ROAM_FLIERS.has(kind) || n._flies)           key = 'fly';
+  else if (ROAM_GRAZERS.has(kind))                      key = 'grazing';
+  else if (n.speciesId && typeof SPECIES !== 'undefined' && SPECIES[n.speciesId]){
+    const t = SPECIES[n.speciesId].type;
+    if (t === 'Beast' || t === 'Nature') key = 'grazing';
+    else if (t === 'Draconic' || t === 'Astral' || t === 'Extraterrestrial') key = 'fly';
+  }
+  const base = NPC_ROAM[key];
+  // ★ A body that was authored with its own wanderRadius KEEPS IT. Stelden's
+  //   courtyard is 4 tiles because the Creator posted him to a courtyard; the
+  //   profile decides HOW he moves, never WHERE he is allowed to.
+  n._roamProf = (n.wanderRadius != null && key !== 'idle')
+    ? Object.assign({}, base, { radius: n.wanderRadius })
+    : base;
+  n._roamKey = key;
+  return n._roamProf;
+}
 // ═══════════════════════════════════════════════════════════════════════════
 // ★★★ v0.95.956 · FOLLOWERS NAVIGATE.  Creator: "make sure if a companion
 // (humanoid or zyrex) is following u and gets stuck by bush rock or any of
@@ -63055,8 +63125,12 @@ function npcNavigateAround(n, tx, ty){
   n._navCd = now + NPC_PATH_COOLDOWN;
   return false;
 }
-function stepNPCTo(n, nx, ny, newDir){
-  if (!walkable(nx, ny)) return false;
+function stepNPCTo(n, nx, ny, newDir, flying){
+  // ★★ v0.99.8 · `flying` finally reaches walkable() from an NPC. It has been
+  //   a parameter of walkable() since v0.96.43 and until now only RIZER ever
+  //   passed it — so a Morlisk with a flight animation still had to walk around
+  //   the pond it was drawn hovering over.
+  if (!walkable(nx, ny, !!flying)) return false;
   // Also block moving onto player tile
   if (player.x === nx && player.y === ny) return false;
   const _ox = n.tileX, _oy = n.tileY;      // ★ v0.96.22 · keep the index exact
@@ -63670,28 +63744,80 @@ function seerPatrolStep(n){
       }
     }
   } else {
-    // Wander: pick random direction · 12% chance to just pause (was 30%)
-    if (Math.random() < 0.12){
+    // ★★★★ v0.99.8 · FOUR ROAM PROFILES · see NPC_ROAM. This used to be one
+    //   line — `dirs[Math.floor(Math.random()*4)]`, a fresh uniform direction
+    //   EVERY step — which is a pure random walk: net travel grows with √n
+    //   instead of n, so a body oscillates on the spot. That is exactly the
+    //   "walk one or two tiles and stop and go back" the Creator described, and
+    //   it is the SAME defect as the v0.97.8 chase zig-zag, in the function
+    //   that never got the fix: no commitment to a heading.
+    const P = roamProfileFor(n);
+    if (P.legMax === 0){ n.moving = false; n.moveCd = 9e9; return; }   // idle · blink only
+
+    // pause · grazing stands still far more than it steps, flight almost never
+    if (n._roamLeg === 0 && Math.random() < P.pause){
       n.moving = false;
-      n.moveCd = 500 + Math.random() * 600;
+      n.moveCd = P.pauseMs[0] + Math.random() * (P.pauseMs[1] - P.pauseMs[0]);
+      n._roamLeg = 0;
       return;
     }
-    const dirs = ['up','down','left','right'];
-    const dir  = dirs[Math.floor(Math.random() * 4)];
-    const v    = _DIR_VEC[dir];
-    const nx = n.tileX + v.dx, ny = n.tileY + v.dy;
-    // Stay within wanderRadius of home
-    if (Math.abs(nx - n.homeX) + Math.abs(ny - n.homeY) > n.wanderRadius){
-      n.dir = dir;
-      n.moving = false;
-      n.moveCd = 300;
+    // ── start a new LEG · commit to one heading for several tiles ───────────
+    if (!n._roamLeg || n._roamLeg <= 0){
+      const away = Math.abs(n.tileX - n.homeX) + Math.abs(n.tileY - n.homeY);
+      let dir;
+      if (away > P.radius){
+        // ★ OUT OF BOUNDS · WALK HOME, do not stall. The old code hit the fence
+        //   and returned without moving, so a body at the edge of its radius
+        //   spent most of its life re-rolling a direction into a wall.
+        dir = (Math.abs(n.tileX - n.homeX) >= Math.abs(n.tileY - n.homeY))
+            ? (n.tileX > n.homeX ? 'left' : 'right')
+            : (n.tileY > n.homeY ? 'up' : 'down');
+      } else {
+        // ★★ NEVER REVERSE STRAIGHT BACK. A body that just walked east and
+        //   turns west has produced the pacing the Creator is complaining
+        //   about, even with long legs. The back-step is allowed, at 1 in 8.
+        const OPP = { up:'down', down:'up', left:'right', right:'left' };
+        const back = OPP[n._roamDir];
+        const pool = ['up','down','left','right'].filter(d => d !== back || Math.random() < 0.125);
+        dir = pool[Math.floor(Math.random() * pool.length)] || 'down';
+      }
+      n._roamDir = dir;
+      n._roamLeg = P.legMin + Math.floor(Math.random() * (P.legMax - P.legMin + 1));
+    }
+    // ── step the leg ────────────────────────────────────────────────────────
+    const v = _DIR_VEC[n._roamDir] || _DIR_VEC.down;
+    let nx = n.tileX + v.dx, ny = n.tileY + v.dy;
+    // the fence is checked BEFORE the step, and ends the leg rather than the walk
+    if (Math.abs(nx - n.homeX) + Math.abs(ny - n.homeY) > P.radius){
+      n._roamLeg = 0;
+      n.dir = n._roamDir; n.moving = false;
+      n.moveCd = 180;
       return;
     }
-    if (stepNPCTo(n, nx, ny, dir)){
-      n.moveCd = 160 + Math.random() * 180;   // v0.84.10 · faster stride
-    } else {
-      n.dir = dir; n.moving = false; n.moveCd = 220;
+    if (stepNPCTo(n, nx, ny, n._roamDir, P.fly)){
+      n._roamLeg--;
+      n.moveCd = P.paceMs[0] + Math.random() * (P.paceMs[1] - P.paceMs[0]);
+      return;
     }
+    // ★★ BLOCKED · TURN, DO NOT STOP. Try the two perpendiculars before giving
+    //   up the leg — a rock on your path is a reason to go around it, not a
+    //   reason to stand still for half a second and re-roll.
+    const PERP = (n._roamDir === 'up' || n._roamDir === 'down') ? ['left','right'] : ['up','down'];
+    if (Math.random() < 0.5) PERP.reverse();
+    for (const d of PERP){
+      const p = _DIR_VEC[d];
+      const tx = n.tileX + p.dx, ty = n.tileY + p.dy;
+      if (Math.abs(tx - n.homeX) + Math.abs(ty - n.homeY) > P.radius) continue;
+      if (stepNPCTo(n, tx, ty, d, P.fly)){
+        n._roamDir = d;                       // the detour becomes the heading
+        n._roamLeg = Math.max(1, n._roamLeg - 1);
+        n.moveCd = P.paceMs[0] + Math.random() * (P.paceMs[1] - P.paceMs[0]);
+        return;
+      }
+    }
+    n._roamLeg = 0;                            // boxed in · new heading next tick
+    n.dir = n._roamDir; n.moving = false;
+    n.moveCd = 220;
   }
 }
 

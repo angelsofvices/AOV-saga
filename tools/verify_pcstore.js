@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.744 · MASS INVENTORY · faction <-> PC storage for Zyrex.
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
  ';globalThis.__C={player,game,switchDockTab,depositZyrexToPC,withdrawZyrexFromPC,PARTY_MAX,'+
  'SPECIES,createZyrex,DEV_FACTION_ACTORS,requiredBondForTier,rizerBondTotal,NPCS,_dockTabRef:(typeof _dockTab!=="undefined"?1:0)};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}

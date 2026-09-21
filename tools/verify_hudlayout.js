@@ -1,7 +1,7 @@
 // Headless smoke test for rp7b.html — evaluates the whole script against a
 // stubbed browser surface, then calls the combat/roster functions directly.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 
 const noop = () => {};
 global.setInterval=()=>0; global.setTimeout=(f,t)=>0; global.clearInterval=noop; global.clearTimeout=noop;
@@ -57,7 +57,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 const EXPORT = ';globalThis.__C={HUD_MOVABLE,HUD_POS_KEY,HUD_LEGACY_KEY,hudPinned,setHudLayoutMode,resetHudLayout,initHudMovables,makeOverlayDraggable,getMode:()=>hudLayoutMode};';
 
 try { new Function(src + EXPORT)(); } catch(e){ console.log('boot error:', e.message.slice(0,300)); }
-const src2 = require('fs').readFileSync('/tmp/all.js','utf8');
+const src2 = require('./lib/all_src.cjs')();
 // ★ the MARKUP lives in the html, not in the extracted script bundle.  Checking
 // DOM ids against /tmp/all.js reported nine phantom failures the first time —
 // the check was right, the haystack was wrong.

@@ -15,7 +15,7 @@
 //   finale. It was a missing word: "boss" is a RANK and APEX sits above it.
 //   Nothing moved — the ladder just got written down.
 const fs = require('fs'), vm = require('vm');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);

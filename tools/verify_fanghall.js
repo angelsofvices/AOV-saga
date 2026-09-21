@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.742 · THE FANGHALL · first of the 30 lore buildings.
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={WORLD_PROPS,worldDistrictAt,_propBlocked,_propDoors,isWorldBorderTile,NPCS,walkable,game};')();}
+try{new Function(require('./lib/all_src.cjs')()+';globalThis.__C={WORLD_PROPS,worldDistrictAt,_propBlocked,_propDoors,isWorldBorderTile,NPCS,walkable,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};

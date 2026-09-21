@@ -1,7 +1,7 @@
 // ★★★ v0.96.68 · DRIVES buildQuestLog + questPins for real, in a vm sandbox.
 // Grepping the source proves a rule was WRITTEN; only running it proves the pin
 // appears and then goes away.  Stubs are minimal and carry the real world ids.
-const fs=require('fs'), vm=require('vm'); const src=fs.readFileSync('/tmp/all.js','utf8');
+const fs=require('fs'), vm=require('vm'); const src=require('./lib/all_src.cjs')();
 const take=(re,l)=>{const m=src.match(re); if(!m) throw new Error('extract '+l); return m[0];};
 const code=[ take(/const KELTHOR_LADDERS = \[[\s\S]*?\n\];/,'ladders'),
              take(/const KELTHOR_LADDER = \[[\s\S]*?\n\];/,'ladder'),

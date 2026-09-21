@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -25,14 +25,14 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 // verify_voltaryn · v0.95.818 · the calm one grazing the southern meadow
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={player,game,seedMalezorWild,WILD_ZYREX,MALEZOR_WILD_FIXED,tryRecruitWildZyrex,'+
   'requiredBondForTier,rizerBondTotal,SPECIES,worldDistrictAt,_propBlocked,WILD_ZYREX_ENABLED,spillPickups,collectPickupsAt,WORLD_PROPS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
 const H=t=>console.log('\n'+t);
-const src=FS.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 
 H('1 · ★★ HE STANDS IN THE MEADOW DESPITE THE MASTER GATE');
 {
@@ -121,7 +121,7 @@ H('4 · ★★ COLLISION ON EVERYTHING BUT COINS');
   C.collectPickupsAt(coin.tileX, coin.tileY);
   ok((P.items.coins||0)===5,'while a coin pile still pays on walk-over');
   // gems untouched · they live in GEM_ENTITIES, not this system, and keep walk-over
-  const src2=FS.readFileSync('/tmp/all.js','utf8');
+  const src2=require('./lib/all_src.cjs')();
   ok(/const _solid = kind !== 'coins'/.test(src2),'the rule is one line, stated once per path');
   ok((src2.match(/const _solid = kind !== 'coins'/g)||[]).length===2,
      '★ and the RESTORE path rebuilds the same grammar — a reloaded chip cannot change species');
@@ -140,7 +140,7 @@ H('5 · ★★ THE HERD · VOLTIGRAX, AND THE LEVEL LAW OVER ALL');
   // the law binds EVERYONE · anciuxor is T10 → Lv 100, no hand-set 12 left
   const a=C.WILD_ZYREX.find(w=>w.speciesId==='anciuxor');
   ok(a&&a.level===100,`★ even the pinned legendary obeys · Anciuxor T10 = Lv ${a&&a.level}`);
-  const src2=FS.readFileSync('/tmp/all.js','utf8');
+  const src2=require('./lib/all_src.cjs')();
   const sw=src2.indexOf('function spawnWildZyrex');
   ok(!/o\.level \|\|/.test(src2.slice(sw,sw+800)),
      '★ and no caller can override it — a law with an escape hatch is a suggestion');
@@ -157,7 +157,7 @@ H('6 · ★★ ELZORAN AT THE STATUE · SILENCE IS THE GATE');
   P.party=[]; P.pcZyrex=[]; P.bonds={}; P.devBondFloor=3330;   // even a maxed Rizer
   C.tryRecruitWildZyrex(e);
   ok(!e._gone&&!e._recruitedAt,'★ without a worthy Elzebub he IGNORES you — no join, no flee');
-  const src2=FS.readFileSync('/tmp/all.js','utf8');
+  const src2=require('./lib/all_src.cjs')();
   const gi=src2.indexOf('if (gate.silent) return');
   ok(gi>0,'★ the silent gate returns before ANY dialog or sfx — no vox, as ordered');
   ok(gi<src2.indexOf('showDialog({ speaker: sp.name.toUpperCase()',src2.indexOf('function tryRecruitWildZyrex')),

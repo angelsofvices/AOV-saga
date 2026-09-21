@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -23,7 +23,7 @@ global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_doorways · v0.95.779 · every interactable prop can actually be reached
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={WORLD_PROPS,_propDoors,_propBlocked,isFloraProp,clearFloraFromDoorways,DOORWAY_APPROACHES,isWorldLandTile,isWorldBorderTile,worldDistrictAt,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;

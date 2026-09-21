@@ -1,6 +1,6 @@
 // v0.95.662 · verify New Game cannot destroy a save without confirmation.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 const pending = [];
 global.setInterval = () => 0;

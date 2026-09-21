@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.738 · MALEZOR WILD HABITAT · "place all wild zyrex around malezor most
 // unpopulated regions in the north east south and west"
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
  ';globalThis.__C={WILD_PLACEMENT_LIVE,MALEZOR_WILD_FIXED,WILD_ZYREX_ENABLED,spawnWildZyrex,walkable,seedMalezorWild,WILD_ZYREX,MALEZOR_WILD_ZONES,MALEZOR_WILD_ROSTER,MALEZOR_WILD_PER,'+
  'MALEZOR_WILD_ZONE_R,MALEZOR_WILD_FIXED,SPECIES,SUMMONABLE_SPRITES,worldDistrictAt,isWorldBorderTile,_propBlocked,NPCS,'+
  'tryRecruitWildZyrex,requiredBondForTier,drawZyrexOrb,_wildSprite,player,MOVE_DEX,TYPE_COLORS};')();}

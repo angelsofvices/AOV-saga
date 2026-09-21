@@ -8,7 +8,7 @@
  *   /tmp/all.js from rp7b.html.
  */
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 
 const NAMES = ['tryMove', 'tickProjectiles', 'updateCamera', 'tickFootprints', 'tickNPC',
   'tickStamina', 'tickDreamland', 'tickYaraRegen', 'tickMeditation', 'tickFieldStudy',

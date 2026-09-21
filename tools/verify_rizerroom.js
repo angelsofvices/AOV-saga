@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_rizerroom · v0.95.764 · PC desk collision + the tiles around it
 
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={RIZER_ROOM_ITEMS,PURCHASED_HOME_LAYOUT,ROOM_ITEM_GROUPS,_roomOriginalBlocked,roomTileBlockedByItem,roomItemAtTile,roomItemCanOccupy,_roomPlacementKeepsRoomWhole,roomItemGroupOf,INTERIOR_HOME_2F,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;

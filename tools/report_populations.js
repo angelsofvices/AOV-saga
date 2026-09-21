@@ -6,7 +6,7 @@
  *   per district, re-rolled every playthrough, so a coordinate for it is both a
  *   spoiler and a lie. */
 const fs = require('fs'), path = require('path'), ROOT = path.join(__dirname, '..');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {}; const _Q = [];
 global.setInterval = () => 0; global.setTimeout = fn => { _Q.push(fn); return 0; };
 global.clearInterval = noop; global.clearTimeout = noop;

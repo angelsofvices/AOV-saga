@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -25,13 +25,13 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 // verify_walkhome · v0.95.808 · Yara walks to the front door, not through spacetime
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={player,game,walkNpcHome,INTERIOR_FRONT_DOORS,NPCS,findNpcById,tickNPC:(typeof tickNPC!=="undefined"?tickNPC:null),_propBlocked};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
 const H=t=>console.log('\n'+t);
-const src=FS.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 
 H('1 · ★★ THE DOOR IS ON RECORD, AND IT IS THE RIGHT TILE');
 {

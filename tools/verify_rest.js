@@ -1,6 +1,6 @@
 // v0.95.654 · verify every bed path restores the BLUE ◆ SPECIAL meter.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0;
 const pending = [];

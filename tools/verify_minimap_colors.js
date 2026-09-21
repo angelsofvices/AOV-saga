@@ -7,7 +7,7 @@
 //   real function rather than grepped for — a regex that finds '#ff5b5b' in the
 //   file proves the constant exists, not that a Seer HQ ever reaches it.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);

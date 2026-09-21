@@ -8,7 +8,7 @@
 // almost every kill in the game.  The floor is the whole design decision, so
 // the floor is what gets asserted hardest.
 const fs=require('fs');
-const src=fs.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 let f=0;const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
 
 console.log('\n1 · ★ THE MULTIPLIER EXISTS AND RIDES THE REAL COMBO COUNTER\n');

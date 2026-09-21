@@ -17,9 +17,11 @@
 //   tile in the building HAS A DESTINATION, and that the destination is a real
 //   scene — the two things a comment cannot guarantee.
 import fs from 'fs';
+import { createRequire } from 'module';
+const _allSrc = createRequire(import.meta.url)('./lib/all_src.cjs');
 import vm from 'vm';   // ★ still needed below: the step-path block is DRIVEN against a synthetic door, which is the one place a fake context is the right tool
 import { hqGame } from './lib/hq_floors.mjs';
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = _allSrc();
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);

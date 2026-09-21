@@ -1,6 +1,6 @@
 // v0.95.659 · verify controller X grabs instead of jumping, everywhere.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 const pending = [];
 global.setInterval = () => 0;

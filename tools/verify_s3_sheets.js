@@ -23,7 +23,7 @@
  */
 eval(require('fs').readFileSync(require('path').join(__dirname,'_shim_s3.js'),'utf8'));
 const fs=require('fs');
-const src=fs.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 const LOG=console.log;console.log=()=>{};console.warn=()=>{};console.error=()=>{};
 new Function(src+`;globalThis.__D={PLAYER_SKINS,RIZER,RIZER_LUMINARY_IDLE,RIZER_LUMINARY_WALK,
  RIZER_LUMINARY_PUNCH,RIZER_LUMINARY_KICK,RIZER_LUMINARY_RUN,rizerBundleForSkin,rizerRowScale,rizerTargetBodyPx,player,game};`)();

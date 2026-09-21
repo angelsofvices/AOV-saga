@@ -1,7 +1,7 @@
 // v0.95.658 · verify Dad's bookshelf: solid, reachable, art matches collision,
 // and the interact hook is ready for items.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 const pending = [];
 global.setInterval = () => 0;

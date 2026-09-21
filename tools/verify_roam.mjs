@@ -22,11 +22,13 @@
 //     as a number, and it is what this suite measures.
 import { bootGame } from './lib/boot_game.mjs';
 import fs from 'fs';
+import { createRequire } from 'module';
+const _allSrc = createRequire(import.meta.url)('./lib/all_src.cjs');
 
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; return !!c; };
 const H  = t => console.log('\n' + t);
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = _allSrc();
 
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['NPC_ROAM','roamProfileFor','ROAM_FLIERS','ROAM_GRAZERS','stepNPCTo',

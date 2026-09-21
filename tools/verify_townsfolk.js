@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.748 · fifty townsfolk · one per archetype.
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={TOWNSFOLK_ENABLED,NPCS,WORLD_PROPS,worldDistrictAt,isWorldBorderTile,_propBlocked,TILE,drawStaticNPC,game};')();}
+try{new Function(require('./lib/all_src.cjs')()+';globalThis.__C={TOWNSFOLK_ENABLED,NPCS,WORLD_PROPS,worldDistrictAt,isWorldBorderTile,_propBlocked,TILE,drawStaticNPC,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
@@ -48,7 +48,7 @@ if (!C.TOWNSFOLK_ENABLED){
   // The art is what was wrong. Each entry carries a name, an archetype and a
   // hand-written interact line, and the placement rules took a correction pass
   // to get right — a sage had been posted outside Zarvane's Seer HQ.
-  const _src = FS.readFileSync('/tmp/all.js','utf8');
+  const _src = require('./lib/all_src.cjs')();
   const ids = [..._src.matchAll(/id:\s*'(folk_[a-z0-9_]+)'/g)].map(m => m[1]);
   ok(ids.length === 50, `all ${ids.length} entries are still written in the file`);
   ok(new Set(ids).size === ids.length, 'and still one per archetype, no duplicates');

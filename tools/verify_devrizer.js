@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 // verify_devrizer · v0.95.803 · the RIZER dev tab
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={player,game,rizerAttrPool,rizerAttrSpent,rizerAttrUnspent,rizerBondTotal,'+
   'RIZER_LEVEL_CAP,RIZER_ATTR_MAX,RIZER_BOND_CAP,requiredBondForTier};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
@@ -33,7 +33,7 @@ const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
 const H=t=>console.log('\n'+t);
 const html=FS.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
-const src=FS.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 
 H('1 · ★★ THE TAB BAR IS WHAT THE CREATOR ASKED FOR');
 // Creator: "remove cosmetics dev mode panel. make a new one called rizer ...

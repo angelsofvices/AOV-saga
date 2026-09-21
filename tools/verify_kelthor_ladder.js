@@ -12,7 +12,7 @@
 //   So the ladder is one array now, and this suite walks it with a real player
 //   object, flipping exactly the flags the game itself writes.
 const fs = require('fs'), vm = require('vm');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);

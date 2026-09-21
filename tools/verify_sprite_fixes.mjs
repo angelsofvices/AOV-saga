@@ -11,11 +11,13 @@
 //   is about how they MOVE and how big they LOOK.
 import { bootGame } from './lib/boot_game.mjs';
 import fs from 'fs';
+import { createRequire } from 'module';
+const _allSrc = createRequire(import.meta.url)('./lib/all_src.cjs');
 
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = _allSrc();
 const G = bootGame();
 
 // ★ _chaseDirFor lives inside the same wrapper as tickNPC, so it is not a

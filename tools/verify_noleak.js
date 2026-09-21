@@ -16,7 +16,7 @@
  */
 const fs=require('fs'), path=require('path');
 const ROOT=path.join(__dirname,'..');
-const src=fs.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 let pass=0,fail=0;
 const ok=m=>{pass++;console.log('  ok   · '+m);};
 const no=m=>{fail++;console.log('  FAIL · '+m);};

@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -23,7 +23,7 @@ global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_weapondrop · v0.95.776 · Gemlord blades drop solid, taken with X
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={S1_WEAPON_RING,COSMIC_CHEST_SPOTS,SWORD_MAX,RUBY_MAX,_tileIsVisiblyClear,_weaponDropTile,COSMIC_CHEST_SPOTS,WEAPON_DROP_ART,spawnWeaponDrop,restoreWeaponDrops,_rememberWeaponDrops,_weaponDropTile,WORLD_PROPS,_propBlocked,worldDistrictAt,isWorldLandTile,isWorldBorderTile,player,game,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -125,7 +125,7 @@ H('6 · ★★ A BLADE LEFT ON THE GROUND SURVIVES A RELOAD');
 H('7 · ★ IT IS NOT A WALK-OVER PICKUP');
 // Coins and scrap are swept up by moving. A Gemlord weapon is taken on purpose.
 {
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('function collectPickupsAt');
   ok(!/_weaponDrop/.test(src.slice(i,i+1600)),
      'collectPickupsAt does not touch weapon drops — walking over one does nothing');
@@ -192,7 +192,7 @@ H('10 · ★★ S1 EQUIPS AZUREL\'S BLADE · S2 EQUIPS RAKORON\'S');
 // Creator: "must be in s2 to equip it still, must be in s1 to equip azurel
 // sword." Already enforced — asserted so a refactor cannot quietly cross them.
 {
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   // ★ v0.95.822 · anchored to the EQUIP TOGGLE, not to the first `const isS2`
   // in the file — voltstormGate now opens with the identical line thousands of
   // lines earlier, and first-match scraped the wrong function (sixth sighting

@@ -1,7 +1,7 @@
 // Headless smoke test for rp7b.html — evaluates the whole script against a
 // stubbed browser surface, then calls the combat/roster functions directly.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 
 const noop = () => {};
 // ★★★ v0.96.8 · setTimeout WAS A BLACK HOLE. The Seer HQ configs are finished
@@ -64,7 +64,7 @@ const EXPORT = ';globalThis.__C={NPCS,SEER_HQ_NETWORK,game,player,interiorConfig
 try {
   new Function(src + EXPORT)();
 } catch(e){ console.log('boot error:', e.message.slice(0,200)); }
-const fs2=require('fs'); const src2=fs2.readFileSync('/tmp/all.js','utf8');
+const fs2=require('fs'); const src2=require('./lib/all_src.cjs')();
 let f=0; const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
 { let _n=0; while(_Q.length && _n<600){ const f=_Q.shift(); _n++; try{ f(); }catch(_){} } }  // ★ v0.96.49 · was 80 · the boot queue outgrew it
 const C=globalThis.__C;

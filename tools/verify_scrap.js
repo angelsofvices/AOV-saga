@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -23,7 +23,7 @@ global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_scrap · v0.95.772 · scrap spills from every tower chest, collected on foot
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={PICKUP_KINDS,CHEST_COIN_TIERS,spillChestCoins,collectPickupsAt,spillPickups,addItems,game,WORLD_PROPS,TOWER_NETWORK,spillScrap,collectScrapAt,restoreScrapDrops,_rememberPickups,SCRAP_PER_CHEST, player,isWorldLandTile,isWorldBorderTile,_propBlocked,snapBuildingsToLattice,buildAllTrails,worldDistrictAt};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -91,7 +91,7 @@ H('4 · ★★ X COLLECTS IT · WALKING CANNOT');
 
 H('5 · ★ COINS ALONE KEEP THE RUN-THROUGH');
 {
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('player.x = nx; player.y = ny;');
   ok(/collect(Pickups|Scrap)At\(nx, ny\)/.test(src.slice(i,i+500)),
      'the movement step still calls the collector — for the coins');

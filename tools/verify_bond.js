@@ -9,7 +9,7 @@
 // with level while the cost climbed quadratically, so grinding the same Mori
 // went from 19 kills a level to 631.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -32,7 +32,7 @@ global.matchMedia = () => ({ matches:false, addEventListener:noop, addListener:n
 global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
-try { new Function(require('fs').readFileSync('/tmp/all.js','utf8') +
+try { new Function(require('./lib/all_src.cjs')() +
   ';globalThis.__C={player,rizerBondTotal,rizerZyrexBond,requiredBondForTier,createZyrex,' +
   'addZyrexToRoster,RIZER_BOND_CAP,RIZER_BOND_PER_ZYREX_LEVEL,xpToNextLevel};')();
 } catch(e){ console.log('BOOT FAILED:', e.message); process.exit(1); }

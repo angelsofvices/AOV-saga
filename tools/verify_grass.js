@@ -1,5 +1,5 @@
 // v0.95.674 · wild grass across seven districts + district-wide encounters.
-const fs=require('fs');const src=fs.readFileSync('/tmp/all.js','utf8');const noop=()=>{};const pending=[];
+const fs=require('fs');const src=require('./lib/all_src.cjs')();const noop=()=>{};const pending=[];
 global.setInterval=()=>0;global.setTimeout=(f,m)=>{pending.push({f,m});return 0};global.clearInterval=noop;global.clearTimeout=noop;
 const CTX=new Proxy({},{get:()=>()=>({addColorStop:noop,width:0,height:0,data:[]})});
 const el=()=>({style:{},dataset:{},classList:{add:noop,remove:noop,toggle:noop,contains:()=>false},width:960,height:540,

@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_shadows · v0.95.758 · cast shadows for buildings + trees
 
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={SHADOW,_castsShadow,_silhouette,drawPropShadow,WORLD_PROPS,snapBuildingsToLattice,buildAllTrails,TILE,LIGHT_FILTER_ENABLED,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -57,7 +57,7 @@ ok(grassCast.length===0,`no grass casts (${grassCast.length})`);
 H('3 · ★★ THE SUN DOES NOT MOVE');
 // LIGHT_FILTER_ENABLED is false by Creator directive 2026-08-19. Shadows must
 // not smuggle time-varying lighting back in through the side door.
-const src=require('fs').readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 const fn=src.slice(src.indexOf('function drawPropShadow'),src.indexOf('function drawPropShadow')+1800);
 ok(!/zyraxisHour|zyraxisPhase|lightMode|isNightZyraxis/.test(fn),
    'drawPropShadow reads no clock or light-mode state');

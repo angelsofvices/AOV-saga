@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -27,7 +27,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // keydown per press and no auto-repeat.
 let NOW=1000;
 global.performance={now:()=>NOW};
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
  ';globalThis.__C={game,player,handleZycellKey,zyTriangleArm,zyTriangleHoldTick,zyTriangleRelease,'+
  'zyTriangleTap,quickSummonStashAll,ZY_HOLD_MS,keys,NPCS,frame};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}

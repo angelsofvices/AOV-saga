@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -23,7 +23,7 @@ global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_notebook · v0.95.778 · Dad's Notebook · the POI index
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={scatterDistrictEnemies,retireLegacyEnemyScatter,ATHRENOLOGY_INDEX,NPCS,ENEMY_KINDS,enemyKindOf,notebookLogKill,notebookHint,notebookStanding,_migrateNotebook,renderZycellZycube,INVENTORY_META,NOTEBOOK_SECTIONS,NOTEBOOK_SCROLLS,notebookState,notebookHas,notebookVisit,notebookComplete,notebookFindScroll,notebookScrollsFor,notebookEntries,notebookProgress,notebookNotePropInteract,renderZycellNotebook,ZYCELL_PANELS,WORLD_PROPS,DISTRICT_WHEEL,TOWER_NETWORK,SPECIES,player,game,zycellPage,worldDistrictAt,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -38,7 +38,7 @@ H('1 · ★★ IT IS ITS OWN PAGE IN THE PHONE');
   ok(C.ZYCELL_PANELS.includes('notebook'),'notebook is a registered panel');
   ok(C.ZYCELL_PANELS.indexOf('notebook')===1,
      `and sits at position ${C.ZYCELL_PANELS.indexOf('notebook')} — right after HOME, not buried`);
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(/notebook:\s*renderZycellNotebook/.test(src),'the dispatcher routes to its renderer');
   // ★ The nav button is HTML MARKUP, not script — /tmp/all.js only holds the
   // extracted <script> bodies, so grepping it for the button found nothing and
@@ -115,7 +115,7 @@ H('5 · ★★ ONE HOOK COVERS THIRTY LANDMARKS');
   ok(C.notebookProgress('landmarks').found===2,
      `interacting with ${lm.id} + ${cave.id} filed BOTH into landmarks — the fold is live in the counts`);
   ok(C.notebookProgress('caves').found===1,`interacting with ${cave.id} filed it`);
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const hooks=(src.match(/notebookNotePropInteract\(/g)||[]).length;
   ok(hooks<=4,`only ${hooks} references to the hook — one chokepoint, not thirty edits`);
 }
@@ -178,7 +178,7 @@ H('9 · ★★ THE PANEL RENDERS, AND GATES ON OWNING THE NOTEBOOK');
 
 H('10 · ★ IT SURVIVES A SAVE');
 {
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(/notebook:\s*player\.notebook/.test(src),'player.notebook is written into the save snapshot');
   C.player.notebook=null;
   C.notebookVisit('district:xilnar','XILNAR');
@@ -193,7 +193,7 @@ H('11 · ★★ IT IS AN INSTALLED APP, NOT A BAG ITEM');
 // Creator: "remove dads notebook from the zycube since it has its own panel
 // now. it will be installed when dad grants rizer the notebook."
 {
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   // ★ v0.95.935 · was src.slice(i, i+900) — a fixed character window.  The
   // ZyCube grew a category level and the filter it was looking for moved past
   // 900 characters, so the check failed while the code was correct.  A window
@@ -322,7 +322,7 @@ H('16 · ★★ KILLS LOG THEMSELVES FROM ONE HOOK');
   const other=C.notebookEntries('enemies').find(x=>x.id==='enemy:daemon');
   ok(!other.found,'a type you have not met stays unknown');
   // ★ ONE hook · every kill in the game routes through creditRizerKill
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('function creditRizerKill');
   ok(/notebookLogKill\(npc\)/.test(src.slice(i,i+400)),
      'the log hooks into creditRizerKill — one line, not eight kill sites');
@@ -332,7 +332,7 @@ H('17 · ★★ EACH PURCHASED HOME IS ITS OWN ROOM');
 // Creator: "changing a purchased property room leaves your main rr the same
 // decor. each purchased home is unique to itself."
 {
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('function applyHomeLayout');
   const body=src.slice(i,i+1600);
   // the 2F must NOT read the global chair back out · that was the bleed

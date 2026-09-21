@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 // verify_livingloop · v0.95.804 · ecology rank + journal + rumors + anomalies
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={ATHRENOLOGY_INDEX,player,game,ecologyState,districtEcologyScore,districtEcologyRank,ECOLOGY_RANKS,'+
   'speciesJournalStage,journalCounts,JOURNAL_STAGES,spawnRumor,spawnAnomaly,ecologyTick,ANOMALY_KINDS,'+
   'RUMOR_MAX,ANOMALY_MAX,minimapPOIs,minimapDiscovered,MINIMAP,notebookState,notebookVisit,SPECIES,'+
@@ -35,7 +35,7 @@ catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
 const H=t=>console.log('\n'+t);
-const src=FS.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 C.spawnPortals(); C.MINIMAP._cache=null;
 
 H('1 · ★★ NO NEW CURRENCY · THE RANK IS A READING');

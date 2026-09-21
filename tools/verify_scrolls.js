@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -23,7 +23,7 @@ global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_scrolls · v0.95.781 · 180 lore scrolls · the Aethryx Expanse index
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={scrollRxpFor,scrollRxpTotal,SCROLL_THEMES,SCROLL_DISTRICT_ORDER,SCROLLS_PER_DISTRICT,SCROLL_BBOXES,scatterScrolls,readScroll,scrollEntry,scrollId,scrollsFound,scrollsFoundInTheme,scrollDepthOf,notebookState,renderZycellNotebook,WORLD_PROPS,_propBlocked,_tileIsVisiblyClear,worldDistrictAt,isWorldLandTile,isWorldBorderTile,_districtPOIs,player,game,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings,clearFloraFromDoorways};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -177,7 +177,7 @@ H('8c · ★★ THEY ARE HIS NOTES, IN HIS VOICE');
   ok(firstPerson>=80,`${firstPerson}/180 pages are written in the first person`);
   const addressed=all.filter(p=>/\bson\b/.test(p)).length;
   ok(addressed>=4,`${addressed} of them speak to Rizer directly`);
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(/DAD'S NOTE ·/.test(src),'the pickup announces itself as DAD\'S NOTE');
   ok(/page \$\{have\} of \$\{all\} recovered/.test(src),
      'and counts the pages he is getting back');
@@ -200,7 +200,7 @@ H('9 · ★★ RXP SCALES WITH HOW MANY PAGES YOU HAVE');
   ok(total>3000&&total<12000,
      `a full 180-page sweep pays ${total} RXP against a ~10,000 main-quest line — meaningful, not eclipsing`);
   // the OLD rule must be gone
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('function readScroll');
   ok(!/scrollDepthOf\(dist\)\s*\*\s*\d+/.test(src.slice(i,i+900)),
      'the distance-based award is retired');

@@ -1,7 +1,7 @@
 // v0.95.656 · verify the 8 doormats: extracted, wired, houses only, unstretched.
 const fs = require('fs'), path = require('path');
 const ROOT = '/sessions/great-cool-heisenberg/mnt/AOV-saga-new';
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 const pending = [];
 global.setInterval = () => 0;

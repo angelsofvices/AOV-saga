@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -23,7 +23,7 @@ global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.750 · trails + border forest · ALL TEN DISTRICTS, one derived solver.
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
  ';globalThis.__C={buildAllTrails,buildDistrictTrails,_districtRuns,_districtPOIs,DISTRICT_WHEEL,'+
  'WORLD_PROPS,worldDistrictAt,isWorldBorderTile,_propBlocked,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}

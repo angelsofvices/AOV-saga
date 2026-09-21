@@ -1,7 +1,7 @@
 // Headless smoke test for rp7b.html — evaluates the whole script against a
 // stubbed browser surface, then calls the combat/roster functions directly.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 
 const noop = () => {};
 global.setInterval=()=>0; global.setTimeout=(f,t)=>0; global.clearInterval=noop; global.clearTimeout=noop;
@@ -67,7 +67,7 @@ const _STATS = (() => {
   return JSON.parse(execSync('python3 /sessions/great-cool-heisenberg/mnt/AOV-saga-new/tools/measure_art_stats.py cosmos',
                              { maxBuffer: 1 << 22 }).toString());
 })();
-const src2 = FS.readFileSync('/tmp/all.js','utf8');
+const src2 = require('./lib/all_src.cjs')();
 const ROOT = '/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
 let f=0; const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
 const C=globalThis.__C;

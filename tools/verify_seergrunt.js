@@ -8,7 +8,7 @@
 const fs=require('fs'), path=require('path'), cp=require('child_process');
 const ROOT='/sessions/great-cool-heisenberg/mnt/AOV-saga-new';
 const ART=path.join(ROOT,'assets/2D sprites/enemies');
-const src=fs.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 let f=0;const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
 const TILE=48, CW=313, CH=313;
 

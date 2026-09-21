@@ -25,7 +25,7 @@
  */
 const fs=require('fs'), path=require('path');
 const ROOT=path.join(__dirname,'..');
-const src=fs.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 const H=fs.readFileSync(path.join(ROOT,'rp7b.html'),'utf8');
 let pass=0,fail=0;
 const ok=m=>{pass++;console.log('  ok   · '+m);};

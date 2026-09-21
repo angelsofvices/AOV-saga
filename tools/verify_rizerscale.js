@@ -1,7 +1,7 @@
 // Headless smoke test for rp7b.html — evaluates the whole script against a
 // stubbed browser surface, then calls the combat/roster functions directly.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 
 const noop = () => {};
 global.setInterval=()=>0; global.setTimeout=(f,t)=>0; global.clearInterval=noop; global.clearTimeout=noop;
@@ -57,7 +57,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 const EXPORT = ';globalThis.__C={RIZER,rizerRowScale,rizerTargetBodyPx,TILE,DIR_ROW,BBOX_FALLBACK,RIZER_HEAD_SCALE};';
 
 try { new Function(src + EXPORT)(); } catch(e){ console.log('boot error:', e.message.slice(0,300)); }
-const FS=require('fs'); const src2 = FS.readFileSync('/tmp/all.js','utf8');
+const FS=require('fs'); const src2 = require('./lib/all_src.cjs')();
 const { execSync } = require('child_process');
 let f=0; const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
 const C=globalThis.__C;

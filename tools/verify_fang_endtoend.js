@@ -3,7 +3,7 @@
 // the art, damage, HUD, grant and L1/R1 cycle all worked, but the ZyPhone
 // Weapons panel had no row, while Rakoron's own toast told the player to go
 // there.  A weapon the game tells you where to find must be there when you look.
-const fs=require('fs'); const src=fs.readFileSync('/tmp/all.js','utf8');
+const fs=require('fs'); const src=require('./lib/all_src.cjs')();
 const ROOT='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
 let f=0; const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
 const H=t=>console.log('\n'+t);

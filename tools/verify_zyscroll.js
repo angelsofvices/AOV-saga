@@ -5,7 +5,7 @@
 // children, and a rebuilt element has scrollTop 0.  That is precisely the
 // mechanism that was throwing the player back to the top of the list.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 
 // ── minimal DOM shim ─────────────────────────────────────────────────────

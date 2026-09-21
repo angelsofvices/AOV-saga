@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 // verify_ufoaudio · v0.95.799 · the UFO has its own radio, and it hands the sky back
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={AUDIO,playBGM,player,game,boardAuraxionUfo,landAuraxionUfo,summonUfoNearPlayer,useZycubeItem,INVENTORY_META,TOWER_NETWORK,tickTowerProximityVO,towerRestored,harvestPlant,LIFE_SEED_PURE_ODDS,RVOX_PRIORITY};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -44,7 +44,7 @@ H('1 · ★★ THE PILOT RADIO IS A BGM, NOT A ONE-OFF');
   // ★ THIS IS THE WHOLE POINT OF PUTTING IT THERE.  playBGM hard-stops every
   //   other track before starting one, so "overworld music stops" comes free —
   //   no second mute path to remember, and none to forget.
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('function playBGM');
   const body=src.slice(i,i+700);
   ok(/Object\.values\(AUDIO\.bgm\)\.forEach/.test(body),
@@ -56,7 +56,7 @@ H('2 · ★ IT REFERENCES THE ASSET IN PLACE');
 {
   // ★ the harness stubs Audio, so the live object has no .src to read —
   //   check the declaration in the shipped script instead.
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const m=src.match(/ufo:\s*new Audio\('([^']+)'\)/);
   ok(!!m,'declared with a path');
   ok(m && /ufo(%20|\s)music\.mp3$/.test(m[1]),`points at the track · ${m?m[1]:'?'}`);
@@ -71,7 +71,7 @@ H('2 · ★ IT REFERENCES THE ASSET IN PLACE');
 
 H('3 · ★★ LIFT OFF TURNS IT ON · LANDING HANDS THE SKY BACK');
 {
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const lift=src.indexOf('function boardAuraxionUfo');
   const land=src.indexOf('function landAuraxionUfo');
   ok(lift>0&&land>0,'both hooks found');
@@ -101,7 +101,7 @@ H('4 · ★★ THE SHORTER WELCOME');
     ok(d > 5,  '  and not truncated to nothing');
   }
   ok(!!C.AUDIO.sfx.corsunUfo,'still wired as corsunUfo');
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(/playSFX\('corsunUfo'\)/.test(src),'and still played on entry');
 }
 
@@ -110,7 +110,7 @@ H('5 · ★★ ONE TRANSPONDER, TWO PLACES TO PRESS IT');
 // Creator: "selecting astralcore transponder in the zycube should spawn ufo
 // near me in the closest appropriate tiles."
 {
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(typeof C.summonUfoNearPlayer==='function','★ the summon is a named function now');
   // ★★ THE BUG.  The behaviour already existed and already did exactly what was
   //    asked — it was buried INLINE inside the settings bag page, so the
@@ -146,7 +146,7 @@ H('6 · ★★ THE BOOST IS A 7-SECOND BURN, IGNITION ONCE');
 // reset the animation by holding circle again. play the sound everytime boost
 // activates. no duping"
 {
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('THE BOOST IS A 7-SECOND BURN');
   ok(i>0,'the burn block exists in the UFO draw');
   const b=src.slice(i,i+2200);
@@ -180,7 +180,7 @@ H('7 · ★★ A DEAD TOWER GETS RIZER\'S LINE');
   ok(C.RVOX_PRIORITY.towerSpotted===52,'through the RVOX hierarchy, above pickups, below crisis');
   // ★ a RESTORED tower says nothing · the stimulus points at WORK, not scenery
   P._towerSpotted={};
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(/towerRestored\(T\.dist\)\) continue/.test(src.slice(src.indexOf('function tickTowerProximityVO'),src.indexOf('function tickTowerProximityVO')+900)),
      '★ a restored tower never triggers it — the line exists to send you to the chest');
   ok(/SILVER CHEST/.test(src.slice(src.indexOf('function tickTowerProximityVO'),src.indexOf('function tickTowerProximityVO')+1100)),
@@ -190,7 +190,7 @@ H('7 · ★★ A DEAD TOWER GETS RIZER\'S LINE');
 H('8 · ★ TREES CARRY THE SPIRIT TREE\'S STOCK');
 {
   ok(C.LIFE_SEED_PURE_ODDS===0.05,'5% per tree search');
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const h=src.indexOf('function harvestPlant');
   const b=src.slice(h,h+2200);
   ok(/kind === 'tree' && Math\.random\(\) < LIFE_SEED_PURE_ODDS/.test(b),

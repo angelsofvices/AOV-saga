@@ -10,7 +10,7 @@
 // stub DOM, then asks how many buttons each produced and where they point.  A
 // regex could only prove the code was written.
 const fs = require('fs'), vm = require('vm');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);

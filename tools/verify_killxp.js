@@ -9,7 +9,7 @@
 // with level while the cost climbed quadratically, so grinding the same Mori
 // went from 19 kills a level to 631.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;

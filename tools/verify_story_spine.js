@@ -16,7 +16,7 @@
 //   before it is ruled — which is the only way "recorded but not built" can
 //   mean anything a month from now.
 const fs = require('fs'), vm = require('vm');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);

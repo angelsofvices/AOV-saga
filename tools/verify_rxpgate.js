@@ -1,6 +1,6 @@
 // v0.95.660 · verify RXP does not accrue until Rizer first reaches the overworld.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 const pending = [];
 global.setInterval = () => 0;

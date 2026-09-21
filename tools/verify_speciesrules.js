@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -22,7 +22,7 @@ global.matchMedia = () => ({ matches:false, addEventListener:noop, addListener:n
 global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+';globalThis.__C={SPECIES,MOVE_DEX,TYPE_COLORS};')();}catch(e){console.log('BOOT FAIL',e.message);process.exit(1);}
+try{new Function(require('./lib/all_src.cjs')()+';globalThis.__C={SPECIES,MOVE_DEX,TYPE_COLORS};')();}catch(e){console.log('BOOT FAIL',e.message);process.exit(1);}
 const C=globalThis.__C;let bad=0,exempt=[];
 for(const [k,s] of Object.entries(C.SPECIES)){
   const pool=s.baseHP+s.baseATK+s.baseDEF+s.baseSPD+s.baseSATK+s.baseSDEF;

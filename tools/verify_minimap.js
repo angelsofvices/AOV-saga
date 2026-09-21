@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 // verify_minimap · v0.95.802 · the scope, its POIs, and the toast stack above it
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={MINIMAP,minimapPOIs,minimapVisible,minimapRange,minimapDiscovered,drawMinimap,'+
   'notebookState,notebookVisit,player,game,WORLD_PROPS,TOWER_NETWORK,ZYRAXIS_DISTRICTS,COSMIC_CHEST_SPOTS,'+
   'notebookEntries,MINIMAP_KIND_COLOR,spawnPortals,applyHudLayout,renderZycellSettings};')();}
@@ -33,7 +33,7 @@ catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
 const H=t=>console.log('\n'+t);
-const src=FS.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 const ROOT='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
 // ★ portals are sited in the deferred world-build block, which the harness
 //   stubs to a no-op · run it so the map has them to find

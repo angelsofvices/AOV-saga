@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.732 · SCANOBOTS · Thardin's survey net · 5 per district · passive until
 // the flip, then hostile everywhere, dropping scrap + a blue gem into a tiered
 // shop at Scrapjaw.
-try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={WORLD_MIN_ROW,WORLD_MIN_COL,scatterDistrictEnemies,DISTRICT_ENEMY_ROSTER,retireLegacyEnemyScatter,SCANOBOT_MIN_SPACING,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,scanobotTalk,PICKUP_KINDS,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
+try{new Function(require('./lib/all_src.cjs')()+';globalThis.__C={WORLD_MIN_ROW,WORLD_MIN_COL,scatterDistrictEnemies,DISTRICT_ENEMY_ROSTER,retireLegacyEnemyScatter,SCANOBOT_MIN_SPACING,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,scanobotTalk,PICKUP_KINDS,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C,P=C.player;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
@@ -164,7 +164,7 @@ console.log('\n★★ 7 · THARDIN TURNS THE NET\n');
   P.scanobotsRogue=false; C.applyScanobotState();
   ok(C.SCANOBOT_ROGUE_DISTRICT==='thardin',
      '★ the trigger district is THARDIN — the corporation that built the drones');
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(/dist === SCANOBOT_ROGUE_DISTRICT/.test(src),'district entry checks it');
   // ★ fires on ARRIVAL, not FIRST arrival · a save that predates this, or a
   //   border crossed before the flag existed, still turns the net next time in
@@ -241,7 +241,7 @@ console.log('\n★★ 9 · JAILBREAKING SCANOBOTS\n');
   C.scanobotTalk({dist:b._scanobot},b);
   ok(b.mode==='drainer'&&!b._jailbroken,'poking the angry one again does not reroll the coin');
   // ── defeat pay-out unchanged ─────────────────────────────────────
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const d=src.indexOf('function scanobotDrop');
   const body=src.slice(d,d+1400);
   // ★ v0.95.814 · the loot lives in scanobotSalvage now, shared by BOTH exits

@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -27,7 +27,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // only fires in the deferred tick, so they were passing on a world the player
 // never sees.
 
-try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={snapBuildingsToLattice,buildAllTrails,_hexSites,WORLD_PROPS,DISTRICT_WHEEL,worldDistrictAt,isWorldLandTile,isWorldBorderTile,game,HEX_PITCH,HEX_JITTER,MAP_COLS,MAP_ROWS};')();}
+try{new Function(require('./lib/all_src.cjs')()+';globalThis.__C={snapBuildingsToLattice,buildAllTrails,_hexSites,WORLD_PROPS,DISTRICT_WHEEL,worldDistrictAt,isWorldLandTile,isWorldBorderTile,game,HEX_PITCH,HEX_JITTER,MAP_COLS,MAP_ROWS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)fail++;};

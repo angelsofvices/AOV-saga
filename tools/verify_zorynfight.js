@@ -2,7 +2,7 @@
 //   zorynHitDmg().  Zoryn now GROWS with Rizer, so his ceiling is a
 //   function of level and a fixed number could only have been right at one.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval=()=>0; global.setTimeout=()=>0; global.clearInterval=noop; global.clearTimeout=noop;
 const CTX=new Proxy({},{get:()=>()=>({addColorStop:noop,width:0,height:0,data:[]})});

@@ -25,7 +25,7 @@ const raw = fs.readFileSync(ROOT + 'macrobook.html', 'utf8');
 const text = raw.replace(/<style[\s\S]*?<\/style>/g, ' ')
                 .replace(/<script[\s\S]*?<\/script>/g, ' ')
                 .replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');
-const game = fs.readFileSync('/tmp/all.js', 'utf8');
+const game = require('./lib/all_src.cjs')();
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);

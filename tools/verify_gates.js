@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.745 · Voltaryn T5 · Elzoran's proof-of-raising gate · both sprites live.
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
  ';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,SPECIES_RECRUIT_GATES,tryRecruitWildZyrex,'+
  'requiredBondForTier,rizerBondTotal,BOND_PATH_CAP,player,MALEZOR_WILD_ROSTER,createZyrex,spawnWildZyrex,WILD_ZYREX,seedMalezorWild};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}

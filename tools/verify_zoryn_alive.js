@@ -12,7 +12,7 @@
 //   claiming he had taken the lot.  Every assertion below exists because
 //   reading that code did not reveal it; running it did.
 const fs = require('fs'), vm = require('vm');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);

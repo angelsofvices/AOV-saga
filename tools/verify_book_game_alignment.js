@@ -18,7 +18,7 @@
 //   sloppy.  The cost of drift lands on the fiction, not on the docs.
 const fs = require('fs');
 const ROOT = '/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
-const game = fs.readFileSync('/tmp/all.js', 'utf8');
+const game = require('./lib/all_src.cjs')();
 const bookRaw = fs.readFileSync(ROOT + 'macrobook.html', 'utf8');
 const book = bookRaw.replace(/<style[\s\S]*?<\/style>/g, ' ')
                     .replace(/<script[\s\S]*?<\/script>/g, ' ')

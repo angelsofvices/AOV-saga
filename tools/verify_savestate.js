@@ -1,6 +1,6 @@
 // v0.95.661 · verify all progress persists, and ONLY a New Game overwrites.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 const pending = [];
 const timers = [];        // setInterval callbacks so we can pump the autosave

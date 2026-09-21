@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={WEAPON_MAX_DUR,SWORD_MAX,RUBY_MAX,_armWeapon,_migrateWeaponDurability,renderZycellWeapons,WHUD_ART,currentWeaponKey,updateWeaponHUD,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -105,7 +105,7 @@ H('4 · ★★ ALL THREE WHEELS ARE DISTINCT AND PIXEL-ALIGNED');
      '★ the Rubypaw no longer falls back to the base wheel');
   ok(C.WHUD_ART.rubypaw!==C.WHUD_ART.sapphire,
      '★ and it does not borrow the Sapphire\'s blue blade');
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(!/no wheel art yet/.test(src),'the "no art yet" note is retired');
 }
 
@@ -113,7 +113,7 @@ H('5 · ★★ IT IS ACTUALLY CALLED');
 // v0.95.517 left this as a no-op stub. A re-enabled function nothing invokes is
 // the same as a stub.
 {
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const calls=(src.match(/updateWeaponHUD\(\)/g)||[]).length;
   ok(calls>=4,`${calls} call sites`);
   const hud=src.indexOf('function updateRizerHUD');
@@ -152,7 +152,7 @@ H('5 · ★★ IT IS ACTUALLY CALLED');
 
 H('6 · ★ L1/R1 STILL CYCLE THE WHEEL');
 {
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   ok(/4:\s*'l',/.test(src)&&/5:\s*'r',/.test(src),'L1 and R1 map to l/r on the pad');
   ok(/if \(\(k === 'l' \|\| k === 'r'\) && !game\.zphoneOpen\)/.test(src),
      'and the weapon-cycle handler listens for them outside the phone');
@@ -160,7 +160,7 @@ H('6 · ★ L1/R1 STILL CYCLE THE WHEEL');
 
 H('7 · ★ A DULL BLADE READS AS DULL');
 {
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('function updateWeaponHUD');
   const body=src.slice(i,i+1400);
   ok(/swordDurability/.test(body)&&/rubypawDurability/.test(body),
@@ -199,7 +199,7 @@ H('10 · ★★ NO STRAY 200s LEFT ON THE BLUE BLADE');
 // The number was hardcoded in twelve places. A single missed one shows the
 // player a bar past the end of its own track.
 {
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('function _armWeapon');
   const region=src.slice(Math.max(0,i-3000), i+3000);
   ok(/WEAPON_MAX_DUR/.test(src),'the table exists in the shipped script');

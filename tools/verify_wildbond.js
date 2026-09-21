@@ -1,4 +1,4 @@
-const fs=require('fs'); const src=fs.readFileSync('/tmp/all.js','utf8'); const noop=()=>{};
+const fs=require('fs'); const src=require('./lib/all_src.cjs')(); const noop=()=>{};
 try{Object.defineProperty(globalThis,'navigator',{value:{userAgent:'node',getGamepads:()=>[],maxTouchPoints:0},configurable:true});}catch(_){}
 const CTX=new Proxy({},{get:()=>()=>({addColorStop:noop,width:0,height:0,data:[],createRadialGradient:()=>({addColorStop:noop})})});
 const el=()=>({style:{},dataset:{},classList:{add:noop,remove:noop,toggle:noop,contains:()=>false},width:960,height:540,value:'',textContent:'',innerHTML:'',children:[],childNodes:[],getContext:()=>CTX,appendChild:noop,removeChild:noop,addEventListener:noop,removeEventListener:noop,setAttribute:noop,getAttribute:()=>null,focus:noop,remove:noop,play:()=>Promise.resolve(),pause:noop,querySelector:()=>el(),querySelectorAll:()=>[],getBoundingClientRect:()=>({left:0,top:0,width:960,height:540})});

@@ -9,11 +9,13 @@
 //   ALWAYS true while the phone is open, so it would be silently dropped every
 //   single time and look like a broken file.
 import fs from 'fs';
+import { createRequire } from 'module';
+const _allSrc = createRequire(import.meta.url)('./lib/all_src.cjs');
 import { bootGame } from './lib/boot_game.mjs';
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; return !!c; };
 const H  = t => console.log('\n' + t);
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = _allSrc();
 
 H('★★ THE FILE IS THERE AND REGISTERED');
 {

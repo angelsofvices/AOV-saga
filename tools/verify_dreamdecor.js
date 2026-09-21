@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.734 · DREAMLAND DECOR · four props scattered over procedural cloud,
 // plus the dense cloud variant painted under the bright one.
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+';globalThis.__C={buildDreamlandDecor,_dreamDecor,_dreamBlocked,DREAM_DECOR_ART,DREAM_DECOR_COUNT,DREAM_DECOR_CLEAR,INTERIOR_DREAMLAND,DREAMLAND_SIZE,DREAMLAND_SOLID,DREAMLAND_BRIGHT,dreamlandSolid,dreamlandDensity,drawDreamDecor,_dreamRand,DREAMLAND_SCENE};')();}
+try{new Function(require('./lib/all_src.cjs')()+';globalThis.__C={buildDreamlandDecor,_dreamDecor,_dreamBlocked,DREAM_DECOR_ART,DREAM_DECOR_COUNT,DREAM_DECOR_CLEAR,INTERIOR_DREAMLAND,DREAMLAND_SIZE,DREAMLAND_SOLID,DREAMLAND_BRIGHT,dreamlandSolid,dreamlandDensity,drawDreamDecor,_dreamRand,DREAMLAND_SCENE};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};

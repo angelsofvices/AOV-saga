@@ -10,7 +10,7 @@
 //   with the Ultimate T10 God quietly not existing any more, and none of them
 //   would throw — you would simply never see him again and never know why.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 const _Q = [];
 let CLK = 100000;

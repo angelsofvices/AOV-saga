@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -23,7 +23,7 @@ global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_chesttiers · v0.95.774 · the four-tier loot ladder
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={CHEST_LOOT_LADDER,CHEST_COIN_TIERS,COSMIC_CHEST_SPOTS,GOLD_CHEST_TILE_POSITIONS,GEMSHARD_TABLE,rollGemshard,rollMythicShard,WORLD_PROPS,worldDistrictAt,isFloraProp,player,game,spillChestCoins,collectPickupsAt,spillPickups,PICKUP_KINDS,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -117,7 +117,7 @@ H('4 · ★★ EACH SWORD HAS EXACTLY ONE FREE SOURCE');
 // Both used to come from treehouse chests. Two free sources would mean two
 // swords, and durability is tracked per weapon.
 {
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   // ★ The first cut of this asserted ZERO direct grants and failed on correct
   // code: _grantSapphireSword / _grantRubypawSword are the ZARVANE WEAPON SHOP,
   // which sells them for 10k and 20k. Buying is a legitimate second route.
@@ -150,7 +150,7 @@ H('5 · ★★ COINS RING WHEN YOU WALK OVER THEM');
 // Creator, mid-task. playItemGain fires a generic cue, so the coin sound was
 // only reached if that THREW — which it does not.
 {
-  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf('function collectPickupsAt');
   const body=src.slice(i,i+1600);
   ok(/if \(got\.coins\)\{[^}]*playSFX\('coins'\)/.test(body),

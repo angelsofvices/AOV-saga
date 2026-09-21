@@ -1,5 +1,5 @@
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -30,7 +30,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 let TICKS = [];
 global.setTimeout = (fn) => { TICKS.push(fn); return 0; };
 const flush = () => { const t = TICKS; TICKS = []; t.forEach(fn => { try { fn(); } catch(e){ console.log('   tick threw:', e.message); } }); };
-try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+';globalThis.__C={scatterDistrictEnemies,retireLegacyEnemyScatter,NPCS,player,game,buildScanobotNet,applyScanobotState,detonateScanobot,scanobotBlastBlock,scanobotInBlast,scanobotDrop,SCANOBOT_BLAST,BOOM_BLASTS,BOOM,BOOM_DEBRIS,drawBoomBlasts,GEM_ENTITIES,startMoriDeath};')();}
+try{new Function(require('./lib/all_src.cjs')()+';globalThis.__C={scatterDistrictEnemies,retireLegacyEnemyScatter,NPCS,player,game,buildScanobotNet,applyScanobotState,detonateScanobot,scanobotBlastBlock,scanobotInBlast,scanobotDrop,SCANOBOT_BLAST,BOOM_BLASTS,BOOM,BOOM_DEBRIS,drawBoomBlasts,GEM_ENTITIES,startMoriDeath};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C,P=C.player,G=C.game;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};

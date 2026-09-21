@@ -1,7 +1,7 @@
 // Headless smoke test for rp7b.html — evaluates the whole script against a
 // stubbed browser surface, then calls the combat/roster functions directly.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 
 const noop = () => {};
 global.setInterval=()=>0; global.setTimeout=(f,t)=>0; global.clearInterval=noop; global.clearTimeout=noop;
@@ -57,7 +57,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 const EXPORT = ';globalThis.__C={player,INVENTORY_META,ZYCUBE_CATEGORIES,ZYCUBE_CAT_BY_ID,ZYCUBE_CAT_OF,zycubeCategoryOf,zycubeCategoryRows,zycubeItemEntries,zycubeAllEntries,setCat:(v)=>{zycubeCatOpen=v},getCat:()=>zycubeCatOpen,ASTRALITE_FAMILIES,ASTRALITE_COMPOUNDS};';
 
 try { new Function(src + EXPORT)(); } catch(e){ console.log('boot error:', e.message.slice(0,300)); }
-const src2 = require('fs').readFileSync('/tmp/all.js','utf8');
+const src2 = require('./lib/all_src.cjs')();
 let f=0; const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
 const C=globalThis.__C;
 ok(!!C,'script evaluated');
@@ -177,8 +177,23 @@ console.log('\n6 · BOTH SURFACES READ THE SAME TABLE\n');
   ok(/function drawZycubeCategoryList/.test(src2), 'the canvas BAG has a category level');
   ok(/if \(!zycubeCatOpen\)\{ drawZycubeCategoryList/.test(src2),
      'and drawZycubePanel routes to it when no category is open');
-  ok(/class="zyCatRow" data-zycat=/.test(src2), 'the ZyPhone panel has clickable category rows');
-  ok(/id="zyBagBack"/.test(src2), 'and a way back out that does not require scrolling to find');
+  // ★★★★ v0.99.15 · THESE TWO ASSERTED THE OLD DRILL-DOWN'S MARKUP — .zyCatRow
+  //   and #zyBagBack. The Creator directed a rebuild on a tab-rail reference
+  //   panel, so that markup is gone by intent while the REQUIREMENT behind the
+  //   assertions is unchanged: reach every drawer, and get back to the top.
+  //   ★ Updated to test the requirement against the new rail. NOT deleted, and
+  //   NOT loosened to something always-true — a test rewritten until it passes
+  //   is worse than the red it replaced. Each still fails if its capability
+  //   goes away: drop the tabs and the first goes red, drop the ALL tab and the
+  //   second does.
+  ok(/data-zyitem="zytab_/.test(src2),
+     'the ZyPhone panel exposes every category as a clickable tab');
+  // ★★ MY FIRST CUT OF THIS LINE TESTED FOR 'zytab_all' AND WENT RED ON
+  //   WORKING CODE. That string never appears in the source — the id is built
+  //   at runtime from `zytab_${id}`. A source-scanning suite can only see what
+  //   is WRITTEN, so it has to look for the call that creates the tab.
+  ok(/tab\('all',/.test(src2) && /zycubeCloseCategory\(\);/.test(src2),
+     'and an ALL tab is the way back out · on screen always, never scrolled to');
   const uses = (src2.match(/zycubeCategoryOf\(/g) || []).length;
   ok(uses >= 4, `★ both surfaces call the ONE mapping function (${uses} call sites, no second table)`);
   ok(!/zycubeCatOpen\s*=\s*['"]/.test(src2.split('function zycubeCategoryOf')[0]),
@@ -195,13 +210,18 @@ console.log('            for nav. also cant click into categories."\n');
 {
   const HTML = require('fs').readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
   // ★ ALL THREE SYMPTOMS WERE ONE MISTAKE: a new convention beside a working one.
-  ok(/data-zyitem="zycat_\$\{c\.id\}"/.test(src2),
-     '★ category rows carry data-zyitem — the DualSense auto-enrolment walks THAT');
-  console.log('       attribute, so a row without it does not exist to the controller at all.');
-  ok(/onclick="try\{zycubeOpenCategory\('\$\{c\.id\}'\);\}catch\(_\)\{\}"/.test(src2),
+  // ★★★★ v0.99.15 · REWRITTEN FOR THE TAB RAIL, NOT RELAXED FOR IT. The three
+  //   symptoms this block was born from — pad cannot reach the categories,
+  //   clicking does nothing, no way back — are still the three things being
+  //   tested. Only the markup they live in changed, by directive.
+  ok(/data-zyitem="zytab_\$\{id\}"/.test(src2),
+     '★ category tabs carry data-zyitem — the DualSense auto-enrolment walks THAT');
+  console.log('       attribute, so a tab without it does not exist to the controller at all.');
+  ok(/onclick="try\{\$\{click\}\}catch\(_\)\{\}"/.test(src2)
+     && /zycubeOpenCategory\('\$\{c\.id\}'\);/.test(src2),
      '★ and an inline onclick, the way every other working panel does it');
-  ok(/data-zyitem="zybag_back"/.test(src2) && /zycubeCloseCategory\(\);\}catch/.test(src2),
-     'the back row is reachable by controller AND clickable too');
+  ok(/tab\('all',/.test(src2) && /data-zytab="1"/.test(src2),
+     'the way back out is reachable by controller AND clickable too');
   ok(!/list\.addEventListener\('click', \(ev\) => \{[\s\S]{0,120}closest\('\.zyCatRow'\)/.test(src2),
      'the setTimeout-attached delegated listener is GONE · not left beside the fix');
   // one door in, one door out

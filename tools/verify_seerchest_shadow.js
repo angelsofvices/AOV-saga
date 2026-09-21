@@ -28,7 +28,7 @@
 //
 // Driven, not read: at HEAD, X on either chest granted nothing.
 const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 const _Q = [];
 global.setInterval = () => 0; global.setTimeout = (f) => { _Q.push(f); return 0; };

@@ -1,5 +1,5 @@
 const fs = require('fs');
-const _harnessSrc = fs.readFileSync('/tmp/all.js', 'utf8');
+const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0; global.setTimeout = () => 0;
 global.clearInterval = noop; global.clearTimeout = noop;
@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 // verify_portals · v0.95.800 · the portal network
 const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
+try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={PORTAL_TIERS,PORTAL_NETWORK,ZYRAXIS_DISTRICTS,WORLD_PROPS,NPCS,player,game,'+
   'portalPiecesSpent,portalDistrictsUnlocked,portalUnlocked,portalNextTier,portalDistrictIndex,'+
   'sitePortals,spawnPortals,usePortal,portalTravel,SCANOBOT_PER_DIST,PICKUP_KINDS,_propBlocked,'+
@@ -35,7 +35,7 @@ catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
 const H=t=>console.log('\n'+t);
-const src=FS.readFileSync('/tmp/all.js','utf8');
+const src=require('./lib/all_src.cjs')();
 
 // ★ The boot call lives inside a setTimeout(...,0) so it runs after the world
 //   finishes populating — and the harness stubs setTimeout to a no-op, so
@@ -239,7 +239,7 @@ H('8 · ★★ DAD ONBOARDS BEFORE HE TALKS SHOP');
 // Creator: "dads notebook and first quest should fire first, even before the
 // chip thing."
 {
-  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const src=require('./lib/all_src.cjs')();
   const i=src.indexOf("playSFX('dad')");
   const body=src.slice(i, i+12000);
   const nb=body.indexOf('if (!player.dadStarterQuestGiven){');

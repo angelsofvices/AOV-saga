@@ -114,7 +114,7 @@ H('★★★★ EVERY SPECIES WEARS ITS OWN SPRITE · the check the census could
   // ★ and the ordering that makes it true is asserted directly, so nobody
   //   "tidies" the prune back up above the roster
   ok(/scatterDistrictEnemies\(\);[\s\S]{0,400}?retireLegacyEnemyScatter\(\)/.test(
-       require('fs').readFileSync('/tmp/all.js', 'utf8')),
+       require('./lib/all_src.cjs')()),
      '★★★ and the legacy prune runs AFTER the roster in the boot sequence');
 }
 

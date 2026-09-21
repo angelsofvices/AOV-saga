@@ -4573,6 +4573,55 @@ const ZYCUBE_CATEGORIES = Object.freeze([
   { id:'misc',    label:'UNSORTED',     color:'#aab4c8', blurb:'not yet categorised' },
 ]);
 const ZYCUBE_CAT_BY_ID = Object.freeze(Object.fromEntries(ZYCUBE_CATEGORIES.map(c => [c.id, c])));
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.15 · ZYCUBE SLOT ART · Creator: "use native UI icons for the item
+//   art until we make real ones."
+//
+// ★★★ THERE IS NO ITEM ART IN THIS GAME. Three PNGs exist under items/ and
+//   INVENTORY_META carries `label` and `order` and nothing else — so a faithful
+//   icon grid, built today, would be a grid of empty boxes. Native glyphs make
+//   the grid real NOW and this table is the single seam to swap when sprites
+//   land: one key → one image, no relayout.
+// ★★ Category fallback means an item added tomorrow gets a sensible mark
+//   without an edit here, and Astralites already ship their own `symbol`, so
+//   all 63 of them are covered by one branch rather than 63 rows.
+const ZYCUBE_CAT_ICON = Object.freeze({
+  key:'🔑', weapon:'⚔️', heal:'🧪', sphere:'🔮', shard:'💠', relic:'🏺',
+  astral:'✴️', compound:'⚗️', harvest:'🍃', mat:'🔩', gem:'💎', misc:'📦', gear:'🛠️',
+});
+const ZYCUBE_ICON = Object.freeze({
+  // key items · the drawer the Creator's reference panel was showing
+  backpack:'🎒', zycube:'🧊', zphone:'📱', faenet:'🕸️', worldmap:'🗺️', townmap:'🧭',
+  raidcard:'🎴', skateboard:'🛹', elzebub_egg:'🥚', dads_notebook:'📓', gearbag:'👜',
+  astralcore_transponder:'📡', shardshare:'🔗', shardshare_broken:'⛓️‍💥', ruby_vial:'🩸',
+  broken_raygun:'🔫', portalkey:'🗝️', portalkey_broken:'🗝️', field_station:'🛠️',
+  // weapons
+  sapphire_sword:'🗡️', rubypaw_sword:'⚔️', emerald_axe:'🪓', pearlbow:'🏹',
+  // consumables
+  potion:'🧪', ale:'🍺', verdant_elixir:'🌿', fresh_water:'💧', berry_juice:'🧃',
+  fruit_bar:'🍫', soulphish:'🐟', life_seed:'🌱', life_seed_pure:'✨', astralcore:'🔆',
+  // spheres · relics · currency
+  zysphere:'🔮', prismshard:'🔱', voltshard:'⚡', evolution_catalyst:'🧬', rare_item:'🎁',
+  coins:'🪙', gem:'💎', moon_gem:'🌙',
+  gem_red:'♦️', gem_blue:'🔷', gem_green:'💚', gem_yellow:'🟡',
+  // harvest · materials
+  berry:'🫐', fruit:'🍎', seed:'🌰', fae:'🧚', fairy:'🧚', wild_treat:'🍪', sweet_cache:'🍯',
+  scrap_metal:'⚙️', life_stone:'🪨', tower_battery:'🔋', portal_chip:'💾',
+});
+function zycubeIconFor(key){
+  if (ZYCUBE_ICON[key]) return ZYCUBE_ICON[key];
+  // ★ Astralites carry a one-character `symbol` of their own from the family
+  //   table — the game already drew it, so the bag uses the same mark.
+  try {
+    const m = /^astralite_(\d+)_(\d+)$/.exec(key);
+    if (m){
+      const fam = ASTRALITE_FAMILIES.find(f => String(f.id) === m[1]);
+      const it  = fam && fam.items[+m[2] - 1];
+      if (it && it.symbol) return it.symbol;
+    }
+  } catch(_){}
+  return ZYCUBE_CAT_ICON[zycubeCategoryOf(key)] || '◆';
+}
 const ZYCUBE_CAT_OF = Object.freeze({
   backpack:'key', zycube:'key', zphone:'key', faenet:'key', gearbag:'key', worldmap:'key',
   townmap:'key', raidcard:'key', skateboard:'key', elzebub_egg:'key', dads_notebook:'key',
@@ -42135,7 +42184,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.14' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.15' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -43899,94 +43948,166 @@ function _zySection(title, body, headerColor){
 
 // ── ZYCUBE · clickable inventory · scroll + use + set favorite ──────
 function renderZycellZycube(){
-  // v0.95.418 · Interactive item rows · click row = use · click ★ = toggle favorite
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★★ v0.99.15 · REBUILT ON THE CREATOR'S REFERENCE PANEL.
+  //   Creator: "remake the zycube UI based on this panel inspo" (Echoes of
+  //   Wisdom · Key Items) + "use native UI icons for the item art until we
+  //   make real ones."
+  //
+  // ★★★★ WHAT THE REFERENCE ACTUALLY IS: a TAB RAIL over a SLOT GRID over a
+  //   DETAIL PANE. The old ZyCube was a drill-down list — categories on one
+  //   screen, rows on another — so you could never see a drawer and its
+  //   contents at once. The rail collapses that: every drawer is one stop
+  //   away, always visible, and the grid is the only thing that changes.
+  //
+  // ★★★ THE "ALL" TAB IS WHY THIS DID NOT BREAK THE CANVAS BAG.
+  //   `zycubeCatOpen` is SHARED STATE — the canvas BAG reads the same variable,
+  //   and its null case IS its category list. Making the phone tab-only would
+  //   have meant a category is always open, which silently deletes the BAG's
+  //   top level and changes what Circle does over there. So null stays
+  //   meaningful and simply renders as the ALL tab: Circle and LEFT still pop
+  //   to ALL exactly as before, and the two surfaces still cannot disagree
+  //   about where you are.
+  //
+  // ★★ L and R are NOT the tab keys. In the reference they flank the rail, and
+  //   the obvious move was to bind them — but l/q and r/i already cycle PHONE
+  //   PANELS globally (two handlers, both of them phone-wide). Stealing them
+  //   inside one panel is the kind of local override that makes a control
+  //   scheme feel broken everywhere else. The rail is a normal focus row
+  //   instead, so the cursor already walks it, and the chips are LABELLED with
+  //   what L/R genuinely do here.
   const items = player.items || {};
-  const meta = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META : {};
-  // ★★★ v0.95.935 · CATEGORY LEVEL · Creator: "group items by type. clicking
-  // into them loads item list for category."  Same `zycubeCatOpen` the canvas
-  // BAG uses, so the two views of one cube cannot disagree about where you are.
-  if (!zycubeCatOpen){
-    const cats = (typeof zycubeCategoryRows === 'function') ? zycubeCategoryRows() : [];
-    // ★★★ v0.95.936 · data-zyitem + inline onclick, which is how EVERY other
-    // working panel in this phone does it.
-    //
-    // The v0.95.935 build used a delegated listener attached in a setTimeout and
-    // a `data-zycat` attribute of my own invention.  Both were wrong, and the
-    // Creator hit all three symptoms at once: the controller could not reach the
-    // rows (the DualSense auto-enrolment walks `[data-zyitem]`, so rows without
-    // it simply do not exist to it), clicking did nothing, and there was no way
-    // back out.  A new convention beside a working one is a convention that only
-    // works where I remembered to wire it.
-    const catRows = cats.map(c => `<div class="zyCatRow" data-zycat="${c.id}" data-zyitem="zycat_${c.id}"
-        onclick="try{zycubeOpenCategory('${c.id}');}catch(_){}"
-        style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid rgba(79,179,255,0.15); cursor:pointer; transition:background 120ms;"
-        onmouseover="this.style.background='var(--zy-fill-sel)'"
-        onmouseout="this.style.background='transparent'">
-      <span style="width:4px; align-self:stretch; background:${c.color}; border-radius:2px;"></span>
-      <span style="flex:1;">
-        <span style="display:block; color:${c.color}; font-weight:bold; font-size:12px; letter-spacing:.08em;">${c.label}</span>
-        <span style="display:block; color:rgba(200,220,255,0.5); font-size:10px;">${c.blurb}</span>
-      </span>
-      <span style="color:#aab4c8; font-size:11px; white-space:nowrap;">${c.kinds} kind${c.kinds===1?'':'s'} · ×${c.total}</span>
-      <span style="color:rgba(200,220,255,0.45); font-weight:bold; font-size:15px;">›</span>
-    </div>`).join('');
-    const catBody = cats.length
-      ? `<div id="zyBagCats" style="max-height:420px; overflow:auto; pointer-events:auto;">${catRows}</div>
-         <div style="text-align:center; color:var(--zy-cyan); font-size:10px; padding:6px; letter-spacing:.06em;">▲▼ or click a category · × to open</div>`
-      : `<div style="color:var(--zy-muted); text-align:center; padding:20px;">· bag is empty ·</div>`;
-    return _zySection('◈ ZYCUBE · YOUR STORAGE', catBody);
-  }
-  const _cat = ZYCUBE_CAT_BY_ID[zycubeCatOpen] || { label: 'ITEMS', color: 'var(--zy-cyan)' };
-  const rows = Object.entries(items)
-    // ★ v0.95.935 · only this drawer
-    .filter(([k]) => zycubeCategoryOf(k) === zycubeCatOpen)
-    // v0.95.478 · worldmap hidden from ZyCube · lives ONLY in the MAP panel unlocked by Zoryn
-    // ★ v0.95.780 · dads_notebook was NOT a carried object — Dad installed it on
-    // the ZyPhone as a cloud copy of his Malezor research, so it lived in its own
-    // NOTEBOOK panel and had no business sitting in the bag next to ale.
-    // ★★ v0.95.972 · UNFILTERED.  It is a carried object again, because there are
-    // now TWO of them: the paper one Mom hands over (an errand, then a keepsake —
-    // Dad refuses it and tells Rizer to keep it) and the digital one on the phone
-    // (the mechanic).  Hiding the paper copy would hide the errand mid-flight, so
-    // the bag shows it.  The phone panel is still the only thing that DOES
-    // anything; clicking the book just tells you where to take it.
-    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap')
-    // v0.95.504 · Auto-sort ALPHABETICAL by display label (was: static `.order` field)
-    .sort((a, b) => {
-      const la = (meta[a[0]] && meta[a[0]].label) || a[0];
-      const lb = (meta[b[0]] && meta[b[0]].label) || b[0];
-      return la.localeCompare(lb);
-    })
-    .map(([k, n]) => {
-      const label = (meta[k] && meta[k].label) || k;
-      const isFav = player.favoriteItem === k;
-      const star = isFav ? '★' : '☆';
-      const starColor = isFav ? 'var(--zy-gold)' : 'rgba(200,220,255,0.4)';
-      return `<div class="zyBagRow" data-item="${k}" data-zyitem="${k}"
-          style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-bottom:1px solid rgba(79,179,255,0.15); font-size:12px; cursor:pointer; transition:background 120ms;"
-          onmouseover="this.style.background='var(--zy-fill-sel)'"
-          onmouseout="this.style.background='transparent'">
-        <span class="zyBagFav" data-item="${k}" style="color:${starColor}; font-weight:bold; font-size:16px; padding-right:10px; cursor:pointer;">${star}</span>
-        <span style="flex:1; color:var(--zy-text);">${label}</span>
-        <span style="color:#fff; font-weight:bold;">×${n}</span>
-      </div>`;
-    }).join('');
-  // ★ v0.95.935 · the way back out.  Its own row, above the list, so it is
-  // reachable without scrolling a hundred Astralites first.
-  const backRow = `<div id="zyBagBack" data-zyitem="zybag_back"
-      onclick="try{zycubeCloseCategory();}catch(_){}"
-      style="display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid var(--zy-line-soft); cursor:pointer; background:rgba(79,179,255,0.10);"
-      onmouseover="this.style.background='rgba(79,179,255,0.22)'"
-      onmouseout="this.style.background='rgba(79,179,255,0.10)'">
-    <span style="color:var(--zy-cyan); font-weight:bold; font-size:14px;">‹</span>
-    <span style="color:var(--zy-cyan); font-size:11px; letter-spacing:.08em;">ALL CATEGORIES</span>
-    <span style="flex:1;"></span>
-    <span style="color:${_cat.color}; font-weight:bold; font-size:11px; letter-spacing:.08em;">${_cat.label}</span>
+  const meta  = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META : {};
+  const cats  = (typeof zycubeCategoryRows === 'function') ? zycubeCategoryRows() : [];
+  const _cat  = zycubeCatOpen ? (ZYCUBE_CAT_BY_ID[zycubeCatOpen] || null) : null;
+  const accent = _cat ? _cat.color : 'var(--zy-cyan)';
+
+  // ── the rail ─────────────────────────────────────────────────────────
+  const tab = (id, icon, label, color, on, click) => `<div data-zyitem="zytab_${id}" data-zytab="1"
+      title="${label}" onclick="try{${click}}catch(_){}"
+      style="position:relative; flex:0 0 auto; width:38px; height:34px; display:flex;
+             align-items:center; justify-content:center; font-size:17px; cursor:pointer;
+             border-radius:6px; transition:background 120ms;
+             background:${on ? 'rgba(255,255,255,0.10)' : 'transparent'};
+             box-shadow:${on ? 'inset 0 -2px 0 ' + color : 'none'};
+             filter:${on ? 'none' : 'grayscale(0.55) opacity(0.62)'};">
+      <span style="pointer-events:none;">${icon}</span>
+    </div>`;
+  const chip = t => `<span style="flex:0 0 auto; min-width:20px; height:20px; padding:0 5px;
+      display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:bold;
+      color:var(--zy-cyan); border:1px solid var(--zy-line); border-radius:4px;
+      letter-spacing:.04em; opacity:.8;">${t}</span>`;
+  const rail = `<div data-zyrow="zycube_tabs" style="display:flex; align-items:center; gap:2px;
+      padding:4px 6px; overflow-x:auto; border-bottom:1px solid var(--zy-line-soft);">
+    ${chip('L')}
+    ${tab('all','🧊','ALL','var(--zy-cyan)', !zycubeCatOpen, "zycubeCloseCategory();")}
+    ${cats.map(c => tab(c.id, ZYCUBE_CAT_ICON[c.id] || '◆', c.label, c.color,
+                        zycubeCatOpen === c.id, `zycubeOpenCategory('${c.id}');`)).join('')}
+    ${chip('R')}
   </div>`;
-  const body = rows.length
-    ? `${backRow}<div id="zyBagList" style="max-height:390px; overflow:auto; pointer-events:auto;">${rows}</div>
-       <div style="text-align:center; color:var(--zy-cyan); font-size:10px; padding:6px; letter-spacing:.06em;">Click ROW · use item · Click ★ · toggle CREATE favorite</div>`
-    : `${backRow}<div style="color:var(--zy-muted); text-align:center; padding:20px;">· nothing in ${_cat.label} right now ·</div>`;
+
+  // ── the grid ─────────────────────────────────────────────────────────
+  // ★ Same filter and same alphabetical sort the list used — this is a new
+  //   PRESENTATION of the cube, not a new cube.
+  const rows = Object.entries(items)
+    .filter(([k]) => !zycubeCatOpen || zycubeCategoryOf(k) === zycubeCatOpen)
+    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap')
+    .sort((a, b) => ((meta[a[0]]&&meta[a[0]].label)||a[0]).localeCompare((meta[b[0]]&&meta[b[0]].label)||b[0]));
+
+  const COLS = 5;
+  // ★★ The reference keeps EMPTY SLOTS visible — a half-full drawer still reads
+  //   as a drawer. They are decoration only and carry no data-zyitem, so the
+  //   controller never stops on a hole.
+  const PAD = rows.length ? (COLS - (rows.length % COLS)) % COLS : COLS;
+  const slot = (k, n) => {
+    const label = (meta[k] && meta[k].label) || k;
+    const fav   = player.favoriteItem === k;
+    const col   = (ZYCUBE_CAT_BY_ID[zycubeCategoryOf(k)] || {}).color || 'var(--zy-cyan)';
+    // ★★★ NOT EVERY MARK IS AN EMOJI. Astralites carry the game's own two-to-
+    //   four character codes (Gn, Cr, Ax-1) and drawing those at emoji size
+    //   overflows the slot — 'Ax-1' at 23px is wider than the box. Detect a
+    //   TEXT mark by the one thing no emoji has, a latin letter, and set it as
+    //   a monogram in the family colour instead of guessing from string length:
+    //   '🗡️' is two code points (glyph + variation selector) and a length test
+    //   would have shrunk half the weapons.
+    const g = zycubeIconFor(k);
+    const mono = /[A-Za-z]/.test(g);
+    const gStyle = mono
+      ? `font-family:"Courier New",monospace; font-weight:bold; color:${col}; font-size:${g.length > 2 ? 11 : 14}px;`
+      : 'font-size:23px;';
+    return `<div class="zyBagRow zyCubeSlot" data-item="${k}" data-zyitem="${k}" data-zyattr="${k}"
+        title="${label}"
+        style="position:relative; aspect-ratio:1/1; display:flex; align-items:center;
+               justify-content:center; cursor:pointer; border-radius:7px;
+               background:rgba(255,255,255,0.045); border:1px solid ${col}44;
+               transition:background 120ms, border-color 120ms;"
+        onmouseover="this.style.background='var(--zy-fill-sel)'"
+        onmouseout="this.style.background='rgba(255,255,255,0.045)'">
+      <span style="pointer-events:none; ${gStyle}">${g}</span>
+      ${n > 1 ? `<span style="position:absolute; right:3px; bottom:2px; font-size:9px; font-weight:bold;
+            color:#fff; text-shadow:0 1px 2px #000; pointer-events:none;">${n}</span>` : ''}
+      <span class="zyBagFav" data-item="${k}" style="position:absolute; left:2px; top:0;
+            font-size:11px; line-height:1; color:${fav ? 'var(--zy-gold)' : 'rgba(200,220,255,0.28)'};
+            cursor:pointer;">${fav ? '★' : '☆'}</span>
+    </div>`;
+  };
+  const hole = `<div style="aspect-ratio:1/1; border-radius:7px; background:rgba(255,255,255,0.02);
+      border:1px solid var(--zy-line-soft); display:flex; align-items:center; justify-content:center;
+      color:rgba(200,220,255,0.16); font-size:12px;">◆</div>`;
+  // ★ One data-zyrow per grid ROW so LEFT/RIGHT walks across a row and UP/DOWN
+  //   crosses rows — a grid navigated as one flat run is a list wearing a grid.
+  let grid = '';
+  for (let i = 0; i < rows.length; i += COLS){
+    const cells = rows.slice(i, i + COLS).map(([k, n]) => slot(k, n)).join('');
+    const tail  = (i + COLS >= rows.length) ? hole.repeat(PAD) : '';
+    grid += `<div data-zyrow="zycube_r${i / COLS}" style="display:grid;
+        grid-template-columns:repeat(${COLS},1fr); gap:6px; margin-bottom:6px;">${cells}${tail}</div>`;
+  }
+  if (!rows.length){
+    grid = `<div data-zyrow="zycube_r0" style="display:grid; grid-template-columns:repeat(${COLS},1fr);
+        gap:6px;">${hole.repeat(COLS)}</div>`;
+  }
+
+  // ── the detail pane ──────────────────────────────────────────────────
+  // ★★★ Driven by the EXISTING data-zyattr → data-zydetail hook (v0.98.1, "a
+  //   control may name a display it owns"), so focusing a slot swaps the pane
+  //   with no new painter code. Mouse hover gets it through the same path.
+  const detail = rows.map(([k, n]) => {
+    const label = (meta[k] && meta[k].label) || k;
+    const c = ZYCUBE_CAT_BY_ID[zycubeCategoryOf(k)] || { label:'ITEMS', color:'var(--zy-cyan)', blurb:'' };
+    return `<div data-zydetail="${k}" style="display:none;">
+      <div style="color:${c.color}; font-weight:bold; font-size:14px; letter-spacing:.04em;">${label}</div>
+      <div style="height:1px; margin:5px 0 7px; background:linear-gradient(90deg,${c.color}99,transparent);"></div>
+      <div style="color:var(--zy-text); font-size:11px; font-style:italic; line-height:1.5;">
+        ${c.blurb}${n > 1 ? ` · you are carrying ${n}` : ''}.
+      </div>
+      <div style="color:rgba(200,220,255,0.42); font-size:9px; margin-top:5px; letter-spacing:.06em;">
+        ${c.label} · X USE · ☆ FAVOURITE → CREATE HOTKEY
+      </div>
+    </div>`;
+  }).join('');
+  const emptyDetail = `<div style="color:var(--zy-muted); font-size:11px; font-style:italic;">
+      ${zycubeCatOpen ? `Nothing in ${_cat ? _cat.label : 'this drawer'} right now.` : 'Your ZyCube is empty.'}
+    </div>`;
+  const pane = `<div style="min-height:74px; padding:9px 11px; margin-top:4px;
+      border-top:1px solid var(--zy-line-soft); background:rgba(255,255,255,0.03);">
+    ${rows.length ? detail : emptyDetail}
+  </div>`;
+
+  const counter = `<span style="color:rgba(200,220,255,0.5); font-size:9px; letter-spacing:.06em;">
+      ${rows.length} ITEM${rows.length === 1 ? '' : 'S'}</span>`;
+
+  const body = `${rail}
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 8px 3px;">
+      <span style="color:${accent}; font-weight:bold; font-size:11px; letter-spacing:.10em;">
+        ${_cat ? _cat.label : 'ALL ITEMS'}</span>${counter}
+    </div>
+    <div id="zyBagList" style="max-height:236px; overflow:auto; padding:0 8px 4px; pointer-events:auto;">${grid}</div>
+    ${pane}
+    <div style="text-align:center; color:var(--zy-cyan); font-size:9px; padding:4px; letter-spacing:.06em;">
+      ◀▶ tabs &amp; slots · L/R panel · ○ back to ALL
+    </div>`;
+
   // Delay row-handler wiring until DOM lands · run after paintZycellContent injects the HTML
   setTimeout(() => {
     const list = document.getElementById('zyBagList');
@@ -44017,7 +44138,7 @@ function renderZycellZycube(){
       }
     });
   }, 0);
-  return _zySection(`◈ ZYCUBE · ${_cat.label}`, body);
+  return _zySection(`◈ ZYCUBE · ${_cat ? _cat.label : 'ALL ITEMS'}`, body, accent);
 }
 
 // ── RIZER · attribute allocation + equipped outfit ──────────────────
@@ -46220,6 +46341,15 @@ function _zycellContentItems(){
   return Array.from(c.querySelectorAll('[data-zyitem]')).filter(el =>
     el.offsetParent !== null && !el.querySelector('[data-zyitem]'));
 }
+// ★★ v0.99.15 · Is the content cursor parked on a ZyCube tab? Read from the
+//   SAME list the painter walks, so "what is focused" can only have one answer.
+function _zycellOnZycubeTab(){
+  try {
+    if (game._zycellFocus !== 'content') return false;
+    const el = _zycellContentItems()[game._zycellItemIdx || 0];
+    return !!(el && el.getAttribute && el.getAttribute('data-zytab'));
+  } catch(_){ return false; }
+}
 function _zycellPaintFocus(){
   // v0.95.577 · Paint-only pass · NEVER calls scrollIntoView.  The 1s auto-
   // refresh + every content re-render triggers this; forcing a scroll here
@@ -46272,7 +46402,15 @@ function _zycellPaintFocus(){
 // first detail showing rather than blanking the rail to an empty box.
 function zyAttrHilite(key, amount){
   const bars = document.querySelectorAll('[data-zybar]');
-  if (!bars.length) return;
+  // ★★★ v0.99.15 · THIS EARLY RETURN ASSUMED BARS AND DETAILS ALWAYS SHIP
+  //   TOGETHER. They did, on the one panel this was written for. The ZyCube
+  //   grid uses the same data-zyattr → data-zydetail hook to swap its item
+  //   pane and has no bars at all, so `if (!bars.length) return` killed the
+  //   pane before a single detail row was considered — the cursor moved, the
+  //   slot lit, and the description underneath never changed.
+  //   ★ Guard each group on its own instead. A panel may have bars, details,
+  //   both or neither, and no group's absence may cancel another's.
+  if (!bars.length && !document.querySelector('[data-zydetail]')) return;
   bars.forEach(b => b.classList.toggle('is-sel', !!key && b.getAttribute('data-zybar') === key));
   const rows = document.querySelectorAll('[data-zydetail]');
   let shown = false;
@@ -46412,7 +46550,14 @@ function handleZycellKey(k){
       if (typeof closeZyrexExamine === 'function' && closeZyrexExamine()) return true;
       // ★ v0.95.936 · LEFT pops a ZyCube category before it backs out to the nav
       // rail · symmetric with Circle above and with the Examine sub-page
-      if (zycellPage === 'zycube' && zycubeCatOpen && zycubeCloseCategory()) return true;
+      // ★★★ v0.99.15 · ...UNLESS THE CURSOR IS STANDING ON THE TAB RAIL. The
+      //   rail is a normal focus row, so LEFT there means "previous tab" — and
+      //   this guard fires BEFORE row nav ever sees the key, which would have
+      //   made the rail walkable one way only. Circle is left alone as the
+      //   unconditional way back to ALL, so there is always one key that pops
+      //   no matter where the cursor is.
+      if (zycellPage === 'zycube' && zycubeCatOpen && !_zycellOnZycubeTab()
+          && zycubeCloseCategory()) return true;
       // ★ v0.95.995 · and the notebook, symmetric with Circle above
       if (zycellPage === 'notebook' && game._nbSection){
         game._nbSection = null; game._zycellItemIdx = 0;

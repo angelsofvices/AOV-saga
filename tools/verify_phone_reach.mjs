@@ -30,7 +30,17 @@ let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; };
 const H  = t => console.log('\n' + t);
 const page = fs.readFileSync('rp7b.html', 'utf8');
-const src  = fs.readFileSync('/tmp/all.js', 'utf8');
+// ★★★★ v0.99.15 · THIS SUITE COULD NOT RUN AT ALL. It read the build's
+//   concatenated script from '/tmp/all.js' — a scratch file written by hand in
+//   the session that authored it. /tmp does not survive a session, so from the
+//   next one onward this exited with ENOENT before a single assertion: the one
+//   suite guarding "all phone UI menus accessible fully by controller" had been
+//   silently absent, and a red that is a crash reads like a red that is a bug.
+//   ★ The concatenation is three lines. Do it here, from the page already in
+//   hand, so the suite depends on nothing outside the repo.
+let src = '';
+{ const _re = /<script[^>]*>([\s\S]*?)<\/script>/g; let _m;
+  while ((_m = _re.exec(page))) src += _m[1] + '\n'; }
 
 // ── the real reachability rules, lifted out of the build ──────────────────
 const grab = re => { const m = re.exec(page); if (!m) throw new Error('missing: ' + re); return m[0]; };

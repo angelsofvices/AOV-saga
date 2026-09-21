@@ -241,20 +241,34 @@ H('★★★ CAPPED-HEIGHT BOXES · reachable, and here is what makes them reach
     const set = new Set(r.items);
     for (const el of r.c.walk()){
       const st = el.getAttribute('style') || '';
-      if (!/max-height\s*:\s*\d/.test(st) || !/overflow[^;]*:\s*(auto|scroll)/.test(st)) continue;
+      // ★★★★ v0.99.17 · A SCROLLER IS NOT ALWAYS A max-height. This census
+      //   matched `max-height` + `overflow:auto`, which was every inner
+      //   scroller in the phone until the ZyCube panel went full-height: its
+      //   grid is now clamped by `flex:1 1 auto; min-height:0` instead, and the
+      //   box simply VANISHED from the audit. The suite still went green — it
+      //   had stopped looking, which is the worst way for a check to pass.
+      //   ★ A box that scrolls is a box that can strand a control, however its
+      //   height got bounded. Match the flex form too.
+      if (!/overflow[^;]*:\s*(auto|scroll)/.test(st)) continue;
+      const capped = /max-height\s*:\s*\d/.test(st);
+      const flexed = /flex\s*:\s*1[^;]*/.test(st) && /min-height\s*:\s*0/.test(st);
+      if (!capped && !flexed) continue;
       const inside = el.querySelectorAll(CLICKABLE)
         .filter(x => !/^sec_/.test(x.getAttribute('data-zyitem') || ''))
         .filter(x => !x.disabled && x.offsetParent !== null);
       const stranded = inside.filter(x => !set.has(x)
         && !(x.parentElement && x.parentElement.closest('[data-zyitem]') && set.has(x.parentElement.closest('[data-zyitem]'))));
       boxes.push({ view: V.name, n: inside.length, stranded: stranded.length,
-                   cap: /max-height:\s*([^;]+)/.exec(st)[1].trim() });
+                   cap: capped ? /max-height:\s*([^;]+)/.exec(st)[1].trim() : 'flex:1' });
     }
   }
-  ok(boxes.length > 0, `${boxes.length} capped-height boxes in the phone`);
+  ok(boxes.length >= 2, `${boxes.length} inner scrollers in the phone (max-height OR flex-clamped)`);
   for (const b of boxes)
-    ok(b.stranded === 0, `  ${b.view.padEnd(14)} max-height ${b.cap.padEnd(6)} · ${b.n} control(s), `
+    ok(b.stranded === 0, `  ${b.view.padEnd(14)} bounded by ${b.cap.padEnd(7)} · ${b.n} control(s), `
        + `${b.stranded} of them stranded`);
+  ok(boxes.some(b => b.cap === 'flex:1'),
+     '★★★ the flex-clamped ZyCube grid is IN the census · it went full-height and fell out of an '
+   + 'audit that only knew about max-height');
   // ★ and the mechanism the exemption rests on must still be wired. Remove this
   //   call and every capped box above silently becomes a trap again.
   ok(/_zycellScrollFocusIntoView\(\);/.test(src) && /el\.scrollIntoView\(\{ block: 'nearest' \}\)/.test(src),

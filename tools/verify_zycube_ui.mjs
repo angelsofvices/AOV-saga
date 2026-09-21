@@ -108,6 +108,42 @@ H('★★★★ THE DETAIL PANE RIDES THE EXISTING HOOK · and that hook was bro
   ok(!/^\s*if \(!bars\.length\) return;/m.test(fn), '★★ the unguarded early return is gone');
 }
 
+H('★★★★ FULL HEIGHT · rail and pane pinned, grid takes every leftover pixel');
+{
+  //   Creator, 2026-09-21: "make panel full screen vertically in the ui."
+  // ★★★★ #zycellContent was ALREADY `flex:1; min-height:0` — the phone body's
+  //   full height belonged to it all along. What did not fill was the SECTION
+  //   inside it: every _zySection is content-sized and stacks from the top, so
+  //   a short drawer left two thirds of the screen empty and a long one grew
+  //   past the fold. The fix is one opt-in flag on the shared helper, not a
+  //   taller magic number.
+  const h = render(null);
+  ok(!/max-height:236px/.test(h),
+     '★★★★ the old 236px clamp is GONE · a fixed cap inside a pane that owns the full height is what left the screen empty');
+  ok(/height:100%; display:flex; flex-direction:column/.test(h),
+     '★★★ the section fills the content box and lays out as a column');
+  ok(/box-sizing:border-box/.test(h),
+     '★★ border-box · at 100% height its own border and 12px padding would otherwise overflow the parent and force a scrollbar');
+  ok(/id="zyBagList" style="flex:1 1 auto; min-height:0; overflow:auto/.test(h),
+     '★★★★ the grid is the ONLY row that grows · flex:1 1 auto, and it scrolls internally when a drawer is deep');
+  ok(/flex:1 1 auto; min-height:0/.test(h),
+     '★★★ min-height:0 is load-bearing · a flex child defaults to min-height:auto and refuses to shrink below its '
+   + 'content, which makes an inner scroller overflow its parent instead of scrolling');
+  for (const [what, re] of [['rail', /data-zyrow="zycube_tabs" style="flex:0 0 auto/],
+                            ['detail pane', /<div style="flex:0 0 auto; min-height:74px/],
+                            ['hint line', /flex:0 0 auto; text-align:center/]]){
+    ok(re.test(h), `  ${what.padEnd(12)} is pinned (flex:0 0 auto) · it must not be pushed off by a full drawer`);
+  }
+  // ★★★ The pane describes whatever the cursor is on, so it has to be visible
+  //   AT THE SAME TIME as the slot. Let it flow after an unbounded grid and you
+  //   scroll away from the thing you are reading about.
+  ok(h.indexOf('id="zyBagList"') < h.indexOf('min-height:74px'),
+     '★★★ and the pane sits BELOW the grid · pinned to the bottom edge, on screen with the slot it describes');
+  ok(/_zySection\(`◈ ZYCUBE[^`]*`, body, accent, true\)/.test(
+       fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8')),
+     '★★ fill mode is OPT-IN · passed only by this panel, a no-op on the other ten');
+}
+
 H('★★★ NATIVE ICONS NOW, ONE SEAM TO SWAP LATER');
 {
   ok(G.zycubeIconFor('potion') === '🧪' && G.zycubeIconFor('coins') === '🪙', 'named items get their own glyph');

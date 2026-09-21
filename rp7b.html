@@ -42189,7 +42189,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.15' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.17' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -43935,7 +43935,28 @@ function _zySectionClick(el, ev){
     controls[0].click();
   } catch(_){}
 }
-function _zySection(title, body, headerColor){
+function _zySection(title, body, headerColor, fill){
+  // ★★★ v0.99.17 · FILL MODE · Creator: "make panel full screen vertically in
+  //   the ui."  #zycellContent is already `flex:1; min-height:0` — it owns the
+  //   full height of the phone body — but every section inside it is
+  //   content-sized and stacks from the top, so a short panel left dead space
+  //   below it and a long one just grew past the fold.
+  //   ★ `fill` makes ONE section claim that height: 100% of the content box,
+  //   border-box so its own border and padding do not overflow it, and a flex
+  //   column so the panel can decide which of its rows stretches and which
+  //   stay pinned. Opt-in, so it is a no-op on the other ten panels.
+  if (fill){
+    const k = String(title || 'section').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+    return `
+      <div data-zyitem="sec_${k}" onclick="_zySectionClick(this, event)"
+           style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.4);
+                  padding:12px 14px; margin-bottom:0; cursor:pointer; box-sizing:border-box;
+                  height:100%; display:flex; flex-direction:column; min-height:0;">
+        <div style="flex:0 0 auto; color:${headerColor || '#ffd66b'}; font-weight:bold;
+                    letter-spacing:.12em; font-size:11px; margin-bottom:8px;">${title}</div>
+        <div style="flex:1 1 auto; min-height:0; display:flex; flex-direction:column;">${body}</div>
+      </div>`;
+  }
   // v0.95.578 · Every section wrapper becomes a focusable target so ANY
   // panel is walkable with UP/DOWN + click-activatable with X.  If a section
   // has no inner interactive control, focus just scrolls it into view.
@@ -44002,7 +44023,7 @@ function renderZycellZycube(){
       display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:bold;
       color:var(--zy-cyan); border:1px solid var(--zy-line); border-radius:4px;
       letter-spacing:.04em; opacity:.8;">${t}</span>`;
-  const rail = `<div data-zyrow="zycube_tabs" style="display:flex; align-items:center; gap:2px;
+  const rail = `<div data-zyrow="zycube_tabs" style="flex:0 0 auto; display:flex; align-items:center; gap:2px;
       padding:4px 6px; overflow-x:auto; border-bottom:1px solid var(--zy-line-soft);">
     ${chip('L')}
     ${tab('all','🧊','ALL','var(--zy-cyan)', !zycubeCatOpen, "zycubeCloseCategory();")}
@@ -44094,7 +44115,12 @@ function renderZycellZycube(){
   const emptyDetail = `<div style="color:var(--zy-muted); font-size:11px; font-style:italic;">
       ${zycubeCatOpen ? `Nothing in ${_cat ? _cat.label : 'this drawer'} right now.` : 'Your ZyCube is empty.'}
     </div>`;
-  const pane = `<div style="min-height:74px; padding:9px 11px; margin-top:4px;
+  // ★★★ PINNED, NOT STACKED. The pane describes whatever the cursor is standing
+  //   on, so it has to be on screen AT THE SAME TIME as the slot — let it flow
+  //   after an unbounded grid and you scroll away from the thing you are
+  //   reading about. flex:0 0 auto keeps it at the bottom edge; the grid above
+  //   is the only row that grows.
+  const pane = `<div style="flex:0 0 auto; min-height:74px; padding:9px 11px; margin-top:4px;
       border-top:1px solid var(--zy-line-soft); background:rgba(255,255,255,0.03);">
     ${rows.length ? detail : emptyDetail}
   </div>`;
@@ -44102,14 +44128,23 @@ function renderZycellZycube(){
   const counter = `<span style="color:rgba(200,220,255,0.5); font-size:9px; letter-spacing:.06em;">
       ${rows.length} ITEM${rows.length === 1 ? '' : 'S'}</span>`;
 
+  // ★★★★ THE GRID IS THE ONLY ROW THAT GROWS. `max-height:236px` is gone: a
+  //   fixed clamp inside a pane that already owns the full height is what left
+  //   two thirds of the screen empty on a short drawer and hid rows on a long
+  //   one. `flex:1 1 auto; min-height:0` hands it every pixel the rail, the
+  //   header, the pane and the hint do not take — min-height:0 is load-bearing,
+  //   because a flex child defaults to min-height:auto and refuses to shrink
+  //   below its content, which makes an inner scroller silently overflow its
+  //   parent instead of scrolling.
   const body = `${rail}
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 8px 3px;">
+    <div style="flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 3px;">
       <span style="color:${accent}; font-weight:bold; font-size:11px; letter-spacing:.10em;">
         ${_cat ? _cat.label : 'ALL ITEMS'}</span>${counter}
     </div>
-    <div id="zyBagList" style="max-height:236px; overflow:auto; padding:0 8px 4px; pointer-events:auto;">${grid}</div>
+    <div id="zyBagList" style="flex:1 1 auto; min-height:0; overflow:auto; padding:0 8px 4px;
+         align-content:start; pointer-events:auto;">${grid}</div>
     ${pane}
-    <div style="text-align:center; color:var(--zy-cyan); font-size:9px; padding:4px; letter-spacing:.06em;">
+    <div style="flex:0 0 auto; text-align:center; color:var(--zy-cyan); font-size:9px; padding:4px; letter-spacing:.06em;">
       ◀▶ tabs &amp; slots · L/R panel · ○ back to ALL
     </div>`;
 
@@ -44143,7 +44178,7 @@ function renderZycellZycube(){
       }
     });
   }, 0);
-  return _zySection(`◈ ZYCUBE · ${_cat ? _cat.label : 'ALL ITEMS'}`, body, accent);
+  return _zySection(`◈ ZYCUBE · ${_cat ? _cat.label : 'ALL ITEMS'}`, body, accent, true);
 }
 
 // ── RIZER · attribute allocation + equipped outfit ──────────────────

@@ -1,6 +1,6 @@
 # OVERWORLD ITEM DROP ART · CODEX HANDOFF · v1 · 2026-09-21
 
-**72 items can be retrieved in the overworld and have no drop sprite.** This
+**55 items still need art.** This
 table is the complete set, with the target filename and the generation prompt
 for each.
 
@@ -19,6 +19,47 @@ both in `rp7b.html`. Do **not** create a new folder; the wiring reads this one.
 
 `coins` · `scrap_metal` · `portal_chip` · `sapphire_sword` · `rubypaw_sword` ·
 `emerald_axe` · `pearlbow` · `voltshard` · `astralcore` · `shardshare_broken`
+
+
+## ALREADY ON DISK — do NOT generate these (17)
+
+★ Corrected 2026-09-23. The v1 table asked for 72 because its check only looked
+at the two WIRING tables (`WEAPON_DROP_ART`, `PICKUP_KINDS`) and never at the
+filesystem — so 17 items with art already sitting in `assets/` were listed as
+missing. They are not. Sixteen are usable today; two need a note.
+
+| item key | file on disk | status |
+|---|---|---|
+| `gem_red` | `assets/2D sprites/decor/gem-red.png` | 361x469 · pre-trimmed, tight alpha · READY |
+| `gem_blue` | `assets/2D sprites/decor/gem-blue.png` | 527x699 · pre-trimmed · READY |
+| `gem_green` | `assets/2D sprites/decor/gem-green.png` | 535x700 · pre-trimmed · READY |
+| `gem_yellow` | `assets/2D sprites/decor/gem-yellow.png` | 358x470 · pre-trimmed · READY |
+| `gem_purple` | `assets/2D sprites/decor/gem-purple.png` | 360x463 · pre-trimmed · READY |
+| `gem_orange` | `assets/2D sprites/decor/gem-orange.png` | 356x463 · pre-trimmed · READY |
+| `gem_white` | `assets/2D sprites/decor/gem-white.png` | 359x470 · pre-trimmed · READY |
+| `gem_black` | `assets/2D sprites/decor/gem-black.png` | 358x463 · pre-trimmed · READY |
+| `fae` | `assets/2D sprites/decor/fae.png` | 512x128 · 4-FRAME STRIP, already wired as FAE_IMG · NOT a drop sprite, do not regenerate |
+| `life_seed` | `assets/2D sprites/decor/life-seed.png` | 1254² · alpha [288,267,648,653] · READY |
+| `skateboard` | `assets/2D sprites/decor/skateboard.png` | 1254² · alpha [304,31,614,1200] · READY (stands tall — set tileW off the 614x1200 aspect, not 1.4) |
+| `elzebub_egg` | `assets/2D sprites/props/elzebub-egg.png` | 1254² · alpha [284,167,965,884] · READY (lives in props/, not decor/) |
+| `broken_raygun` | `assets/2D sprites/decor/broken-raygun.png` | 1774x887 · alpha [30,319,1699,251] · READY (very wide — tileW ~1.6) |
+| `portalkey` | `assets/2D sprites/decor/portalkey.png` | 1024x1536 · alpha [112,22,778,1488] · READY |
+| `life_stone` | `assets/2D sprites/props/life-stone.png` | 1254² · alpha [155,138,945,966] · READY (lives in props/) |
+| `zysphere` | `assets/zysphere.png` | 1254² · ★ 100% OPAQUE — NO ALPHA AT ALL. Unusable as a drop until keyed. Also sits at assets/ root, not decor/ |
+| `rubypaw_fang` | `assets/2D sprites/rizer/rubypaw-fang.png` | 1254² · alpha [98,78,1053,1074] · READY (lives in rizer/) |
+
+**Two exceptions worth reading:**
+
+- **`fae`** is a 4-frame animation strip (4 × ~111px of ink across 512px) and is
+  already loaded as `FAE_IMG` in `rp7b.html`. It is not a drop sprite and never
+  needed one.
+- **`zysphere`** is 100% opaque — it has no alpha channel content at all, so it
+  is still on its background. It cannot be drawn as a world drop until it is
+  keyed and trimmed. It is also at `assets/zysphere.png`, outside the drop root.
+
+Three of the ready files live outside `decor/` (`elzebub_egg` and `life_stone` in
+`props/`, `rubypaw_fang` in `rizer/`). The drop tables take a full `src` path, so
+they can be wired where they are — no need to move or duplicate them.
 
 ## Shared generation spec — prepend to every prompt
 
@@ -51,78 +92,61 @@ name** · **file** · **tileW** (suggested draw width in tiles, for wiring) ·
 |---|---|---|---|---|---|
 | 1 | `field_station` | Field Workstation | `field-station-drop.png` | 1.5 | A folded portable crafting bench lying on the ground — scuffed gunmetal legs collapsed flat against a slab top, a small vice and three sockets on the surface, a coil of cable strapped to one side. Salvage-built from scrap, honest and heavy, not sci-fi sleek. Faint cyan glow from one indicator lamp. |
 | 2 | `gem` | Gems | `gem-drop.png` | 0.9 | A small loose cluster of three cut crystals resting on the ground, facets catching light, mixed cool colours. Reads as generic currency-grade gemstone, not a relic. |
-| 3 | `gem_red` | Red Gem | `gem-red.png` | 0.85 | A single cut gemstone, deep ruby red, brilliant-cut with a flat table and sharp facets, tiny internal spark of light. Sits on the ground with a soft contact shadow. |
-| 4 | `gem_blue` | Blue Gem | `gem-blue.png` | 0.85 | A single cut gemstone, sapphire blue, same brilliant cut as the red, cool internal glow. |
-| 5 | `gem_green` | Green Gem | `gem-green.png` | 0.85 | A single cut gemstone, emerald green, same cut, faint verdant shimmer. |
-| 6 | `gem_yellow` | Yellow Gem | `gem-yellow.png` | 0.85 | A single cut gemstone, warm citrine yellow, same cut, sunlit sparkle. |
-| 7 | `gem_purple` | Purple Gem | `gem-purple.png` | 0.85 | A single cut gemstone, amethyst purple, same cut, dusky violet core. |
-| 8 | `gem_orange` | Orange Gem | `gem-orange.png` | 0.85 | A single cut gemstone, amber orange, same cut, ember-lit centre. |
-| 9 | `gem_white` | White Gem | `gem-white.png` | 0.85 | A single cut gemstone, clear diamond white, same cut, prismatic edge flare. |
-| 10 | `gem_black` | Black Gem | `gem-black.png` | 0.85 | A single cut gemstone, jet black, same cut, matte body with one hard specular highlight and a faint violet rim. |
-| 11 | `moon_gem` | Moon Gems | `moon-gem.png` | 1.0 | Two pale moonstone spheres, milky translucent white-blue, gently glowing from within, one slightly cracked. Rounder and softer than the faceted gems so it reads as a different currency at a glance. |
-| 12 | `berry` | Berries | `berry-drop.png` | 0.8 | A small pile of four plump wild berries, deep blue-purple, dewy highlights, two green leaves tucked under. Foraged, not packaged. |
-| 13 | `fruit` | Fruits | `fruit-drop.png` | 0.9 | Two round tree fruits, warm red-orange skin with a yellow blush, one leaf and short stem on the upper fruit. |
-| 14 | `seed` | Seeds | `seed-drop.png` | 0.75 | A small scatter of five teardrop seeds, tan and brown striped husks, one split showing a pale green sprout tip. |
-| 15 | `fae` | Fae | `fae-drop.png` | 0.8 | A single drifting fae mote — a pinpoint core of warm gold light inside a soft translucent bloom, four tiny trailing sparks beneath it. Weightless, hovering just above the ground, no wings. |
-| 16 | `fairy` | Fairy | `fairy-drop.png` | 0.9 | A tiny winged fairy at rest, seen small and stylised — luminous blue-white body, two pairs of translucent insect wings held upright, sitting cross-legged on a glowing pad of light. No facial detail beyond two soft light-dots. |
-| 17 | `wild_treat` | Wild Treat | `wild-treat.png` | 0.85 | A rough hand-shaped foraged snack — a bar of pressed berries, seeds and nuts bound in a folded green leaf tied with a grass stem. Rustic and homemade. |
-| 18 | `sweet_cache` | Sweet Cache | `sweet-cache.png` | 1.0 | A small opened pouch of amber honeycomb and candied fruit spilling onto the ground, sticky highlights, one bee-free comb chunk. Richer and more deliberate than the wild treat. |
-| 19 | `potion` | Potions | `potion-drop.png` | 0.85 | A stoppered round-bellied glass vial of bright crimson liquid, cork sealed with twine, a paper tag on the neck. Classic RPG healing potion, readable at a glance. |
-| 20 | `ale` | Ale | `ale-drop.png` | 0.9 | A stout wooden tankard of frothy amber ale, iron bands, foam spilling slightly over the rim. |
-| 21 | `fresh_water` | Fresh Water | `fresh-water.png` | 0.85 | A clear glass flask of still, colourless water with a simple cork, a single condensation highlight down one side. Plain and clean — deliberately the least magical item on the list. |
-| 22 | `berry_juice` | Berry Juice | `berry-juice.png` | 0.85 | A tall slim bottle of deep magenta berry juice, cork stopper, one whole berry floating near the top, pulpy sediment at the base. |
-| 23 | `fruit_bar` | Fruit Bar | `fruit-bar.png` | 0.8 | A pressed fruit bar half-unwrapped from waxed paper, dense with visible dried fruit pieces, one bite missing from the corner. |
-| 24 | `soulphish` | Soulphish | `soulphish.png` | 1.1 | A small spectral fish hovering in the air rather than lying flat — translucent pale-cyan body, luminous spine visible through it, long trailing ghost-fins that fade to nothing at the tips. Ethereal, not a food item. |
-| 25 | `life_seed` | Life Seed (spoiling) | `life-seed.png` | 0.85 | A fist-sized seed pod with a dull, dimming green glow, its husk beginning to brown and split at one end, one wilting sprout. Must read as SPOILING — past its best. |
-| 26 | `life_seed_pure` | Pure Life Seed | `life-seed-pure.png` | 0.9 | The same seed pod at its peak — vivid emerald husk, clean unbroken shell, a bright verdant core glowing through fine surface veins, two fresh leaves. Unmistakably the healthy twin of the spoiling one. |
-| 27 | `verdant_elixir` | Mythic Elixir | `verdant-elixir.png` | 0.95 | An ornate faceted-glass decanter of luminous verdant-green elixir, gold filigree collar and stopper, the liquid lit from inside with slow curling light. Reads as the rarest consumable in the game. |
-| 28 | `zycube` | Zycube | `zycube-drop.png` | 1.0 | A palm-sized floating cube of pale cyan crystal, edges rimmed in soft light, its six faces showing faint lattice etching. Hovers a little above the ground with a light contact glow. Storage prism, not a gem. |
-| 29 | `zphone` | ZyPhone (ZYCELLITE) | `zphone-drop.png` | 0.9 | A slim handheld device face-up on the ground, dark charcoal chassis with a cyan-lit screen edge and a single hard-light bezel seam. Cyberpunk, minimal, no visible branding or lettering. |
-| 30 | `backpack` | Backpack | `backpack-drop.png` | 1.2 | A worn traveller's backpack sitting upright, canvas and leather straps, buckles, a bedroll lashed across the top, one side pocket open. |
-| 31 | `gearbag` | Gearbag | `gearbag-drop.png` | 1.2 | A squat reinforced duffel lying on its side, heavy zip half-open showing tool handles, two carry straps, riveted corner guards. Utilitarian sibling of the backpack. |
-| 32 | `faenet` | Fae Net | `faenet-drop.png` | 1.2 | A short-handled catching net lying at an angle, wooden shaft, brass collar, fine gauze mesh with a faint residual glimmer caught in the weave. |
-| 33 | `skateboard` | Skateboard | `skateboard-drop.png` | 1.4 | A skateboard resting deck-up at a slight angle, worn grip tape, scuffed nose and tail, coloured underside graphic hinted at the edge. No lettering or logos. |
-| 34 | `worldmap` | World Map | `worldmap-drop.png` | 1.1 | A rolled parchment map partly unfurled on the ground, aged paper, faint coastline and route lines visible on the exposed portion, tied with a leather cord. No readable text. |
-| 35 | `raidcard` | R.A.I.D. Card | `raidcard.png` | 0.8 | A rigid ID card lying face-up, dark polymer with a metallic edge strip, an embossed geometric sigil and a thin cyan data stripe. No legible lettering. |
-| 36 | `dads_notebook` | Dad's Notebook (paper) | `dads-notebook.png` | 0.9 | A battered field notebook closed with an elastic band, softened corners, a pencil slipped into the spine, loose pages edging out. Personal and well-used. |
-| 37 | `elzebub_egg` | Elzebub Egg | `elzebub-egg.png` | 1.0 | A dark speckled egg upright in a shallow nest of black twigs, shell deep charcoal with dull violet mottling and a faint inner pulse of red light through hairline cracks. Ominous. |
-| 38 | `broken_raygun` | Broken Raygun | `broken-raygun.png` | 1.2 | A retro-futurist ray pistol lying broken — cracked emitter bell, bent barrel, exposed sparking wire at the grip, one dead indicator bulb. Clearly non-functional. |
-| 39 | `ruby_vial` | Ruby Vial | `ruby-vial.png` | 0.8 | A slender faceted vial of dark arterial red fluid, sealed with a blackened metal cap and a wax band. Sinister rather than medicinal. |
-| 40 | `shardshare` | Shardshare Collar | `shardshare.png` | 1.0 | An intact creature collar laid in a loose circle — supple dark band with a central socketed crystal glowing steady cyan, small metal shard-mounts spaced around it. Whole and powered. |
-| 41 | `portalkey` | PORTALKEY | `portalkey.png` | 1.0 | A heavy angular key of dark alloy with a ring of floating, slowly-rotating glyph segments where the bit would be, held in place by light rather than metal. Powered and complete. |
-| 42 | `portalkey_broken` | Broken Transmitter | `portalkey-broken.png` | 1.0 | The same key form, dead — glyph segments collapsed and scattered loose around the shaft, alloy dull and pitted, one snapped prong, no glow. |
-| 43 | `astralcore_transponder` | Astralcore Transponder | `astralcore-transponder.png` | 1.1 | A squat signal device on three stubby legs, dark casing with a ribbed heat sink, a short stub antenna and a slow-pulsing amber ring lamp on the face. |
-| 44 | `life_stone` | Life Stone | `life-stone.png` | 0.9 | A rounded river-worn stone with a vivid green vein running through it that glows softly from within, moss clinging to one side. |
-| 45 | `tower_battery` | Tower Battery | `tower-battery.png` | 1.0 | A heavy industrial cell — ribbed metal casing, two exposed terminal posts, a charge-level window down one side lit in cyan, scorch marks near the base. |
-| 46 | `prismshard` | Prismshard | `prismshard.png` | 1.3 | A composite relic — several small differently-coloured astralite fragments fused into one floating prismatic cluster, held in equilibrium with visible light-bridges arcing between them. Rich, layered, clearly made of MANY parts. |
-| 47 | `evolution_catalyst` | Evolution Catalyst | `evolution-catalyst.png` | 1.1 | A teardrop of dense swirling energy suspended in a thin metal cradle, its interior shifting between two states — one half chrysalis-pale, the other blazing gold. Transformation made visible. |
-| 48 | `rare_item` | Rare Item | `rare-item.png` | 1.0 | A sealed unmarked treasure casket small enough to carry, dark lacquered wood with gold corner fittings and a heavy clasp, faint golden light escaping the seam. Contents deliberately unreadable. |
-| 49 | `zysphere` | Zysphere | `zysphere-drop.png` | 0.95 | A bonding sphere the size of a fist — polished two-tone shell split by a bright equatorial seam, upper half deep indigo, lower half pale bone-white, a single cyan lens at the centre of the seam. Sits on the ground with a soft reflected highlight. NOT a Poke Ball: the seam glows and the halves are offset, asymmetric. |
-| 50 | `rubypaw_fang` | Rubypaw Fang | `rubypaw-fang-icon.png` | 1.2 | A single curved shed tooth the length of a forearm, used as a dagger — deep ruby translucent enamel darkening to near-black at the root, wrapped at the base with worn leather cord for a grip. Rakoron's own fang; the Rubypaw Longsword is forged from it later, so it must read as the same material. |
-| 51 | `shard_ember` | Ember Shard | `shard-ember.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: hot orange-red, guttering flame core. |
-| 52 | `shard_cryo` | Cryo Shard | `shard-cryo.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: pale ice-blue, frost crystals creeping on the facets. |
-| 53 | `shard_volt` | Volt Shard | `shard-volt.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: electric yellow-white, hairline arcs crawling the surface. |
-| 54 | `shard_terra` | Terra Shard | `shard-terra.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: earthen amber-brown, packed mineral grain. |
-| 55 | `shard_tide` | Tide Shard | `shard-tide.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: deep sea-green, slow liquid motion inside. |
-| 56 | `shard_squall` | Squall Shard | `shard-squall.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: storm grey-cyan, whipping wind streaks. |
-| 57 | `shard_verdant` | Verdant Shard | `shard-verdant.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: living green, fine vines growing across the shard. |
-| 58 | `shard_stellar` | Stellar Shard | `shard-stellar.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: midnight blue with a starfield suspended inside. |
-| 59 | `shard_corona` | Corona Shard | `shard-corona.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: blinding solar gold with a flare halo. |
-| 60 | `shard_halo` | Halo Shard | `shard-halo.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: pure white with a floating ring above it. |
-| 61 | `shard_null` | Null Shard | `shard-null.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: matte void black that swallows light, edges barely visible. |
-| 62 | `shard_prism` | Prism Shard | `shard-prism.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: clear, splitting light into a full spectrum. |
-| 63 | `shard_chronal` | Chronal Shard | `shard-chronal.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: bronze-sepia, faint clock-glyph after-images trailing it. |
-| 64 | `shard_wraith` | Wraith Shard | `shard-wraith.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: translucent spectral violet, smoke bleeding off the edges. |
-| 65 | `shard_hive` | Hive Shard | `shard-hive.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: amber hexagonal cells packed inside a waxy shell. |
-| 66 | `shard_predator` | Predator Shard | `shard-predator.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: blood-crimson with a slit-pupil glint at the core. |
-| 67 | `shard_martial` | Martial Shard | `shard-martial.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: burnished steel-grey, edge honed like a blade. |
-| 68 | `shard_reactor` | Reactor Shard | `shard-reactor.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: radioactive lime-green, warning glow, faint heat shimmer. |
-| 69 | `shard_xeno` | Xeno Shard | `shard-xeno.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: iridescent oil-slick purple-green, unsettlingly organic. |
-| 70 | `shard_wyrm` | Wyrm Shard | `shard-wyrm.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: dragon-scale emerald and gold, ridged like a scale. |
-| 71 | `shard_auracide` | Auracide Shard | `shard-auracide.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: sickly bruise-purple, visibly draining light from around it. |
-| 72 | `shard_blackspiral` | Blackspiral Shard | `shard-blackspiral.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: obsidian with a white spiral turning slowly in its depths. |
+| 3 | `moon_gem` | Moon Gems | `moon-gem.png` | 1.0 | Two pale moonstone spheres, milky translucent white-blue, gently glowing from within, one slightly cracked. Rounder and softer than the faceted gems so it reads as a different currency at a glance. |
+| 4 | `berry` | Berries | `berry-drop.png` | 0.8 | A small pile of four plump wild berries, deep blue-purple, dewy highlights, two green leaves tucked under. Foraged, not packaged. |
+| 5 | `fruit` | Fruits | `fruit-drop.png` | 0.9 | Two round tree fruits, warm red-orange skin with a yellow blush, one leaf and short stem on the upper fruit. |
+| 6 | `seed` | Seeds | `seed-drop.png` | 0.75 | A small scatter of five teardrop seeds, tan and brown striped husks, one split showing a pale green sprout tip. |
+| 7 | `fairy` | Fairy | `fairy-drop.png` | 0.9 | A tiny winged fairy at rest, seen small and stylised — luminous blue-white body, two pairs of translucent insect wings held upright, sitting cross-legged on a glowing pad of light. No facial detail beyond two soft light-dots. |
+| 8 | `wild_treat` | Wild Treat | `wild-treat.png` | 0.85 | A rough hand-shaped foraged snack — a bar of pressed berries, seeds and nuts bound in a folded green leaf tied with a grass stem. Rustic and homemade. |
+| 9 | `sweet_cache` | Sweet Cache | `sweet-cache.png` | 1.0 | A small opened pouch of amber honeycomb and candied fruit spilling onto the ground, sticky highlights, one bee-free comb chunk. Richer and more deliberate than the wild treat. |
+| 10 | `potion` | Potions | `potion-drop.png` | 0.85 | A stoppered round-bellied glass vial of bright crimson liquid, cork sealed with twine, a paper tag on the neck. Classic RPG healing potion, readable at a glance. |
+| 11 | `ale` | Ale | `ale-drop.png` | 0.9 | A stout wooden tankard of frothy amber ale, iron bands, foam spilling slightly over the rim. |
+| 12 | `fresh_water` | Fresh Water | `fresh-water.png` | 0.85 | A clear glass flask of still, colourless water with a simple cork, a single condensation highlight down one side. Plain and clean — deliberately the least magical item on the list. |
+| 13 | `berry_juice` | Berry Juice | `berry-juice.png` | 0.85 | A tall slim bottle of deep magenta berry juice, cork stopper, one whole berry floating near the top, pulpy sediment at the base. |
+| 14 | `fruit_bar` | Fruit Bar | `fruit-bar.png` | 0.8 | A pressed fruit bar half-unwrapped from waxed paper, dense with visible dried fruit pieces, one bite missing from the corner. |
+| 15 | `soulphish` | Soulphish | `soulphish.png` | 1.1 | A small spectral fish hovering in the air rather than lying flat — translucent pale-cyan body, luminous spine visible through it, long trailing ghost-fins that fade to nothing at the tips. Ethereal, not a food item. |
+| 16 | `life_seed_pure` | Pure Life Seed | `life-seed-pure.png` | 0.9 | The same seed pod at its peak — vivid emerald husk, clean unbroken shell, a bright verdant core glowing through fine surface veins, two fresh leaves. Unmistakably the healthy twin of the spoiling one. |
+| 17 | `verdant_elixir` | Mythic Elixir | `verdant-elixir.png` | 0.95 | An ornate faceted-glass decanter of luminous verdant-green elixir, gold filigree collar and stopper, the liquid lit from inside with slow curling light. Reads as the rarest consumable in the game. |
+| 18 | `zycube` | Zycube | `zycube-drop.png` | 1.0 | A palm-sized floating cube of pale cyan crystal, edges rimmed in soft light, its six faces showing faint lattice etching. Hovers a little above the ground with a light contact glow. Storage prism, not a gem. |
+| 19 | `zphone` | ZyPhone (ZYCELLITE) | `zphone-drop.png` | 0.9 | A slim handheld device face-up on the ground, dark charcoal chassis with a cyan-lit screen edge and a single hard-light bezel seam. Cyberpunk, minimal, no visible branding or lettering. |
+| 20 | `backpack` | Backpack | `backpack-drop.png` | 1.2 | A worn traveller's backpack sitting upright, canvas and leather straps, buckles, a bedroll lashed across the top, one side pocket open. |
+| 21 | `gearbag` | Gearbag | `gearbag-drop.png` | 1.2 | A squat reinforced duffel lying on its side, heavy zip half-open showing tool handles, two carry straps, riveted corner guards. Utilitarian sibling of the backpack. |
+| 22 | `faenet` | Fae Net | `faenet-drop.png` | 1.2 | A short-handled catching net lying at an angle, wooden shaft, brass collar, fine gauze mesh with a faint residual glimmer caught in the weave. |
+| 23 | `worldmap` | World Map | `worldmap-drop.png` | 1.1 | A rolled parchment map partly unfurled on the ground, aged paper, faint coastline and route lines visible on the exposed portion, tied with a leather cord. No readable text. |
+| 24 | `raidcard` | R.A.I.D. Card | `raidcard.png` | 0.8 | A rigid ID card lying face-up, dark polymer with a metallic edge strip, an embossed geometric sigil and a thin cyan data stripe. No legible lettering. |
+| 25 | `dads_notebook` | Dad's Notebook (paper) | `dads-notebook.png` | 0.9 | A battered field notebook closed with an elastic band, softened corners, a pencil slipped into the spine, loose pages edging out. Personal and well-used. |
+| 26 | `ruby_vial` | Ruby Vial | `ruby-vial.png` | 0.8 | A slender faceted vial of dark arterial red fluid, sealed with a blackened metal cap and a wax band. Sinister rather than medicinal. |
+| 27 | `shardshare` | Shardshare Collar | `shardshare.png` | 1.0 | An intact creature collar laid in a loose circle — supple dark band with a central socketed crystal glowing steady cyan, small metal shard-mounts spaced around it. Whole and powered. |
+| 28 | `portalkey_broken` | Broken Transmitter | `portalkey-broken.png` | 1.0 | The same key form, dead — glyph segments collapsed and scattered loose around the shaft, alloy dull and pitted, one snapped prong, no glow. |
+| 29 | `astralcore_transponder` | Astralcore Transponder | `astralcore-transponder.png` | 1.1 | A squat signal device on three stubby legs, dark casing with a ribbed heat sink, a short stub antenna and a slow-pulsing amber ring lamp on the face. |
+| 30 | `tower_battery` | Tower Battery | `tower-battery.png` | 1.0 | A heavy industrial cell — ribbed metal casing, two exposed terminal posts, a charge-level window down one side lit in cyan, scorch marks near the base. |
+| 31 | `prismshard` | Prismshard | `prismshard.png` | 1.3 | A composite relic — several small differently-coloured astralite fragments fused into one floating prismatic cluster, held in equilibrium with visible light-bridges arcing between them. Rich, layered, clearly made of MANY parts. |
+| 32 | `evolution_catalyst` | Evolution Catalyst | `evolution-catalyst.png` | 1.1 | A teardrop of dense swirling energy suspended in a thin metal cradle, its interior shifting between two states — one half chrysalis-pale, the other blazing gold. Transformation made visible. |
+| 33 | `rare_item` | Rare Item | `rare-item.png` | 1.0 | A sealed unmarked treasure casket small enough to carry, dark lacquered wood with gold corner fittings and a heavy clasp, faint golden light escaping the seam. Contents deliberately unreadable. |
+| 34 | `shard_ember` | Ember Shard | `shard-ember.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: hot orange-red, guttering flame core. |
+| 35 | `shard_cryo` | Cryo Shard | `shard-cryo.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: pale ice-blue, frost crystals creeping on the facets. |
+| 36 | `shard_volt` | Volt Shard | `shard-volt.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: electric yellow-white, hairline arcs crawling the surface. |
+| 37 | `shard_terra` | Terra Shard | `shard-terra.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: earthen amber-brown, packed mineral grain. |
+| 38 | `shard_tide` | Tide Shard | `shard-tide.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: deep sea-green, slow liquid motion inside. |
+| 39 | `shard_squall` | Squall Shard | `shard-squall.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: storm grey-cyan, whipping wind streaks. |
+| 40 | `shard_verdant` | Verdant Shard | `shard-verdant.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: living green, fine vines growing across the shard. |
+| 41 | `shard_stellar` | Stellar Shard | `shard-stellar.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: midnight blue with a starfield suspended inside. |
+| 42 | `shard_corona` | Corona Shard | `shard-corona.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: blinding solar gold with a flare halo. |
+| 43 | `shard_halo` | Halo Shard | `shard-halo.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: pure white with a floating ring above it. |
+| 44 | `shard_null` | Null Shard | `shard-null.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: matte void black that swallows light, edges barely visible. |
+| 45 | `shard_prism` | Prism Shard | `shard-prism.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: clear, splitting light into a full spectrum. |
+| 46 | `shard_chronal` | Chronal Shard | `shard-chronal.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: bronze-sepia, faint clock-glyph after-images trailing it. |
+| 47 | `shard_wraith` | Wraith Shard | `shard-wraith.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: translucent spectral violet, smoke bleeding off the edges. |
+| 48 | `shard_hive` | Hive Shard | `shard-hive.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: amber hexagonal cells packed inside a waxy shell. |
+| 49 | `shard_predator` | Predator Shard | `shard-predator.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: blood-crimson with a slit-pupil glint at the core. |
+| 50 | `shard_martial` | Martial Shard | `shard-martial.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: burnished steel-grey, edge honed like a blade. |
+| 51 | `shard_reactor` | Reactor Shard | `shard-reactor.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: radioactive lime-green, warning glow, faint heat shimmer. |
+| 52 | `shard_xeno` | Xeno Shard | `shard-xeno.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: iridescent oil-slick purple-green, unsettlingly organic. |
+| 53 | `shard_wyrm` | Wyrm Shard | `shard-wyrm.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: dragon-scale emerald and gold, ridged like a scale. |
+| 54 | `shard_auracide` | Auracide Shard | `shard-auracide.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: sickly bruise-purple, visibly draining light from around it. |
+| 55 | `shard_blackspiral` | Blackspiral Shard | `shard-blackspiral.png` | 1.0 | **ULTRASHARD — shared silhouette, see note below.** Colour and motif: obsidian with a white spiral turning slowly in its depths. |
 
-**72 files total.**
+**55 files to generate.**
 
 ## The 22 Ultrashards — one silhouette, 22 finishes
 

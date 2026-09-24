@@ -6387,6 +6387,36 @@ function buildDistrictElderNpcs(){
             try { pingNextObjective(); } catch(_){}
           }
         } catch(_){}
+        // ★★★★ v0.99.27 · THE ELDER WALKS THEIR OWN LADDER, like Kelthor does.
+        //   Without this the nine ladders exist as data and are never spoken:
+        //   the rungs would tick silently in the quest log and the Elder would
+        //   keep reading their two flavour lines forever. An Elder who cannot
+        //   tell you what they want next is not a quest-giver, and a trial the
+        //   player is never told about is a vault that looks broken.
+        try {
+          const _r = (typeof elderNextRung === 'function') ? elderNextRung(e.dist) : null;
+          if (_r){
+            const _L = ELDER_LADDERS[e.dist] || [];
+            const _i = _L.indexOf(_r) + 1;
+            const _g = ELDER_LADDER_GROUPS[_r.ladder - 1];
+            showDialog({ speaker:e.name.toUpperCase(), lines:[
+              ...art.lines,
+              `— Ladder ${'I'.repeat(_r.ladder)} · ${_g ? _g.name : ''} · rung ${_i}/${_L.length}`,
+              `${_r.title} — ${_r.label()}`,
+              _r.hint(),
+            ]});
+            return;
+          }
+          // ★★ Ladder finished · elderLadderComplete promotes the flag and the
+          //   vault in this hall unseals. Say so, here, where they are standing.
+          if (typeof elderLadderComplete === 'function' && elderLadderComplete(e.dist)){
+            showDialog({ speaker:e.name.toUpperCase(), lines:[
+              ...art.lines,
+              `— Their trials are done. The MYTHIC VAULT in the ${e.dist.toUpperCase()} town hall is open to you.`,
+            ]});
+            return;
+          }
+        } catch(_){}
         showDialog({ speaker:e.name.toUpperCase(), lines:art.lines });
       },
     };
@@ -20642,6 +20672,10 @@ function elderTrialComplete(dist){
   if (game.devMaxBond) return true;                 // ★ dev bypass, as directed
   if (dist === 'malezor' && typeof kelthorLadderComplete === 'function'
       && kelthorLadderComplete()) return true;
+  // ★★★ v0.99.27 · and the other nine read their own generated ladder, by the
+  //   same rule: the LIVE state decides, and finishing promotes itself to the
+  //   persisted flag exactly once.
+  if (typeof elderLadderComplete === 'function' && elderLadderComplete(dist)) return true;
   return !!(player.elderTrials && player.elderTrials[dist]);
 }
 function completeElderTrial(dist){
@@ -42558,7 +42592,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.26' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.27' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -50017,6 +50051,7 @@ function saveGame(){
         favoriteItem: player.favoriteItem || null,            // v0.95.116 · CREATE shortcut
         bagOrder: player.bagOrder || null,                   // ★ v0.99.20 · hand-arranged ZyCube order · loadGame's Object.assign restores it
         elderTrials: player.elderTrials || {},               // ★ v0.99.22 · which districts' mythic vaults have been earned
+        elderStep: player.elderStep || {},                   // ★ v0.99.27 · per-rung escape hatch, mirroring player.kelthorStep
         townHallVaults: player.townHallVaults || {},         // ★ v0.99.24 · which vaults have been emptied · a Gemlord arm is once-only
         cosmeticSkin: PLAYER_SKINS[player.cosmeticSkin] ? player.cosmeticSkin : 'normal', // v0.95.240
         activeActor: player.activeActor||'rizer',
@@ -54514,6 +54549,145 @@ function tickMalezorEggs(){
 }
 
 // ★ sticky · a rung STAYS climbed even if you spend the berries afterwards
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.27 · THE NINE OTHER ELDER LADDERS · Creator, 2026-09-23:
+//   "make the ladder for all the elder trials. just make skeletons. we will
+//    increase difficulty of the ladders as we beta test. just follow format of
+//    kelthors, with the items in mind, and enemies, and all other game content
+//    per district."
+//
+// ★★★★ ONE TEMPLATE, NINE DATA ROWS — NOT NINE COPIES OF KELTHOR.
+//   Kelthor's twelve rungs are hand-authored prose, and writing nine more like
+//   that would be ~1,100 lines in which every difficulty tweak during beta is a
+//   prose edit in nine places. The Creator asked for SKELETONS that get harder
+//   as they test: so the shape is a template and the district is a data row,
+//   and tuning a ladder is changing a NUMBER.
+//
+// ★★★ EVERY RUNG READS STATE THAT ALREADY EXISTS. No new flags were invented
+//   for these: eldersMet, the kill counters, lootedChests, towerRestored(),
+//   seerHqChests and visitedDistricts are all live and all already persisted.
+//   A skeleton wired to imaginary flags is a skeleton that cannot be tested,
+//   which is the opposite of what beta needs.
+//
+// ★★ Kelthor keeps his own bespoke ladder. It is the reference the Creator
+//   named and it is finished writing; replacing it with a generated one would
+//   trade authored prose for a template to gain nothing.
+const ELDER_LADDER_GROUPS = [
+  { n:1, name:'THE FIELD',    line:'What this district asks of anyone who walks it.' },
+  { n:2, name:'THE DISTRICT', line:'Its tower, its locked places, its people.' },
+  { n:3, name:'THE CROSSING', line:'One border. One Elder waiting on the other side.' },
+];
+// dist -> the content the rungs point at. enemy/kills and chests are the two
+// difficulty dials; `next` is the district the third ladder sends you to.
+const ELDER_TRIAL_DATA = [
+  { dist:'zarvane',   enemy:'satyrbeast', enemyLabel:'Satyrbeast', kills: 6, chests:3, next:'andrannor' },
+  { dist:'andrannor', enemy:'morlisk',    enemyLabel:'Morlisk',    kills: 8, chests:3, next:'veridan'   },
+  { dist:'veridan',   enemy:'vilerok',    enemyLabel:'Vilerok',    kills:10, chests:4, next:'netharion' },
+  { dist:'netharion', enemy:'nymphysyl',  enemyLabel:'Nymphysyl',  kills:12, chests:4, next:'vorashil'  },
+  { dist:'vorashil',  enemy:'vorugath',   enemyLabel:'Vorugath',   kills:14, chests:4, next:'xilnar'    },
+  { dist:'xilnar',    enemy:'morlisk',    enemyLabel:'Morlisk',    kills:16, chests:5, next:'baelgor'   },
+  { dist:'baelgor',   enemy:'daemon',     enemyLabel:'Daemon',     kills:18, chests:5, next:'thardin'   },
+  { dist:'thardin',   enemy:'vorugath',   enemyLabel:'Vorugath',   kills:20, chests:5, next:'korathen'  },
+  // ★ Korathen is the last district · there is no next border, so its third
+  //   ladder turns inward on the Bridge of Hope instead of outward.
+  { dist:'korathen',  enemy:'daemon',     enemyLabel:'Daemon',     kills:24, chests:6, next:null        },
+];
+// ★★ Kill counters in this build are GLOBAL, not per-district (player.stats
+//   .moriKills, player.vilerokKills, player.vorugathKills). Only three species
+//   have one at all, so a rung naming a species without a counter would be
+//   uncompletable. Fall back to the Mori count — every district is full of
+//   them — and leave the species in the LABEL so the intent survives until
+//   per-species-per-district counters exist.
+function _elderKillCount(sp){
+  try {
+    if (sp === 'vilerok')  return player.vilerokKills  || 0;
+    if (sp === 'vorugath') return player.vorugathKills || 0;
+  } catch(_){}
+  return (player.stats && player.stats.moriKills) || 0;
+}
+function _elderChestCount(dist){
+  const L = player.lootedChests || [];
+  return L.filter(id => String(id).includes(dist)).length;
+}
+// Build one district's rungs from the template.
+function buildElderLadder(D){
+  const E = (typeof ELDER_BY_DIST !== 'undefined') ? ELDER_BY_DIST[D.dist] : null;
+  const who = (E && E.name) || 'the Elder';
+  const DIST = D.dist.toUpperCase();
+  const NEXT = D.next ? D.next.toUpperCase() : null;
+  return [
+    { key:D.dist+'_1', ladder:1, bond:1, xp:200,
+      title:'Presented',
+      done: () => !!(player.eldersMet && E && player.eldersMet[E.id]),
+      label: () => `Report to ${who} · ${(E && E.seat) || DIST}`,
+      hint:  () => `${who} stands at the ${DIST} town hall.`,
+      reward:`${DIST} key · Ladder I opens`,
+      lines:[ `*${who} does not rise* So Kelthor's ladder reached this far.`,
+              `${DIST} does not care what you climbed elsewhere. Climb here.` ] },
+    { key:D.dist+'_2', ladder:1, bond:1, xp:400,
+      title:`Cull · ${D.enemyLabel}`,
+      done: () => _elderKillCount(D.enemy) >= D.kills,
+      label: () => `Defeat ${D.kills} ${D.enemyLabel} (${Math.min(D.kills,_elderKillCount(D.enemy))}/${D.kills})`,
+      hint:  () => `${Math.min(D.kills,_elderKillCount(D.enemy))}/${D.kills}. They are thickest away from the road.`,
+      reward:'+400 RXP',
+      lines:[ `*they counted before you spoke* ${D.kills}. The ward-line holds another season.` ] },
+    { key:D.dist+'_3', ladder:1, bond:1, xp:600,
+      title:'What This District Keeps',
+      done: () => _elderChestCount(D.dist) >= D.chests,
+      label: () => `Open ${D.chests} chests in ${DIST} (${Math.min(D.chests,_elderChestCount(D.dist))}/${D.chests})`,
+      hint:  () => `${Math.min(D.chests,_elderChestCount(D.dist))}/${D.chests}. Wood and silver open freely. Gold wants my key.`,
+      reward:'Ladder I complete',
+      lines:[ 'You have taken what was lying about. Now earn what is not.' ] },
+    { key:D.dist+'_4', ladder:2, bond:1, xp:900,
+      title:'Signal Restored',
+      done: () => { try { return !!towerRestored(D.dist); } catch(_){ return false; } },
+      label: () => `Restore the ${DIST} radio tower`,
+      hint:  () => 'The tower is dead. It needs a battery and someone willing to climb.',
+      reward:'Tower network online',
+      lines:[ '*the set crackles* The other nine can hear us again. That is not nothing.' ] },
+    { key:D.dist+'_5', ladder:2, bond:1, xp:1200,
+      title:'The Seer House',
+      done: () => !!(player.seerHqChests && player.seerHqChests[D.dist]),
+      label: () => `Empty the ${DIST} Seer HQ cache`,
+      hint:  () => 'The Seers hold the road out of this district. Go and take the room off them.',
+      reward:'Ladder II complete',
+      lines:[ 'The Seers keep ledgers on all of us. One fewer now.' ] },
+    { key:D.dist+'_6', ladder:3, bond:1, xp:2000,
+      title: NEXT ? `The Crossing · ${NEXT}` : 'The Bridge of Hope',
+      done: () => NEXT ? !!(player.visitedDistricts && player.visitedDistricts[D.next])
+                       : !!(player.elderTrials && Object.keys(player.elderTrials).length >= 9),
+      label: () => NEXT ? `Cross into ${NEXT}` : 'Stand on the Bridge of Hope',
+      hint:  () => NEXT ? `${NEXT} is through the Seer road. They will not wave you past.`
+                        : 'Nine Elders have set their trials. Finish them and come back to me.',
+      reward:'MYTHIC VAULT OPENS',
+      lines:[ NEXT ? `Go. ${NEXT} is a thing you walk into now, not a thing that happens to you.`
+                   : 'Then it is done. The vault in this hall was never mine to keep.',
+              '*they turn toward the hall* What is in there is yours. It always was.' ] },
+  ];
+}
+const ELDER_LADDERS = Object.fromEntries(ELDER_TRIAL_DATA.map(D => [D.dist, buildElderLadder(D)]));
+// ★★★ The runner mirrors Kelthor's exactly — same persisted-step escape hatch,
+//   same "first unclimbed rung" semantics — so the two cannot drift on what
+//   "done" means.
+function elderRungDone(dist, r){
+  const S = player.elderStep = player.elderStep || {};
+  if (S[r.key]) return true;
+  try { return !!r.done(); } catch(_){ return false; }
+}
+function elderNextRung(dist){
+  const L = ELDER_LADDERS[dist];
+  if (!L) return null;
+  for (const r of L) if (!elderRungDone(dist, r)) return r;
+  return null;
+}
+function elderLadderComplete(dist){
+  if (!ELDER_LADDERS[dist]) return false;
+  const done = !elderNextRung(dist);
+  if (done && !(player.elderTrials && player.elderTrials[dist])){
+    try { completeElderTrial(dist); } catch(_){}
+  }
+  return done;
+}
 function kelthorRungDone(r){
   const KS = player.kelthorStep = player.kelthorStep || {};
   if (KS[r.key]) return true;

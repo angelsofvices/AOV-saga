@@ -30,7 +30,7 @@ const G = bootGame({ extra: ['renderZycellZycube','player','game','zycubeOpenCat
   'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem',
   'ZYCUBE_ART_ELSEWHERE','zyAttrHilite','zycubeAstraliteCrop','ASTRALITE_GEM_SHEETS',
   'ASTRALITE_FAMILIES','renderZycellRaidCard','useZycubeItem','zycellCyclePage',
-  'migrateFairies','ZYCUBE_ICON'] });
+  'migrateFairies','ZYCUBE_ICON','DISTRICT_ORDER'] });
 console.log = _L;
 
 G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
@@ -170,7 +170,13 @@ H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallba
   // ★★★ 72 -> 71 at v0.99.35 · `fairy` was retired into `fae` on the Creator's
   //   canon ("we dont need fairy items. they are fae"), so the manifest lost an
   //   entry on purpose and its art file was deleted rather than left orphaned.
-  ok(Object.keys(man).length === 71, `ZYCUBE_ART carries ${Object.keys(man).length} entries`);
+  // ★★ 71 -> 81 at v0.99.38 · the ten Elder keys were delivered and wired.
+  //   They had been drawing a 🔑 glyph since v0.99.22 — correct as a fallback,
+  //   wrong as a final state for the item the whole lock ladder turns on.
+  ok(Object.keys(man).length === 81, `ZYCUBE_ART carries ${Object.keys(man).length} entries`);
+  const keyMiss = (G.DISTRICT_ORDER || []).filter(d => !G.zycubeArtFor('key_' + d));
+  ok(!keyMiss.length,
+     `★★★★ all ten district keys have art${keyMiss.length ? ' · MISSING: ' + keyMiss.join(', ') : ''}`);
   ok(!man.fairy && !G.INVENTORY_META.fairy,
      '★★★★ `fairy` is gone from BOTH the art manifest and INVENTORY_META · a retired item left in meta still shows in the bag');
   ok(!!man.zysphere && !!G.zycubeArtFor('zysphere'),

@@ -63,10 +63,20 @@ console.log('\n★★★★ THE HANDOFF IS FULFILLED · every item it asked for 
   //   deliberate retirement as a lost asset; counting 72 live would demand a
   //   file that should not exist. The sum is what was delivered, and the
   //   difference is named.
-  ok(files.length + rejected.length === 71,
-     `${files.length} live + ${rejected.length} rejected = ${files.length + rejected.length} in use (72 delivered · fairy retired into fae)`);
-  ok(!files.includes('fairy-drop.png'),
-     '★★★ fairy-drop.png is not in the live folder · it was the un-keyed twin of fae-drop.png, which the Creator replaced with the blue faery');
+  // ★★★★ ASSERT THIS HANDOFF'S OWN ROWS, NOT A FOLDER COUNT. items/bag/ is the
+  //   home for every bag icon now, so later deliveries land beside these — the
+  //   ten Elder keys arrived 2026-09-24 and pushed a bare count from 71 to 81,
+  //   reporting a later delivery as an error in this one. The stable claim is
+  //   "every file this document specified is present", and the one exception is
+  //   named rather than subtracted silently.
+  const docNames = [...DOC.matchAll(/^\| \d+ \| `[a-z0-9_]+` \| [^|]+ \| `([^`]+)` \|/gm)].map(m => m[1]);
+  const RETIRED = new Set(['fairy-drop.png']);   // v0.99.35 · fairy folded into fae
+  const want = docNames.filter(f => !RETIRED.has(f));
+  const absent = want.filter(f => !files.includes(f));
+  ok(docNames.length === 55, `${docNames.length} rows still requested by this handoff`);
+  ok(!absent.length,
+     `★★★★ all ${want.length} of them are present in items/bag${absent.length ? ' · MISSING: ' + absent.slice(0,4).join(', ') : ''}`
+   + ` · 1 retired (fairy → fae) · ${files.length - want.length} files from later deliveries also live there`);
   ok(rejected.length === 0,
      '★★★ nothing is rejected any more · zysphere was pulled for a Poké Ball silhouette and replaced the same day');
   const rows = [...DOC.matchAll(/^\| \d+ \| `([a-z0-9_]+)` \| [^|]+ \| `([^`]+)` \|$/gm)];

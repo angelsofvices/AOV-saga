@@ -23,7 +23,7 @@ const TILE = 48;
 
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['INTERIOR_CAVE','INTERIOR_CAVE_F2','INTERIOR_CAVE_F3','walkable','game','player',
-  'caveFloorUnlock','CAVE_F2_LEVEL','CAVE_UP_Y','grantDistrictKey','gemlordCavesOpen',
+  'caveFloorUnlock','CAVE_F2_LEVEL','CAVE_UP_Y','grantDistrictKey','gemlordCavesOpen','GEMLORD_CAVE_FLOOR',
   'interiorConfig','CAVE_STAIR_X','CAVE_STAIR_W','CAVE_STAIR_Y','CAVE_STAIR_VIS','CAVE_LAND',
   'GEMLORD_CAVE_INTERIORS','STAIRCASE_UP_BBOX'] });
 console.log = _L;
@@ -176,6 +176,23 @@ H('★ THE CAVE THE DOORS ACTUALLY OPEN IS THIS ONE');
   ok(carved.length >= 1, `${carved.length} gemlord cave(s) have a carved interior · the other nine are doors waiting on sanctums`);
   ok(carved.every(([, v]) => v.cfg() === G.INTERIOR_CAVE),
      `★★ every carved gemlord door leads to INTERIOR_CAVE · so fixing it fixes "all gemlord cave borders"`);
+}
+
+H('★★★ TEN CAVE FLOORS, ONE PER DISTRICT');
+{
+  //   Delivered 2026-09-24 alongside the Elder keys. 1254² seamless textures
+  //   with no chroma to key — they are full-bleed floors, not sprites.
+  // ★★★ Nine of the ten are wired and WAITING rather than used, because only
+  //   Rakoron's cave has a carved interior. That is the right way round: the
+  //   table is the seam, so carving a cave becomes a config change instead of
+  //   an asset hunt.
+  const F = G.GEMLORD_CAVE_FLOOR;
+  ok(Object.keys(F).length === 10, `${Object.keys(F).length} floors declared`);
+  const gone = Object.entries(F).filter(([, p3]) => !fs.existsSync(path.join(ROOT, decodeURIComponent(p3))));
+  ok(!gone.length,
+     `★★★ every one resolves to a real file${gone.length ? ' · MISSING: ' + gone.map(x => x[0]).join(', ') : ''}`);
+  ok(/gemlordCaveFloorSrc\('malezor'\)/.test(fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8')),
+     "★★ and the carved cave reaches its floor THROUGH the table, not by a hard-coded path");
 }
 
 console.log(f ? `\n❌ ${f} failed` : '\n✅ border sealed both floors · 3-wide stairs that draw 3 wide · two storeys, fully walkable');

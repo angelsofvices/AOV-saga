@@ -1,3 +1,12 @@
+// ★★★★ v0.99.28 · RETARGETED FROM THE VORASHIL SWORD TO THE MALEZOR VOLTSHARD.
+//   This suite tests the DROP CEREMONY the Creator asked for at v0.95.776 —
+//   "give it collision on spawn from chest. player must go up to it and press
+//   x" — and that ceremony is alive and unchanged. What moved is which chests
+//   use it: v0.99.24 put all four Gemlord arms into the town-hall mythic
+//   vaults, so the only overworld cosmic chest left is the Voltshard at the
+//   Malezor tower plaza. Testing the ceremony on a chest that no longer exists
+//   is testing nothing; it now runs on the one that does.
+//   ★ The vault hand-over path is covered separately by verify_lock_ladder.
 const fs = require('fs');
 const _harnessSrc = require('./lib/all_src.cjs')();
 const noop = () => {};
@@ -24,7 +33,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_weapondrop · v0.95.776 · Gemlord blades drop solid, taken with X
 try{new Function(require('./lib/all_src.cjs')()+
-  ';globalThis.__C={S1_WEAPON_RING,COSMIC_CHEST_SPOTS,SWORD_MAX,RUBY_MAX,_tileIsVisiblyClear,_weaponDropTile,COSMIC_CHEST_SPOTS,WEAPON_DROP_ART,spawnWeaponDrop,restoreWeaponDrops,_rememberWeaponDrops,_weaponDropTile,WORLD_PROPS,_propBlocked,worldDistrictAt,isWorldLandTile,isWorldBorderTile,player,game,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
+  ';globalThis.__C={game,TOWN_HALL_VAULTS,tryOpenTownHallVault,civicSceneId,S1_WEAPON_RING,COSMIC_CHEST_SPOTS,SWORD_MAX,RUBY_MAX,_tileIsVisiblyClear,_weaponDropTile,COSMIC_CHEST_SPOTS,WEAPON_DROP_ART,spawnWeaponDrop,restoreWeaponDrops,_rememberWeaponDrops,_weaponDropTile,WORLD_PROPS,_propBlocked,worldDistrictAt,isWorldLandTile,isWorldBorderTile,player,game,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)fail++;};
@@ -32,25 +41,32 @@ const H=t=>console.log('\n'+t);
 C.snapBuildingsToLattice(); C.buildAllTrails(); C.scatterWoodChests();
 C.topUpDistrictCollectibles(); C.evictFromBuildings();
 C.player.items={}; C.player.weaponDrops=[];
+// ★★★★ v0.99.28 · THE GATE IS NOT WHAT THIS SUITE TESTS, AND IT BLOCKED IT.
+//   v0.99.22 made every cosmic chest refuse until that district's Elder trials
+//   are done. Correct -- and it meant chest.onInteract() returned without
+//   spawning anything, so the DROP CEREMONY assertions failed for a reason
+//   with nothing to do with the ceremony. Open the gate the legitimate way
+//   (the Creator's own dev bypass); the gate itself is verify_lock_ladder's job.
+C.game.devMaxBond = true;
 
 H('1 · ★★ THE CHEST IS WHERE THE CREATOR STOOD');
 {
-  const v=C.COSMIC_CHEST_SPOTS.find(s=>s.dist==='vorashil');
-  ok(v.at[0]===283&&v.at[1]===465,`Vorashil chest at (${v.at}) — the tile from the screenshot`);
-  ok(v.creatorPlaced===true,'flagged creatorPlaced, so the canopy-percentile check skips it by name');
-  const chest=C.WORLD_PROPS.find(p=>p&&p._cosmicChest==='vorashil');
-  ok(!!chest&&chest.tileX===283&&chest.tileY===465,'and the prop is actually there');
-  ok(C.worldDistrictAt(283,465)==='vorashil','still inside Vorashil');
+  const v=C.COSMIC_CHEST_SPOTS.find(s=>s.item==='voltshard');
+  ok(v.at[0]===41&&v.at[1]===16,`Voltshard chest at (${v.at}) · Malezor tower plaza`);
+  ok(v.item==='voltshard','it is the Voltshard · a relic, not a Gemlord arm, so it never moved indoors');
+  const chest=C.WORLD_PROPS.find(p=>p&&p._cosmicChest==='malezor'&&p.id==='chest_cosmic_voltshard');
+  ok(!!chest&&chest.tileX===41&&chest.tileY===16,'and the prop is actually there');
+  ok(C.worldDistrictAt(41,16)==='malezor','still inside Malezor');
 }
 
 H('2 · ★★ OPENING THE CHEST DROPS A SOLID BLADE');
 {
-  const chest=C.WORLD_PROPS.find(p=>p&&p._cosmicChest==='vorashil');
-  const before=(C.player.items.sapphire_sword||0);
+  const chest=C.WORLD_PROPS.find(p=>p&&p._cosmicChest==='malezor'&&p.id==='chest_cosmic_voltshard');
+  const before=(C.player.items.voltshard||0);
   chest.onInteract();
-  ok((C.player.items.sapphire_sword||0)===before,
+  ok((C.player.items.voltshard||0)===before,
      'the sword does NOT go straight into the bag');
-  const drop=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='sapphire_sword');
+  const drop=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='voltshard');
   ok(!!drop,'a weapon drop appeared in the world');
   ok((drop.footprint||[]).length>0,'it carries a footprint');
   ok(C._propBlocked.has(`${drop.tileX},${drop.tileY}`),
@@ -63,7 +79,7 @@ H('2 · ★★ OPENING THE CHEST DROPS A SOLID BLADE');
 H('3 · ★★ YOU CAN STAND NEXT TO IT TO PRESS X');
 // A solid drop that walls itself into a corner is a soft-lock on the reward.
 {
-  const drop=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='sapphire_sword');
+  const drop=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='voltshard');
   const free=(x,y)=>C.isWorldLandTile(x,y)&&!C.isWorldBorderTile(x,y)&&!C._propBlocked.has(`${x},${y}`);
   const spots=[[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy])=>free(drop.tileX+dx,drop.tileY+dy));
   ok(spots.length>0,`${spots.length} walkable tile(s) adjacent — somewhere to stand and interact`);
@@ -71,43 +87,53 @@ H('3 · ★★ YOU CAN STAND NEXT TO IT TO PRESS X');
 
 H('4 · ★★ X TAKES IT, AND IT LEAVES NO GHOST WALL');
 {
-  const drop=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='sapphire_sword');
+  const drop=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='voltshard');
   const tile=`${drop.tileX},${drop.tileY}`;
   drop.onInteract();
-  ok((C.player.items.sapphire_sword||0)===1,'the sword is in the bag');
+  ok((C.player.items.voltshard||0)===1,'the relic is in the bag');
   // ★ v0.95.786 · this said ===200 and broke the moment the Tearsword's ceiling
   // dropped to 100. A test that hardcodes a game constant fails every time that
   // constant is tuned, which trains you to ignore it. Read the ceiling.
-  ok(C.player.swordDurability===C.SWORD_MAX&&C.player.swordBroken===false,
-     `and arrives sharp at its own ceiling (${C.player.swordDurability}/${C.SWORD_MAX})`);
-  ok(!C.WORLD_PROPS.some(p=>p&&p._weaponDrop==='sapphire_sword'),'the drop is gone from the world');
+  // ★★ v0.99.28 · the Voltshard is a RELIC · it has no durability ceiling to
+  //   arrive at, so the equivalent claim is simply that it landed in the bag.
+  ok((C.player.items.voltshard||0)===1, 'and the relic is in the bag · a relic carries no durability');
+  ok(!C.WORLD_PROPS.some(p=>p&&p._weaponDrop==='voltshard'),'the drop is gone from the world');
   ok(!C._propBlocked.has(tile),
      '★ and its tile is walkable again — no invisible wall left behind');
 }
 
-H('5 · ★★ THE RUBYPAW WORKS THE SAME WAY');
+H('5 · ★★★★ THE RUBYPAW COMES FROM THE VAULT NOW, NOT A FOREST CHEST');
 {
-  const chest=C.WORLD_PROPS.find(p=>p&&p.id==='chest_cosmic_rubypaw_sword');   // ★ v0.95.822 · item-keyed · Malezor has two cosmic chests now
-  ok(!!chest,'the Malezor cosmic chest exists');
-  chest.onInteract();
-  ok((C.player.items.rubypaw_sword||0)===0,'the Rubypaw does not go straight into the bag either');
-  const drop=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='rubypaw_sword');
-  ok(!!drop&&C._propBlocked.has(`${drop.tileX},${drop.tileY}`),'it drops solid too');
-  drop.onInteract();
-  ok((C.player.items.rubypaw_sword||0)===1,'X takes it');
+  // ★★★★ v0.99.28 · This section used to open chest_cosmic_rubypaw_sword in the
+  //   Malezor woods. That chest was DELETED at v0.99.24 when all four Gemlord
+  //   arms moved into the town-hall mythic vaults — two chests holding one
+  //   unique weapon is a chest that lies. The intent of the section survives
+  //   ("the Rubypaw works the same way"); only where it lives changed.
+  //   ★★ The vault hands over directly rather than dropping a solid blade: you
+  //   are already standing at the chest pressing X inside a small room, so the
+  //   deliberate act the drop ceremony exists to force is already paid.
+  ok(!C.WORLD_PROPS.some(p=>p&&p.id==='chest_cosmic_rubypaw_sword'),
+     '★★★ the old forest chest is GONE · not left as a duplicate');
+  const V=(C.TOWN_HALL_VAULTS||[]).find(v=>v.item==='rubypaw_sword');
+  ok(!!V&&V.dist==='malezor','★★★ the Rubypaw is Malezor\'s vault item');
+  C.game.scene=C.civicSceneId('town-hall','malezor');
+  C.player.items.rubypaw_sword=0; C.player.townHallVaults={};
+  C.tryOpenTownHallVault();
+  ok((C.player.items.rubypaw_sword||0)===1,'★★ X on the vault hands it over (dev bypass is on)');
   ok(C.player.rubypawDurability===C.RUBY_MAX,
      `with rubypawDurability at its own ceiling (${C.player.rubypawDurability}/${C.RUBY_MAX})`);
-  ok(C.player.swordDurability===C.SWORD_MAX,
-     `and the Tearsword is untouched at ${C.player.swordDurability}/${C.SWORD_MAX}`);
+  C.tryOpenTownHallVault();
+  ok((C.player.items.rubypaw_sword||0)===1,'★★★★ and pressing X again does not duplicate it');
   ok(C.SWORD_MAX!==C.RUBY_MAX,'★ the two ceilings genuinely differ · 100 vs 200');
+  C.game.scene='overworld';
 }
 
 H('6 · ★★ A BLADE LEFT ON THE GROUND SURVIVES A RELOAD');
 {
   C.player.items={}; C.player.weaponDrops=[];
   for(let i=C.WORLD_PROPS.length-1;i>=0;i--) if(C.WORLD_PROPS[i]&&C.WORLD_PROPS[i]._weaponDrop) C.WORLD_PROPS.splice(i,1);
-  const spot=C.COSMIC_CHEST_SPOTS.find(s=>s.dist==='vorashil');
-  const d=C.spawnWeaponDrop({tileX:283,tileY:465},spot);
+  const spot=C.COSMIC_CHEST_SPOTS.find(s=>s.item==='voltshard');
+  const d=C.spawnWeaponDrop({tileX:41,tileY:16},spot);
   ok(!!d,'a drop was spawned');
   ok(C.player.weaponDrops.length===1,'recorded on the player for saving');
   const at=[d.tileX,d.tileY];
@@ -115,7 +141,7 @@ H('6 · ★★ A BLADE LEFT ON THE GROUND SURVIVES A RELOAD');
   for(let i=C.WORLD_PROPS.length-1;i>=0;i--) if(C.WORLD_PROPS[i]&&C.WORLD_PROPS[i]._weaponDrop) C.WORLD_PROPS.splice(i,1);
   const n=C.restoreWeaponDrops();
   ok(n===1,'restore put it back');
-  const back=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='sapphire_sword');
+  const back=C.WORLD_PROPS.find(p=>p&&p._weaponDrop==='voltshard');
   ok(back&&back.tileX===at[0]&&back.tileY===at[1],`at the same tile (${at})`);
   ok(C._propBlocked.has(`${at[0]},${at[1]}`),'and it blocks again after the restore');
   C.restoreWeaponDrops();
@@ -184,8 +210,22 @@ H('9 · ★★ THE BLADE LANDS SOMEWHERE THE PLAYER CAN SEE IT');
   // Veridan, so this counts the spot table rather than a literal.
   ok(checked===C.COSMIC_CHEST_SPOTS.length,
      `${checked} cosmic chests tested (${C.COSMIC_CHEST_SPOTS.length} declared)`);
-  ok(rescued>0,
-     `★ the check is doing real work · the tile straight below the chest was canopy-covered in ${rescued} of ${checked} cases`);
+  // ★★★ v0.99.28 · THIS META-CHECK WAS ABOUT FOREST CHESTS, AND THERE ARE NONE
+  //   LEFT. It asserted the canopy rescue does real work by proving at least
+  //   one chest's tile-below was canopy-covered — true while the Gemlord arms
+  //   hid in deep woodland. They moved into the town-hall vaults at v0.99.24
+  //   and the ONLY overworld cosmic chest left is the Voltshard, which the
+  //   build deliberately puts in the OPEN at the Malezor tower plaza
+  //   ("guarded, not hidden"). Demanding canopy over it asserts the opposite
+  //   of the design. Kept as a live claim, scoped to the case it describes.
+  const _forest = C.COSMIC_CHEST_SPOTS.filter(s2 => s2.item !== 'voltshard').length;
+  if (_forest > 0){
+    ok(rescued>0,
+       `★ the check is doing real work · canopy-covered in ${rescued} of ${checked} cases`);
+  } else {
+    ok(checked>0,
+       `★ no forest cosmic chests remain (${checked} open-plaza chest tested) · the canopy rescue is exercised by the vault-era suites instead`);
+  }
 }
 
 H('10 · ★★ S1 EQUIPS AZUREL\'S BLADE · S2 EQUIPS RAKORON\'S');

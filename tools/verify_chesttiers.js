@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_chesttiers · v0.95.774 · the four-tier loot ladder
 try{new Function(require('./lib/all_src.cjs')()+
-  ';globalThis.__C={CHEST_LOOT_LADDER,CHEST_COIN_TIERS,COSMIC_CHEST_SPOTS,GOLD_CHEST_TILE_POSITIONS,GEMSHARD_TABLE,rollGemshard,rollMythicShard,WORLD_PROPS,worldDistrictAt,isFloraProp,player,game,spillChestCoins,collectPickupsAt,spillPickups,PICKUP_KINDS,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
+  ';globalThis.__C={TOWN_HALL_VAULTS,CHEST_LOOT_LADDER,CHEST_COIN_TIERS,COSMIC_CHEST_SPOTS,GOLD_CHEST_TILE_POSITIONS,GEMSHARD_TABLE,rollGemshard,rollMythicShard,WORLD_PROPS,worldDistrictAt,isFloraProp,player,game,spillChestCoins,collectPickupsAt,spillPickups,PICKUP_KINDS,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)fail++;};
@@ -63,18 +63,30 @@ H('3 · ★★ EACH GEMLORD WEAPON SITS IN ITS OWN GEMLORD\'S DEEP FOREST');
 // so the district is not decoration — it is the rule.
 {
   const spots=C.COSMIC_CHEST_SPOTS;
-  ok(spots.length>=2,`${spots.length} cosmic chest spots declared`);
+  // ★★★ v0.99.28 · was >=2. The four Gemlord weapons moved into the town-hall
+  //   vaults at v0.99.24 and their OVERWORLD cosmic chests were removed rather
+  //   than left as duplicates, so one overworld cosmic spot remains
+  //   (voltshard). The vaults are checked by verify_lock_ladder.
+  ok(spots.length>=1,`${spots.length} overworld cosmic chest spot(s) · the four Gemlord arms are vault-held now`);
   const want={ vorashil:'sapphire_sword', malezor:'rubypaw_sword' };
   // ★ v0.95.822 · looked up by ITEM, not district — Malezor now holds TWO
   // cosmic chests (Rubypaw in the forest + the Voltshard at the tower plaza),
   // so "the malezor chest" stopped being one thing.  The forest-density bar
   // below is a rule about GEMLORD WEAPON chests only; the Voltshard's bar is
   // the boss squad guarding it, asserted in its own section.
+  // ★★★★ v0.99.28 · THESE TWO WEAPONS ARE NO LONGER IN THE FOREST. v0.99.24
+  //   moved all four Gemlord arms into the town-hall MYTHIC VAULTS, gated on
+  //   the district's Elder trials, and removed their overworld cosmic chests
+  //   so no weapon has two homes. The district pairing is still the rule and
+  //   is still asserted — it just reads the vault table, which is where the
+  //   weapon now lives. The forest-density bar below no longer applies to
+  //   them and is skipped.
   for(const [dist,item] of Object.entries(want)){
+    const vault=(C.TOWN_HALL_VAULTS||[]).find(v=>v.item===item);
+    ok(!!vault&&vault.dist===dist,`${dist} holds ${item} · in its TOWN HALL VAULT`);
     const spot=spots.find(s=>s.item===item);
-    ok(!!spot&&spot.dist===dist,`${dist} holds ${item}`);
-    const chest=C.WORLD_PROPS.find(p=>p&&p.id===`chest_cosmic_${item}`);
-    ok(!!chest,`  its chest prop exists in the world`);
+    ok(!spot,`  and NOT also in an overworld cosmic chest · one weapon, one home`);
+    continue;
     if(!chest) continue;
     ok(C.worldDistrictAt(chest.tileX,chest.tileY)===dist,
        `  standing in ${dist} at (${chest.tileX},${chest.tileY})`);

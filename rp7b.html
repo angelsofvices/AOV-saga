@@ -42592,7 +42592,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.27' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.28' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -50052,6 +50052,21 @@ function saveGame(){
         bagOrder: player.bagOrder || null,                   // ★ v0.99.20 · hand-arranged ZyCube order · loadGame's Object.assign restores it
         elderTrials: player.elderTrials || {},               // ★ v0.99.22 · which districts' mythic vaults have been earned
         elderStep: player.elderStep || {},                   // ★ v0.99.27 · per-rung escape hatch, mirroring player.kelthorStep
+        // ★★★★ v0.99.28 · TWO PROGRESS FLAGS THE GAME WROTE AND THE SAVE DROPPED.
+        //   Found by verify_save_persistence, which diffs every player.* field
+        //   the build WRITES against the fields this snapshot lists — 74 vs 72.
+        //   ★★★★ eldersMet was the expensive one, and it got expensive at
+        //   v0.99.23: meeting an Elder is now what grants a district key AND is
+        //   rung 1 of their ladder. Unsaved, a reload emptied it — the key ITEM
+        //   survived (items are saved) but the ladder silently regressed to
+        //   "Presented" on a player who had already been presented, and the
+        //   Elder greeted them as a stranger. Exactly the kind of thing a
+        //   playtest reports as "the quest reset itself".
+        //   ★★★ viretaSpheresGifted is an ECONOMY hole: the flag guards a
+        //   one-time gift of 8 Zyspheres, so losing it on reload meant 8 more
+        //   every session, forever, for free.
+        eldersMet: player.eldersMet || {},                   // ★ district keys + elder ladder rung 1
+        viretaSpheresGifted: !!player.viretaSpheresGifted,   // ★ one-time 8-Zysphere gift
         townHallVaults: player.townHallVaults || {},         // ★ v0.99.24 · which vaults have been emptied · a Gemlord arm is once-only
         cosmeticSkin: PLAYER_SKINS[player.cosmeticSkin] ? player.cosmeticSkin : 'normal', // v0.95.240
         activeActor: player.activeActor||'rizer',

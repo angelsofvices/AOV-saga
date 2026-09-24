@@ -94,8 +94,17 @@ H('2 · ★★ THE TWO HELPERS ANSWER DIFFERENT QUESTIONS');
 
 H('3 · ★★★ BOTH CHESTS EXIST, BLOCK, AND ANSWER X');
 {
-  ok(Array.isArray(C.SEER_HQ_CHESTS) && C.SEER_HQ_CHESTS.length === 2,
-     `${(C.SEER_HQ_CHESTS || []).length} HQ chests · R2 holds the basement key, the vault holds the attic key`);
+  // ★★★ v0.99.28 · COUNT THE SEER CHESTS, NOT THE TABLE. v0.99.24 put the four
+  //   town-hall mythic vaults into SEER_HQ_CHESTS on purpose — it is the one
+  //   lookup already wired into collision, facing, X and the depth sort, and
+  //   every consumer scopes by SCENE so a vault and an HQ chest can never
+  //   collide. But a bare .length here then counted six and called it a
+  //   regression. The intent of this check is "both HQ chests exist", so it
+  //   filters to the HQ ones and keeps saying exactly that.
+  const _hq = (C.SEER_HQ_CHESTS || []).filter(c => !c.vault);
+  ok(_hq.length === 2,
+     `${_hq.length} HQ chests · R2 holds the basement key, the vault holds the attic key`
+   + ` (+${(C.SEER_HQ_CHESTS || []).length - _hq.length} town-hall vaults share the table)`);
   for (const c of C.SEER_HQ_CHESTS) {
     C.game.scene = c.scene;
     const tag = `${c.scene.replace('interior_seer_hq_', '')} (${c.key || 'attic'})`;

@@ -6311,6 +6311,21 @@ function buildDistrictElderNpcs(){
             player.eldersMet[e.id] = true;
             try { bumpRizerBond('rizerAlly'); } catch(_){}
             try { showToast(`★ ${e.name.toUpperCase()} · ${e.dist.toUpperCase()} EXPEDITION OPEN`, 3600); } catch(_){}
+            // ★★★★ v0.99.23 · MEETING THE ELDER EARNS THEIR DISTRICT'S KEY.
+            //   Creator: "npcs that would hand off an item to you now give you
+            //   a key to unlock a certain gold chest."
+            //   ★★★★ v0.99.22 SHIPPED THE LOCK WITHOUT ANY KEYS. Ten key items
+            //   existed, chestUnlockState refused every gold chest without one,
+            //   and NOTHING in the build called grantDistrictKey — so outside
+            //   dev mode every gold chest in Zyraxis was permanently sealed. A
+            //   lock whose key has no source is not a difficulty curve, it is a
+            //   dead end, and it was my regression.
+            //   ★★★ The Elder is the right giver and the only one that SCALES:
+            //   one per district, already standing at their town hall, already
+            //   the authority the Creator routed every expedition through. Two
+            //   stages of one relationship — MEET them and their district's
+            //   gold opens; finish their TRIALS and their vault does.
+            try { grantDistrictKey(e.dist, e.name); } catch(_){}
             try { pingNextObjective(); } catch(_){}
           }
         } catch(_){}
@@ -15174,7 +15189,13 @@ const NPCS = [
             ]});
             return;
           }
-          player.kelthorMet = true; try{pingNextObjective()}catch(_){}
+          player.kelthorMet = true;
+          // ★★★ Kelthor is built by hand and never went through the generic
+          //   elder factory above, so he needs the same grant spelled out or
+          //   Malezor — the FIRST district, the one every player is standing
+          //   in — is the one district whose gold never opens.
+          try { grantDistrictKey('malezor', 'Warden Kelthor'); } catch(_){}
+          try{pingNextObjective()}catch(_){}
         }
         {
           const rung = kelthorNextRung();
@@ -42423,7 +42444,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.22' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.23' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -54388,7 +54409,22 @@ function kelthorNextRung(){
   for (const r of KELTHOR_LADDER) if (!kelthorRungDone(r)) return r;
   return null;
 }
-function kelthorLadderComplete(){ return !kelthorNextRung(); }
+function kelthorLadderComplete(){
+  const done = !kelthorNextRung();
+  // ★★★★ v0.99.23 · PROMOTE THE LADDER TO THE FLAG, ONCE.
+  //   elderTrialComplete() reads this function live for Malezor, so the vault
+  //   already opened the moment the last rung landed — but nothing PERSISTED
+  //   it, and completeElderTrial() had no caller at all. Two problems, one
+  //   cause: a derived truth that never becomes a recorded fact.
+  //   ★★★ Promoting here means the ceremony (toast, sfx) fires exactly once at
+  //   the moment it is earned, instead of being silently true forever after,
+  //   and the other nine districts use the identical flag — so all ten vaults
+  //   are governed by one piece of state however their chain is authored.
+  if (done && !(player.elderTrials && player.elderTrials.malezor)){
+    try { completeElderTrial('malezor'); } catch(_){}
+  }
+  return done;
+}
 
 function buildQuestLog(){
   // ★★★★ v0.99.7 · AN EXPEDITION IS AN ELDER'S. FULL STOP.

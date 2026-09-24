@@ -14,7 +14,7 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['chestUnlockState','hasDistrictKey','grantDistrictKey','districtKeyKey',
   'elderTrialComplete','completeElderTrial','DISTRICT_KEY_ITEMS','GOLD_CHEST_KEY_ITEMS',
-  'player','game','INVENTORY_META','zycubeCategoryOf','COSMIC_CHEST_SPOTS','DISTRICT_ORDER'] });
+  'player','game','INVENTORY_META','zycubeCategoryOf','COSMIC_CHEST_SPOTS','DISTRICT_ORDER','DISTRICT_ELDERS'] });
 console.log = _L;
 const P = G.player;
 const reset = () => { P.items = {}; P.elderTrials = {}; G.game.devMaxBond = false; };
@@ -111,6 +111,34 @@ H('★★ THE TEN KEYS ARE REAL ITEMS');
   const QUEST = ['raidcard','ruby_vial','portalkey','shardshare','dads_notebook'];
   ok(!G.GOLD_CHEST_KEY_ITEMS.some(k => QUEST.includes(k)),
      '★★★★ and NO single-instance quest gate is in that pool · rolling one duplicates a quest item or hands it over before the quest that explains it');
+}
+
+H('★★★★ THE KEYS HAVE A SOURCE · v0.99.22 shipped the lock without one');
+{
+  // ★★★★ THIS IS THE ASSERTION THAT WOULD HAVE CAUGHT MY OWN REGRESSION.
+  //   v0.99.22 defined ten key items, made chestUnlockState refuse every gold
+  //   chest without one, and called grantDistrictKey from NOWHERE. Outside dev
+  //   mode every gold chest in Zyraxis was permanently sealed. The suite went
+  //   green because it only ever tested the LOCK, never that a key could be
+  //   obtained — it proved the door was shut and called that success.
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  const calls = (src.match(/grantDistrictKey\(/g) || []).length - 1;   // minus the definition
+  ok(calls >= 2, `★★★★ grantDistrictKey has ${calls} call site(s) · a lock whose key has no source is a dead end`);
+  ok(/grantDistrictKey\(e\.dist, e\.name\)/.test(src),
+     '★★★ the generic elder factory grants its district key on first meeting · one giver per district, scales to all ten');
+  ok(/grantDistrictKey\('malezor', 'Warden Kelthor'\)/.test(src),
+     "★★★★ …and Kelthor is granted EXPLICITLY · he is hand-built and never goes through that factory, so without this the FIRST district is the one whose gold never opens");
+  // ★★★ EVERY DISTRICT THAT HAS AN ELDER HAS A KEY SOURCE — and exactly one
+  //   does not. Korathen's elder is `id: null` by the Creator's own note
+  //   ("District X, Korathen, has no Elder assigned yet"), so its gold chests
+  //   have no giver. That is a CONTENT gap, not a wiring bug, and pinning it
+  //   here means it stays one district instead of quietly becoming three.
+  const withElder = G.DISTRICT_ELDERS ? G.DISTRICT_ELDERS.filter(e => e.id) : [];
+  const without   = G.DISTRICT_ELDERS ? G.DISTRICT_ELDERS.filter(e => !e.id).map(e => e.dist) : [];
+  ok(withElder.length === 9 && without.join() === 'korathen',
+     `★★★ ${withElder.length}/10 districts have an Elder to grant their key · the exception is ${without.join(', ') || 'none'}`);
+  const tc = (src.match(/completeElderTrial\(/g) || []).length - 1;
+  ok(tc >= 1, `★★★ completeElderTrial has ${tc} call site(s) · the trial flag is reachable, not decorative`);
 }
 
 console.log(f ? `\n❌ ${f} failed` : '\n✅ wood/silver free · gold keyed per district · mythic earned per elder · shop closed · dev bypass live');

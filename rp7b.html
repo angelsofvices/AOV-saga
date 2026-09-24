@@ -13906,9 +13906,11 @@ const NPCS = [
       ]});
     },
   },
-  // ── v0.95.592 · MALEZOR ACADEMY interior · 16 students + Zoryn (#17) + Vireta ──
-  //   Class of 18: 16 battlable classmates, Zoryn (top-of-class, non-battleable),
-  //   and the Player.  Sprites pulled from assets/2D sprites/npcs/school-students.png
+  // ── v0.95.592 · MALEZOR ACADEMY interior · 16 students + Vireta ──
+  //   The classroom holds the 16 classmates and the Player. Zoryn is not
+  //   stationed here; his only standing placement is outside Rakoron Cave,
+  //   where he carries the Town Map. Sprites pulled from
+  //   assets/2D sprites/npcs/school-students.png
   //   (single 1254×1254 sheet · 4×4 grid · one portrait per student).
   //   Vireta = Assistant Professor at the front lectern (no battle · lore only).
   //   Graduation reward moved to Prof. Elarion OUTSIDE the school (see line ~5150).
@@ -14172,42 +14174,6 @@ const NPCS = [
         showDialog({ speaker: n.name.toUpperCase(), lines: s.back });
       },
     }));
-    // ── ZORYN #17 · student · graduated top of class · non-battleable ──
-    npcs.push({
-      id: 'school_zoryn',
-      name: 'Zoryn',
-      sheet: new Image(),
-      src:   'assets/2D%20sprites/npcs/zoryn.png',
-      staticSprite: true,   // v0.95.599 · required alongside staticBBox
-      staticBBox: [46, 40, 176, 275],   // row 0 col 2 approximation
-      // ★★ v0.99.0 · was (27,20), the front-right desk of a 30x24 classroom.
-      //   The Academy is on the building rung now and column 27 does not exist —
-      //   he was sitting seven tiles outside his own school. Stated as the
-      //   corner it always meant: two in from the east wall, two up from the
-      //   south, which is the front-right desk in any classroom.
-      tileX: INTERIOR_SCALE.building.cols - 3, tileY: INTERIOR_SCALE.building.rows - 4,
-      homeX: INTERIOR_SCALE.building.cols - 3, homeY: INTERIOR_SCALE.building.rows - 4,
-      homeScene: 'interior_malezor_school',
-      scene:     'interior_malezor_school',
-      dir: 'down',
-      mode: 'stationary',
-      moving: false,
-      turnToInteract: true,
-      blinkTimer: 9e9,
-      _isSchoolStudent: false,
-      _isTopOfClass: true,
-      onInteract: () => {
-        // ★ v0.96.89 · his old line sent you to "beat the sixteen" in a room
-        //   they have all left. He is top of the class; he would know they had
-        //   gone before anyone.
-        showDialog({ speaker: 'ZORYN', lines: [
-          '*feet up on an empty desk*  Look at you · finally showing up to class.',
-          '*gestures at sixteen empty chairs*  You missed them.  Whole year cleared out the morning the R.A.I.D.s came through.',
-          '*taps the top-of-class emblem on his sleeve*  I already graduated · nothing to prove between us in HERE.',
-          '*half-wave*  You\'ll trip over them out there.  See you outside, hotshot.',
-        ]});
-      },
-    });
     // ── ASSISTANT PROFESSOR VIRETA · front lectern · lore-only (no battle) ──
     // v0.95.593 · giraffe-mystic Divine-type humanoid · her own 4x4 D/L/R/U
     // sheet (prof-vireta.png) so she animates properly when turning to greet
@@ -42615,7 +42581,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.29' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.30' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44435,15 +44401,28 @@ function renderZycellZycube(){
   const accent = _cat ? _cat.color : 'var(--zy-cyan)';
 
   // ── the rail ─────────────────────────────────────────────────────────
+  // ★★★★ v0.99.30 · THE ACTIVE TAB CARRIES ITS WORD. Creator: "make the
+  //   navigation tab labels the actual word of the item category at the top in
+  //   between L R of zycube."
+  //   ★★★★ ALL THIRTEEN cannot carry their word at once — ALL plus twelve
+  //   categories at ~92px each is ~1,200px of rail inside a ~440px phone. The
+  //   rail scrolls, so it would "fit", but then the set you are navigating is
+  //   mostly off-screen and the tabs stop being a map of the bag. So the word
+  //   rides the SELECTED tab: it is always at the top, always between L and R,
+  //   and it names the drawer you are actually in — which is the thing the
+  //   word was for.
   const tab = (id, icon, label, color, on, click) => `<div data-zyitem="zytab_${id}" data-zytab="1"
       title="${label}" onclick="try{${click}}catch(_){}"
-      style="position:relative; flex:0 0 auto; width:38px; height:34px; display:flex;
+      style="position:relative; flex:0 0 auto; ${on ? 'padding:0 9px 0 7px;' : 'width:38px;'}
+             height:34px; display:flex; gap:5px;
              align-items:center; justify-content:center; font-size:17px; cursor:pointer;
              border-radius:6px; transition:background 120ms;
              background:${on ? 'rgba(255,255,255,0.10)' : 'transparent'};
              box-shadow:${on ? 'inset 0 -2px 0 ' + color : 'none'};
              filter:${on ? 'none' : 'grayscale(0.55) opacity(0.62)'};">
       <span style="pointer-events:none;">${icon}</span>
+      ${on ? `<span style="pointer-events:none; font:bold 10px 'Courier New',monospace;
+             letter-spacing:.10em; color:${color}; white-space:nowrap;">${label}</span>` : ''}
     </div>`;
   const chip = t => `<span style="flex:0 0 auto; min-width:20px; height:20px; padding:0 5px;
       display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:bold;
@@ -44586,9 +44565,11 @@ function renderZycellZycube(){
   //   below its content, which makes an inner scroller silently overflow its
   //   parent instead of scrolling.
   const body = `${rail}
-    <div style="flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 3px;">
-      <span style="color:${accent}; font-weight:bold; font-size:11px; letter-spacing:.10em;">
-        ${_cat ? _cat.label : 'ALL ITEMS'}</span>${counter}
+    <!-- ★★ the category NAME moved into the active tab · repeating it here
+         would say the same word twice, six pixels apart. The count stays: it
+         is the one thing the rail does not tell you. -->
+    <div style="flex:0 0 auto; display:flex; align-items:center; justify-content:flex-end; padding:5px 9px 2px;">
+      ${counter}
     </div>
     <div id="zyBagList" style="flex:1 1 auto; min-height:0; overflow:auto; padding:0 8px 4px;
          align-content:start; pointer-events:auto;">${grid}</div>
@@ -44702,7 +44683,10 @@ function renderZycellZycube(){
       }
     });
   }, 0);
-  return _zySection(`◈ ZYCUBE · ${_cat ? _cat.label : 'ALL ITEMS'}`, body, accent, true);
+  // ★★ v0.99.30 · the section header is just ZYCUBE now. The rail names the
+  //   drawer, so repeating it here said the same word twice a few pixels
+  //   apart — and it means the panel title stops flickering as you tab.
+  return _zySection('◈ ZYCUBE', body, accent, true);
 }
 
 // ── RIZER · attribute allocation + equipped outfit ──────────────────
@@ -46790,7 +46774,50 @@ function openZphonePanel(){
   const content = document.getElementById('zycellContent');
   if (content && !content._zyWheelBound){
     content._zyWheelBound = true;
-    content.addEventListener('wheel', (ev) => { ev.preventDefault(); ev.stopPropagation(); }, { passive: false });
+    // ★★★★ v0.99.30 · THE WHEEL BLOCK PREDATES INNER SCROLLERS, AND IT KILLED
+    //   THEM. Creator, 2026-09-24: "I cant scroll down in the zycube menu."
+    //   ★★★★ This listener is on #zycellContent and cancels EVERY wheel event
+    //   in the pane — including ones over a descendant that has its own
+    //   overflow:auto and its own overflow to scroll. The ZyCube grid is such a
+    //   descendant, so the bag physically could not be scrolled with a mouse:
+    //   the browser was about to scroll the grid and this handler said no.
+    //   ★★★ The v0.95.533 intent was "the phone PAGE must not scroll under the
+    //   player", which is still honoured — the pane itself is never scrolled by
+    //   wheel. It just no longer speaks for its children.
+    content.addEventListener('wheel', (ev) => {
+      // Walk up from the event target to the pane looking for something that
+      // can actually take this scroll. "Can" is the operative word: a box with
+      // overflow:auto but nothing to scroll must NOT swallow the event, or the
+      // page-scroll block quietly stops working wherever such a box exists.
+      let el = ev.target;
+      while (el && el !== content){
+        if (el.scrollHeight - el.clientHeight > 1){
+          const st = getComputedStyle(el).overflowY;
+          if (st === 'auto' || st === 'scroll'){
+            const atTop = el.scrollTop <= 0;
+            const atBot = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+            // Only hand it over if the scroll would actually move: at an end,
+            // fall through to the block so the pane still cannot be dragged.
+            if (!((ev.deltaY < 0 && atTop) || (ev.deltaY > 0 && atBot))){
+              ev.stopPropagation();
+              return;                       // no preventDefault · let it scroll
+            }
+          }
+        }
+        el = el.parentElement;
+      }
+      // ★★★ AND THE PANE ITSELF, BUT ONLY WHEN IT ACTUALLY OVERFLOWS.
+      //   v0.95.533 blocked the pane "per user request" so the phone page
+      //   could not drift under the player. That still holds whenever there is
+      //   nothing below the fold — there is nothing to drift TO. But when the
+      //   content genuinely runs past the bottom, refusing the wheel is not
+      //   tidiness, it is the bug the Creator just reported. Scroll it.
+      if (content.scrollHeight - content.clientHeight > 1){
+        ev.stopPropagation();
+        return;
+      }
+      ev.preventDefault(); ev.stopPropagation();
+    }, { passive: false });
   }
   paintZycellNav();
   playSFX('menuOpen');
@@ -51553,7 +51580,6 @@ function isHumanoidAlly(id){ return HUMANOID_ALLY_IDS.has(String(id || '')); }
 // contacts list.  Detection is data-driven — if the NPC's name or id matches a
 // SPECIES row, it is a Zyrex — so new Zyrex NPCs are excluded automatically.
 const CONTACT_ID_ALIAS = {
-  school_zoryn:    'zoryn',              // same person, two scenes
   sub_prof_vireta: 'vireta',
 };
 // These three already hand-roll their own bond bumps inside their dialogue

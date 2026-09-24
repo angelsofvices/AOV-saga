@@ -144,9 +144,15 @@ H('★★★★ FULL HEIGHT · rail and pane pinned, grid takes every leftover p
   //   scroll away from the thing you are reading about.
   ok(h.indexOf('id="zyBagList"') < h.indexOf('min-height:74px'),
      '★★★ and the pane sits BELOW the grid · pinned to the bottom edge, on screen with the slot it describes');
-  ok(/_zySection\(`◈ ZYCUBE[^`]*`, body, accent, true\)/.test(
-       fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8')),
+  // ★ pinned to a backtick template until v0.99.30, when the header stopped
+  //   interpolating the category and became a plain string. Match the CALL
+  //   (fill mode on, from this panel), not the quoting style of its title.
+  const _src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  ok(/_zySection\(['"`]◈ ZYCUBE['"`], body, accent, true\)/.test(_src),
      '★★ fill mode is OPT-IN · passed only by this panel, a no-op on the other ten');
+  ok((_src.match(/, true\);/g) || []).length >= 1 && !/_zySection\([^)]*, true\)/.test(
+       _src.replace(/_zySection\(['"`]◈ ZYCUBE['"`], body, accent, true\)/, '')),
+     '★★★ and NO other panel asks for it · fill mode changes layout, so a second caller would be a silent relayout');
 }
 
 H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallback');
@@ -204,6 +210,60 @@ H('★★★★ NOT ONE BAG-VISIBLE ITEM FALLS BACK TO AN EMOJI');
   }
   ok(Object.keys(G.ZYCUBE_ART_ELSEWHERE).length === 10,
      '★★ ten items are wired to art that already existed elsewhere · no new art was generated for this');
+}
+
+H('★★★★ THE BAG CAN BE SCROLLED · the wheel block no longer speaks for children');
+{
+  //   Creator, 2026-09-24: "I cant scroll down in the zycube menu."
+  // ★★★★ v0.95.533 put a wheel listener on #zycellContent that cancels EVERY
+  //   wheel event in the pane. It predates inner scrollers by four builds, and
+  //   the ZyCube grid is one: the browser was about to scroll the grid and this
+  //   handler said no. The panel going full-height at v0.99.17 is what made it
+  //   matter — a bag that now fills the screen is a bag with something below
+  //   the fold.
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  const i = src.indexOf("content.addEventListener('wheel'");
+  const fn = src.slice(i, i + 1800);
+  ok(i > 0, 'the wheel handler was found');
+  ok(/scrollHeight - el\.clientHeight > 1/.test(fn),
+     '★★★★ it looks for an ancestor that can ACTUALLY scroll · a box with overflow:auto and nothing to '
+   + 'scroll must not swallow the event, or the page-scroll block silently stops working wherever one exists');
+  ok(/overflowY/.test(fn) && /auto|scroll/.test(fn),
+     '★★★ …and that the ancestor is genuinely a scroller, not just overflowing');
+  ok(/atTop|atBot/.test(fn),
+     '★★★ at either END it falls through to the block · so the pane still cannot be dragged past its own content');
+  ok(/content\.scrollHeight - content\.clientHeight > 1/.test(fn),
+     '★★ and the pane itself takes the wheel when IT overflows · refusing then is not tidiness, it is the bug');
+  ok(/ev\.preventDefault\(\); ev\.stopPropagation\(\);/.test(fn),
+     '★ the original block survives for the case it was written for · nothing to scroll, nothing moves');
+}
+
+H('★★★ THE ACTIVE TAB CARRIES THE CATEGORY WORD');
+{
+  //   Creator: "make the navigation tab labels the actual word of the item
+  //   category at the top in between L R of zycube."
+  // ★★★ All thirteen cannot carry their word at once — ALL plus twelve at
+  //   ~92px is ~1,200px of rail inside a ~440px phone. The rail scrolls, so it
+  //   would "fit", but the set you are navigating would be mostly off-screen
+  //   and the tabs would stop being a map of the bag.
+  const word = h => [...h.matchAll(/white-space:nowrap;">([^<]+)</g)].map(m => m[1]);
+  for (const [cat, want] of [[null, 'ALL'], ['weapon', 'WEAPONS'], ['heal', 'CONSUMABLES']]){
+    const h = render(cat);
+    const w = word(h);
+    ok(w.length === 1 && w[0] === want,
+       `  ${String(cat || 'ALL').padEnd(7)} rail shows exactly one word: ${JSON.stringify(w)}`);
+  }
+  const h = render('weapon');
+  ok(h.indexOf('WEAPONS') < h.indexOf('id="zyBagList"'),
+     '★★ the word is ABOVE the grid · at the top, between the L and R chips, where the Creator asked for it');
+  // ★★★ Count VISIBLE text, not every occurrence: each inactive tab carries
+  //   its word in a title="" tooltip, which is not on screen. A blunt
+  //   /WEAPONS/g count reads those and reports a duplicate that no player can
+  //   see — my first cut did exactly that.
+  const visible = (h.match(/white-space:nowrap;">WEAPONS</g) || []).length;
+  ok(visible === 1, `★★★ the word is on screen ONCE (${visible})`);
+  ok(!/◈ ZYCUBE · WEAPONS/.test(h),
+     '★★★ and the section header no longer repeats it · it reads just "◈ ZYCUBE", so the panel title also stops flickering as you tab');
 }
 
 H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');

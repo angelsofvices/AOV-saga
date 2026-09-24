@@ -53,9 +53,17 @@ console.log('\n★★★★ THE HANDOFF IS FULFILLED · every item it asked for 
   //   nothing was imported that nothing points at.
   const BAG = path.join(ROOT, 'assets/2D sprites/items/bag');
   const files = fs.existsSync(BAG) ? fs.readdirSync(BAG).filter(f => /\.png$/i.test(f)) : [];
-  ok(files.length === 72, `${files.length} keyed icons imported`);
+  const rej = path.join(BAG, '_rejected');
+  const rejected = fs.existsSync(rej) ? fs.readdirSync(rej).filter(f => /\.png$/i.test(f)) : [];
+  // ★★★ 72 DELIVERED, 71 LIVE, 1 REJECTED. Counting only the live folder would
+  //   read the rejection as a missing delivery; counting both without saying so
+  //   would hide it. The sum is the delivery, the split is the decision.
+  ok(files.length + rejected.length === 72,
+     `${files.length} live + ${rejected.length} rejected = ${files.length + rejected.length} delivered`);
+  ok(rejected.includes('zysphere-drop.png'),
+     '★★★ zysphere is the rejected one · Poké Ball silhouette, pulled 2026-09-23 at the Creator\'s direction');
   const rows = [...DOC.matchAll(/^\| \d+ \| `([a-z0-9_]+)` \| [^|]+ \| `([^`]+)` \|$/gm)];
-  const gone = rows.filter(([, , f]) => !files.includes(f));
+  const gone = rows.filter(([, , f]) => !files.includes(f) && !rejected.includes(f));
   ok(!gone.length,
      `★★★ every filename the handoff specified exists as a keyed file${gone.length ? ' · MISSING: ' + gone.slice(0,4).map(r=>r[2]).join(', ') : ''}`);
   ok(/DELIVERED/.test(DOC),

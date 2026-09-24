@@ -153,12 +153,24 @@ H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallba
   //   Creator, 2026-09-23: "use them as their bag item icon. make a UI native
   //   background for the icon and put the image of the item chromakeyed."
   const man = G.ZYCUBE_ART;
-  ok(Object.keys(man).length === 72, `ZYCUBE_ART carries ${Object.keys(man).length} entries`);
+  // ★★★★ 71, NOT 72 · `zysphere` IS REJECTED AND MUST STAY REJECTED.
+  //   Creator, 2026-09-23: "do not use the new zysphere icon." It rendered as
+  //   a Poké Ball — two hemispheres, equatorial band, centred round lens —
+  //   against a prompt that asked for the opposite in as many words. A note in
+  //   a README is undone by the next import pass; an assertion is not.
+  ok(Object.keys(man).length === 71, `ZYCUBE_ART carries ${Object.keys(man).length} entries (72 delivered, 1 rejected)`);
+  ok(!man.zysphere && !G.zycubeArtFor('zysphere'),
+     '★★★★ zysphere has NO art entry · the slot falls back to its glyph, which is what the fallback layer is for');
+  ok(!fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag/zysphere-drop.png')),
+     '★★★ and the file is not in the live folder · parked in _rejected/ so a re-import cannot quietly restore it');
+  ok(fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag/_rejected/README.md')),
+     '★★ with the reason written down beside it');
   const missing = Object.entries(man)
     .filter(([, f]) => !fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag', f)));
   ok(!missing.length,
      `★★★★ every manifest entry resolves to a real file${missing.length ? ' · MISSING: ' + missing.slice(0,4).map(m=>m[1]).join(', ') : ''}`);
-  const dir = fs.readdirSync(path.join(ROOT, 'assets/2D sprites/items/bag')).filter(f => /\.png$/.test(f));
+  const dir = fs.readdirSync(path.join(ROOT, 'assets/2D sprites/items/bag'))
+    .filter(f => /\.png$/.test(f));   // _rejected/ is a subdir · not listed here
   const named = new Set(Object.values(man));
   ok(dir.every(f => named.has(f)),
      `★★ and no imported file is orphaned · ${dir.length} on disk, all named by the manifest`);

@@ -20133,6 +20133,7 @@ const CAVE_STAIR_X = 14;    // 3 tiles wide · columns 14-16, centred on a 30-wi
 const CAVE_STAIR_W = 3;     // ★ Creator: "stairs three tiles wide"
 const CAVE_STAIR_Y = 1;     // landing row · immediately inside the top wall band
 const CAVE_LAND = { x: CAVE_STAIR_X + 1, y: CAVE_STAIR_Y + 1, dir: 'down' };
+
 // ★★★ visH=5 IS ARITHMETIC, NOT TASTE. The stair sprite is 712x1054 and
 //   [[image-never-stretch-console-fullscreen]] fits it inside visW x visH at
 //   its OWN aspect, so the box height decides the drawn width. At visH=3 a
@@ -20146,7 +20147,23 @@ const CAVE_STAIR_VIS = {
   visX: CAVE_STAIR_X, visW: CAVE_STAIR_W, visH: CAVE_STAIR_VIS_H,
   visY: CAVE_STAIR_Y - (CAVE_STAIR_VIS_H - 1),   // bottom-anchored ON the trigger row
 };
-function caveStairTriggers(){
+// ★★★★ v0.99.37 · TWO SHAFTS PER FLOOR, AND THEY CANNOT SHARE TILES.
+//   A floor below F1 needs a way down AND a way back up, and both are
+//   triggered by standing on a tile — put them on the same three tiles and the
+//   first one found wins forever. So the DOWN shaft keeps the top row and the
+//   UP shaft takes the bottom, which also reads as a switchback: you emerge at
+//   one end of a floor and cross it to descend again.
+const CAVE_UP_Y = INTERIOR_SCALE.cave.rows - 2;         // 28 on the cave rung
+const CAVE_LAND_UP = { x: CAVE_STAIR_X + 1, y: CAVE_UP_Y - 1, dir: 'up' };
+const CAVE_STAIR_VIS_UP = {
+  visX: CAVE_STAIR_X, visW: CAVE_STAIR_W, visH: CAVE_STAIR_VIS_H,
+  visY: CAVE_UP_Y - (CAVE_STAIR_VIS_H - 1),
+};
+function caveStairTriggersUp(){
+  const out = [];
+  for (let i = 0; i < CAVE_STAIR_W; i++) out.push([CAVE_STAIR_X + i, CAVE_UP_Y]);
+  return out;
+}function caveStairTriggers(){
   const out = [];
   for (let i = 0; i < CAVE_STAIR_W; i++) out.push([CAVE_STAIR_X + i, CAVE_STAIR_Y]);
   return out;   // all three tiles trigger · a 3-wide stair you can only take from the middle is 1 wide
@@ -20158,51 +20175,123 @@ function caveBorderBlocked(cfg, x, y, exit){
   if (exit && x === exit.x && y === exit.y) return false;   // the mouth stays open
   return x === 0 || y === 0 || x === cfg.cols - 1 || y === cfg.rows - 1;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.37 · THE CAVE GOES DOWN, THREE FLOORS, GEMLORD AT THE BOTTOM.
+//   Creator, 2026-09-24: "gemlord cave interior will be top world, the cave
+//   then goes downwards... 3 interior floors total... the gemlords will all sit
+//   at the bottom level of each cave. we will seal each level of the cave by
+//   rizer progress/level so that you can explore the caves but not yet find the
+//   gemlord until you have a key of mealux to open the bottom floor. players
+//   can enter the main floor once they have the village key of the respective
+//   districts."
+//
+// ★★★★ THIS REVERSES v0.99.14, WHICH BUILT THE SECOND FLOOR GOING UP. That was
+//   my reading of "second story" at the time and it was wrong about the fiction:
+//   a cave descends. F1 is the mouth you walk into from the overworld, and each
+//   stair goes DOWN — so the stair art is now set EXPLICITLY rather than left
+//   to the renderer's `target.endsWith('_2f')` heuristic, which would have
+//   drawn an up-stair on every descent.
+//
+// ★★★ THREE GATES, THREE DIFFERENT KEYS, and that is the whole design:
+//     F1 · the district's VILLAGE KEY   — the same key the Elder grants
+//     F2 · RIZER LEVEL                  — progress, tunable per district
+//     F3 · the KEY OF MEALUX            — bonding a Mealux; the Gemlord floor
+//   So a player can explore a cave long before they can finish it, which is
+//   exactly what the Creator asked for.
+const CAVE_F2_LEVEL = Object.freeze({
+  malezor: 8, zarvane: 16, andrannor: 24, veridan: 32, netharion: 40,
+  vorashil: 48, xilnar: 56, baelgor: 64, thardin: 72, korathen: 82,
+});
+// One predicate for every floor, mirroring chestUnlockState: `why` is
+// player-facing and names what is missing, because a stair that refuses in
+// silence reads as a bug.
+function caveFloorUnlock(dist, floor){
+  if (game.devMaxBond) return { open: true };
+  if (floor <= 1){
+    if (typeof hasDistrictKey === 'function' && hasDistrictKey(dist)) return { open: true };
+    return { open: false, sfx: 'doorLock',
+             why: `◈ THE CAVE MOUTH IS SHUT · you need the ${String(dist || '').toUpperCase()} KEY`
+                + ' · the Elder of this district carries it' };
+  }
+  if (floor === 2){
+    const need = CAVE_F2_LEVEL[dist] || 1;
+    if ((player.rizerLvl || 1) >= need) return { open: true };
+    return { open: false, sfx: 'caveGrowl',
+             why: `◈ THE LOWER PASSAGE REFUSES YOU · RIZER LV ${need} REQUIRED`
+                + ` (you are ${player.rizerLvl || 1}) · the deep rock knows what you are worth` };
+  }
+  // F3 · the Gemlord floor
+  if (typeof gemlordCavesOpen === 'function' && gemlordCavesOpen()) return { open: true };
+  return { open: false, sfx: 'caveGrowl',
+           why: '◈ THE GEMLORD\'S DOOR · sealed · only a KEY OF MEALUX opens the bottom floor'
+              + ' · bond a Mealux and come back' };
+}
+// The descending stair · same three tiles on every floor, because it is the
+// same shaft seen from a different depth.
+function caveStairDown(target, dist, floor){
+  return {
+    ...CAVE_STAIR_VIS,
+    triggers: caveStairTriggers(),
+    target, art: 'down',
+    // ★★ you come out at the far end of the floor below, by ITS up-shaft ·
+    //   landing on the down-shaft's own tiles would re-fire it
+    spawnAt: { ...CAVE_LAND_UP },
+    locked:    () => !caveFloorUnlock(dist, floor).open,
+    lockedMsg: () => caveFloorUnlock(dist, floor).why,
+  };
+}
+function caveStairUp(target){
+  return { ...CAVE_STAIR_VIS_UP, triggers: caveStairTriggersUp(), target, art: 'up',
+           spawnAt: { ...CAVE_LAND_UP } };
+}
 const INTERIOR_CAVE = {
   // ★★ v0.99.0 · Creator: "cave will be sized as the next scale to buildings
   //   (very large). this is the gemlord cave idea."  2.25x a building.
   ...interiorSize('cave'),
   tileImg: new Image(),
-  // ★ were (10,38) and (10,39) — the mouth of a 20x40 shaft. On the cave rung
-  //   row 38 is eight rows past the floor, so the player spawned in nothing.
   spawn: { x: INTERIOR_SCALE.cave.cols >> 1, y: INTERIOR_SCALE.cave.rows - 2, dir: 'up' },
   exit:  { x: INTERIOR_SCALE.cave.cols >> 1, y: INTERIOR_SCALE.cave.rows - 1 },
   autoExit: true,
   overworldDrop: { x: 22, y: 8, dir: 'down' },
   wallImg: 'malezor',
+  caveDist: 'malezor', caveFloor: 1,
   isBlocked: (x, y) => caveBorderBlocked(INTERIOR_CAVE, x, y, INTERIOR_CAVE.exit),
-  // ★★ UP. The shaft has always "gone up" and the player spawns at the bottom
-  //   facing up, so the stair belongs at the far end of that walk, not beside
-  //   the door.
-  stairs: {
-    ...CAVE_STAIR_VIS,
-    triggers: caveStairTriggers(),
-    target: 'interior_cave_2f',
-    spawnAt: { ...CAVE_LAND },
-  },
+  stairs: caveStairDown('interior_cave_f2', 'malezor', 2),
 };
 // ★★★ THE IMAGINARY Z AXIS. There is no third dimension in this engine, so a
-//   "second story" is a second scene that shares the first's footprint, its
-//   floor art and its walls, and is reachable only by the staircase. Landing
-//   one tile BELOW the stair on both floors — never ON a trigger — is what
-//   stops the 1s cooldown from being the only thing between you and a
-//   ping-pong up-down-up.
-// ★★ Deliberately no `exit` and no `autoExit`: the upper floor has no mouth to
-//   the overworld, and the stair is the only way out. INTERIOR_HOME_2F is the
-//   proven precedent for an exit-less upper floor — every consumer of cfg.exit
-//   either guards it or names its interior directly.
-const INTERIOR_CAVE_2F = {
+//   floor below is another scene sharing the first's footprint, floor art and
+//   walls, reachable only by the shaft. Landing one tile clear of the stair on
+//   every floor — never ON a trigger — is what stops the 1s cooldown from being
+//   the only thing between you and a ping-pong.
+// ★★ No `exit` and no `autoExit` below F1: the lower floors have no mouth to
+//   the overworld and the shaft is the only way out. INTERIOR_HOME_2F is the
+//   proven precedent for an exit-less floor.
+const INTERIOR_CAVE_F2 = {
   ...interiorSize('cave'),
   tileImg: INTERIOR_CAVE.tileImg,          // same rock · it is the same cave
-  spawn: { ...CAVE_LAND },
+  // ★ default spawn = where a DESCENT lands you, so entering this floor by
+  //   any route puts you in the same place a player would expect
+  spawn: { ...CAVE_LAND_UP },
   wallImg: 'malezor',
-  isBlocked: (x, y) => caveBorderBlocked(INTERIOR_CAVE_2F, x, y, null),
-  stairs: {
-    ...CAVE_STAIR_VIS,
-    triggers: caveStairTriggers(),         // ★ the SAME staircase, seen from above
-    target: 'interior_cave',
-    spawnAt: { ...CAVE_LAND },
-  },
+  caveDist: 'malezor', caveFloor: 2,
+  isBlocked: (x, y) => caveBorderBlocked(INTERIOR_CAVE_F2, x, y, null),
+  stairsList: [
+    caveStairDown('interior_cave_f3', 'malezor', 3),
+    caveStairUp('interior_cave'),
+  ],
+};
+const INTERIOR_CAVE_F3 = {
+  ...interiorSize('cave'),
+  tileImg: INTERIOR_CAVE.tileImg,
+  // ★ default spawn = where a DESCENT lands you, so entering this floor by
+  //   any route puts you in the same place a player would expect
+  spawn: { ...CAVE_LAND_UP },
+  wallImg: 'malezor',
+  caveDist: 'malezor', caveFloor: 3,
+  label: 'RAKORON\'S SANCTUM · the bottom floor',
+  isBlocked: (x, y) => caveBorderBlocked(INTERIOR_CAVE_F3, x, y, null),
+  // ★ the deepest floor only goes back up · there is nothing below the Gemlord
+  stairs: caveStairUp('interior_cave_f2'),
 };
 // v0.95.367 · Interior swapped to Rakoron-specific dark-red pebble floor
 // (was generic brown rakoron-cave-floor.png) · dedicated interior tile
@@ -33278,16 +33367,28 @@ function gemlordCavesOpen(){
 // which caves have a carved interior yet · the other nine are doors waiting on
 // their sanctums, and they use the SAME gate, so they open the day they exist
 const GEMLORD_CAVE_INTERIORS = {
-  rakoron_cave: { scene: 'interior_cave', cfg: () => INTERIOR_CAVE,
-                  label: '◈ RAKORON\'S CAVE · Zone 1 · press X on the door to leave' },
+  rakoron_cave: { scene: 'interior_cave', cfg: () => INTERIOR_CAVE, dist: 'malezor',
+                  label: '◈ RAKORON\'S CAVE · FLOOR 1 · stairs lead down · press X on the door to leave' },
 };
 function tryEnterGemlordCave(caveId, gemlordName){
-  if (!gemlordCavesOpen()){
-    try { playSFX('caveGrowl'); } catch(_){}
+  // ★★★★ v0.99.37 · THE MOUTH TAKES THE VILLAGE KEY, NOT THE MEALUX.
+  //   Creator: "players can enter the main floor once they have the village key
+  //   of the respective districts... you can explore the caves but not yet find
+  //   the gemlord until you have a key of mealux to open the bottom floor."
+  //   ★★★★ The Mealux gate used to sit HERE, on the door, which made the whole
+  //   cave all-or-nothing: no Mealux, no cave at all. Moving it down to F3
+  //   turns one locked door into three floors of gated exploration, and the
+  //   Mealux now buys the thing it is actually about — reaching the Gemlord.
+  const _cd = (typeof GEMLORD_CAVE_INTERIORS !== 'undefined'
+            && GEMLORD_CAVE_INTERIORS[caveId] && GEMLORD_CAVE_INTERIORS[caveId].dist)
+            || (String(caveId).split('_')[0] === 'rakoron' ? 'malezor' : null);
+  const _mouth = caveFloorUnlock(_cd, 1);
+  if (!_mouth.open){
+    try { playSFX(_mouth.sfx || 'doorLock'); } catch(_){}
     showDialog({ speaker: (gemlordName || 'THE DOOR').toUpperCase(), lines: [
       '*the stone does not move · something behind it is listening*',
-      'The door does not know you.  It knows only what the Highest One made.',
-      '*a MEALUX would be known here · they are hidden, and there are few*',
+      'This district has a key, and its Elder decides who carries it.',
+      _mouth.why,
     ]});
     return false;
   }
@@ -35139,7 +35240,8 @@ function interiorConfig(scene){
     return null;
   }
   if (scene === 'interior_cave')        return INTERIOR_CAVE;
-  if (scene === 'interior_cave_2f')     return INTERIOR_CAVE_2F;
+  if (scene === 'interior_cave_f2')     return INTERIOR_CAVE_F2;
+  if (scene === 'interior_cave_f3')     return INTERIOR_CAVE_F3;
   if (scene === 'interior_crazy_home')  return INTERIOR_CRAZY_HOME;
   if (MALEZOR_HOME_INTERIORS[scene])    return MALEZOR_HOME_INTERIORS[scene];
   return null;
@@ -42714,7 +42816,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.36' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.37' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

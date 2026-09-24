@@ -60,8 +60,8 @@ console.log('\n★★★★ THE HANDOFF IS FULFILLED · every item it asked for 
   //   would hide it. The sum is the delivery, the split is the decision.
   ok(files.length + rejected.length === 72,
      `${files.length} live + ${rejected.length} rejected = ${files.length + rejected.length} delivered`);
-  ok(rejected.includes('zysphere-drop.png'),
-     '★★★ zysphere is the rejected one · Poké Ball silhouette, pulled 2026-09-23 at the Creator\'s direction');
+  ok(rejected.length === 0,
+     '★★★ nothing is rejected any more · zysphere was pulled for a Poké Ball silhouette and replaced the same day');
   const rows = [...DOC.matchAll(/^\| \d+ \| `([a-z0-9_]+)` \| [^|]+ \| `([^`]+)` \|$/gm)];
   const gone = rows.filter(([, , f]) => !files.includes(f) && !rejected.includes(f));
   ok(!gone.length,

@@ -153,18 +153,19 @@ H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallba
   //   Creator, 2026-09-23: "use them as their bag item icon. make a UI native
   //   background for the icon and put the image of the item chromakeyed."
   const man = G.ZYCUBE_ART;
-  // ★★★★ 71, NOT 72 · `zysphere` IS REJECTED AND MUST STAY REJECTED.
-  //   Creator, 2026-09-23: "do not use the new zysphere icon." It rendered as
-  //   a Poké Ball — two hemispheres, equatorial band, centred round lens —
-  //   against a prompt that asked for the opposite in as many words. A note in
-  //   a README is undone by the next import pass; an assertion is not.
-  ok(Object.keys(man).length === 71, `ZYCUBE_ART carries ${Object.keys(man).length} entries (72 delivered, 1 rejected)`);
-  ok(!man.zysphere && !G.zycubeArtFor('zysphere'),
-     '★★★★ zysphere has NO art entry · the slot falls back to its glyph, which is what the fallback layer is for');
-  ok(!fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag/zysphere-drop.png')),
-     '★★★ and the file is not in the live folder · parked in _rejected/ so a re-import cannot quietly restore it');
+  // ★★★ BACK TO 72 · zysphere returned on its SECOND art (2026-09-23). The
+  //   first was pulled for being a Poké Ball; the replacement drops the
+  //   two-tone hemisphere split — the recognisable part — for a uniformly dark
+  //   faceted orb with slat bands and a Z lens.
+  ok(Object.keys(man).length === 72, `ZYCUBE_ART carries ${Object.keys(man).length} entries`);
+  ok(!!man.zysphere && !!G.zycubeArtFor('zysphere'),
+     '★★★ zysphere has art again · it spent two builds on its glyph fallback rather than as an empty box');
+  ok(fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag/zysphere-drop.png')),
+     '★★ and the live file is there');
+  ok(!fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag/_rejected/zysphere-drop.png')),
+     '★★★★ while the REJECTED one is deleted · a parked duplicate of a filename that now exists live is a trap for the next import pass');
   ok(fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag/_rejected/README.md')),
-     '★★ with the reason written down beside it');
+     '★★ the README stays as the record · it carries the rule a replacement had to satisfy, which is the reusable part');
   const missing = Object.entries(man)
     .filter(([, f]) => !fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag', f)));
   ok(!missing.length,

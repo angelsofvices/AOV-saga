@@ -14,6 +14,7 @@
 //   is always open, which silently deletes the BAG's top level and changes
 //   what Circle does over there. Null stays meaningful and renders as ALL.
 import { bootGame } from './lib/boot_game.mjs';
+import { parse, makeDocument } from './lib/mini_dom.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -27,7 +28,7 @@ const G = bootGame({ extra: ['renderZycellZycube','player','game','zycubeOpenCat
   'zycubeCloseCategory','ZYCUBE_CATEGORIES','ZYCUBE_CAT_ICON','ZYCUBE_ICON','zycubeIconFor',
   'zycubeCategoryOf','INVENTORY_META','ASTRALITE_FAMILIES','zycubeCategoryRows',
   'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem',
-  'ZYCUBE_ART_ELSEWHERE'] });
+  'ZYCUBE_ART_ELSEWHERE','zyAttrHilite'] });
 console.log = _L;
 
 G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
@@ -264,6 +265,59 @@ H('★★★ THE ACTIVE TAB CARRIES THE CATEGORY WORD');
   ok(visible === 1, `★★★ the word is on screen ONCE (${visible})`);
   ok(!/◈ ZYCUBE · WEAPONS/.test(h),
      '★★★ and the section header no longer repeats it · it reads just "◈ ZYCUBE", so the panel title also stops flickering as you tab');
+}
+
+H('★★★★ THE DESCRIPTION FOLLOWS THE CURSOR · driven against a parsed DOM');
+{
+  //   Creator, 2026-09-24: "hovering over an item with either dpad or mouse
+  //   should show its description at the bottom."
+  // ★★★★ TWO THINGS WERE WRONG AND ONLY ONE WAS THE HOVER. Every detail block
+  //   was emitted display:none, and zyAttrHilite is what reveals one — so
+  //   until the cursor landed on a slot NOTHING had called it and the pane sat
+  //   empty. Opening your bag to a blank description reads as broken before
+  //   you have touched anything.
+  // ★★★ This section RUNS the swap rather than grepping for it: render the
+  //   panel, parse it, call the hook, read which block is visible. A source
+  //   scan would have happily confirmed the markup was present while the pane
+  //   stayed blank.
+  const P2 = G.player;
+  P2.items = { potion:5, ale:2, berry:9, zysphere:3 };
+  G.zycubeCloseCategory();
+  const html = G.renderZycellZycube();
+  const c = parse(`<div id="zycellContent">${html}</div>`).children[0];
+  const doc = makeDocument({ zycellContent: c });
+  doc.querySelector = sel => doc.querySelectorAll(sel)[0] || null;
+  const realDoc = globalThis.document;
+  globalThis.document = doc;
+  const shown = () => doc.querySelectorAll('[data-zydetail]')
+    .filter(n => { const inline = n.style && n.style.display;
+      return inline ? inline !== 'none' : !/display:\s*none/.test(n.getAttribute('style') || ''); })
+    .map(n => n.getAttribute('data-zydetail'));
+  try {
+    const first = shown();
+    ok(first.length === 1,
+       `★★★★ ONE description is visible before anything is touched (${JSON.stringify(first)}) · the pane never opens blank`);
+    G.zyAttrHilite('zysphere', 0);
+    ok(shown().join() === 'zysphere', `★★★★ pointing at zysphere shows zysphere (${JSON.stringify(shown())})`);
+    G.zyAttrHilite('berry', 0);
+    ok(shown().join() === 'berry', '★★★ and moving to berry swaps it · exactly one at a time');
+    G.zyAttrHilite(null, 0);
+    ok(shown().length === 1,
+       '★★★ off an item it falls back to the first rather than blanking · zyAttrHilite already had that instinct, the markup just never gave it a first state');
+  } finally { globalThis.document = realDoc; }
+}
+
+H('★★★ MOUSE HOVER FEEDS THE SAME HOOK THE D-PAD DOES');
+{
+  const h = render(null);
+  const mo = [...h.matchAll(/onmouseover="([^"]*)"/g)].map(m => m[1]).filter(x => /zyAttrHilite/.test(x));
+  ok(mo.length >= 3,
+     `★★★★ ${mo.length} slots call zyAttrHilite on hover · the D-pad path went through the focus painter and the mouse had NO path at all`);
+  ok(mo.every(x => /borderColor/.test(x)),
+     '★★ and they still light their own border · hover does both jobs, not one instead of the other');
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  ok(/zyAttrHilite\(fe && fe\.getAttribute \? fe\.getAttribute\('data-zyattr'\) : null/.test(src),
+     '★★★ the D-pad still drives it through the SAME function · one hook, two inputs, so they cannot disagree about what is described');
 }
 
 H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');

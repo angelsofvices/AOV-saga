@@ -42581,7 +42581,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.30' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.31' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44494,7 +44494,7 @@ function renderZycellZycube(){
                            inset 0 -8px 14px -8px ${col}66,
                            0 1px 2px rgba(0,0,0,0.45);
                transition:background 120ms, border-color 120ms, transform 90ms;"
-        onmouseover="this.style.borderColor='${col}'"
+        onmouseover="this.style.borderColor='${col}'; try{zyAttrHilite('${k}',0)}catch(_){}"
         onmouseout="this.style.borderColor='${col}55'">
       <span style="pointer-events:none; opacity:${art ? '0.30' : '1'}; ${gStyle}">${g}</span>
       ${artTag}
@@ -44526,10 +44526,21 @@ function renderZycellZycube(){
   // ★★★ Driven by the EXISTING data-zyattr → data-zydetail hook (v0.98.1, "a
   //   control may name a display it owns"), so focusing a slot swaps the pane
   //   with no new painter code. Mouse hover gets it through the same path.
-  const detail = rows.map(([k, n]) => {
+  // ★★★★ v0.99.31 · THE FIRST ROW STARTS VISIBLE.
+  //   Creator, 2026-09-24: "hovering over an item with either dpad or mouse
+  //   should show its description at the bottom."
+  //   ★★★★ Two things were wrong and only one of them was the hover. Every
+  //   detail block was emitted display:none, and zyAttrHilite is what reveals
+  //   one — so until the player moved the cursor onto a slot, NOTHING had
+  //   called it and the description area sat empty. Opening your bag and
+  //   seeing a blank panel reads as broken before you have touched anything.
+  //   ★★★ zyAttrHilite already has the right instinct for this ("Null = leave
+  //   the first detail showing rather than blanking the rail to an empty
+  //   box") — the markup just never gave it a first state to fall back to.
+  const detail = rows.map(([k, n], _i) => {
     const label = (meta[k] && meta[k].label) || k;
     const c = ZYCUBE_CAT_BY_ID[zycubeCategoryOf(k)] || { label:'ITEMS', color:'var(--zy-cyan)', blurb:'' };
-    return `<div data-zydetail="${k}" style="display:none;">
+    return `<div data-zydetail="${k}" style="display:${_i === 0 ? 'block' : 'none'};">
       <div style="color:${c.color}; font-weight:bold; font-size:14px; letter-spacing:.04em;">${label}</div>
       <div style="height:1px; margin:5px 0 7px; background:linear-gradient(90deg,${c.color}99,transparent);"></div>
       <div style="color:var(--zy-text); font-size:11px; font-style:italic; line-height:1.5;">

@@ -24,6 +24,7 @@ const TILE = 48;
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['INTERIOR_CAVE','INTERIOR_CAVE_F2','INTERIOR_CAVE_F3','walkable','game','player',
   'caveFloorUnlock','CAVE_F2_LEVEL','CAVE_UP_Y','grantDistrictKey','gemlordCavesOpen','GEMLORD_CAVE_FLOOR',
+  'GEMLORD_THRONE','GEMLORD_BY_DIST','gemlordThroneScene','NPCS',
   'interiorConfig','CAVE_STAIR_X','CAVE_STAIR_W','CAVE_STAIR_Y','CAVE_STAIR_VIS','CAVE_LAND',
   'GEMLORD_CAVE_INTERIORS','STAIRCASE_UP_BBOX'] });
 console.log = _L;
@@ -193,6 +194,49 @@ H('★★★ TEN CAVE FLOORS, ONE PER DISTRICT');
      `★★★ every one resolves to a real file${gone.length ? ' · MISSING: ' + gone.map(x => x[0]).join(', ') : ''}`);
   ok(/gemlordCaveFloorSrc\('malezor'\)/.test(fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8')),
      "★★ and the carved cave reaches its floor THROUGH the table, not by a hard-coded path");
+}
+
+H('★★★★ THE GEMLORD SITS ON THE BOTTOM FLOOR');
+{
+  //   Creator, 2026-09-24: "the gemlords will all sit at the bottom level of
+  //   each cave."
+  // ★★★★ RAKORON WAS STILL ON F1. He was placed at (10,3) when the cave was a
+  //   single room, so digging two floors under him at v0.99.37 left the Gemlord
+  //   standing in the ENTRANCE — three gates leading down to empty rock while
+  //   the boss waited by the door. Nothing errored; the descent was just
+  //   pointless, which is the kind of bug a suite has to be told to look for.
+  const r = G.NPCS.find(n => n && n.id === 'rakoron_cave_boss');
+  ok(!!r, 'Rakoron exists');
+  ok(r.scene === 'interior_cave_f3' && r.homeScene === 'interior_cave_f3',
+     `★★★★ he is on the BOTTOM floor (${r.scene}), not the entrance`);
+  ok(r.tileX === G.GEMLORD_THRONE.x && r.tileY === G.GEMLORD_THRONE.y,
+     `★★★ at the throne tile (${r.tileX},${r.tileY}) · one constant serves all ten caves, since every F3 is the same room`);
+  G.game.scene = 'interior_cave_f3';
+  ok(!G.walkable(r.tileX, r.tileY), '★★ he BLOCKS his tile · you face the Gemlord, you do not walk through him');
+  const nb = [[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy]) => [r.tileX+dx, r.tileY+dy])
+    .filter(([x,y]) => G.walkable(x,y));
+  ok(nb.length >= 1, `★★ ${nb.length} approach tile(s) · a boss you cannot stand beside cannot be spoken to`);
+  // ★★★★ and he must be REACHABLE from where a descent drops you
+  const I = G.INTERIOR_CAVE_F3;
+  const set = new Set();
+  for (let y = 0; y < I.rows; y++) for (let x = 0; x < I.cols; x++) if (G.walkable(x, y)) set.add(x + ',' + y);
+  const st = I.spawn.x + ',' + I.spawn.y;
+  const seen = new Set([st]); const stk = [st];
+  while (stk.length){
+    const [x, y] = stk.pop().split(',').map(Number);
+    for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const k = (x+ox) + ',' + (y+oy);
+      if (set.has(k) && !seen.has(k)){ seen.add(k); stk.push(k); }
+    }
+  }
+  ok(nb.some(([x, y]) => seen.has(x + ',' + y)),
+     `★★★★ reachable on foot from where the descent lands you · ${Math.abs(I.spawn.y - r.tileY)} rows of floor between you and him`);
+  G.game.scene = 'overworld';
+  // ★★ the other nine are DATA, waiting on their caves
+  ok(Object.keys(G.GEMLORD_BY_DIST).length === 10, 'all ten Gemlords are mapped to their districts');
+  const carved = Object.keys(G.GEMLORD_BY_DIST).filter(d => G.gemlordThroneScene(d));
+  ok(carved.join() === 'malezor',
+     `★★ only ${carved.join(', ') || 'none'} has a carved cave today · the other nine resolve to null, so the row is a placeholder rather than a line to write later`);
 }
 
 console.log(f ? `\n❌ ${f} failed` : '\n✅ border sealed both floors · 3-wide stairs that draw 3 wide · two storeys, fully walkable');

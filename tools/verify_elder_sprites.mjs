@@ -43,11 +43,12 @@ H('★★★ NINE DISTRICTS HAVE AN ELDER · AND KORATHEN DOES NOT, ON PURPOSE')
   const E = G.DISTRICT_ELDERS;
   ok(Array.isArray(E) && E.length >= 9, `${E.length} entries in DISTRICT_ELDERS`);
   const named = E.filter(e => e.id);
-  ok(named.length === 9, `${named.length} named Elders`);
+  // ★★★ 9 -> 10 at v0.99.26 · Alizarae filled Korathen's empty seat.
+  ok(named.length === 10, `${named.length} named Elders`);
   const dists = named.map(e => e.dist);
   ok(new Set(dists).size === dists.length, 'one Elder per district · no district claimed twice');
-  ok(!dists.includes('korathen'),
-     '★★★ Korathen has none · "District X, Korathen, has no Elder assigned yet" — absent, not a blank row');
+  ok(named.some(e => e.dist === 'korathen' && e.id === 'alizarae'),
+     '★★★★ Korathen HAS one now · Alizarae · the row that was deliberately absent is filled, not blank');
   for (const [d, id] of [['malezor','kelthor'],['zarvane','ivelith'],['andrannor','mora'],
                          ['veridan','selis'],['netharion','voss'],['vorashil','ezekar'],
                          ['xilnar','naela'],['baelgor','draith'],['thardin','yorik']])
@@ -59,7 +60,7 @@ H('★★★ NINE DISTRICTS HAVE AN ELDER · AND KORATHEN DOES NOT, ON PURPOSE')
 H('★★ THE ART IS ON DISK · and the README says the same thing the code does');
 {
   const S = G.DISTRICT_ELDER_SPRITES;
-  ok(Object.keys(S).length === 8, `${Object.keys(S).length} sheets declared · Kelthor keeps his own existing sheet`);
+  ok(Object.keys(S).length === 9, `${Object.keys(S).length} sheets declared · Kelthor keeps his own existing sheet`);
   for (const id of Object.keys(S)){
     const p = sheetPath(id);
     const im = readPng(p);
@@ -71,7 +72,8 @@ H('★★ THE ART IS ON DISK · and the README says the same thing the code does
     ok(readme.includes(id + '.png'), `  README lists ${id}.png`);
   // ★ whitespace-tolerant · my first version failed on correct prose purely
   //   because the sentence wraps across a line break in the README.
-  ok(/Korathen\s+has\s+no\s+Elder/i.test(readme), '★ and records that Korathen has none');
+  ok(/All ten are now assigned/i.test(readme),
+     '★ and records that all ten seats are filled · the README said "nine of ten" for six builds after it stopped being true');
 }
 
 H('★★★ EVERY BOX KEEPS ITS OWN CHARACTER');
@@ -157,7 +159,8 @@ H('★★★ THE SEAM BLEED IS REAL, AND IT IS RECORDED RATHER THAN HIDDEN');
 H('★★ SCALE IS ANCHORED TO KELTHOR');
 {
   const npcs = G.buildDistrictElderNpcs();
-  ok(npcs.length === 8, `${npcs.length} Elder NPCs built · Kelthor is authored separately`);
+  // ★★ 8 -> 9 at v0.99.26 · Alizarae joins the factory-built elders.
+  ok(npcs.length === 9, `${npcs.length} Elder NPCs built · Kelthor is authored separately`);
   ok(npcs.every(n => n.scaleRefBh === 295),
      '★★★ every one carries scaleRefBh 295 · Kelthor\'s measured DOWN body height');
   // ★★★ CITE KELTHOR, DO NOT RE-DERIVE HIM. My first version scanned his raw

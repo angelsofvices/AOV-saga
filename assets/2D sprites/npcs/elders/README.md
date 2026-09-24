@@ -1,7 +1,8 @@
 # DISTRICT ELDER SPRITE SHEETS
 
-One Elder per district. Nine of ten districts are assigned; **Korathen has no
-Elder yet** and is deliberately absent from `DISTRICT_ELDERS`.
+One Elder per district. **All ten are now assigned** — Korathen's seat was
+empty until 2026-09-23, when the Creator delivered Alizarae ("use her as the
+korathen elder for now").
 
 | # | District  | Elder                | Sheet                       | Look |
 |---|-----------|----------------------|-----------------------------|------|
@@ -14,6 +15,7 @@ Elder yet** and is deliberately absent from `DISTRICT_ELDERS`.
 | 7 | Xilnar    | Wispkeeper Naela     | `naela.png`                 | silver-blue braid, midnight robes, wisp lantern |
 | 8 | Baelgor   | Emberkeeper Draith   | `draith.png`                | red-and-silver forge beard, leather apron, brass bracer |
 | 9 | Thardin   | Foremanchief Yorik   | `yorik.png`                 | gray moustache, goggles, engineer's coat, mechanical arm |
+| 10 | Korathen  | Alizarae             | `alizarae.png`              | white braids and gold crown, black-and-violet court robes, violet gem staff |
 
 ## Format
 
@@ -53,3 +55,16 @@ are sound: each keeps 96.4–99.9% of its own cell's ink and pulls in at most
 **If the sheets are re-exported with clean seams**, re-run
 `python3 tools/measure_elder_sheets.py` and paste the tables back in — the
 ownership measurement becomes trustworthy the moment the rows stop touching.
+
+## Alizarae · added 2026-09-23
+
+Measured on delivery: 1254², 4×4 of 313px cells, rows Down/Left/Right/Up.
+**No seam bleed** — not one cell has ink touching its boundary, so every bbox
+is the sprite's own and none drags a neighbour's pixels in. Sprite heights
+282-289px against the 295 scale reference, so she stands the same size as the
+other nine with no per-elder fudge.
+
+Provisional, per the Creator's "for now": her `being`, `seat` and `teaches`
+were authored to fill fields Kelthor reads ALOUD when he sends you onward
+("Find {name}. {being} — sits at the {seat}. They teach {teaches}"). Left null
+they printed the word "null" to the player.

@@ -133,15 +133,22 @@ H('★★★★ THE KEYS HAVE A SOURCE · v0.99.22 shipped the lock without one'
      '★★★ the generic elder factory grants its district key on first meeting · one giver per district, scales to all ten');
   ok(/grantDistrictKey\('malezor', 'Warden Kelthor'\)/.test(src),
      "★★★★ …and Kelthor is granted EXPLICITLY · he is hand-built and never goes through that factory, so without this the FIRST district is the one whose gold never opens");
-  // ★★★ EVERY DISTRICT THAT HAS AN ELDER HAS A KEY SOURCE — and exactly one
-  //   does not. Korathen's elder is `id: null` by the Creator's own note
-  //   ("District X, Korathen, has no Elder assigned yet"), so its gold chests
-  //   have no giver. That is a CONTENT gap, not a wiring bug, and pinning it
-  //   here means it stays one district instead of quietly becoming three.
+  // ★★★★ ALL TEN NOW. This assertion was written at v0.99.23 pinned to 9/10
+  //   with korathen named as the exception, because its elder was `id: null`.
+  //   Alizarae closed it at v0.99.26 and the count is the thing that told us —
+  //   a gap held as a NUMBER in a suite gets closed on purpose; a gap held in
+  //   a sentence in a reply gets forgotten.
   const withElder = G.DISTRICT_ELDERS ? G.DISTRICT_ELDERS.filter(e => e.id) : [];
   const without   = G.DISTRICT_ELDERS ? G.DISTRICT_ELDERS.filter(e => !e.id).map(e => e.dist) : [];
-  ok(withElder.length === 9 && without.join() === 'korathen',
-     `★★★ ${withElder.length}/10 districts have an Elder to grant their key · the exception is ${without.join(', ') || 'none'}`);
+  ok(withElder.length === 10 && !without.length,
+     `★★★★ ${withElder.length}/10 districts have an Elder to grant their key`
+   + (without.length ? ` · MISSING: ${without.join(', ')}` : ' · no district is keyless'));
+  // ★★★ and each of those ten must actually be READABLE by the player, because
+  //   Kelthor speaks these fields aloud when he sends you onward. A null here
+  //   printed the word "null" to the screen.
+  const hollow = withElder.filter(e => !e.name || !e.being || !e.seat || !e.teaches || !e.at);
+  ok(!hollow.length,
+     `★★★ every Elder has name / being / seat / teaches / at filled${hollow.length ? ' · HOLLOW: ' + hollow.map(e=>e.dist).join(', ') : ''}`);
   const tc = (src.match(/completeElderTrial\(/g) || []).length - 1;
   ok(tc >= 1, `★★★ completeElderTrial has ${tc} call site(s) · the trial flag is reachable, not decorative`);
 }

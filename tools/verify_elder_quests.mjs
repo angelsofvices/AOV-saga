@@ -55,7 +55,7 @@ H('★★★ ONE EXPEDITION PER DISTRICT · and none invented');
 {
   const log = G.buildQuestLog();
   const named = G.DISTRICT_ELDERS.filter(e => e.id);
-  ok(named.length === 9, `${named.length} Elders · Korathen still has none`);
+  ok(named.length === 10, `${named.length} Elders · Korathen's seat filled by Alizarae at v0.99.26`);
   for (const E of named){
     const mine = log.expeditions.filter(e => e.giver.includes(E.name));
     ok(mine.length >= 1, `  ${E.dist.padEnd(10)} ${E.name.padEnd(22)} has an expedition`);

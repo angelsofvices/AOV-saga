@@ -29,7 +29,8 @@ const G = bootGame({ extra: ['renderZycellZycube','player','game','zycubeOpenCat
   'zycubeCategoryOf','INVENTORY_META','ASTRALITE_FAMILIES','zycubeCategoryRows',
   'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem',
   'ZYCUBE_ART_ELSEWHERE','zyAttrHilite','zycubeAstraliteCrop','ASTRALITE_GEM_SHEETS',
-  'ASTRALITE_FAMILIES','renderZycellRaidCard','useZycubeItem','zycellCyclePage'] });
+  'ASTRALITE_FAMILIES','renderZycellRaidCard','useZycubeItem','zycellCyclePage',
+  'migrateFairies','ZYCUBE_ICON'] });
 console.log = _L;
 
 G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
@@ -166,7 +167,12 @@ H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallba
   //   first was pulled for being a Poké Ball; the replacement drops the
   //   two-tone hemisphere split — the recognisable part — for a uniformly dark
   //   faceted orb with slat bands and a Z lens.
-  ok(Object.keys(man).length === 72, `ZYCUBE_ART carries ${Object.keys(man).length} entries`);
+  // ★★★ 72 -> 71 at v0.99.35 · `fairy` was retired into `fae` on the Creator's
+  //   canon ("we dont need fairy items. they are fae"), so the manifest lost an
+  //   entry on purpose and its art file was deleted rather than left orphaned.
+  ok(Object.keys(man).length === 71, `ZYCUBE_ART carries ${Object.keys(man).length} entries`);
+  ok(!man.fairy && !G.INVENTORY_META.fairy,
+     '★★★★ `fairy` is gone from BOTH the art manifest and INVENTORY_META · a retired item left in meta still shows in the bag');
   ok(!!man.zysphere && !!G.zycubeArtFor('zysphere'),
      '★★★ zysphere has art again · it spent two builds on its glyph fallback rather than as an empty box');
   ok(fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag/zysphere-drop.png')),
@@ -462,6 +468,35 @@ H('★★★ THE CARD IS AN HONEST PLACEHOLDER');
   ok(/Placeholder · this card will live-track your stats/.test(h),
      '★ and it SAYS it is a placeholder · so it is not mistaken for finished at a glance');
   G.game._zyRaidOpen = false;
+}
+
+H('★★★★ A FAIRY IS A FAE · one creature, one key');
+{
+  //   Creator, 2026-09-24: "we dont need fairy items. they are fae. I want the
+  //   single blue fae to be the item icon for faes. 5 basic yellow faes can
+  //   turn into a single blue faery that is why the icon looks different from
+  //   the overworld asset bundle"
+  // ★★★★ TWO KEYS FOR ONE CREATURE SPLIT ITS COUNT ACROSS TWO BAG SLOTS, which
+  //   makes the 5:1 ladder unreadable — you could hold four fae and a fairy and
+  //   be nowhere near a faery.
+  ok(!G.INVENTORY_META.fairy, '★★★ `fairy` is out of INVENTORY_META');
+  ok(!G.ZYCUBE_ART.fairy && !G.ZYCUBE_ICON.fairy, '★★ and out of the art and glyph tables');
+  ok(!fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag/fairy-drop.png')),
+     '★★ its art file is deleted, not orphaned');
+  ok(/fae-drop\.png/.test(G.zycubeArtFor('fae') || ''),
+     '★★★ `fae` shows the BLUE faery · the overworld drop is a yellow fae and the bag icon shows what five of them become');
+  // ★★★★ the stone-shatter drop must hand over a fae, not a retired key
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  ok(!/player\.items\.fairy = \(player\.items\.fairy \|\| 0\) \+ 1/.test(src),
+     '★★★★ the astralite-shatter drop no longer grants a retired item · it would have been uncollectable and invisible in the bag');
+  // ★★★ and an existing save keeps what it collected
+  const P5 = G.player;
+  P5.items = { fae:2, fairy:3, potion:1 };
+  const moved = G.migrateFairies();
+  ok(moved === 3 && P5.items.fae === 5 && !('fairy' in P5.items),
+     `★★★★ migrateFairies folds the old count in (${moved} moved → ${P5.items.fae} fae) · deleting the key without folding would confiscate what the player collected`);
+  ok(G.migrateFairies() === 0, '★★ and re-running is a no-op · it cannot double-credit on a second load');
+  P5.items = {};
 }
 
 H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');

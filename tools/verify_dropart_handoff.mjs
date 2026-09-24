@@ -58,8 +58,15 @@ console.log('\n★★★★ THE HANDOFF IS FULFILLED · every item it asked for 
   // ★★★ 72 DELIVERED, 71 LIVE, 1 REJECTED. Counting only the live folder would
   //   read the rejection as a missing delivery; counting both without saying so
   //   would hide it. The sum is the delivery, the split is the decision.
-  ok(files.length + rejected.length === 72,
-     `${files.length} live + ${rejected.length} rejected = ${files.length + rejected.length} delivered`);
+  // ★★★ 72 delivered, 71 live: `fairy-drop.png` was DELETED at v0.99.35 when
+  //   the Creator folded fairies into fae. Counting it as missing would read a
+  //   deliberate retirement as a lost asset; counting 72 live would demand a
+  //   file that should not exist. The sum is what was delivered, and the
+  //   difference is named.
+  ok(files.length + rejected.length === 71,
+     `${files.length} live + ${rejected.length} rejected = ${files.length + rejected.length} in use (72 delivered · fairy retired into fae)`);
+  ok(!files.includes('fairy-drop.png'),
+     '★★★ fairy-drop.png is not in the live folder · it was the un-keyed twin of fae-drop.png, which the Creator replaced with the blue faery');
   ok(rejected.length === 0,
      '★★★ nothing is rejected any more · zysphere was pulled for a Poké Ball silhouette and replaced the same day');
   const rows = [...DOC.matchAll(/^\| \d+ \| `([a-z0-9_]+)` \| [^|]+ \| `([^`]+)` \|$/gm)];

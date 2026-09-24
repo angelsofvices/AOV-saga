@@ -23337,6 +23337,83 @@ function startNewGame(){
     }
   } catch(e){}
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.36 · HOLD THE MOUSE ON ANY PRE-GAME SCREEN TO RESUME.
+//   Creator, 2026-09-24: "holding mouse on splash screen or intro movie or
+//   start screen auto loads recent game. for quick playtest on keyboard and
+//   mouse (no dualsense rn remote coding)."
+//
+// ★★★ ONE GATE COVERS ALL THREE SCREENS. Splash, intro video and the title
+//   buttons are three states of `game.scene === 'title'` (introState tells them
+//   apart), so testing the SCENE catches every one without enumerating them —
+//   and cannot miss a fourth if one is ever added.
+//
+// ★★★★ IT LISTENS ON THE WINDOW, IN CAPTURE, ON PURPOSE. The intro <video> and
+//   the title's DOM buttons sit ON TOP of the canvas, so a canvas-bound
+//   listener would work on the splash and go dead the moment the movie or the
+//   buttons appeared — which is two of the three screens the Creator named.
+//
+// ★★ A HOLD WITH NO FEEDBACK FEELS LIKE A BROKEN CLICK, so the pill shows the
+//   progress. And 700ms is chosen to sit clear of a normal click: NEW GAME and
+//   LOAD GAME still take a tap, because a tap never reaches the threshold.
+const QUICKLOAD_HOLD_MS = 700;
+(function wireQuickLoadHold(){
+  let raf = 0, t0 = 0, pill = null, armed = false;
+  const eligible = () => {
+    try { return game && game.scene === 'title' && typeof hasSave === 'function' && hasSave(); }
+    catch(_){ return false; }
+  };
+  const makePill = () => {
+    if (pill) return pill;
+    pill = document.createElement('div');
+    pill.id = 'quickLoadPill';
+    pill.style.cssText = `position:fixed; left:50%; bottom:6.5%; transform:translateX(-50%);
+      z-index:60; pointer-events:none; padding:9px 16px; border:2px solid #d4af37;
+      background:rgba(0,0,0,0.78); color:#f0eadf; font:bold 12px 'Courier New',monospace;
+      letter-spacing:.14em; white-space:nowrap; box-shadow:0 0 22px rgba(212,175,55,0.35);`;
+    pill.innerHTML = `<span id="quickLoadTxt">HOLD · RESUME LAST SAVE</span>
+      <div style="margin-top:6px; height:4px; background:rgba(255,255,255,0.14);">
+        <div id="quickLoadBar" style="height:100%; width:0%; background:#d4af37;"></div>
+      </div>`;
+    document.body.appendChild(pill);
+    return pill;
+  };
+  const stop = () => {
+    armed = false;
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+    if (pill) pill.style.display = 'none';
+  };
+  const tick = () => {
+    if (!armed) return;
+    if (!eligible()){ stop(); return; }
+    const pct = Math.min(1, (performance.now() - t0) / QUICKLOAD_HOLD_MS);
+    const bar = document.getElementById('quickLoadBar');
+    if (bar) bar.style.width = (pct * 100).toFixed(1) + '%';
+    if (pct >= 1){
+      stop();
+      try { loadSavedGame(); } catch(err){ console.warn('[rp7b] quick-load failed', err); }
+      return;
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  const start = (ev) => {
+    if (!eligible()) return;
+    if (ev && ev.pointerType === 'mouse' && ev.button !== 0) return;
+    armed = true; t0 = performance.now();
+    const p = makePill();
+    p.style.display = 'block';
+    const bar = document.getElementById('quickLoadBar');
+    if (bar) bar.style.width = '0%';
+    raf = requestAnimationFrame(tick);
+  };
+  try {
+    addEventListener('pointerdown', start, true);
+    addEventListener('pointerup', stop, true);
+    addEventListener('pointercancel', stop, true);
+    addEventListener('blur', stop, true);
+  } catch(_){}
+})();
 function loadSavedGame(){
   if (loadGame()){
     stopIntroVideo();                             // v0.93.3 · kill intro on load
@@ -42637,7 +42714,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.35' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.36' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

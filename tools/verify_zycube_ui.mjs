@@ -496,7 +496,13 @@ H('★★★★ A FAIRY IS A FAE · one creature, one key');
   ok(moved === 3 && P5.items.fae === 5 && !('fairy' in P5.items),
      `★★★★ migrateFairies folds the old count in (${moved} moved → ${P5.items.fae} fae) · deleting the key without folding would confiscate what the player collected`);
   ok(G.migrateFairies() === 0, '★★ and re-running is a no-op · it cannot double-credit on a second load');
-  P5.items = {};
+  // ★★★ RESTORE THE FIXTURE, DO NOT EMPTY IT. Second time this suite has been
+  //   bitten by exactly this: an empty bag renders no slots, so the plate and
+  //   cursor assertions below went red on working code — a test failing
+  //   because an earlier test tidied up after itself.
+  P5.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
+    berry:23, fruit:8, scrap_metal:40, backpack:1, zycube:1, zphone:1, faenet:1, skateboard:1,
+    astralite_1_1:3, astralite_2_4:1, moon_gem:2, life_seed:4, prismshard:1, tower_battery:2 };
 }
 
 H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');

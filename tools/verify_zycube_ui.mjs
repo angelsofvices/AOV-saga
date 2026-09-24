@@ -26,7 +26,8 @@ const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['renderZycellZycube','player','game','zycubeOpenCategory',
   'zycubeCloseCategory','ZYCUBE_CATEGORIES','ZYCUBE_CAT_ICON','ZYCUBE_ICON','zycubeIconFor',
   'zycubeCategoryOf','INVENTORY_META','ASTRALITE_FAMILIES','zycubeCategoryRows',
-  'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem'] });
+  'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem',
+  'ZYCUBE_ART_ELSEWHERE'] });
 console.log = _L;
 
 G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
@@ -180,6 +181,29 @@ H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallba
   ok(/onerror="this\.style\.display='none'"/.test(h),
      "★★★★ …with onerror hiding the img · a key whose PNG is not in yet degrades to its emoji instead of an empty slot");
   ok(/image-rendering:pixelated/.test(h), '★★ pixelated · these are pixel-art renders, not photos');
+}
+
+H('★★★★ NOT ONE BAG-VISIBLE ITEM FALLS BACK TO AN EMOJI');
+{
+  // ★★★★ Found by smoke-testing the real loop before a playtest: ten items
+  //   were drawing a GLYPH in a bag otherwise full of art — including all four
+  //   Gemlord weapons, the rarest objects in the game. They were the ten I had
+  //   called "already covered" in the drop-art handoff, and that reasoning was
+  //   wrong in one word: they had WORLD-DROP art, which is not a BAG ICON.
+  //   ★★★ The fallback layer meant nothing looked BROKEN — it looked
+  //   INCONSISTENT, which is worse, because mixed art-and-emoji reads as
+  //   unfinished rather than as a bug, so nobody files it.
+  const skip = k => /^astralite_\d+_\d+$/.test(k) || /^compound_/.test(k) || /^key_/.test(k);
+  const bare = Object.keys(G.INVENTORY_META).filter(k => !skip(k) && !G.zycubeArtFor(k));
+  ok(!bare.length,
+     `★★★★ every bag-visible item resolves to a real image${bare.length ? ' · GLYPH-ONLY: ' + bare.join(', ') : ''}`);
+  // ★★ and the ten that live outside items/bag/ still point at files that exist
+  for (const [k, p2] of Object.entries(G.ZYCUBE_ART_ELSEWHERE)){
+    const real = decodeURIComponent(p2);
+    ok(fs.existsSync(path.join(ROOT, real)), `  ${k.padEnd(18)} → ${real.split('/').pop()}`);
+  }
+  ok(Object.keys(G.ZYCUBE_ART_ELSEWHERE).length === 10,
+     '★★ ten items are wired to art that already existed elsewhere · no new art was generated for this');
 }
 
 H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');

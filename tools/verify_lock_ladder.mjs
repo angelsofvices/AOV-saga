@@ -14,7 +14,8 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['chestUnlockState','hasDistrictKey','grantDistrictKey','districtKeyKey',
   'elderTrialComplete','completeElderTrial','DISTRICT_KEY_ITEMS','GOLD_CHEST_KEY_ITEMS',
-  'player','game','INVENTORY_META','zycubeCategoryOf','COSMIC_CHEST_SPOTS','DISTRICT_ORDER','DISTRICT_ELDERS'] });
+  'player','game','INVENTORY_META','zycubeCategoryOf','COSMIC_CHEST_SPOTS','DISTRICT_ORDER','DISTRICT_ELDERS','TOWN_HALL_VAULTS','SEER_HQ_CHESTS','TOWN_HALL_VAULT_TILE',
+  'civicSceneId','interiorConfig','walkable','tryOpenTownHallVault','vaultOpened'] });
 console.log = _L;
 const P = G.player;
 const reset = () => { P.items = {}; P.elderTrials = {}; G.game.devMaxBond = false; };
@@ -60,13 +61,17 @@ H('★★★★ MYTHIC NEEDS THE ELDER TRIAL · this is what locks the weapons a
 H('★★★★ ALL FOUR GEMLORD WEAPONS ARE BEHIND A TRIAL');
 {
   reset();
+  // ★★★ v0.99.24 · THIS USED TO READ COSMIC_CHEST_SPOTS. The weapons moved into
+  //   the town hall vaults, so an assertion pinned to their old home would go
+  //   red on the very change it was written to protect. It follows the WEAPON
+  //   now, not the container — which is the thing that actually must not drift.
   const WANT = { rubypaw_sword:'malezor', pearlbow:'zarvane', emerald_axe:'veridan', sapphire_sword:'vorashil' };
-  const spots = G.COSMIC_CHEST_SPOTS.filter(s => WANT[s.item]);
-  ok(spots.length === 4, `${spots.length} of the 4 Gemlord weapons sit in cosmic chests`);
-  for (const s of spots){
-    ok(s.dist === WANT[s.item], `  ${s.item.padEnd(15)} is in ${s.dist} (Creator: ${WANT[s.item]})`);
-    ok(G.chestUnlockState('cosmic', s.dist).open === false,
-       `  ${s.item.padEnd(15)} unreachable on a fresh save`);
+  const held = Object.fromEntries(G.TOWN_HALL_VAULTS.map(v => [v.item, v.dist]));
+  ok(Object.keys(held).length === 4, `${Object.keys(held).length} of the 4 Gemlord weapons are vault-held`);
+  for (const [item, dist] of Object.entries(WANT)){
+    ok(held[item] === dist, `  ${item.padEnd(15)} is in ${held[item] || '(nowhere)'} (Creator: ${dist})`);
+    ok(G.chestUnlockState('cosmic', dist).open === false,
+       `  ${item.padEnd(15)} unreachable on a fresh save`);
   }
 }
 
@@ -139,6 +144,63 @@ H('★★★★ THE KEYS HAVE A SOURCE · v0.99.22 shipped the lock without one'
      `★★★ ${withElder.length}/10 districts have an Elder to grant their key · the exception is ${without.join(', ') || 'none'}`);
   const tc = (src.match(/completeElderTrial\(/g) || []).length - 1;
   ok(tc >= 1, `★★★ completeElderTrial has ${tc} call site(s) · the trial flag is reachable, not decorative`);
+}
+
+H('★★★★ THE MYTHIC VAULTS ARE IN THE TOWN HALLS');
+{
+  //   Creator: "mythic chests will only be in town halls."
+  // ★★★★ Gating them where they stood was only half the instruction. The four
+  //   Gemlord chests sat in deep forest, so a sealed vault meant walking 113
+  //   tiles into the northwest stand to be told no. The Elder who sets the
+  //   trial stands at their own town hall door, so trial and reward are now
+  //   four tiles apart.
+  const V = G.TOWN_HALL_VAULTS, T = G.TOWN_HALL_VAULT_TILE;
+  ok(V.length === 4, `${V.length} vaults · one per Gemlord weapon`);
+  const reg = G.SEER_HQ_CHESTS.filter(c => c.vault);
+  ok(reg.length === 4, '★★★ all four are in the interior-chest table · the ONE lookup already wired into '
+   + 'collision, facing, the X handler and the depth sort');
+  ok(G.COSMIC_CHEST_SPOTS.every(s => !['rubypaw_sword','pearlbow','emerald_axe','sapphire_sword'].includes(s.item)),
+     `★★★★ and NO overworld cosmic chest still holds one · two chests holding one unique weapon is a chest that lies `
+   + `· remaining: ${G.COSMIC_CHEST_SPOTS.map(s => s.item).join(', ')}`);
+  for (const v of V){
+    const scene = G.civicSceneId('town-hall', v.dist);
+    G.game.scene = scene;
+    const cfg = G.interiorConfig(scene);
+    ok(!!cfg, `  ${v.dist.padEnd(9)} town hall resolves`);
+    ok(!G.walkable(T.tileX, T.tileY),
+       `  ${v.dist.padEnd(9)} the vault tile BLOCKS · you face it and press X, you do not walk over a Gemlord arm`);
+    // reachable, and standable beside
+    const set = new Set();
+    for (let y = 0; y < cfg.rows; y++) for (let x = 0; x < cfg.cols; x++) if (G.walkable(x, y)) set.add(x + ',' + y);
+    const st = cfg.spawn.x + ',' + cfg.spawn.y;
+    const seen = new Set([st]); const stk = [st];
+    while (stk.length){
+      const [x, y] = stk.pop().split(',').map(Number);
+      for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const k = (x+ox) + ',' + (y+oy);
+        if (set.has(k) && !seen.has(k)){ seen.add(k); stk.push(k); }
+      }
+    }
+    const nbrs = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => seen.has((T.tileX+dx) + ',' + (T.tileY+dy)));
+    ok(nbrs.length >= 1,
+       `  ${v.dist.padEnd(9)} ${nbrs.length} approach tile(s) reachable from spawn · a solid chest you cannot stand beside is unopenable`);
+  }
+}
+
+H('★★★★ THE VAULT HANDS OVER ONCE, AND ONLY AFTER THE TRIAL');
+{
+  reset(); P.townHallVaults = {};
+  G.game.scene = G.civicSceneId('town-hall', 'vorashil');
+  ok(G.tryOpenTownHallVault() === true, 'X on a sealed vault is HANDLED (not fallen through to the NPC scan)');
+  ok(!P.items.sapphire_sword, '★★★★ …and hands over nothing · the trial is not done');
+  G.completeElderTrial('vorashil');
+  G.tryOpenTownHallVault();
+  ok(P.items.sapphire_sword === 1, '★★★ after the trial it hands over the blade');
+  G.tryOpenTownHallVault();
+  ok(P.items.sapphire_sword === 1,
+     '★★★★ pressing X again does NOT duplicate it · a Gemlord arm is once-only, and vaultOpened persists that');
+  ok(G.vaultOpened('vorashil') && !G.vaultOpened('veridan'), '★★ and the state is per-district');
+  reset(); P.townHallVaults = {};
 }
 
 console.log(f ? `\n❌ ${f} failed` : '\n✅ wood/silver free · gold keyed per district · mythic earned per elder · shop closed · dev bypass live');

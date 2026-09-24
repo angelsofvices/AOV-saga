@@ -5581,6 +5581,37 @@ const COSMIC_CHEST_SPOTS = [
     label:'RUBYPAW LONGSWORD · Rakoron\'s iron and dragonlion mist',
     note:'placed by the Creator from inside the game · orchard clearing' },
 ];
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.24 · THE MYTHIC VAULTS MOVE INDOORS.
+//   Creator: "mythic chests will only be in town halls, able to recieve after
+//   you finish their elder trials."
+//
+// ★★★★ GATING THEM WHERE THEY STOOD WAS HALF THE INSTRUCTION. v0.99.22 made
+//   the four Gemlord chests refuse without an Elder trial, but they were still
+//   sitting in the deep forest — so the player's experience was walking 113
+//   tiles into the northwest stand to be told no. A locked box in a wood is a
+//   waste of a journey; a locked vault in the hall you already visit is a
+//   PROMISE you walk past every time you pass through.
+//
+// ★★★ And it puts the reward where the Elder is. Every Elder stands at their
+//   own town hall door (v0.99.7, the Creator's own placement rule) — so the
+//   person who sets the trial and the vault that pays it out are now four
+//   tiles apart, which is what makes the loop legible without a word of
+//   explanation.
+const TOWN_HALL_VAULTS = Object.freeze([
+  { dist:'malezor',  item:'rubypaw_sword',  label:'RUBYPAW LONGSWORD' },
+  { dist:'zarvane',  item:'pearlbow',       label:'PEARLBOW'          },
+  { dist:'veridan',  item:'emerald_axe',    label:'EMERALD AXE'       },
+  { dist:'vorashil', item:'sapphire_sword', label:'SAPPHIRE TEARSWORD'},
+]);
+const TOWN_HALL_VAULT_ITEMS = new Set(TOWN_HALL_VAULTS.map(v => v.item));
+// ★★ The overworld cosmic chest for each of those four is REMOVED, not left as
+//   a duplicate. Two chests holding one unique weapon is a chest that lies.
+//   Voltshard's cosmic chest stays where it is — it is a relic, not a Gemlord
+//   arm, and nothing in the directive moved it.
+for (let _i = COSMIC_CHEST_SPOTS.length - 1; _i >= 0; _i--)
+  if (TOWN_HALL_VAULT_ITEMS.has(COSMIC_CHEST_SPOTS[_i].item)) COSMIC_CHEST_SPOTS.splice(_i, 1);
+
 const GOLD_CHEST_TILE_POSITIONS = [
   [ 45, 90], [ 30,150],   // Malezor  (2)
   [ 95,265], [130,300],   // Zarvane  (2)
@@ -21575,6 +21606,56 @@ const SEER_HQ_CHESTS = [
   { id: 'r2',  scene: 'interior_seer_hq_r2', tileX: 17, tileY: 13, key: 'basement' },
   { id: 'b',   scene: 'interior_seer_hq_b',  tileX: 17, tileY:  7, key: 'attic'    },
 ];
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.24 · THE TOWN HALL VAULTS JOIN THIS TABLE ON PURPOSE.
+//   A chest lives in FOUR places — collision, the "is there anything to press
+//   X on" test, the X handler and the depth sort — and this table is already
+//   wired into all four. Giving the vaults their own registry would have meant
+//   teaching those same four sites a second concept, and the comment directly
+//   below records what happened the last time a chest's location was known in
+//   four places independently: three of them were not updated and the chest
+//   became unopenable for a release.
+const TOWN_HALL_VAULT_TILE = { tileX: 17, tileY: 4 };
+const MYTHIC_VAULT_CLOSED_IMG = new Image();
+MYTHIC_VAULT_CLOSED_IMG.src = 'assets/2D%20sprites/decor/mythic-chest.png';
+const MYTHIC_VAULT_CLOSED_BBOX = [72, 136, 1110, 981];
+for (const V of TOWN_HALL_VAULTS){
+  SEER_HQ_CHESTS.push({
+    id: 'vault_' + V.dist,
+    scene: civicSceneId('town-hall', V.dist),
+    tileX: TOWN_HALL_VAULT_TILE.tileX, tileY: TOWN_HALL_VAULT_TILE.tileY,
+    vault: V.dist, item: V.item, vlabel: V.label,
+    img: MYTHIC_VAULT_CLOSED_IMG, bbox: MYTHIC_VAULT_CLOSED_BBOX,
+  });
+}
+function vaultOpened(dist){ return !!(player.townHallVaults && player.townHallVaults[dist]); }
+// ★★★ The vault refuses OUT LOUD. chestUnlockState is the same predicate the
+//   overworld tiers ask, so the vault cannot drift out of step with them.
+function tryOpenTownHallVault(){
+  const C = SEER_HQ_CHESTS.find(c => c.vault && c.scene === game.scene);
+  if (!C) return false;
+  if (vaultOpened(C.vault)){
+    try { playSFX('doorLock'); } catch(_){}
+    showToast('◈ This vault is empty · you have already taken what it held', 2600);
+    return true;
+  }
+  const st = chestUnlockState('cosmic', C.vault);
+  if (!st.open){
+    try { playSFX(st.sfx || 'caveGrowl'); } catch(_){}
+    showToast(st.why, 5200);
+    return true;
+  }
+  player.townHallVaults = player.townHallVaults || {};
+  player.townHallVaults[C.vault] = true;
+  player.items = player.items || {};
+  player.items[C.item] = (player.items[C.item] || 0) + 1;
+  try { _armWeapon(C.item); } catch(_){}
+  try { playItemGain(C.item); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+  try { awardRizerXP(60); } catch(_){}
+  showToast(`★ MYTHIC VAULT · ${C.vlabel} · ${String(C.dist || C.vault).toUpperCase()}`
+          + ' · toggle it in ZyPhone → Weapons', 5600);
+  return true;
+}
 // ★★★ ONE LOOKUP FOR ALL FOUR SITES.  A chest lives in FOUR places — the
 // collision test, the "is there anything to press X on" test, the X handler
 // and the depth sort — and every one of them had its own hand-written scene
@@ -21705,9 +21786,13 @@ function drawSeerHqChest(){
   // bboxes, different scene / tile / flag
   const C = SEER_HQ_CHESTS.find(c => c.scene === game.scene);
   if (!C) return;
-  const opened = (C.key === 'basement') ? seerR2ChestOpened() : seerHqChestOpened();
-  const img  = opened ? SEER_HQ_CHEST_OPEN_IMG : SEER_HQ_CHEST_CLOSED_IMG;
-  const bbox = opened ? SEER_HQ_CHEST_OPEN_BBOX : SEER_HQ_CHEST_CLOSED_BBOX;
+  // ★★ v0.99.24 · a vault carries its own closed sprite (the mythic chest) and
+  //   its own opened state. Shared open art is correct — an emptied box looks
+  //   the same whatever it held.
+  const opened = C.vault ? vaultOpened(C.vault)
+               : (C.key === 'basement') ? seerR2ChestOpened() : seerHqChestOpened();
+  const img  = opened ? SEER_HQ_CHEST_OPEN_IMG  : (C.img  || SEER_HQ_CHEST_CLOSED_IMG);
+  const bbox = opened ? SEER_HQ_CHEST_OPEN_BBOX : (C.bbox || SEER_HQ_CHEST_CLOSED_BBOX);
   if (!img.complete || !img.naturalWidth) return;
   const [bx, by, bw, bh] = bbox;
   const drawW = TILE;
@@ -40489,7 +40574,9 @@ function tryInteract(){
       {
         const _sc = seerHqChestAt(fx, fy);
         if (_sc){
-          if (_sc.key === 'basement' ? tryOpenSeerR2Chest() : tryOpenSeerHqChest()) return;
+          // ★ v0.99.24 · vault branch first · it is the only one with a district
+          if (_sc.vault){ if (tryOpenTownHallVault()) return; }
+          else if (_sc.key === 'basement' ? tryOpenSeerR2Chest() : tryOpenSeerHqChest()) return;
         }
       }
       // NPC interact takes priority
@@ -42444,7 +42531,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.23' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.24' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -49903,6 +49990,7 @@ function saveGame(){
         favoriteItem: player.favoriteItem || null,            // v0.95.116 · CREATE shortcut
         bagOrder: player.bagOrder || null,                   // ★ v0.99.20 · hand-arranged ZyCube order · loadGame's Object.assign restores it
         elderTrials: player.elderTrials || {},               // ★ v0.99.22 · which districts' mythic vaults have been earned
+        townHallVaults: player.townHallVaults || {},         // ★ v0.99.24 · which vaults have been emptied · a Gemlord arm is once-only
         cosmeticSkin: PLAYER_SKINS[player.cosmeticSkin] ? player.cosmeticSkin : 'normal', // v0.95.240
         activeActor: player.activeActor||'rizer',
         factionSoulSwitch: _factionSoulSwitch,

@@ -4743,6 +4743,50 @@ const ZYCUBE_ART_ELSEWHERE = Object.freeze({
   astralcore:       'assets/2D%20sprites/items/astralcore.png',
   shardshare_broken:'assets/2D%20sprites/items/shardshare-broken.png',
 });
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.32 · THE 63 ASTRALITES HAVE HAD ART ALL ALONG.
+//   Creator, 2026-09-24: "we already have astralite images. use them for the
+//   item image in the zycube astralite menu."
+//
+// ★★★★ AND THE BUILD ALREADY KNEW WHERE EVERY ONE OF THEM IS.
+//   ASTRALITE_GEM_SHEETS has carried seven tier sheets since the matrix
+//   shipped — magenta-keyed, de-haloed, with per-cell bboxes measured on their
+//   own alpha — and its own comment states the addressing exactly:
+//   "cells[family-1] on sheet[energy] IS the rolled item". The overworld gem
+//   drop has been drawing from it the whole time. The bag was showing a
+//   two-character monogram beside it.
+//
+// ★★★ A SHEET CELL IS NOT AN <img src>, WHICH IS WHY THEY WERE SKIPPED.
+//   Every other bag icon is one file, so the slot renders <img src>. These 63
+//   are sub-rects of seven files, so they need a CSS background crop — and the
+//   percentage maths only comes out right if the box carries the CELL's aspect
+//   ratio, because background-size and background-position percentages resolve
+//   against the container independently on each axis. Give a square box a
+//   non-square cell and it stretches.
+const ASTRALITE_SHEET_PX = 1254;
+function zycubeAstraliteCrop(key){
+  const m = /^astralite_(\d+)_(\d+)$/.exec(key || '');
+  if (!m) return null;
+  try {
+    const fam = +m[1], energy = +m[2];
+    const sheet = ASTRALITE_GEM_SHEETS[energy];
+    const cell  = sheet && sheet.cells && sheet.cells[fam - 1];
+    if (!sheet || !cell) return null;
+    const [bx, by, bw, bh] = cell;
+    const S = ASTRALITE_SHEET_PX;
+    // fit the cell inside the slot's 82% inset, preserving its own aspect
+    const box = 82;
+    const w = bw >= bh ? box : box * (bw / bh);
+    const h = bw >= bh ? box * (bh / bw) : box;
+    // p = bx / (SHEET - bw) · derived, not guessed: at background-size
+    // (S/bw)x, the image overflows the container by container*(S-bw)/bw, and
+    // we need to shift by bx*container/bw of it.
+    const px = (S - bw) ? (bx / (S - bw)) * 100 : 0;
+    const py = (S - bh) ? (by / (S - bh)) * 100 : 0;
+    return { src: sheet.src, w, h,
+             bgW: (S / bw) * 100, bgH: (S / bh) * 100, px, py };
+  } catch(_){ return null; }
+}
 function zycubeArtFor(key){
   if (ZYCUBE_ART_ELSEWHERE[key]) return ZYCUBE_ART_ELSEWHERE[key];
   const f = ZYCUBE_ART[key];
@@ -42581,7 +42625,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.31' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.33' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44474,8 +44518,18 @@ function renderZycellZycube(){
     //   a key whose PNG has not been keyed and copied in yet degrades to the
     //   placeholder instead of drawing an empty slot. No manifest-vs-disk check
     //   at runtime, no blank grid on a half-finished import pass.
-    const art = zycubeArtFor(k);
-    const artTag = art
+    const crop = zycubeAstraliteCrop(k);
+    const art  = crop ? null : zycubeArtFor(k);
+    const artTag = crop
+      ? `<div aria-hidden="true"
+             style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+                    width:${crop.w.toFixed(2)}%; height:${crop.h.toFixed(2)}%;
+                    background-image:url('${crop.src}');
+                    background-size:${crop.bgW.toFixed(2)}% ${crop.bgH.toFixed(2)}%;
+                    background-position:${crop.px.toFixed(3)}% ${crop.py.toFixed(3)}%;
+                    background-repeat:no-repeat; image-rendering:pixelated;
+                    pointer-events:none; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.65));"></div>`
+      : art
       ? `<img src="${art}" alt="" draggable="false" loading="lazy"
              onerror="this.style.display='none'"
              style="position:absolute; inset:9%; width:82%; height:82%;
@@ -44496,7 +44550,7 @@ function renderZycellZycube(){
                transition:background 120ms, border-color 120ms, transform 90ms;"
         onmouseover="this.style.borderColor='${col}'; try{zyAttrHilite('${k}',0)}catch(_){}"
         onmouseout="this.style.borderColor='${col}55'">
-      <span style="pointer-events:none; opacity:${art ? '0.30' : '1'}; ${gStyle}">${g}</span>
+      <span style="pointer-events:none; opacity:${(art || crop) ? '0.30' : '1'}; ${gStyle}">${g}</span>
       ${artTag}
       ${n > 1 ? `<span style="position:absolute; right:3px; bottom:2px; font-size:9px; font-weight:bold;
             color:#fff; text-shadow:0 1px 2px #000; pointer-events:none;">${n}</span>` : ''}
@@ -44537,10 +44591,16 @@ function renderZycellZycube(){
   //   ★★★ zyAttrHilite already has the right instinct for this ("Null = leave
   //   the first detail showing rather than blanking the rail to an empty
   //   box") — the markup just never gave it a first state to fall back to.
+  // ★★ and a real re-render opens on the remembered row too · without this the
+  //   markup would reset to the first item the moment the HTML changed (an item
+  //   used up, a count ticking down) even though the tick no longer does.
+  let _remember = null;
+  try { _remember = game._zyDetailKey; } catch(_){}
+  const _startIdx = Math.max(0, rows.findIndex(([k]) => k === _remember));
   const detail = rows.map(([k, n], _i) => {
     const label = (meta[k] && meta[k].label) || k;
     const c = ZYCUBE_CAT_BY_ID[zycubeCategoryOf(k)] || { label:'ITEMS', color:'var(--zy-cyan)', blurb:'' };
-    return `<div data-zydetail="${k}" style="display:${_i === 0 ? 'block' : 'none'};">
+    return `<div data-zydetail="${k}" style="display:${_i === _startIdx ? 'block' : 'none'};">
       <div style="color:${c.color}; font-weight:bold; font-size:14px; letter-spacing:.04em;">${label}</div>
       <div style="height:1px; margin:5px 0 7px; background:linear-gradient(90deg,${c.color}99,transparent);"></div>
       <div style="color:var(--zy-text); font-size:11px; font-style:italic; line-height:1.5;">
@@ -47021,7 +47081,27 @@ function zyAttrHilite(key, amount){
     d.style.display = on ? 'block' : 'none';
     if (on) shown = true;
   });
-  if (!shown && rows.length) rows[0].style.display = 'block';
+  // ★★★★ v0.99.33 · THE 1s TICK WAS WALKING THE DESCRIPTION BACK.
+  //   Creator, 2026-09-24: "when I hover over a item it goes back to the first
+  //   item after a few secs."
+  //   ★★★★ _zycellPaintFocus runs on the phone's periodic repaint and passes
+  //   the FOCUSED element's key — but with a mouse there is no content focus
+  //   (game._zycellFocus is 'nav'), so it passed NULL, and null fell through to
+  //   "show rows[0]". Hovering worked, then a second later the tick overruled
+  //   it. The hover was never the fragile part; the repaint was.
+  //   ★★★ Fixed the way this file already fixes it elsewhere — "collapse state
+  //   lives on game._zyCtrlOpen rather than in the DOM, because this panel
+  //   re-renders on a 1s tick". The pointed-at item is that same kind of
+  //   state, so it lives on `game` and the fallback asks it before defaulting.
+  if (key) { try { game._zyDetailKey = key; } catch(_){} }
+  if (!shown && rows.length){
+    let pick = null;
+    try {
+      const remembered = game._zyDetailKey;
+      if (remembered) pick = [...rows].find(d => d.getAttribute('data-zydetail') === remembered);
+    } catch(_){}
+    (pick || rows[0]).style.display = 'block';
+  }
   // ★★★ THE PENDING BAND · Creator: "idk whats triggering the upgrade count."
   //   The count moved and nothing on screen connected the press to the change.
   //   Now the bar draws the delta BEFORE you commit: land on +10 and a pulsing

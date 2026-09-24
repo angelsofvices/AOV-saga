@@ -28,7 +28,8 @@ const G = bootGame({ extra: ['renderZycellZycube','player','game','zycubeOpenCat
   'zycubeCloseCategory','ZYCUBE_CATEGORIES','ZYCUBE_CAT_ICON','ZYCUBE_ICON','zycubeIconFor',
   'zycubeCategoryOf','INVENTORY_META','ASTRALITE_FAMILIES','zycubeCategoryRows',
   'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem',
-  'ZYCUBE_ART_ELSEWHERE','zyAttrHilite'] });
+  'ZYCUBE_ART_ELSEWHERE','zyAttrHilite','zycubeAstraliteCrop','ASTRALITE_GEM_SHEETS',
+  'ASTRALITE_FAMILIES'] });
 console.log = _L;
 
 G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
@@ -318,6 +319,88 @@ H('★★★ MOUSE HOVER FEEDS THE SAME HOOK THE D-PAD DOES');
   const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
   ok(/zyAttrHilite\(fe && fe\.getAttribute \? fe\.getAttribute\('data-zyattr'\) : null/.test(src),
      '★★★ the D-pad still drives it through the SAME function · one hook, two inputs, so they cannot disagree about what is described');
+}
+
+H('★★★★ THE 63 ASTRALITES DRAW THEIR REAL GEMS');
+{
+  //   Creator, 2026-09-24: "we already have astralite images. use them for the
+  //   item image in the zycube astralite menu."
+  // ★★★★ And the build already knew where every one of them is.
+  //   ASTRALITE_GEM_SHEETS has carried seven tier sheets since the matrix
+  //   shipped, and its own comment states the addressing: "cells[family-1] on
+  //   sheet[energy] IS the rolled item". The overworld gem drop has been
+  //   drawing from it the whole time; the bag was showing a two-character
+  //   monogram beside it.
+  const S = G.ASTRALITE_GEM_SHEETS;
+  ok(Object.keys(S).length === 7, `${Object.keys(S).length} tier sheets`);
+  ok(Object.values(S).every(t => t.cells.length === 9),
+     '★★ nine cells each · a 3x3 of the nine families, row-major');
+  let missing = [];
+  for (const fam of G.ASTRALITE_FAMILIES)
+    for (let e = 1; e <= 7; e++)
+      if (!G.zycubeAstraliteCrop(`astralite_${fam.id}_${e}`)) missing.push(`${fam.id}_${e}`);
+  ok(!missing.length,
+     `★★★★ all ${G.ASTRALITE_FAMILIES.length * 7} astralites resolve to a crop${missing.length ? ' · MISSING: ' + missing.slice(0,5).join(', ') : ''}`);
+  // ★★★ the crop must address the cell the GAME uses, not a parallel table
+  for (const [fam, e] of [[1,1],[5,7],[9,4]]){
+    const c = G.zycubeAstraliteCrop(`astralite_${fam}_${e}`);
+    const [bx, by, bw, bh] = S[e].cells[fam - 1];
+    const expW = bw >= bh ? 82 : 82 * (bw / bh);
+    ok(Math.abs(c.w - expW) < 0.01 && c.src === S[e].src,
+       `  fam${fam} e${e} → sheet ${e}, cell ${fam - 1} · the same address the overworld drop uses`);
+  }
+  // ★★★★ A SHEET CELL IS NOT AN <img src>, which is why these were skipped.
+  //   The percentage maths only comes out right if the box carries the CELL's
+  //   aspect ratio — background-size and background-position percentages
+  //   resolve per-axis against the container, so a square box stretches a
+  //   non-square cell.
+  const sq = G.zycubeAstraliteCrop('astralite_1_1');
+  const [ , , w1, h1 ] = S[1].cells[0];
+  ok(Math.abs((sq.w / sq.h) - (w1 / h1)) < 0.01,
+     `★★★★ the crop box carries the CELL's aspect (${(sq.w/sq.h).toFixed(3)} vs ${(w1/h1).toFixed(3)}) · a square box would stretch it`);
+  G.player.items = { astralite_1_1: 2, potion: 1 };
+  G.zycubeCloseCategory();
+  const h = G.renderZycellZycube();
+  ok(/background-image:url\('assets\/2D%20sprites\/items\/astralites\//.test(h),
+     '★★★ the slot renders a background crop for an astralite');
+  ok(/<img src="assets/.test(h), '★★ …and a plain <img> for the single-file items beside it');
+}
+
+H('★★★★ THE DESCRIPTION STICKS · the 1s tick used to walk it back');
+{
+  //   Creator, 2026-09-24: "when I hover over a item it goes back to the first
+  //   item after a few secs."
+  // ★★★★ _zycellPaintFocus runs on the phone's periodic repaint and passes the
+  //   FOCUSED element's key — but a mouse user has no content focus
+  //   (game._zycellFocus is 'nav'), so it passed NULL, and null fell through to
+  //   "show rows[0]". The hover was never the fragile part; the repaint was.
+  const P3 = G.player;
+  P3.items = { potion:5, ale:2, berry:9, zysphere:3 };
+  G.zycubeCloseCategory(); G.game._zyDetailKey = null;
+  const mk = () => { const c = parse(`<div id="zycellContent">${G.renderZycellZycube()}</div>`).children[0];
+    const d = makeDocument({ zycellContent: c }); d.querySelector = s2 => d.querySelectorAll(s2)[0] || null; return d; };
+  let doc = mk(); const realDoc = globalThis.document; globalThis.document = doc;
+  const shown = () => doc.querySelectorAll('[data-zydetail]')
+    .filter(n => { const i = n.style && n.style.display;
+      return i ? i !== 'none' : !/display:\s*none/.test(n.getAttribute('style') || ''); })
+    .map(n => n.getAttribute('data-zydetail'));
+  try {
+    G.zyAttrHilite('zysphere', 0);
+    ok(shown().join() === 'zysphere', 'hovering zysphere shows zysphere');
+    G.game._zycellFocus = 'nav';
+    G.zyAttrHilite(null, 0);                    // ← exactly what the tick does
+    ok(shown().join() === 'zysphere',
+       '★★★★ …and it SURVIVES the 1s tick · null now asks the remembered key before defaulting to the first');
+    G.zyAttrHilite(null, 0); G.zyAttrHilite(null, 0);
+    ok(shown().join() === 'zysphere', '★★★ three ticks later it is still there');
+    globalThis.document = doc = mk();
+    ok(shown().join() === 'zysphere',
+       '★★★ and a FULL re-render opens on the remembered row · otherwise a count ticking down would reset it');
+  } finally { globalThis.document = realDoc; }
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  ok(/game\._zyDetailKey/.test(src),
+     '★★ the pointed-at item lives on `game`, not in the DOM · the same rule this file already applies to '
+   + 'the control sheet ("collapse state lives on game._zyCtrlOpen ... this panel re-renders on a 1s tick")');
 }
 
 H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');

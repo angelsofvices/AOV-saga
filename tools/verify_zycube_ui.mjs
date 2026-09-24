@@ -25,7 +25,8 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['renderZycellZycube','player','game','zycubeOpenCategory',
   'zycubeCloseCategory','ZYCUBE_CATEGORIES','ZYCUBE_CAT_ICON','ZYCUBE_ICON','zycubeIconFor',
-  'zycubeCategoryOf','INVENTORY_META','ASTRALITE_FAMILIES','zycubeCategoryRows'] });
+  'zycubeCategoryOf','INVENTORY_META','ASTRALITE_FAMILIES','zycubeCategoryRows',
+  'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem'] });
 console.log = _L;
 
 G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
@@ -54,7 +55,10 @@ H('★★★ THE RAIL · every drawer one stop away, ALL included');
   //   code for the test's reach.
   const _s = src.indexOf('function renderZycellZycube(){');
   const body = src.slice(_s, src.indexOf('\n// ── RIZER · attribute allocation', _s));
-  ok(body.length > 4000 && body.length < 14000, `  the panel body is ${body.length} chars · one function, not half the file`);
+  // ★ bound raised 14k -> 22k at v0.99.20 when drag-and-move landed inside
+  //   the panel. It is a SANITY bound on the slice, not a budget on the
+  //   function — its only job is to catch a slice that ran off the end.
+  ok(body.length > 4000 && body.length < 22000, `  the panel body is ${body.length} chars · one function, not half the file`);
   ok(!/zycellCyclePage/.test(body),
      '★★★ the panel does NOT rebind L/R · they still cycle phone panels, and the chips only label that');
 }
@@ -142,6 +146,85 @@ H('★★★★ FULL HEIGHT · rail and pane pinned, grid takes every leftover p
   ok(/_zySection\(`◈ ZYCUBE[^`]*`, body, accent, true\)/.test(
        fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8')),
      '★★ fill mode is OPT-IN · passed only by this panel, a no-op on the other ten');
+}
+
+H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallback');
+{
+  //   Creator, 2026-09-23: "use them as their bag item icon. make a UI native
+  //   background for the icon and put the image of the item chromakeyed."
+  const man = G.ZYCUBE_ART;
+  ok(Object.keys(man).length === 72, `ZYCUBE_ART carries ${Object.keys(man).length} entries`);
+  const missing = Object.entries(man)
+    .filter(([, f]) => !fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag', f)));
+  ok(!missing.length,
+     `★★★★ every manifest entry resolves to a real file${missing.length ? ' · MISSING: ' + missing.slice(0,4).map(m=>m[1]).join(', ') : ''}`);
+  const dir = fs.readdirSync(path.join(ROOT, 'assets/2D sprites/items/bag')).filter(f => /\.png$/.test(f));
+  const named = new Set(Object.values(man));
+  ok(dir.every(f => named.has(f)),
+     `★★ and no imported file is orphaned · ${dir.length} on disk, all named by the manifest`);
+  const h = render(null);
+  ok(/<img src="assets\/2D%20sprites\/items\/bag\//.test(h), '★★★ slots render the art');
+  ok(/onerror="this\.style\.display='none'"/.test(h),
+     "★★★★ …with onerror hiding the img · a key whose PNG is not in yet degrades to its emoji instead of an empty slot");
+  ok(/image-rendering:pixelated/.test(h), '★★ pixelated · these are pixel-art renders, not photos');
+}
+
+H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');
+{
+  const h = render(null);
+  ok(/radial-gradient\(120% 90% at 50% 0%/.test(h), '★★ category-tinted top glow');
+  ok(/inset 0 1px 0 rgba\(255,255,255,0\.14\)/.test(h), '★★ inset top highlight · the plate reads as recessed');
+  ok(/cursor:grab/.test(h), '★ and the cursor advertises that it can be dragged');
+}
+
+H('★★★★ DRAG AND MOVE · order is global, the view is filtered');
+{
+  const P = G.player;
+  P.items = { potion: 5, ale: 2, coins: 1200, berry: 9, zysphere: 3 };
+  P.bagOrder = null;
+  const base = G.zycubeSortKeys(Object.keys(P.items));
+  ok(base.length === 5, `default order is alphabetical by label: ${base.join(' ')}`);
+  // ★★★★ Dropping A on B must place A immediately BEFORE B. Reading both
+  //   indices up front and splicing at the stale one is the classic
+  //   move-in-array off-by-one: on a FORWARD drag every index past `from` has
+  //   shifted left by one, so the item lands one slot PAST its target. This
+  //   suite caught exactly that — [ale, berry, coins] dropping ale on coins
+  //   gave [berry, coins, ale], the item jumping over the thing it was
+  //   dropped on.
+  const first = base[0], third = base[2];
+  G.zycubeMoveItem(first, third);
+  const after = G.zycubeSortKeys(Object.keys(P.items));
+  ok(after.indexOf(first) === after.indexOf(third) - 1,
+     `★★★★ ${first} landed immediately BEFORE ${third}, not after it · ${after.join(' ')}`);
+  // ★★★ a move made in one drawer has to survive a trip through another
+  G.zycubeOpenCategory('heal');
+  const inTab = [...new Set([...G.renderZycellZycube().matchAll(/data-item="([a-z0-9_]+)"/g)].map(m => m[1]))];
+  G.zycubeCloseCategory();
+  const back = G.zycubeSortKeys(Object.keys(P.items)).filter(k => inTab.includes(k));
+  ok(inTab.join() === back.join(),
+     `★★★ the CONSUMABLES tab shows the same relative order as ALL (${inTab.join(' ')}) · bagOrder is global, not per-tab`);
+  // ★★ a fresh pickup must not jump the queue
+  P.items.fairy = 1;
+  const withNew = G.zycubeSortKeys(Object.keys(P.items));
+  ok(withNew[withNew.length - 1] === 'fairy',
+     '★★ a newly picked-up item lands at the END · it must not barge into an order the player arranged');
+  ok(/pointerdown/.test(fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8')),
+     '★★★ drag uses POINTER events · native HTML5 drag does not fire on touch and fights the phone shell');
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  ok(/Math\.hypot\(dx, dy\) < DEAD/.test(src),
+     '★★★★ a 6px dead zone guards the tap · without it every press is a zero-distance drag and USING an item stops working');
+  ok(/_zySwallow/.test(src),
+     '★★★ and the click the browser fires after a drop is swallowed · otherwise dropping an item also USES it');
+  ok(/bagOrder: player\.bagOrder \|\| null/.test(src),
+     '★★ bagOrder is in the save · loadGame Object.assigns the snapshot, so the arrangement survives a reload');
+  // ★★★ RESTORE THE FIXTURE, DO NOT JUST EMPTY IT. Clearing player.items here
+  //   left the later sections rendering an empty bag, and the Astralite
+  //   monogram check went red on working code — a test failing because an
+  //   earlier test tidied up after itself.
+  P.bagOrder = null;
+  P.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
+    berry:23, fruit:8, scrap_metal:40, backpack:1, zycube:1, zphone:1, faenet:1, skateboard:1,
+    astralite_1_1:3, astralite_2_4:1, moon_gem:2, life_seed:4, prismshard:1, tower_battery:2 };
 }
 
 H('★★★ NATIVE ICONS NOW, ONE SEAM TO SWAP LATER');

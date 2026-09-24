@@ -44,48 +44,23 @@ const need = Object.keys(G.INVENTORY_META)
   .filter(k => !skip(k) && !HAVE.has(k) && !hasArtOnDisk(k));
 const listed = new Set([...DOC.matchAll(/^\| \d+ \| `([a-z0-9_]+)`/gm)].map(m => m[1]));
 
-console.log('\n★★★ THE TABLE IS THE GAME\'S OWN ITEM LIST');
-ok(listed.size === need.length,
-   `${listed.size} rows in the doc, ${need.length} items need art`);
-const missing = need.filter(k => !listed.has(k));
-ok(!missing.length, `every item needing art has a row${missing.length ? ' · MISSING: ' + missing.join(', ') : ''}`);
-const extra = [...listed].filter(k => !need.includes(k));
-ok(!extra.length,
-   `★★ and no row describes art that already exists or an item that does not${extra.length ? ' · EXTRA: ' + extra.join(', ') : ''}`);
-
-console.log('\n★★ EVERY ROW IS ACTIONABLE');
+console.log('\n★★★★ THE HANDOFF IS FULFILLED · every item it asked for now has keyed art');
 {
-  const rows = [...DOC.matchAll(/^\| (\d+) \| `([a-z0-9_]+)` \| ([^|]+) \| `([^`]+)` \| ([\d.]+) \| (.+) \|$/gm)];
-  ok(rows.length === listed.size, `${rows.length} rows parse with all six columns`);
-  ok(rows.every(r => /\.png$/.test(r[4])), 'every row names a .png');
-  ok(new Set(rows.map(r => r[4])).size === rows.length, '★★★ no two items share a filename · one would overwrite the other');
-  ok(rows.every(r => r[6].length > 40), '★ every description is substantive, not a stub');
-  ok(rows.every(r => +r[5] >= 0.7 && +r[5] <= 1.6),
-     '★ every tileW sits inside the shipped range (portal chip 0.8 - sapphire sword 1.6)');
+  // ★★★★ This suite used to assert "the ASK is accurate". The Creator
+  //   delivered all 72 on 2026-09-23, so that question is answered and asking
+  //   it again just reports 0-rows-needed as a failure. What still matters is
+  //   the DELIVERY: every key the manifest names has a real keyed file, and
+  //   nothing was imported that nothing points at.
+  const BAG = path.join(ROOT, 'assets/2D sprites/items/bag');
+  const files = fs.existsSync(BAG) ? fs.readdirSync(BAG).filter(f => /\.png$/i.test(f)) : [];
+  ok(files.length === 72, `${files.length} keyed icons imported`);
+  const rows = [...DOC.matchAll(/^\| \d+ \| `([a-z0-9_]+)` \| [^|]+ \| `([^`]+)` \|$/gm)];
+  const gone = rows.filter(([, , f]) => !files.includes(f));
+  ok(!gone.length,
+     `★★★ every filename the handoff specified exists as a keyed file${gone.length ? ' · MISSING: ' + gone.slice(0,4).map(r=>r[2]).join(', ') : ''}`);
+  ok(/DELIVERED/.test(DOC),
+     '★★ and the doc is marked DELIVERED, so it is not mistaken for an open ask');
+  ok(/\[x, y, WIDTH, HEIGHT\]/.test(DOC), '★ the bbox warning is preserved for whoever wires the world drops');
 }
-
-console.log('\n★★★ THE ROOT AND THE ALREADY-COVERED LIST ARE TRUE');
-{
-  ok(/assets\/2D sprites\/decor\//.test(DOC), 'the root is the folder the drop tables already read');
-  for (const k of HAVE)
-    ok(DOC.includes('`' + k + '`') && !listed.has(k),
-       `  ${k.padEnd(18)} named as already-covered, and NOT given a row`);
-  // ★★ bbox is [x,y,w,h] and the handoff has to say so, because reading it as
-  //   corners draws every one of these at the wrong aspect and nothing errors.
-  ok(/\[x, y, WIDTH, HEIGHT\]/.test(DOC), '★★★ the doc states bbox is [x,y,WIDTH,HEIGHT], not two corners');
-  ok(/Measure after keying/.test(DOC), '★★ and that the bbox is measured AFTER the key, or it is the whole canvas');
-}
-console.log('\n★★★★ AND NO ROW ASKS FOR ART THAT IS ALREADY ON DISK');
-{
-  const asked = [...listed].filter(k => hasArtOnDisk(k));
-  ok(!asked.length,
-     `★★★★ 0 of ${listed.size} rows duplicate an existing PNG`
-   + (asked.length ? ` · ALREADY DRAWN: ${asked.join(', ')}` : ''));
-  ok(/ALREADY ON DISK/.test(DOC),
-     '★★★ and the doc carries the already-on-disk table, so the Creator is not asked twice');
-  for (const k of ['zysphere', 'fae'])
-    ok(new RegExp('`' + k + '`').test(DOC) && !listed.has(k),
-       `  ${k.padEnd(10)} is listed as on-disk with its caveat, not as a generation row`);
-}
-console.log(f ? `\n❌ ${f} failed` : `\n✅ the handoff matches the booted game AND the filesystem · ${listed.size} rows, unique files, real root`);
+console.log(f ? `\n❌ ${f} failed` : '\n✅ all 72 delivered and keyed · the handoff is a record, not a request');
 process.exit(f ? 1 : 0);

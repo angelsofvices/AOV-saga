@@ -4616,6 +4616,96 @@ const ZYCUBE_ICON = Object.freeze({
   berry:'🫐', fruit:'🍎', seed:'🌰', fae:'🧚', fairy:'🧚', wild_treat:'🍪', sweet_cache:'🍯',
   scrap_metal:'⚙️', life_stone:'🪨', tower_battery:'🔋', portal_chip:'💾',
 });
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.20 · REAL BAG ICONS · Creator delivered all 72, one magenta
+//   chroma sheet per item. ZYCUBE_ICON's emoji stay as the FALLBACK, not as
+//   dead weight: the slot renders an <img> and swaps back to the glyph on
+//   error, so a key whose art has not been keyed yet still draws something
+//   rather than an empty box. One key, one file — this is the seam the
+//   handoff promised.
+const ZYCUBE_ART_ROOT = 'assets/2D%20sprites/items/bag/';
+const ZYCUBE_ART = {
+  ale:'ale-drop.png', astralcore_transponder:'astralcore-transponder.png', backpack:'backpack-drop.png',
+  berry:'berry-drop.png', berry_juice:'berry-juice.png', broken_raygun:'broken-raygun.png',
+  dads_notebook:'dads-notebook.png', elzebub_egg:'elzebub-egg.png', evolution_catalyst:'evolution-catalyst.png',
+  fae:'fae-drop.png', faenet:'faenet-drop.png', fairy:'fairy-drop.png',
+  field_station:'field-station-drop.png', fresh_water:'fresh-water.png', fruit:'fruit-drop.png',
+  fruit_bar:'fruit-bar.png', gearbag:'gearbag-drop.png', gem:'gem-drop.png',
+  gem_black:'gem-black.png', gem_blue:'gem-blue.png', gem_green:'gem-green.png',
+  gem_orange:'gem-orange.png', gem_purple:'gem-purple.png', gem_red:'gem-red.png',
+  gem_white:'gem-white.png', gem_yellow:'gem-yellow.png', life_seed:'life-seed.png',
+  life_seed_pure:'life-seed-pure.png', life_stone:'life-stone.png', moon_gem:'moon-gem.png',
+  portalkey:'portalkey.png', portalkey_broken:'portalkey-broken.png', potion:'potion-drop.png',
+  prismshard:'prismshard.png', raidcard:'raidcard.png', rare_item:'rare-item.png',
+  ruby_vial:'ruby-vial.png', rubypaw_fang:'rubypaw-fang-icon.png', seed:'seed-drop.png',
+  shard_auracide:'shard-auracide.png', shard_blackspiral:'shard-blackspiral.png', shard_chronal:'shard-chronal.png',
+  shard_corona:'shard-corona.png', shard_cryo:'shard-cryo.png', shard_ember:'shard-ember.png',
+  shard_halo:'shard-halo.png', shard_hive:'shard-hive.png', shard_martial:'shard-martial.png',
+  shard_null:'shard-null.png', shard_predator:'shard-predator.png', shard_prism:'shard-prism.png',
+  shard_reactor:'shard-reactor.png', shard_squall:'shard-squall.png', shard_stellar:'shard-stellar.png',
+  shard_terra:'shard-terra.png', shard_tide:'shard-tide.png', shard_verdant:'shard-verdant.png',
+  shard_volt:'shard-volt.png', shard_wraith:'shard-wraith.png', shard_wyrm:'shard-wyrm.png',
+  shard_xeno:'shard-xeno.png', shardshare:'shardshare.png', skateboard:'skateboard-drop.png',
+  soulphish:'soulphish.png', sweet_cache:'sweet-cache.png', tower_battery:'tower-battery.png',
+  verdant_elixir:'verdant-elixir.png', wild_treat:'wild-treat.png', worldmap:'worldmap-drop.png',
+  zphone:'zphone-drop.png', zycube:'zycube-drop.png', zysphere:'zysphere-drop.png',
+};
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.20 · DRAG AND MOVE · Creator: "add a drag and move function to
+//   bag items."
+//
+// ★★★ ORDER IS GLOBAL, THE VIEW IS FILTERED. The grid shows one drawer at a
+//   time, so a naive "swap these two visible cells" writes an order that only
+//   makes sense inside the tab you were looking at — switch tabs and the moves
+//   scatter. `player.bagOrder` is therefore a list of EVERY known key, and a
+//   drag splices within that list using the two items' global positions. A
+//   move made in CONSUMABLES survives a trip through ALL.
+//
+// ★★ Anything not yet in bagOrder sorts alphabetically AFTER what is, so a new
+//   pickup lands at the end of its drawer instead of jumping to the front of
+//   an order the player arranged.
+function zycubeItemLabel(k){
+  const m = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META : {};
+  return (m[k] && m[k].label) || k;
+}
+function zycubeSortKeys(keys){
+  const ord = Array.isArray(player.bagOrder) ? player.bagOrder : [];
+  const pos = new Map(ord.map((k, i) => [k, i]));
+  return keys.slice().sort((a, b) => {
+    const pa = pos.has(a) ? pos.get(a) : Infinity;
+    const pb = pos.has(b) ? pos.get(b) : Infinity;
+    if (pa !== pb) return pa - pb;
+    return zycubeItemLabel(a).localeCompare(zycubeItemLabel(b));
+  });
+}
+// Move `src` to sit where `dst` currently sits, in the GLOBAL order.
+function zycubeMoveItem(src, dst){
+  if (!src || !dst || src === dst) return false;
+  // Seed the order from the current full sort the first time anything moves,
+  // so the very first drag does not throw away the alphabetical arrangement
+  // the player has been looking at.
+  const all = Object.keys(player.items || {}).filter(k => (player.items[k] || 0) > 0);
+  let ord = Array.isArray(player.bagOrder) ? player.bagOrder.slice() : [];
+  ord = ord.filter(k => all.includes(k));
+  for (const k of zycubeSortKeys(all)) if (!ord.includes(k)) ord.push(k);
+  const from = ord.indexOf(src);
+  if (from < 0 || ord.indexOf(dst) < 0) return false;
+  // ★★★ RE-FIND THE TARGET AFTER THE REMOVAL. Taking both indices up front and
+  //   splicing at the stale one is the classic move-in-array off-by-one: on a
+  //   FORWARD drag every index past `from` has shifted left by one, so the item
+  //   lands one slot PAST where it was dropped. Measured on [ale, berry,
+  //   coins], dropping ale on coins gave [berry, coins, ale] — the item jumped
+  //   over its own target. Dropping A on B means A ends up immediately BEFORE
+  //   B, which is only true if B's index is read after A is lifted out.
+  const moved = ord.splice(from, 1)[0];
+  ord.splice(ord.indexOf(dst), 0, moved);
+  player.bagOrder = ord;
+  return true;
+}
+function zycubeArtFor(key){
+  const f = ZYCUBE_ART[key];
+  return f ? ZYCUBE_ART_ROOT + f : null;
+}
 function zycubeIconFor(key){
   if (ZYCUBE_ICON[key]) return ZYCUBE_ICON[key];
   // ★ Astralites carry a one-character `symbol` of their own from the family
@@ -42197,7 +42287,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.18' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.20' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44043,10 +44133,13 @@ function renderZycellZycube(){
   // ── the grid ─────────────────────────────────────────────────────────
   // ★ Same filter and same alphabetical sort the list used — this is a new
   //   PRESENTATION of the cube, not a new cube.
-  const rows = Object.entries(items)
+  // ★ v0.99.20 · order comes from zycubeSortKeys now · player.bagOrder first,
+  //   everything else alphabetical behind it
+  const _visible = Object.entries(items)
     .filter(([k]) => !zycubeCatOpen || zycubeCategoryOf(k) === zycubeCatOpen)
-    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap')
-    .sort((a, b) => ((meta[a[0]]&&meta[a[0]].label)||a[0]).localeCompare((meta[b[0]]&&meta[b[0]].label)||b[0]));
+    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap');
+  const _byKey = new Map(_visible);
+  const rows = zycubeSortKeys([..._byKey.keys()]).map(k => [k, _byKey.get(k)]);
 
   const COLS = 5;
   // ★★ The reference keeps EMPTY SLOTS visible — a half-full drawer still reads
@@ -44069,15 +44162,35 @@ function renderZycellZycube(){
     const gStyle = mono
       ? `font-family:"Courier New",monospace; font-weight:bold; color:${col}; font-size:${g.length > 2 ? 11 : 14}px;`
       : 'font-size:23px;';
+    // ★★★★ THE ART, WITH THE GLYPH STILL UNDERNEATH IT. The <img> sits on top
+    //   of the emoji rather than replacing it, and `onerror` hides itself — so
+    //   a key whose PNG has not been keyed and copied in yet degrades to the
+    //   placeholder instead of drawing an empty slot. No manifest-vs-disk check
+    //   at runtime, no blank grid on a half-finished import pass.
+    const art = zycubeArtFor(k);
+    const artTag = art
+      ? `<img src="${art}" alt="" draggable="false" loading="lazy"
+             onerror="this.style.display='none'"
+             style="position:absolute; inset:9%; width:82%; height:82%;
+                    object-fit:contain; image-rendering:pixelated; pointer-events:none;
+                    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.65));">`
+      : '';
     return `<div class="zyBagRow zyCubeSlot" data-item="${k}" data-zyitem="${k}" data-zyattr="${k}"
         title="${label}"
         style="position:relative; aspect-ratio:1/1; display:flex; align-items:center;
-               justify-content:center; cursor:pointer; border-radius:7px;
-               background:rgba(255,255,255,0.045); border:1px solid ${col}44;
-               transition:background 120ms, border-color 120ms;"
-        onmouseover="this.style.background='var(--zy-fill-sel)'"
-        onmouseout="this.style.background='rgba(255,255,255,0.045)'">
-      <span style="pointer-events:none; ${gStyle}">${g}</span>
+               justify-content:center; cursor:grab; border-radius:7px;
+               background:
+                 radial-gradient(120% 90% at 50% 0%, ${col}1f 0%, transparent 62%),
+                 linear-gradient(180deg, rgba(255,255,255,0.075), rgba(0,0,0,0.30));
+               border:1px solid ${col}55;
+               box-shadow: inset 0 1px 0 rgba(255,255,255,0.14),
+                           inset 0 -8px 14px -8px ${col}66,
+                           0 1px 2px rgba(0,0,0,0.45);
+               transition:background 120ms, border-color 120ms, transform 90ms;"
+        onmouseover="this.style.borderColor='${col}'"
+        onmouseout="this.style.borderColor='${col}55'">
+      <span style="pointer-events:none; opacity:${art ? '0.30' : '1'}; ${gStyle}">${g}</span>
+      ${artTag}
       ${n > 1 ? `<span style="position:absolute; right:3px; bottom:2px; font-size:9px; font-weight:bold;
             color:#fff; text-shadow:0 1px 2px #000; pointer-events:none;">${n}</span>` : ''}
       <span class="zyBagFav" data-item="${k}" style="position:absolute; left:2px; top:0;
@@ -44161,8 +44274,83 @@ function renderZycellZycube(){
     const list = document.getElementById('zyBagList');
     if (!list || list._zyBound) return;
     list._zyBound = true;
+    // ══════════════════════════════════════════════════════════════════
+    // ★★★★ DRAG AND MOVE · pointer events, not HTML5 drag-and-drop.
+    //   The phone deliberately kills the mouse wheel and swallows pointer
+    //   gestures inside its shell; native dragstart/drop also needs a
+    //   dragImage and fights `user-select`, and it does not fire at all on
+    //   touch. Pointer events are one code path for mouse, pen and finger.
+    // ★★★ THE 6px THRESHOLD IS WHAT KEEPS X/CLICK ALIVE. Without it every
+    //   press becomes a zero-distance drag and USING an item stops working —
+    //   the feature would quietly eat the panel's primary verb.
+    {
+      let drag = null;
+      const DEAD = 6;
+      const slotAt = (x, y) => {
+        const el = document.elementFromPoint(x, y);
+        return el && el.closest ? el.closest('.zyCubeSlot') : null;
+      };
+      list.addEventListener('pointerdown', (ev) => {
+        if (ev.button !== 0 && ev.pointerType === 'mouse') return;
+        const el = ev.target.closest && ev.target.closest('.zyCubeSlot');
+        if (!el || (ev.target.closest && ev.target.closest('.zyBagFav'))) return;
+        drag = { el, key: el.dataset.item, x0: ev.clientX, y0: ev.clientY, live: false, ghost: null };
+      });
+      list.addEventListener('pointermove', (ev) => {
+        if (!drag) return;
+        const dx = ev.clientX - drag.x0, dy = ev.clientY - drag.y0;
+        if (!drag.live && Math.hypot(dx, dy) < DEAD) return;
+        if (!drag.live){
+          drag.live = true;
+          try { list.setPointerCapture(ev.pointerId); } catch(_){}
+          drag.el.style.opacity = '0.35';
+          drag.el.style.cursor = 'grabbing';
+          const r = drag.el.getBoundingClientRect();
+          const gh = drag.el.cloneNode(true);
+          gh.style.cssText += `position:fixed; left:${r.left}px; top:${r.top}px;
+            width:${r.width}px; height:${r.height}px; margin:0; opacity:0.92;
+            pointer-events:none; z-index:99999; transform:scale(1.10);
+            box-shadow:0 6px 18px rgba(0,0,0,0.6);`;
+          document.body.appendChild(gh);
+          drag.ghost = gh; drag.r0 = r;
+          try { playSFX('cursor'); } catch(_){}
+        }
+        if (drag.ghost){
+          drag.ghost.style.left = (drag.r0.left + dx) + 'px';
+          drag.ghost.style.top  = (drag.r0.top  + dy) + 'px';
+        }
+        // live target highlight
+        const over = slotAt(ev.clientX, ev.clientY);
+        list.querySelectorAll('.zyCubeSlot').forEach(c => {
+          c.style.transform = (over && c === over && c !== drag.el) ? 'scale(1.08)' : '';
+        });
+      });
+      const endDrag = (ev) => {
+        if (!drag) return;
+        const d = drag; drag = null;
+        if (d.ghost) d.ghost.remove();
+        d.el.style.opacity = ''; d.el.style.cursor = '';
+        list.querySelectorAll('.zyCubeSlot').forEach(c => { c.style.transform = ''; });
+        if (!d.live) return;                       // a tap · let click handle it
+        d.suppressClick = true;
+        const over = ev ? slotAt(ev.clientX, ev.clientY) : null;
+        const dst = over && over.dataset ? over.dataset.item : null;
+        if (dst && dst !== d.key && zycubeMoveItem(d.key, dst)){
+          try { playSFX('confirm'); } catch(_){}
+          try { paintZycellContent(); } catch(_){}
+        } else {
+          try { playSFX('cancel'); } catch(_){}
+        }
+        // ★★ Swallow the click the browser fires after a completed drag, or
+        //   the drop also USES the item you just moved.
+        list._zySwallow = Date.now();
+      };
+      list.addEventListener('pointerup', endDrag);
+      list.addEventListener('pointercancel', () => endDrag(null));
+    }
     list.addEventListener('click', (ev) => {
       ev.stopPropagation();
+      if (list._zySwallow && Date.now() - list._zySwallow < 350){ list._zySwallow = 0; return; }
       const favEl = ev.target.closest('.zyBagFav');
       if (favEl){
         const k = favEl.dataset.item;
@@ -49556,6 +49744,7 @@ function saveGame(){
         songCooldowns: player.songCooldowns || {},            // v0.95.7
         moveScrolls: player.moveScrolls || [],                // v0.95.10
         favoriteItem: player.favoriteItem || null,            // v0.95.116 · CREATE shortcut
+        bagOrder: player.bagOrder || null,                   // ★ v0.99.20 · hand-arranged ZyCube order · loadGame's Object.assign restores it
         cosmeticSkin: PLAYER_SKINS[player.cosmeticSkin] ? player.cosmeticSkin : 'normal', // v0.95.240
         activeActor: player.activeActor||'rizer',
         factionSoulSwitch: _factionSoulSwitch,

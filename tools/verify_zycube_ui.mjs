@@ -29,7 +29,7 @@ const G = bootGame({ extra: ['renderZycellZycube','player','game','zycubeOpenCat
   'zycubeCategoryOf','INVENTORY_META','ASTRALITE_FAMILIES','zycubeCategoryRows',
   'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem',
   'ZYCUBE_ART_ELSEWHERE','zyAttrHilite','zycubeAstraliteCrop','ASTRALITE_GEM_SHEETS',
-  'ASTRALITE_FAMILIES'] });
+  'ASTRALITE_FAMILIES','renderZycellRaidCard','useZycubeItem','zycellCyclePage'] });
 console.log = _L;
 
 G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
@@ -401,6 +401,67 @@ H('★★★★ THE DESCRIPTION STICKS · the 1s tick used to walk it back');
   ok(/game\._zyDetailKey/.test(src),
      '★★ the pointed-at item lives on `game`, not in the DOM · the same rule this file already applies to '
    + 'the control sheet ("collapse state lives on game._zyCtrlOpen ... this panel re-renders on a 1s tick")');
+}
+
+H('★★★★ THE R.A.I.D. CARD LIVES IN THE PHONE NOW');
+{
+  //   Creator, 2026-09-24: "raid card not closing. also, it opens weird. it
+  //   should open inside the zyphone UI, not a standalone poster... toggle
+  //   open on clicking RAID item... leave it as blank placeholder for now."
+  //
+  // ★★★★ THE CLOSE BUG WAS STRUCTURAL. closeRaidCard() sits inside
+  //   `if (game.posterViewOpen)` in the key handler, but openRaidCard() only
+  //   ever set game.raidCardOpen — never posterViewOpen. The card was bolted
+  //   onto the POSTER's close chain while opening through its own door, so
+  //   B/Esc/Circle could not reach the close branch at all. Adding a key would
+  //   have patched the symptom; living inside the phone means the phone's own
+  //   back-out closes it and there is no second door to keep in step.
+  const P4 = G.player;
+  P4.items = { raidcard:1, potion:3 }; P4.raidCardGifted = true;
+  G.game._zyRaidOpen = false; G.zycubeCloseCategory();
+  const isCard = h => /R\.A\.I\.D\. CARD/.test(h);
+  ok(!isCard(G.renderZycellZycube()), 'the bag opens on the grid');
+  G.useZycubeItem('raidcard');
+  ok(isCard(G.renderZycellZycube()) && G.game._zyRaidOpen === true,
+     '★★★★ clicking the R.A.I.D. item opens the card INSIDE the panel');
+  G.useZycubeItem('raidcard');
+  ok(!isCard(G.renderZycellZycube()) && G.game._zyRaidOpen === false,
+     '★★★★ …and clicking it again closes it · it TOGGLES, as asked');
+  G.useZycubeItem('raidcard');
+  G.zycellCyclePage(1);
+  ok(G.game._zyRaidOpen === false,
+     '★★★ leaving the bag leaves the sub-view · same reset the category and notebook section get, so returning never lands you somewhere you did not choose');
+  // ★★★ it pops on Circle and LEFT like every other sub-view
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  ok((src.match(/game\._zyRaidOpen = false; game\._zycellItemIdx = 0;/g) || []).length >= 2,
+     '★★★ Circle AND Left both pop it · the innermost thing open is the thing they should close');
+  // ★★★★ and the old poster can no longer open at all
+  // ★★ COUNT CALL SITES, NOT OCCURRENCES. My first cut matched the string
+  //   anywhere and counted the COMMENT that explains why the poster is dead —
+  //   a check that fails because somebody documented the fix.
+  const codeOnly = src.split('\n').filter(L => !/^\s*(\/\/|\*|\/\*)/.test(L)).join('\n');
+  const callers = (codeOnly.match(/(?<!function )openRaidCard\(\)/g) || []).length;
+  ok(callers === 0,
+     `★★★★ openRaidCard has ${callers} call site(s) · the standalone poster is unreachable, so the doubled-text overlay cannot come back`);
+}
+
+H('★★★ THE CARD IS AN HONEST PLACEHOLDER');
+{
+  // ★★★ Creator: "leave it as blank placeholder for now." Filling it with the
+  //   numbers the old poster showed would look finished and quietly become the
+  //   spec. A placeholder that lies about being a placeholder is worse than an
+  //   empty box.
+  G.game._zyRaidOpen = true;
+  const h = G.renderZycellRaidCard();
+  ok((h.match(/border-bottom:1px dashed/g) || []).length === 10,
+     '★★ ten labelled but EMPTY slots · the frame the live stats will fill');
+  ok(!/PROF\. ELARION|YEAR 5|CADET|BONDED/.test(h),
+     '★★★★ and not one invented value in them · nothing here can be mistaken for real data');
+  ok(/data-zyitem="raid_back"/.test(h),
+     '★★★ it has a reachable back control · a sub-view you can only leave with a key is a dead end on a mouse');
+  ok(/Placeholder · this card will live-track your stats/.test(h),
+     '★ and it SAYS it is a placeholder · so it is not mistaken for finished at a glance');
+  G.game._zyRaidOpen = false;
 }
 
 H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');

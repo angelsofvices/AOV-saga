@@ -42625,7 +42625,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.33' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.34' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44409,6 +44409,55 @@ function _zySection(title, body, headerColor, fill){
 }
 
 // ── ZYCUBE · clickable inventory · scroll + use + set favorite ──────
+// ★★★★ v0.99.34 · R.A.I.D. CARD · deliberately a BLANK PLACEHOLDER.
+//   Creator: "this will eventually be used to live track stats. leave it as
+//   blank placeholder for now."
+//   ★★★ So it is a frame with labelled empty slots and nothing invented in
+//   them. Filling it with the numbers the old poster showed would look
+//   finished and quietly become the spec — a placeholder that lies about being
+//   a placeholder is worse than an empty box.
+function raidCardCloseBtn(){
+  return `<div data-zyitem="raid_back" onclick="try{game._zyRaidOpen=false;playSFX('menuClose');paintZycellContent();}catch(_){}"
+      style="flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer;
+             border-bottom:1px solid var(--zy-line-soft); background:rgba(79,179,255,0.10);"
+      onmouseover="this.style.background='rgba(79,179,255,0.22)'"
+      onmouseout="this.style.background='rgba(79,179,255,0.10)'">
+    <span style="color:var(--zy-cyan); font-weight:bold; font-size:14px;">‹</span>
+    <span style="color:var(--zy-cyan); font-size:11px; letter-spacing:.08em;">BACK TO ZYCUBE</span>
+    <span style="flex:1;"></span>
+    <span style="color:var(--zy-gold); font-weight:bold; font-size:11px; letter-spacing:.10em;">R.A.I.D.</span>
+  </div>`;
+}
+function renderZycellRaidCard(){
+  const SLOTS = ['NAME','CLASS','FACTION','RANK','RIZER LV','BOND LV',
+                 'RAID TIER','ZYREX SLOTS','MENTORS','CREDITS'];
+  const rows = SLOTS.map(l => `<div style="display:flex; align-items:center; gap:10px;
+        padding:7px 4px; border-bottom:1px solid rgba(79,179,255,0.10);">
+      <span style="width:104px; flex:0 0 auto; color:var(--zy-cyan); font-size:10px;
+            letter-spacing:.12em;">${l}</span>
+      <span style="color:rgba(200,220,255,0.28); font-size:11px;">◆</span>
+      <span style="flex:1; height:11px; border-bottom:1px dashed rgba(200,220,255,0.18);"></span>
+    </div>`).join('');
+  const body = `${raidCardCloseBtn()}
+    <div style="flex:1 1 auto; min-height:0; overflow:auto; padding:10px 12px;">
+      <div style="border:1px solid rgba(255,214,107,0.45); background:rgba(255,214,107,0.04);
+                  padding:12px 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+          <span style="color:var(--zy-gold); font-weight:bold; font-size:12px; letter-spacing:.14em;">
+            RIZER ACADEMY · MALEZOR</span>
+          <span style="color:rgba(255,214,107,0.55); font-size:10px; letter-spacing:.14em;">R.A.I.D.</span>
+        </div>
+        ${rows}
+        <div style="margin-top:12px; padding-top:9px; border-top:1px solid rgba(255,214,107,0.25);
+                    color:rgba(200,220,255,0.42); font-size:9px; font-style:italic; line-height:1.6;">
+          Placeholder · this card will live-track your stats.
+        </div>
+      </div>
+    </div>
+    <div style="flex:0 0 auto; text-align:center; color:var(--zy-cyan); font-size:9px;
+                padding:5px; letter-spacing:.06em;">○ back · press the R.A.I.D. item again to close</div>`;
+  return _zySection('◈ R.A.I.D. CARD', body, 'var(--zy-gold)', true);
+}
 function renderZycellZycube(){
   // ══════════════════════════════════════════════════════════════════════
   // ★★★★ v0.99.15 · REBUILT ON THE CREATOR'S REFERENCE PANEL.
@@ -44438,6 +44487,10 @@ function renderZycellZycube(){
   //   scheme feel broken everywhere else. The rail is a normal focus row
   //   instead, so the cursor already walks it, and the chips are LABELLED with
   //   what L/R genuinely do here.
+  // ★★★ v0.99.34 · the R.A.I.D. card is a SUB-VIEW of the bag, the same shape
+  //   as a category drill-down: one flag, popped by the same Circle/LEFT chain,
+  //   cleared by the same page-cycle reset. Nothing new to keep in step.
+  if (game._zyRaidOpen) return renderZycellRaidCard();
   const items = player.items || {};
   const meta  = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META : {};
   const cats  = (typeof zycubeCategoryRows === 'function') ? zycubeCategoryRows() : [];
@@ -46902,6 +46955,11 @@ function closeZphonePanel(){
   playSFX('menuClose');
 }
 function zycellCyclePage(dir){
+  // ★★ v0.99.34 · leaving the bag leaves the R.A.I.D. sub-view · same reason
+  //   the other three are cleared here (v0.95.995): returning to a panel and
+  //   landing inside a sub-page you never chose reads as the phone losing its
+  //   place.
+  try { game._zyRaidOpen = false; } catch(_){}
   const i = ZYCELL_PANELS.indexOf(zycellPage);
   zycellPage = ZYCELL_PANELS[(i + dir + ZYCELL_PANELS.length) % ZYCELL_PANELS.length];
   game._zycellFocus = 'nav';                 // v0.95.436 · new page = back to nav
@@ -47205,6 +47263,15 @@ function handleZycellKey(k){
     // the whole phone.  It pops ONE level, exactly like the Zyrex Examine page
     // above — and it sits above the content/nav checks for the same reason that
     // one does: the innermost thing open is the thing Circle should close.
+    // ★★★ v0.99.34 · the R.A.I.D. sub-view pops FIRST · it is the innermost
+    //   thing open, which is the same rule the category and the notebook
+    //   section already follow.
+    if (zycellPage === 'zycube' && game._zyRaidOpen){
+      game._zyRaidOpen = false; game._zycellItemIdx = 0;
+      try { playSFX('menuClose'); } catch(_){}
+      try { paintZycellContent(); } catch(_){}
+      return true;
+    }
     if (zycellPage === 'zycube' && zycubeCatOpen && zycubeCloseCategory()) return true;
     // ★★★ v0.95.995 · THE NOTEBOOK WAS THE NESTING LEVEL NOBODY TOLD THIS
     // FUNCTION ABOUT. Open a notebook section and press Circle and the phone
@@ -47238,6 +47305,12 @@ function handleZycellKey(k){
       //   made the rail walkable one way only. Circle is left alone as the
       //   unconditional way back to ALL, so there is always one key that pops
       //   no matter where the cursor is.
+      if (zycellPage === 'zycube' && game._zyRaidOpen){
+        game._zyRaidOpen = false; game._zycellItemIdx = 0;
+        try { playSFX('menuClose'); } catch(_){}
+        try { paintZycellContent(); } catch(_){}
+        return true;
+      }
       if (zycellPage === 'zycube' && zycubeCatOpen && !_zycellOnZycubeTab()
           && zycubeCloseCategory()) return true;
       // ★ v0.95.995 · and the notebook, symmetric with Circle above
@@ -54033,12 +54106,28 @@ function useZycubeItem(key){
       return;
     }
     case 'raidcard': {
-      // ★★★ v0.95.891 · the card opens Rizer's actual ID art with his live
-      // numbers on it, the way a Gemlord portrait opens.  The old text-only
-      // zycubeRAIDViewer is the fallback if the art fails to mount.
-      try { if (openRaidCard()) return; } catch(err){ console.warn('raid card', err); }
-      zycubeRAIDViewerOpen = true;
-      playSFX('menuOpen');
+      // ══════════════════════════════════════════════════════════════════
+      // ★★★★ v0.99.34 · THE CARD LIVES IN THE PHONE NOW.
+      //   Creator, 2026-09-24: "raid card not closing. also, it opens weird.
+      //   it should open inside the zyphone UI, not a standalone poster. can
+      //   we fix? toggle open on clicking RAID item."
+      //
+      // ★★★★ THE CLOSE BUG WAS STRUCTURAL, NOT A MISSING KEY. closeRaidCard()
+      //   is nested inside `if (game.posterViewOpen)` in the key handler —
+      //   but openRaidCard() only ever set game.raidCardOpen, never
+      //   posterViewOpen. The card was bolted onto the POSTER's close chain
+      //   while opening through its own door, so B/Esc/Circle could not reach
+      //   the close branch at all. Adding a key would have patched the symptom;
+      //   living inside the phone means the phone's own back-out closes it,
+      //   and there is no second door to keep in step.
+      //
+      // ★★★ It also fixes "opens weird": the poster overlaid live text fields
+      //   at hard-coded percentages on top of raid-card.png, which has its own
+      //   labels and values printed INTO the art — so every row rendered twice,
+      //   a few pixels apart. A placeholder panel has nothing to double.
+      game._zyRaidOpen = !game._zyRaidOpen;
+      try { playSFX(game._zyRaidOpen ? 'menuOpen' : 'menuClose'); } catch(_){}
+      try { paintZycellContent(); } catch(_){}
       return;
     }
     // ★★ v0.95.822 · VOLTSHARD · consuming it attunes SAPPHIRE VOLTSTORM

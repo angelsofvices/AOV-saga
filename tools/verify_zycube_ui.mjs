@@ -30,7 +30,7 @@ const G = bootGame({ extra: ['renderZycellZycube','player','game','zycubeOpenCat
   'ZYCUBE_ART','ZYCUBE_ART_ROOT','zycubeArtFor','zycubeSortKeys','zycubeMoveItem',
   'ZYCUBE_ART_ELSEWHERE','zyAttrHilite','zycubeAstraliteCrop','ASTRALITE_GEM_SHEETS',
   'ASTRALITE_FAMILIES','renderZycellRaidCard','useZycubeItem','zycellCyclePage',
-  'migrateFairies','ZYCUBE_ICON','DISTRICT_ORDER'] });
+  'migrateFairies','ZYCUBE_ICON','DISTRICT_ORDER','zycubeCycleTab','zycubeTabOrder'] });
 console.log = _L;
 
 G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
@@ -46,9 +46,17 @@ H('★★★ THE RAIL · every drawer one stop away, ALL included');
   const live = G.zycubeCategoryRows().length;
   ok(n(h, /data-zytab="1"/g) === live + 1,
      `★★★ ${n(h, /data-zytab="1"/g)} tabs = ${live} stocked drawers + ALL · empty drawers are not rendered`);
-  ok(/data-zyitem="zytab_all"/.test(h), '★★★★ there IS an ALL tab · it is the null state the canvas BAG still needs');
-  ok(/data-zyrow="zycube_tabs"/.test(h),
-     '★★ the rail is ONE focus row · so the cursor walks it sideways instead of treating 10 tabs as 10 list stops');
+  ok(G.zycubeTabOrder()[0] === null,
+     '★★★★ the first tab is ALL · it is the null state the canvas BAG still needs');
+  // ★★★★ v0.99.42 · THE RAIL LEFT THE CURSOR'S WALK. Making it a focus row at
+  //   v0.99.15 was right in isolation — the cursor could reach every tab — and
+  //   wrong in use: reaching ALL from the far end was eleven presses through
+  //   eleven headings, every time. Creator: "still making me scroll through all
+  //   horizontal tab headings just to get to all items panel."
+  ok(!/data-zyitem="zytab_/.test(h),
+     '★★★★ no tab is a focus stop · a row of tabs is an axis you flick, not a list you walk');
+  ok((h.match(/data-zytab="1"/g) || []).length >= 3,
+     '★★★ they are still there and still clickable for a mouse · leaving the cursor walk is not leaving the UI');
   // ★★ l/q and r/i already cycle PHONE PANELS in two phone-wide handlers.
   //   Binding them to tabs inside one panel is the local override that makes a
   //   control scheme feel broken everywhere else.
@@ -65,6 +73,54 @@ H('★★★ THE RAIL · every drawer one stop away, ALL included');
   ok(body.length > 4000 && body.length < 22000, `  the panel body is ${body.length} chars · one function, not half the file`);
   ok(!/zycellCyclePage/.test(body),
      '★★★ the panel does NOT rebind L/R · they still cycle phone panels, and the chips only label that');
+}
+
+H('★★★★ L1/R1 REACH EVERY TAB · the pad did not lose them, it stopped walking them');
+{
+  // ★★★★ The requirement this guards has not changed since v0.95.936: a
+  //   controller must be able to reach every category. What changed is HOW.
+  //   Deleting the old data-zyitem check without proving the new path would
+  //   have quietly re-opened the exact defect that check was written for.
+  G.player.items = { potion:5, ale:2, coins:900, gem:14, zysphere:9, berry:23,
+    scrap_metal:40, sapphire_sword:1, shard_ember:1, prismshard:1, moon_gem:2 };
+  G.zycubeCloseCategory();
+  const order = G.zycubeTabOrder();
+  ok(order.length >= 5, `${order.length} tabs in the rail`);
+  const seen = new Set();
+  for (let i = 0; i < order.length; i++){
+    seen.add(String(G.zycubeCatOpenNow ? G.zycubeCatOpenNow() : order[i]));
+    G.zycubeCycleTab(+1);
+  }
+  // walk the whole ring with R1 and confirm every tab is visited
+  G.zycubeCloseCategory();
+  const visited = [];
+  for (let i = 0; i < order.length; i++){
+    const h2 = G.renderZycellZycube();
+    const m = /white-space:nowrap;">([^<]+)</.exec(h2);
+    visited.push(m ? m[1] : '?');
+    G.zycubeCycleTab(+1);
+  }
+  ok(new Set(visited).size === order.length,
+     `★★★★ R1 alone visits all ${order.length} tabs · ${visited.join(' → ')}`);
+  ok(visited[0] === 'ALL', '★★★ and one more press from the last tab lands back on ALL · the wrap is what makes ALL one press away instead of eleven');
+  // ★★★ the tab axis wraps ON PURPOSE, unlike the grid cursor
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  const cyc = src.slice(src.indexOf('function zycubeCycleTab'), src.indexOf('function zycubeOpenCategory'));
+  ok(/% order\.length/.test(cyc),
+     '★★★ the TAB axis wraps · "no dpad wrapping" was about the grid cursor, where a wrap reads as the cursor vanishing; a bumper flick is the opposite');
+  ok(/zycellPage === 'zycube' && \(k === 'l' \|\| k === 'q'\)/.test(src)
+     && /zycellPage === 'zycube' && k === 'r'/.test(src),
+     "★★★★ L1/R1 are bound to the TABS inside the ZyCube · and only inside it, so every other panel keeps them as the panel axis");
+  ok(/k === 'shift'\)\{ zycellCyclePage\(-1\)/.test(src) && /k === 'i'\)\{ zycellCyclePage\(\+1\)/.test(src),
+     '★★★ while L2/R2 keep the panels · which is what freed the bumpers in the first place');
+  // ★★★ THIRD TIME. Restore the fixture and the tab, or the sections below
+  //   render a smaller bag on a different drawer and go red on working code.
+  //   A suite that fails because an earlier block tidied up is a suite that
+  //   trains you to ignore it.
+  G.zycubeCloseCategory();
+  G.player.items = { potion:5, ale:2, coins:1200, gem:14, zysphere:9, sapphire_sword:1, pearlbow:1,
+    berry:23, fruit:8, scrap_metal:40, backpack:1, zycube:1, zphone:1, faenet:1, skateboard:1,
+    astralite_1_1:3, astralite_2_4:1, moon_gem:2, life_seed:4, prismshard:1, tower_battery:2 };
 }
 
 H('★★★★ THE GRID · slots, counts, favourites, and holes that are not focus stops');

@@ -42916,7 +42916,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.41' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.42' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44799,7 +44799,11 @@ function renderZycellZycube(){
   //   rides the SELECTED tab: it is always at the top, always between L and R,
   //   and it names the drawer you are actually in — which is the thing the
   //   word was for.
-  const tab = (id, icon, label, color, on, click) => `<div data-zyitem="zytab_${id}" data-zytab="1"
+  // ★★★★ v0.99.42 · NO data-zyitem · the tabs are OUT of the cursor's walk.
+  //   They stay clickable for a mouse and are driven by L1/R1 on a pad, so the
+  //   cursor never has to cross eleven headings to reach the grid — and UP from
+  //   the top row of slots has nothing above it to get stuck in.
+  const tab = (id, icon, label, color, on, click) => `<div data-zytab="1"
       title="${label}" onclick="try{${click}}catch(_){}"
       style="position:relative; flex:0 0 auto; ${on ? 'padding:0 9px 0 7px;' : 'width:38px;'}
              height:34px; display:flex; gap:5px;
@@ -44990,7 +44994,7 @@ function renderZycellZycube(){
          align-content:start; pointer-events:auto;">${grid}</div>
     ${pane}
     <div style="flex:0 0 auto; text-align:center; color:var(--zy-cyan); font-size:9px; padding:4px; letter-spacing:.06em;">
-      ◀▶ tabs &amp; slots · L/R panel · ○ back to ALL
+      L1/R1 switch tabs · ◀▶▲▼ move · L2/R2 switch panel · ○ back to ALL
     </div>`;
 
   // Delay row-handler wiring until DOM lands · run after paintZycellContent injects the HTML
@@ -47626,6 +47630,12 @@ function handleZycellKey(k){
     //   panel switches the panel." R2 (BTN[7]='i') already did; L2
     //   (BTN[6]='shift') did not, so the pair was half-wired and only one
     //   direction worked on a pad.
+    // ★★★★ v0.99.42 · on the ZYCUBE, L1/R1 are the TAB axis, not the panel axis.
+    //   R2 ('i') and L2 ('shift') keep the panels, exactly as the Creator
+    //   asked — which is what frees the bumpers for the thing the rail chips
+    //   have been promising.
+    if (zycellPage === 'zycube' && (k === 'l' || k === 'q')){ zycubeCycleTab(-1); return true; }
+    if (zycellPage === 'zycube' && k === 'r'){ zycubeCycleTab(+1); return true; }
     if (k === 'l' || k === 'q' || k === 'shift'){ zycellCyclePage(-1); return true; }
     if (k === 'r' || k === 'i'){ zycellCyclePage(+1); return true; }
     // ★★★ v0.95.995 · A PANEL WITH NOTHING TO PRESS IS STILL SOMETHING TO READ.
@@ -47791,6 +47801,8 @@ function handleZycellKey(k){
   if (k === 'k' || k === 'y'){ zyTriangleArm(); return true; }   // v0.95.743
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
+  if (zycellPage === 'zycube' && (k === 'q' || k === 'l')){ zycubeCycleTab(-1); return true; }
+  if (zycellPage === 'zycube' && k === 'r'){ zycubeCycleTab(+1); return true; }
   if (k === 'q' || k === 'l' || k === 'shift'){ zycellCyclePage(-1); return true; }
   if (k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
   if (k === 'arrowleft'){ /* already at nav · no-op */ playSFX('cancel'); return true; }
@@ -54712,6 +54724,37 @@ function zycubeCategoryRows(){
 // handler calls the second one, and the canvas BAG's controller branch calls
 // both.  Three surfaces, one pair of functions — the v0.95.935 build had the
 // level change written out longhand in four places and one of them was wrong.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.42 · THE BUMPERS DRIVE THE TABS. Creator, 2026-09-24: "the zycube
+//   navigation still isnt clean. still making me scroll through all horizontal
+//   tab headings just to get to all items panel."
+//
+// ★★★★ THE RAIL WAS A FOCUS ROW, AND THAT WAS THE WHOLE PROBLEM. Making it one
+//   (v0.99.15) was right in isolation — the cursor could reach every tab — but
+//   it meant reaching ALL from the far end was eleven presses through eleven
+//   headings, every time. A row of tabs is not a list you walk; it is an axis
+//   you flick.
+//
+// ★★★ The Creator's own previous instruction freed the buttons for it: moving
+//   panel-switching onto R2/L2 leaves L1/R1 to switch the TABS, which is where
+//   a console player already expects them and what the [L] and [R] chips
+//   flanking the rail have been advertising since v0.99.15.
+function zycubeTabOrder(){
+  const cats = (typeof zycubeCategoryRows === 'function') ? zycubeCategoryRows() : [];
+  return [null].concat(cats.map(c => c.id));     // null = the ALL tab
+}
+function zycubeCycleTab(dir){
+  const order = zycubeTabOrder();
+  if (order.length < 2) return false;
+  const now = order.indexOf(zycubeCatOpen || null);
+  // ★★ the tab axis WRAPS on purpose · the Creator's "no dpad wrapping" was
+  //   about the cursor in the grid, where a wrap reads as the cursor
+  //   vanishing. A bumper flick is the opposite: wrapping is what makes ALL
+  //   one press away from the last drawer instead of eleven.
+  const next = order[(now + dir + order.length) % order.length];
+  if (next) zycubeOpenCategory(next); else zycubeCloseCategory();
+  return true;
+}
 function zycubeOpenCategory(id){
   if (!id) return false;
   zycubeCatOpen  = id;

@@ -186,8 +186,14 @@ console.log('\n6 · BOTH SURFACES READ THE SAME TABLE\n');
   //   is worse than the red it replaced. Each still fails if its capability
   //   goes away: drop the tabs and the first goes red, drop the ALL tab and the
   //   second does.
-  ok(/data-zyitem="zytab_/.test(src2),
-     'the ZyPhone panel exposes every category as a clickable tab');
+  // ★★★★ v0.99.42 · THE TABS LEFT THE CURSOR'S WALK, AND THE REQUIREMENT DID
+  //   NOT. This block exists because of three symptoms at v0.95.936 — the pad
+  //   could not reach the categories, clicking did nothing, no way back. The
+  //   first is still the thing being tested; only the mechanism changed, from
+  //   "every tab is a focus stop" to "L1/R1 are the tab axis". Deleting the
+  //   check would have re-opened the defect it was written for.
+  ok(/function zycubeCycleTab/.test(src2) && /% order\.length/.test(src2),
+     'the ZyPhone panel exposes every category on the L1/R1 tab axis, wrapping so ALL is always one press away');
   // ★★ MY FIRST CUT OF THIS LINE TESTED FOR 'zytab_all' AND WENT RED ON
   //   WORKING CODE. That string never appears in the source — the id is built
   //   at runtime from `zytab_${id}`. A source-scanning suite can only see what
@@ -214,9 +220,9 @@ console.log('            for nav. also cant click into categories."\n');
   //   symptoms this block was born from — pad cannot reach the categories,
   //   clicking does nothing, no way back — are still the three things being
   //   tested. Only the markup they live in changed, by directive.
-  ok(/data-zyitem="zytab_\$\{id\}"/.test(src2),
-     '★ category tabs carry data-zyitem — the DualSense auto-enrolment walks THAT');
-  console.log('       attribute, so a tab without it does not exist to the controller at all.');
+  ok(!/data-zyitem="zytab_/.test(src2),
+     '★ category tabs are NOT focus stops — walking eleven headings to reach ALL was the complaint');
+  console.log('       they are reached by L1/R1 instead, which is where a console player looks.');
   ok(/onclick="try\{\$\{click\}\}catch\(_\)\{\}"/.test(src2)
      && /zycubeOpenCategory\('\$\{c\.id\}'\);/.test(src2),
      '★ and an inline onclick, the way every other working panel does it');

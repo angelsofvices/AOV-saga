@@ -76,8 +76,15 @@ H('3 · ★★ THE WRAPPER STOPPED BEING A STOP');
   const P=C.player;
   P.items={sapphire_sword:1}; P.cosmeticSkin='normal';
   const w=C.renderZycellWeapons();
-  ok(/data-zyitem="sapphire_sword"/.test(w),
+  // ★★ v0.99.45 · was `data-zyitem="sapphire_sword"`. The Armory rebuild
+  //   renamed the weapon stops to `arm_<item>`, and this assertion went red on
+  //   a rename while the property it exists to protect — that the panel's ROWS
+  //   are the stops, so _zySection's wrapper is filtered out of the walk — was
+  //   never in question. Asserting the property instead of one spelling of it.
+  ok(/data-zyitem="[^"]*sapphire_sword"/.test(w),
      'the weapons rows carry their own tags, so the same rule un-stops that wrapper too');
+  ok((w.match(/data-zyitem=/g) || []).length >= 2,
+     '★ and there is more than one stop inside it · a panel with a single tagged child would leave X guessing again');
   // presets reachable when fresh
   P.rizerLvl=5; P.attrs={};
   const fresh=C.buildRizerAttrPanel('phone');

@@ -42958,7 +42958,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.44' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.45' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45413,550 +45413,404 @@ function swapPartySlots(a, b){
 // v0.95.516 · WEAPONS panel · currently just the Sapphire Tearsword row with
 // toggle/durability/repair.  Panel is empty (with a hint) until player finds
 // their first weapon in the world (treehouse silver chest).
-function renderZycellWeapons(){
-  const hasSword = (player.items && player.items.sapphire_sword) || 0;
-  const hasRuby  = (player.items && player.items.rubypaw_sword)  || 0;   // v0.95.568
-  const hasAxe   = (player.items && player.items.emerald_axe)    || 0;   // ★ v0.95.791
-  const isS1     = (player.cosmeticSkin || 'normal') !== 'power_upgrade';
-  const hasBow   = (player.items && player.items.pearlbow)       || 0;   // ★ v0.95.792
-  const hasFang  = (player.items && player.items.rubypaw_fang)   || 0;   // ★ v0.96.76
-  // ★ the empty state has to know about the Fang too, or a player who owns
-  //   ONLY Rakoron's tooth is told they have no weapons.
-  if (!hasSword && !hasRuby && !hasAxe && !hasBow && !hasFang){
-    return _zySection('⚔ WEAPONS', `<div style="color:var(--zy-muted); text-align:center; padding:20px 12px; line-height:1.7;">· no weapons yet ·<br><span style="font-size:9px; color:var(--zy-muted-2);">explore the world · treehouse chests hold gear</span></div>`);
-  }
-  let row = '';   // v0.95.568 · Weapons panel now composed of multiple rows
-  // ─── SAPPHIRE TEARSWORD row ───────────────────────────────────────────
-  if (hasSword){
-  const dur = Math.max(0, Math.min(SWORD_MAX, player.swordDurability == null ? SWORD_MAX : player.swordDurability));
-  const broken = !!player.swordBroken || dur <= 0;
-  const equipped = !!player.swordEquipped && !broken && isS1;
-  const gemCount = (typeof countGems === 'function') ? countGems() : 0;
-  // ★ v0.95.791 · was `dur / 200` · the Tearsword dropped to 100 in v0.95.786
-  // and this bar quietly stopped ever passing half full.  Read the constant.
-  const durPct = (dur / SWORD_MAX) * 100;
-  const barColor = broken ? 'var(--zy-danger)' : durPct > 50 ? 'var(--zy-blue)' : durPct > 20 ? 'var(--zy-gold)' : 'var(--zy-warn)';
-  const equipLabel = broken ? '⛔ BROKEN' : (equipped ? '● EQUIPPED · tap to unequip' : (isS1 ? '☆ tap to equip' : '⚠ S1 skin only'));
-  const equipColor = broken ? 'var(--zy-danger)' : (equipped ? 'var(--zy-ok)' : (isS1 ? 'var(--zy-blue)' : 'var(--zy-muted)'));
-  const repairBtn = broken
-    ? `<button id="zySwordRepair" style="margin-top:8px; padding:8px 14px; background:${gemCount >= 100 ? 'rgba(95,220,122,0.22)' : 'rgba(120,120,140,0.18)'}; color:${gemCount >= 100 ? 'var(--zy-ok)' : 'var(--zy-muted)'}; border:1px solid ${gemCount >= 100 ? 'var(--zy-ok)' : '#556'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:${gemCount >= 100 ? 'pointer' : 'not-allowed'};">🔧 REPAIR · 100 GEMS (you have ${gemCount})</button>`
-    : '';
-  row += `
-    <div id="zySwordRow" data-zyitem="sapphire_sword" style="border:2px solid ${broken ? 'var(--zy-danger)' : 'var(--zy-blue)'}; background:linear-gradient(180deg, rgba(20,50,120,0.55), rgba(4,10,30,0.65)); padding:14px; margin-bottom:8px; cursor:${isS1 && !broken ? 'pointer' : 'default'};">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="width:52px; height:52px; border:2px solid var(--zy-blue); background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">⚔</div>
-        <div style="flex:1;">
-          <div style="color:var(--zy-gold); font-weight:bold; letter-spacing:.10em; font-size:13px;">SAPPHIRE TEARSWORD</div>
-          <div style="color:var(--zy-cyan); font-size:10px; margin-top:2px;">S1 only · square · dmg = S2 light punch · ${SWORD_MAX} connects (no miss-break) · repair 100 gems</div>
-        </div>
-        <div style="color:${equipColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${equipLabel}</div>
-      </div>
-      <div style="margin-top:10px;">
-        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--zy-text);">
-          <span>DURABILITY</span><span style="color:#fff;">${dur}/${SWORD_MAX}</span>
-        </div>
-        <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid var(--zy-line-soft); margin-top:3px;">
-          <div style="height:100%; width:${durPct}%; background:${barColor};"></div>
-        </div>
-      </div>
-      ${repairBtn}
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.45 · THE ARMORY · Creator, 2026-09-24: "upgrade the weapon UI in
+//   the zyphone and make it like this reference image. weapons (main slot) &
+//   gear (combat utilities) exist here. trinkets (coming), ammo, etc. exist
+//   here."
+//
+// ★★★★ THE OLD PANEL WAS FIVE COPIES OF ONE PANEL. 545 lines, and four of
+//   them were the first one with the nouns swapped — five durability clamps,
+//   five repair buttons, five equip handlers, five sets of colours. That is
+//   why the Fang shipped missing from the empty-state check in v0.96.76 and
+//   why the Tearsword's bar read `dur / 200` for six builds after the sword
+//   dropped to 100: a fix applied to one copy is not applied to the others,
+//   and nothing tells you which copy you missed.
+//   ★ So the weapon is DATA now and the frame is drawn once. ZYARMS is the
+//   only place a weapon's numbers live in this panel; adding a sixth is a
+//   table row, not another 110 lines.
+//
+// ★★★ THE REPAIR BUTTON IS GONE ON PURPOSE — the action moved ONTO the card.
+//   v0.95.995 found that a nested REPAIR button is unreachable on a pad,
+//   because _zycellAutoEnrol will not enrol a control inside an already-tagged
+//   element, and patched it by making a broken row act as its own repair. That
+//   patch left the button sitting there anyway: a mouse-only duplicate of a
+//   thing the card already did. One card, one stop, one action, both inputs.
+//
+// ★★ THE FORM GATE IS THE REAL CONTENT OF THIS SCREEN. Four of the five arms
+//   are S1's and the Longsword is S2's, so at any moment at least one weapon
+//   you own cannot be equipped. The frame says which by DIMMING it rather than
+//   hiding it — a weapon you own and cannot hold is information, and a blank
+//   space is not.
+const ZYARMS = [
+  { item:'sapphire_sword', name:'SAPPHIRE TEARSWORD', tag:'TEARSWORD',
+    equipFlag:'swordEquipped', brokenFlag:'swordBroken', durFlag:'swordDurability',
+    max:SWORD_MAX, unit:'DURABILITY', form:'S1', accent:'#4fb3ff', deep:'#0d3f7a',
+    sheet:'RIZER_SAPPHIRE_SWORD', art:{ src:'assets/2D%20sprites/decor/sapphire-sword-icon.png', W:772, H:326 },
+    blurb:() => `square · front + back sweep · dmg = S2 light punch · ${SWORD_MAX} connects, no miss-break`,
+    onEquip:'★ SAPPHIRE TEARSWORD equipped · punch becomes slash',
+    missing:'⚠ Sapphire Tearsword equipped but sheet missing · assets/2D sprites/rizer/sapphire-sword.png · anim will fall back to punch until file lands' },
+
+  { item:'rubypaw_sword', name:'RUBYPAW LONGSWORD', tag:'LONGSWORD',
+    equipFlag:'rubypawEquipped', brokenFlag:'rubypawBroken', durFlag:'rubypawDurability',
+    max:RUBY_MAX, unit:'DURABILITY', form:'S2', accent:'#ff5b5b', deep:'#7a1220',
+    sheet:'RIZER_RUBYPAW_SWORD', art:{ src:'assets/2D%20sprites/decor/rubypaw-sword-icon.png', W:785, H:537 },
+    blurb:() => `square · dmg 150 (baseAtk × 3 × S2 mult, above the S2 kick's 100) · ${RUBY_MAX} connects`,
+    onEquip:'★ RUBYPAW LONGSWORD equipped · S2 punch becomes slash (150 dmg)' },
+
+  { item:'emerald_axe', name:'EMERALD AXE', tag:'AXE',
+    equipFlag:'axeEquipped', brokenFlag:'axeBroken', durFlag:'axeDurability',
+    max:AXE_MAX, unit:'DURABILITY', form:'S1', accent:'#4ee07a', deep:'#0f5a30',
+    sheet:'RIZER_EMERALD_AXE', art:{ src:'assets/2D%20sprites/decor/emerald-axe-icon.png', W:1254, H:1254, bbox:[218,170,818,898] },
+    blurb:() => `square · <b>3×3 sweep</b> centred on Rizer · every adjacent tile regardless of facing · dmg = baseAtk × 2.5 · ${AXE_MAX} connects`,
+    onEquip:'★ EMERALD AXE equipped · square becomes a 3×3 sweep' },
+
+  { item:'pearlbow', name:'PEARLBOW', tag:'BOW',
+    equipFlag:'bowEquipped', brokenFlag:'bowBroken', durFlag:'bowDurability',
+    max:BOW_MAX, unit:'ARROWS', form:'S1', accent:'#ffd9ee', deep:'#5a3a5a',
+    sheet:'RIZER_PEARLBOW', art:{ src:'assets/2D%20sprites/decor/pearlbow-icon.png', W:1254, H:1254, bbox:[309,260,683,704] },
+    // ★ the bow's "durability" IS its quiver, so its empty state is DRY, not
+    //   BROKEN — and an arrow bundle, not a gemsmith, is what answers it.
+    dryWord:'QUIVER EMPTY',
+    blurb:() => `square · flies up to ${PEARLBOW_RANGE} tiles down your facing · detonates on contact · ${PEARLBOW_AOE*2+1}×${PEARLBOW_AOE*2+1} blast · dmg = baseAtk × ${PEARLBOW_DMG_MULT} · <b>spends an arrow even on a miss</b>`,
+    onEquip:() => `★ PEARLBOW equipped · square fires up to ${PEARLBOW_RANGE} tiles · detonates on contact` },
+
+  { item:'rubypaw_fang', name:'RUBYPAW FANG', tag:'FANG',
+    equipFlag:'fangEquipped', brokenFlag:'fangBroken', durFlag:'fangDurability',
+    max:FANG_MAX, unit:'EDGE', form:'S1', accent:'#ffb3a0', deep:'#6a2a20',
+    sheet:'RIZER_RUBYPAW_FANG', art:{ src:'assets/2D%20sprites/items/bag/rubypaw-fang-icon.png', W:744, H:764 },
+    blurb:() => `square · <b>quick jab</b> · dmg = baseAtk × 1.6 <b>flat</b> — above a first punch, below a third, and it never climbs · ${FANG_MAX} strikes`,
+    lore:'a tooth Rakoron shed · the Longsword is what a smith makes of one',
+    onEquip:'★ RUBYPAW FANG equipped · square becomes a quick jab' },
+];
+// ★★★ GEAR · combat utilities. NOT weapons and not consumables: the things you
+//   carry that change how a fight or a field goes. None of them has an equip
+//   flag — the game reads them straight out of the bag — so this half of the
+//   armory is a READ-OUT, and it says so rather than offering a toggle that
+//   would do nothing.
+// ★★ Unowned gear draws as an empty socket instead of vanishing. The shape of
+//   the set is itself information, and an armory that silently shrinks cannot
+//   tell you there is a slot to fill.
+const ZYGEAR = [
+  { item:'shardshare',  name:'SHARDSHARE',  accent:'#ffd66b', role:'Ultrashard socket · one shard live at a time · A4 to fire it' },
+  { item:'zysphere',    name:'ZYSPHERE',    accent:'#bc83ff', role:'bond device · the only way a wild Zyrex comes home with you' },
+  { item:'faenet',      name:'FAENET',      accent:'#65e3ff', role:'fae net · catches the small ones nothing else will hold' },
+  { item:'skateboard',  name:'SKATEBOARD',  accent:'#a8e063', role:'field speed · ground covered is damage not taken' },
+  { item:'astralcore_transponder', name:'TRANSPONDER', accent:'#4fb3ff', role:'astralcore uplink · reads the matrix from where you stand' },
+  { item:'field_station', name:'FIELD STATION', accent:'#c8a06b', role:'deployable post · a place to work away from town' },
+];
+// ★ Art crop in a fixed square. The two 1254 sheets carry their icon inside a
+//   bbox; the other three are already tight. bbox is [x, y, WIDTH, HEIGHT] —
+//   the same reading the world draw site uses, and the same one that has been
+//   misread as two corners twice in this file.
+function _zyArtStyle(a, S){
+  if (!a) return '';
+  const bb = a.bbox || [0, 0, a.W, a.H];
+  const [bx, by, bw, bh] = bb;
+  const k = S / Math.max(bw, bh);
+  const ox = (S - bw * k) / 2, oy = (S - bh * k) / 2;
+  return `background-image:url('${a.src}'); background-repeat:no-repeat;`
+       + `background-size:${(a.W*k).toFixed(1)}px ${(a.H*k).toFixed(1)}px;`
+       + `background-position:${(ox - bx*k).toFixed(1)}px ${(oy - by*k).toFixed(1)}px;`;
+}
+// ★★ THE GOLD FRAME. One recipe, used by every slot on the screen, so a card,
+//   an empty socket and the main slot are visibly the same object at different
+//   sizes — which is what makes the reference sheet read as one set rather
+//   than six unrelated widgets.
+function _zyFrame(accent, dim){
+  const a = dim ? 'rgba(150,150,160,0.45)' : accent;
+  return `border:2px solid #d9a441; box-sizing:border-box;`
+       + `box-shadow: inset 0 0 0 2px #0a2238, inset 0 0 0 3px rgba(240,200,105,0.55),`
+       + ` inset 0 14px 26px -12px ${a}, 0 2px 0 rgba(0,0,0,0.55);`
+       + `background:linear-gradient(180deg, rgba(16,64,92,0.92), rgba(7,26,44,0.96) 58%, rgba(4,14,26,0.98));`;
+}
+function _zyStuds(accent, dim){
+  const c = dim ? '#6b7280' : accent;
+  const one = (pos) => `<span style="position:absolute; ${pos} width:7px; height:7px; background:${c};`
+    + ` border:1px solid #f0c869; transform:rotate(45deg);"></span>`;
+  return one('top:-4px; left:-4px;') + one('top:-4px; right:-4px;')
+       + one('bottom:-4px; left:-4px;') + one('bottom:-4px; right:-4px;');
+}
+// ★ The banner plaque with arrow ends, straight off the reference's MENU bar.
+function _zyPlaque(text, color){
+  return `<div style="display:flex; align-items:center; justify-content:center; gap:0;">
+      <span style="width:0; height:0; border:9px solid transparent; border-right-color:#d9a441;"></span>
+      <span style="background:linear-gradient(180deg,#f0c869,#c08b2c); color:#12283c; font-weight:bold;
+                   font:bold 10px 'Courier New',monospace; letter-spacing:.16em; padding:3px 14px;
+                   border-top:1px solid #ffe6a8; border-bottom:1px solid #8a5f18;">${text}</span>
+      <span style="width:0; height:0; border:9px solid transparent; border-left-color:#d9a441;"></span>
     </div>`;
-  // Bind toggle + repair after HTML lands
-  setTimeout(() => {
-    const rowEl = document.getElementById('zySwordRow');
-    const repairEl = document.getElementById('zySwordRepair');
-    if (rowEl && !rowEl._zyBound){
-      rowEl._zyBound = true;
-      rowEl.addEventListener('click', (ev) => {
-        if (ev.target.id === 'zySwordRepair') return;
-        if (player.swordBroken || (player.swordDurability|0) <= 0){
-
-          // ★★★ v0.95.995 · A BROKEN WEAPON WAS UNREPAIRABLE ON A CONTROLLER.
-
-          // The REPAIR button lives INSIDE this row, and _zycellAutoEnrol
-
-          // never enrols a control that sits inside an already-tagged
-
-          // element — so the only focus stop was the row itself, and the
-
-          // row's handler answered a broken weapon by telling you to use
-
-          // the button you could not reach. A soft-lock made of two
-
-          // reasonable rules meeting.
-
-          // ★ The row is CONTEXTUAL now: broken + affordable means the row
-
-          // IS the repair. One stop that does the only thing worth doing,
-
-          // which beats a second stop nobody can reach.
-
-          const _rb = document.getElementById('zySwordRepair');
-
-          if (_rb){ _rb.click(); return; }
-
-          try { playSFX('doorLock'); } catch(_){}
-
-          showToast('◈ Sword is BROKEN · 100 gems to repair', 2400);
-
-          return;
-        }
-        if ((player.cosmeticSkin || 'normal') === 'power_upgrade'){
-          try { playSFX('doorLock'); } catch(_){}
-          showToast('◈ Sapphire Tearsword · S1 only · switch out of S2 to equip', 2400);
-          return;
-        }
-        player.swordEquipped = !player.swordEquipped;
-        // ★ v0.95.791 · the OTHER half of the one-Square-slot rule
-        if (player.swordEquipped) keepOneS1Weapon('swordEquipped');
-        try { playSFX('confirm'); } catch(_){}
-        try { updateWeaponHUD(); } catch(_){}
-        // v0.95.520 · Warn if sword sheet asset is missing when equipping
-        if (player.swordEquipped && !RIZER_SAPPHIRE_SWORD.loaded){
-          showToast('⚠ Sapphire Tearsword equipped but sheet missing · assets/2D sprites/rizer/sapphire-sword.png · anim will fall back to punch until file lands', 5000);
-        } else {
-          showToast(player.swordEquipped ? '★ SAPPHIRE TEARSWORD equipped · punch becomes slash' : '◇ Sapphire Tearsword unequipped', 2400);
-        }
-        try { paintZycellContent(); } catch(_){}
-      });
+}
+function _zyArmsTab(){ try { return game._zyArmsTab || 'arms'; } catch(_){ return 'arms'; } }
+function _zyArmsSetTab(t){
+  try { game._zyArmsTab = t; playSFX('menuOpen'); paintZycellContent(); } catch(_){}
+}
+// ★★★ THE FIVE RULES THAT USED TO BE WRITTEN FIVE TIMES.
+//   Read from the table, applied once, returned as one state object — so the
+//   card, the main slot and the click handler all agree by construction
+//   instead of by five separate copies of the same three conditions.
+function _zyArmState(W){
+  const owned = !!((player.items && player.items[W.item]) || 0);
+  const isS1  = (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+  const fits  = (W.form === 'S1') ? isS1 : !isS1;
+  const dur   = Math.max(0, Math.min(W.max, player[W.durFlag] == null ? W.max : player[W.durFlag]));
+  const broken = !!player[W.brokenFlag] || dur <= 0;
+  const equipped = !!player[W.equipFlag] && !broken && fits;
+  return { owned, isS1, fits, dur, broken, equipped, pct: (dur / W.max) * 100,
+           gems: (typeof countGems === 'function') ? countGems() : 0 };
+}
+function _zyArmClick(item){
+  const W = ZYARMS.find(w => w.item === item);
+  if (!W) return;
+  const S = _zyArmState(W);
+  if (!S.owned) return;
+  // ── broken · the card IS the repair ────────────────────────────────────
+  if (S.broken){
+    if (S.gems < 100){
+      try { playSFX('doorLock'); } catch(_){}
+      showToast(`◈ ${W.name} · ${W.dryWord || 'BROKEN'} · 100 gems to restore (you have ${S.gems})`, 2600);
+      return;
     }
-    if (repairEl && !repairEl._zyBound){
-      repairEl._zyBound = true;
-      repairEl.addEventListener('click', () => {
-        const gc = (typeof countGems === 'function') ? countGems() : 0;
-        if (gc < 100){
-          try { playSFX('doorLock'); } catch(_){}
-          showToast(`◈ Not enough gems · need 100 (have ${gc})`, 2400);
-          return;
-        }
-        spendGems(100);   // v0.95.724 · one shared path · genuinely cheapest-first
-        player.swordDurability = SWORD_MAX;
-        player.swordBroken = false;
-        try { playSFX('confirm'); } catch(_){}
-        showToast(`★ Sapphire Tearsword REPAIRED · durability ${SWORD_MAX}/${SWORD_MAX}`, 2600);
-        try { paintZycellContent(); } catch(_){}
-      });
-    }
-  }, 0);
-  }   // v0.95.568 · close `if (hasSword)` block
-  // ─── RUBYPAW LONGSWORD row · S2's answer to the Sapphire ─────────
-  if (hasRuby){
-    const rDur = Math.max(0, Math.min(RUBY_MAX, player.rubypawDurability == null ? RUBY_MAX : player.rubypawDurability));
-    const rBroken = !!player.rubypawBroken || rDur <= 0;
-    const rEquipped = !!player.rubypawEquipped && !rBroken && !isS1;   // S2 only
-    const rGems = (typeof countGems === 'function') ? countGems() : 0;
-    const rPct = (rDur / RUBY_MAX) * 100;
-    const rBar = rBroken ? 'var(--zy-danger)' : rPct > 50 ? 'var(--zy-danger)' : rPct > 20 ? 'var(--zy-gold)' : 'var(--zy-warn)';
-    const rLabel = rBroken ? '⛔ BROKEN' : (rEquipped ? '● EQUIPPED · tap to unequip' : (!isS1 ? '☆ tap to equip' : '⚠ S2 skin only'));
-    const rColor = rBroken ? 'var(--zy-danger)' : (rEquipped ? 'var(--zy-ok)' : (!isS1 ? 'var(--zy-danger)' : 'var(--zy-muted)'));
-    const rRepair = rBroken
-      ? `<button id="zyRubyRepair" style="margin-top:8px; padding:8px 14px; background:${rGems >= 100 ? 'rgba(95,220,122,0.22)' : 'rgba(120,120,140,0.18)'}; color:${rGems >= 100 ? 'var(--zy-ok)' : 'var(--zy-muted)'}; border:1px solid ${rGems >= 100 ? 'var(--zy-ok)' : '#556'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:${rGems >= 100 ? 'pointer' : 'not-allowed'};">🔧 REPAIR · 100 GEMS (you have ${rGems})</button>`
-      : '';
-    row += `
-      <div id="zyRubyRow" data-zyitem="rubypaw_sword" style="border:2px solid ${rBroken ? 'var(--zy-danger)' : 'var(--zy-danger)'}; background:linear-gradient(180deg, rgba(120,20,30,0.55), rgba(30,4,10,0.65)); padding:14px; margin-bottom:8px; cursor:${!isS1 && !rBroken ? 'pointer' : 'default'};">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:52px; height:52px; border:2px solid var(--zy-danger); background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">⚔</div>
-          <div style="flex:1;">
-            <div style="color:var(--zy-gold); font-weight:bold; letter-spacing:.10em; font-size:13px;">RUBYPAW LONGSWORD</div>
-            <div style="color:#ffb0b0; font-size:10px; margin-top:2px;">S2 only · square · dmg = 150 (baseAtk × 3 × S2 mult, > S2 kick 100) · ${RUBY_MAX} connects (no miss-break) · repair 100 gems</div>
-          </div>
-          <div style="color:${rColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${rLabel}</div>
-        </div>
-        <div style="margin-top:10px;">
-          <div style="display:flex; justify-content:space-between; font-size:10px; color:#fed;">
-            <span>DURABILITY</span><span style="color:#fff;">${rDur}/${RUBY_MAX}</span>
-          </div>
-          <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,91,91,0.25); margin-top:3px;">
-            <div style="height:100%; width:${rPct}%; background:${rBar};"></div>
-          </div>
-        </div>
-        ${rRepair}
-      </div>`;
-    setTimeout(() => {
-      const rEl = document.getElementById('zyRubyRow');
-      const repEl = document.getElementById('zyRubyRepair');
-      if (rEl && !rEl._zyBound){
-        rEl._zyBound = true;
-        rEl.addEventListener('click', (ev) => {
-          if (ev.target.id === 'zyRubyRepair') return;
-          if (player.rubypawBroken || (player.rubypawDurability|0) <= 0){
-
-            // ★★★ v0.95.995 · A BROKEN WEAPON WAS UNREPAIRABLE ON A CONTROLLER.
-
-            // The REPAIR button lives INSIDE this row, and _zycellAutoEnrol
-
-            // never enrols a control that sits inside an already-tagged
-
-            // element — so the only focus stop was the row itself, and the
-
-            // row's handler answered a broken weapon by telling you to use
-
-            // the button you could not reach. A soft-lock made of two
-
-            // reasonable rules meeting.
-
-            // ★ The row is CONTEXTUAL now: broken + affordable means the row
-
-            // IS the repair. One stop that does the only thing worth doing,
-
-            // which beats a second stop nobody can reach.
-
-            const _rb = document.getElementById('zyRubyRepair');
-
-            if (_rb){ _rb.click(); return; }
-
-            try { playSFX('doorLock'); } catch(_){}
-
-            showToast('◈ Rubypaw is BROKEN · 100 gems to repair', 2400);
-
-            return;
-          }
-          if ((player.cosmeticSkin || 'normal') !== 'power_upgrade'){
-            try { playSFX('doorLock'); } catch(_){}
-            showToast('◈ Rubypaw Longsword · S2 only · switch to S2 skin to equip', 2400);
-            return;
-          }
-          player.rubypawEquipped = !player.rubypawEquipped;
-          try { playSFX('confirm'); } catch(_){}
-          try { updateWeaponHUD(); } catch(_){}
-          if (player.rubypawEquipped && !RIZER_RUBYPAW_SWORD.loaded){
-            showToast('⚠ Rubypaw equipped but sheet missing · assets/2D sprites/rizer/rubypaw-sword.png · anim will fall back to punch until file lands', 5000);
-          } else {
-            showToast(player.rubypawEquipped ? '★ RUBYPAW LONGSWORD equipped · S2 punch becomes slash (150 dmg)' : '◇ Rubypaw Longsword unequipped', 2400);
-          }
-          try { paintZycellContent(); } catch(_){}
-        });
-      }
-      if (repEl && !repEl._zyBound){
-        repEl._zyBound = true;
-        repEl.addEventListener('click', () => {
-          const gc = (typeof countGems === 'function') ? countGems() : 0;
-          if (gc < 100){
-            try { playSFX('doorLock'); } catch(_){}
-            showToast(`◈ Not enough gems · need 100 (have ${gc})`, 2400);
-            return;
-          }
-          spendGems(100);   // v0.95.724 · the SECOND inline copy · same bug, renamed variable
-          player.rubypawDurability = RUBY_MAX;
-          player.rubypawBroken = false;
-          try { playSFX('confirm'); } catch(_){}
-          showToast(`★ Rubypaw Longsword REPAIRED · durability ${RUBY_MAX}/${RUBY_MAX}`, 2600);
-          try { paintZycellContent(); } catch(_){}
-        });
-      }
-    }, 0);
+    spendGems(100);
+    _armWeapon(W.item);              // ★ one path · item, pool and flag together
+    try { playSFX('confirm'); } catch(_){}
+    try { updateWeaponHUD(); } catch(_){}
+    showToast(`★ ${W.name} RESTORED · ${W.unit.toLowerCase()} ${W.max}/${W.max}`, 2600);
+    try { paintZycellContent(); } catch(_){}
+    return;
   }
-  // ─── ★★ EMERALD AXE row · GREEN · S1's heavy weapon ──────────────────
-  // Creator: "put the emerald blade axe in the weapons panel in the phone.
-  // green panel. make sure it is wired to its animation when used by s1
-  // square and its equip."
-  //
-  // Shares S1's Square slot with the Sapphire Tearsword, so equipping the axe
-  // UNEQUIPS the sword and vice versa — the same mutual exclusion L1/R1 already
-  // enforces in the field.  Two equipped weapons in one slot is how you get a
-  // HUD that disagrees with the animation.
-  if (hasAxe){
-    const aDur = Math.max(0, Math.min(AXE_MAX, player.axeDurability == null ? AXE_MAX : player.axeDurability));
-    const aBroken = !!player.axeBroken || aDur <= 0;
-    const aEquipped = !!player.axeEquipped && !aBroken && isS1;
-    const aGems = (typeof countGems === 'function') ? countGems() : 0;
-    const aPct = (aDur / AXE_MAX) * 100;
-    const aBar = aBroken ? 'var(--zy-danger)' : aPct > 50 ? '#4ee07a' : aPct > 20 ? 'var(--zy-gold)' : 'var(--zy-warn)';
-    const aLabel = aBroken ? '⛔ BROKEN' : (aEquipped ? '● EQUIPPED · tap to unequip' : (isS1 ? '☆ tap to equip' : '⚠ S1 skin only'));
-    const aColor = aBroken ? 'var(--zy-danger)' : (aEquipped ? '#4ee07a' : (isS1 ? '#4ee07a' : 'var(--zy-muted)'));
-    const aRepair = aBroken
-      ? `<button id="zyAxeRepair" style="margin-top:8px; padding:8px 14px; background:${aGems >= 100 ? 'rgba(78,224,122,0.22)' : 'rgba(120,120,140,0.18)'}; color:${aGems >= 100 ? '#4ee07a' : 'var(--zy-muted)'}; border:1px solid ${aGems >= 100 ? '#4ee07a' : '#556'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:${aGems >= 100 ? 'pointer' : 'not-allowed'};">🔧 REPAIR · 100 GEMS (you have ${aGems})</button>`
-      : '';
-    row += `
-      <div id="zyAxeRow" data-zyitem="emerald_axe" style="border:2px solid ${aBroken ? 'var(--zy-danger)' : '#4ee07a'}; background:linear-gradient(180deg, rgba(18,90,48,0.55), rgba(4,24,12,0.65)); padding:14px; margin-bottom:8px; cursor:${isS1 && !aBroken ? 'pointer' : 'default'};">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:52px; height:52px; border:2px solid #4ee07a; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">🪓</div>
-          <div style="flex:1;">
-            <div style="color:var(--zy-gold); font-weight:bold; letter-spacing:.10em; font-size:13px;">EMERALD AXE</div>
-            <div style="color:#a8f0bd; font-size:10px; margin-top:2px;">S1 only · square · <b>3×3 AOE</b> centred on Rizer · hits every adjacent tile regardless of facing · dmg = baseAtk × 2.5 · ${AXE_MAX} connects · repair 100 gems</div>
-          </div>
-          <div style="color:${aColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${aLabel}</div>
-        </div>
-        <div style="margin-top:10px;">
-          <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--zy-text);">
-            <span>DURABILITY</span><span style="color:#fff;">${aDur}/${AXE_MAX}</span>
-          </div>
-          <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(78,224,122,0.25); margin-top:3px;">
-            <div style="height:100%; width:${aPct}%; background:${aBar};"></div>
-          </div>
-        </div>
-        ${aRepair}
-      </div>`;
-    setTimeout(() => {
-      const aEl = document.getElementById('zyAxeRow');
-      const arEl = document.getElementById('zyAxeRepair');
-      if (aEl && !aEl._zyBound){
-        aEl._zyBound = true;
-        aEl.addEventListener('click', (ev) => {
-          if (ev.target.id === 'zyAxeRepair') return;
-          if (player.axeBroken || (player.axeDurability|0) <= 0){
-
-            // ★★★ v0.95.995 · A BROKEN WEAPON WAS UNREPAIRABLE ON A CONTROLLER.
-
-            // The REPAIR button lives INSIDE this row, and _zycellAutoEnrol
-
-            // never enrols a control that sits inside an already-tagged
-
-            // element — so the only focus stop was the row itself, and the
-
-            // row's handler answered a broken weapon by telling you to use
-
-            // the button you could not reach. A soft-lock made of two
-
-            // reasonable rules meeting.
-
-            // ★ The row is CONTEXTUAL now: broken + affordable means the row
-
-            // IS the repair. One stop that does the only thing worth doing,
-
-            // which beats a second stop nobody can reach.
-
-            const _rb = document.getElementById('zyAxeRepair');
-
-            if (_rb){ _rb.click(); return; }
-
-            try { playSFX('doorLock'); } catch(_){}
-
-            showToast('◈ Emerald Axe is BROKEN · 100 gems to repair', 2400);
-
-            return;
-          }
-          if ((player.cosmeticSkin || 'normal') === 'power_upgrade'){
-            try { playSFX('doorLock'); } catch(_){}
-            showToast('◈ Emerald Axe · S1 only · switch out of S2 to equip', 2400);
-            return;
-          }
-          player.axeEquipped = !player.axeEquipped;
-          // ★ one Square slot · v0.96.75 · asked of the ring, not hand-listed
-          if (player.axeEquipped) keepOneS1Weapon('axeEquipped');
-          try { playSFX('confirm'); } catch(_){}
-          if (player.axeEquipped && !RIZER_EMERALD_AXE.loaded){
-            showToast('⚠ Emerald Axe equipped but sheet missing · assets/2D sprites/rizer/emerald-axe-sheet.png · anim will fall back to punch until the file lands', 5000);
-          } else {
-            showToast(player.axeEquipped ? '★ EMERALD AXE equipped · square becomes a 3×3 sweep' : '◇ Emerald Axe unequipped', 2400);
-          }
-          try { updateWeaponHUD(); } catch(_){}
-          try { paintZycellContent(); } catch(_){}
-        });
-      }
-      if (arEl && !arEl._zyBound){
-        arEl._zyBound = true;
-        arEl.addEventListener('click', () => {
-          const gc = (typeof countGems === 'function') ? countGems() : 0;
-          if (gc < 100){
-            try { playSFX('doorLock'); } catch(_){}
-            showToast(`◈ Not enough gems · need 100 (have ${gc})`, 2400);
-            return;
-          }
-          spendGems(100);
-          player.axeDurability = AXE_MAX;
-          player.axeBroken = false;
-          try { playSFX('confirm'); } catch(_){}
-          showToast(`★ Emerald Axe REPAIRED · durability ${AXE_MAX}/${AXE_MAX}`, 2600);
-          try { updateWeaponHUD(); } catch(_){}
-          try { paintZycellContent(); } catch(_){}
-        });
-      }
-    }, 0);
+  // ── wrong form ─────────────────────────────────────────────────────────
+  if (!S.fits){
+    try { playSFX('doorLock'); } catch(_){}
+    showToast(`◈ ${W.name} · ${W.form} only · switch ${W.form === 'S1' ? 'out of S2' : 'to the S2 skin'} to equip`, 2600);
+    return;
   }
-  // ─── ★★★ v0.96.76 · RUBYPAW FANG row · Rakoron's tooth · S1 dagger ───
-  //   Added because Rakoron's own toast says "equip it from ZyPhone → Weapons",
-  //   and until now that instruction was false — the Fang was reachable only
-  //   through the L1/R1 ring.  A weapon the game tells you where to find must
-  //   be there when you look.
-  if (hasFang){
-    const fDur = Math.max(0, Math.min(FANG_MAX, player.fangDurability == null ? FANG_MAX : player.fangDurability));
-    const fBroken = !!player.fangBroken || fDur <= 0;
-    const fEquipped = !!player.fangEquipped && !fBroken && isS1;
-    const fGems = (typeof countGems === 'function') ? countGems() : 0;
-    const fPct = (fDur / FANG_MAX) * 100;
-    const fBar = fBroken ? 'var(--zy-danger)' : fPct > 50 ? '#ffb3a0' : fPct > 20 ? 'var(--zy-gold)' : 'var(--zy-warn)';
-    const fLabel = fBroken ? '⛔ CHIPPED' : (fEquipped ? '● EQUIPPED · tap to unequip' : (isS1 ? '☆ tap to equip' : '⚠ S1 skin only'));
-    const fColor = fBroken ? 'var(--zy-danger)' : (fEquipped ? '#ffb3a0' : (isS1 ? '#ffb3a0' : 'var(--zy-muted)'));
-    const fRepair = fBroken
-      ? `<button id="zyFangRepair" style="margin-top:8px; padding:8px 14px; background:${fGems >= 100 ? 'rgba(255,179,160,0.22)' : 'rgba(120,120,140,0.18)'}; color:${fGems >= 100 ? '#ffb3a0' : 'var(--zy-muted)'}; border:1px solid ${fGems >= 100 ? '#ffb3a0' : '#556'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:${fGems >= 100 ? 'pointer' : 'not-allowed'};">🔧 REPAIR · 100 GEMS (you have ${fGems})</button>`
-      : '';
-    row += `
-      <div id="zyFangRow" data-zyitem="rubypaw_fang" style="border:2px solid ${fBroken ? 'var(--zy-danger)' : '#ffb3a0'}; background:linear-gradient(180deg, rgba(96,48,44,0.55), rgba(24,12,12,0.7)); padding:14px; margin-bottom:8px; cursor:${isS1 && !fBroken ? 'pointer' : 'default'};">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:52px; height:52px; border:2px solid #ffb3a0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">🦷</div>
-          <div style="flex:1;">
-            <div style="color:var(--zy-gold); font-weight:bold; letter-spacing:.10em; font-size:13px;">RUBYPAW FANG</div>
-            <div style="color:#f0d8d2; font-size:10px; margin-top:2px;">S1 only · square · <b>quick jab</b> · dmg = baseAtk × 1.6 <b>flat</b> — above a first punch, below a third, and it never climbs · rewards striking and moving · ${FANG_MAX} strikes · repair 100 gems<br><span style="color:#c9a;">a tooth Rakoron shed · the Longsword is what a smith makes of one</span></div>
-          </div>
-          <div style="color:${fColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${fLabel}</div>
-        </div>
-        <div style="margin-top:10px;">
-          <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--zy-text);">
-            <span>EDGE</span><span style="color:#fff;">${fDur}/${FANG_MAX}</span>
-          </div>
-          <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,179,160,0.25); margin-top:3px;">
-            <div style="height:100%; width:${fPct}%; background:${fBar};"></div>
-          </div>
-        </div>
-        ${fRepair}
-      </div>`;
-    setTimeout(() => {
-      const fEl = document.getElementById('zyFangRow');
-      if (fEl && !fEl._zyBound){
-        fEl._zyBound = true;
-        fEl.addEventListener('click', () => {
-          if (fBroken){
-            const _fr = document.getElementById('zyFangRepair');
-            if (_fr){ _fr.click(); return; }
-            try { playSFX('doorLock'); } catch(_){}
-            showToast('◈ Rubypaw Fang is CHIPPED · 100 gems to repair', 2400);
-            return;
-          }
-          if ((player.cosmeticSkin || 'normal') === 'power_upgrade'){
-            try { playSFX('doorLock'); } catch(_){}
-            showToast('◈ Rubypaw Fang · S1 only · switch out of S2 to equip', 2400);
-            return;
-          }
-          player.fangEquipped = !player.fangEquipped;
-          // ★ one Square slot · asked of the ring, never hand-listed
-          if (player.fangEquipped) keepOneS1Weapon('fangEquipped');
-          try { playSFX('confirm'); } catch(_){}
-          if (player.fangEquipped && !RIZER_RUBYPAW_FANG.loaded){
-            showToast('⚠ Rubypaw Fang equipped but sheet missing · assets/2D sprites/rizer/rubypaw-fang.png · anim will fall back to punch until the file lands', 5000);
-          } else {
-            showToast(player.fangEquipped ? '★ RUBYPAW FANG equipped · square becomes a quick jab' : '◇ Rubypaw Fang unequipped', 2400);
-          }
-          try { updateWeaponHUD(); } catch(_){}
-          try { paintZycellContent(); } catch(_){}
-        });
-      }
-      const frEl = document.getElementById('zyFangRepair');
-      if (frEl && !frEl._zyBound){
-        frEl._zyBound = true;
-        frEl.addEventListener('click', () => {
-          const gc = (typeof countGems === 'function') ? countGems() : 0;
-          if (gc < 100){ try { playSFX('doorLock'); } catch(_){} showToast('◈ Need 100 gems to re-hone the Fang', 2400); return; }
-          try { spendGems(100); } catch(_){}
-          player.fangDurability = FANG_MAX; player.fangBroken = false;
-          try { playSFX('confirm'); } catch(_){}
-          showToast('🔧 RUBYPAW FANG re-honed · ' + FANG_MAX + ' strikes', 2600);
-          try { paintZycellContent(); } catch(_){}
-        });
-      }
-    }, 0);
+  // ── equip / unequip ────────────────────────────────────────────────────
+  player[W.equipFlag] = !player[W.equipFlag];
+  if (player[W.equipFlag] && W.form === 'S1') keepOneS1Weapon(W.equipFlag);
+  try { playSFX('confirm'); } catch(_){}
+  try { updateWeaponHUD(); } catch(_){}
+  let sheetLoaded = true;
+  try { const sh = _zyArmSheet(W.item); sheetLoaded = !sh || !!sh.loaded; } catch(_){ sheetLoaded = true; }
+  if (player[W.equipFlag] && !sheetLoaded && W.missing){
+    showToast(W.missing, 5000);
+  } else {
+    const on = (typeof W.onEquip === 'function') ? W.onEquip() : W.onEquip;
+    showToast(player[W.equipFlag] ? on : `◇ ${W.name} unequipped`, 2400);
   }
-  // ─── ★★ PEARLBOW row · PEARL/GOLD · S1's ranged weapon ───────────────
-  if (hasBow){
-    const bDur = Math.max(0, Math.min(BOW_MAX, player.bowDurability == null ? BOW_MAX : player.bowDurability));
-    const bBroken = !!player.bowBroken || bDur <= 0;
-    const bEquipped = !!player.bowEquipped && !bBroken && isS1;
-    const bGems = (typeof countGems === 'function') ? countGems() : 0;
-    const bPct = (bDur / BOW_MAX) * 100;
-    const bBar = bBroken ? 'var(--zy-danger)' : bPct > 50 ? '#ffd9ee' : bPct > 20 ? 'var(--zy-gold)' : 'var(--zy-warn)';
-    const bLabel = bBroken ? '⛔ BROKEN' : (bEquipped ? '● EQUIPPED · tap to unequip' : (isS1 ? '☆ tap to equip' : '⚠ S1 skin only'));
-    const bColor = bBroken ? 'var(--zy-danger)' : (bEquipped ? '#ffd9ee' : (isS1 ? '#ffd9ee' : 'var(--zy-muted)'));
-    const bRepair = bBroken
-      ? `<button id="zyBowRepair" style="margin-top:8px; padding:8px 14px; background:${bGems >= 100 ? 'rgba(255,217,238,0.22)' : 'rgba(120,120,140,0.18)'}; color:${bGems >= 100 ? '#ffd9ee' : 'var(--zy-muted)'}; border:1px solid ${bGems >= 100 ? '#ffd9ee' : '#556'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:${bGems >= 100 ? 'pointer' : 'not-allowed'};">🔧 REPAIR · 100 GEMS (you have ${bGems})</button>`
-      : '';
-    row += `
-      <div id="zyBowRow" data-zyitem="pearlbow" style="border:2px solid ${bBroken ? 'var(--zy-danger)' : '#ffd9ee'}; background:linear-gradient(180deg, rgba(96,72,96,0.55), rgba(20,12,24,0.7)); padding:14px; margin-bottom:8px; cursor:${isS1 && !bBroken ? 'pointer' : 'default'};">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:52px; height:52px; border:2px solid #ffd9ee; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">🏹</div>
-          <div style="flex:1;">
-            <div style="color:var(--zy-gold); font-weight:bold; letter-spacing:.10em; font-size:13px;">PEARLBOW</div>
-            <div style="color:#f0d8e6; font-size:10px; margin-top:2px;">S1 only · square · <b>flies up to ${PEARLBOW_RANGE} tiles</b> down your facing · <b>detonates on contact</b> or at the end of its flight · ${PEARLBOW_AOE*2+1}×${PEARLBOW_AOE*2+1} blast · dmg = baseAtk × ${PEARLBOW_DMG_MULT} (harder than Astral Strike) · <b>spends an arrow even on a miss</b> · ${BOW_MAX} arrows · repair 100 gems</div>
-          </div>
-          <div style="color:${bColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${bLabel}</div>
-        </div>
-        <div style="margin-top:10px;">
-          <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--zy-text);">
-            <span>ARROWS</span><span style="color:#fff;">${bDur}/${BOW_MAX}</span>
-          </div>
-          <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,217,238,0.25); margin-top:3px;">
-            <div style="height:100%; width:${bPct}%; background:${bBar};"></div>
-          </div>
-        </div>
-        ${bRepair}
-      </div>`;
-    setTimeout(() => {
-      const bEl = document.getElementById('zyBowRow');
-      const brEl = document.getElementById('zyBowRepair');
-      if (bEl && !bEl._zyBound){
-        bEl._zyBound = true;
-        bEl.addEventListener('click', (ev) => {
-          if (ev.target.id === 'zyBowRepair') return;
-          if (player.bowBroken || (player.bowDurability|0) <= 0){
-
-            // ★★★ v0.95.995 · A BROKEN WEAPON WAS UNREPAIRABLE ON A CONTROLLER.
-
-            // The REPAIR button lives INSIDE this row, and _zycellAutoEnrol
-
-            // never enrols a control that sits inside an already-tagged
-
-            // element — so the only focus stop was the row itself, and the
-
-            // row's handler answered a broken weapon by telling you to use
-
-            // the button you could not reach. A soft-lock made of two
-
-            // reasonable rules meeting.
-
-            // ★ The row is CONTEXTUAL now: broken + affordable means the row
-
-            // IS the repair. One stop that does the only thing worth doing,
-
-            // which beats a second stop nobody can reach.
-
-            const _rb = document.getElementById('zyBowRepair');
-
-            if (_rb){ _rb.click(); return; }
-
-            try { playSFX('doorLock'); } catch(_){}
-
-            showToast('◈ Pearlbow is BROKEN · 100 gems to repair', 2400);
-
-            return;
-          }
-          if ((player.cosmeticSkin || 'normal') === 'power_upgrade'){
-            try { playSFX('doorLock'); } catch(_){}
-            showToast('◈ Pearlbow · S1 only · switch out of S2 to equip', 2400);
-            return;
-          }
-          player.bowEquipped = !player.bowEquipped;
-          // ★ one Square slot · see S1_WEAPON_RING
-          if (player.bowEquipped) keepOneS1Weapon('bowEquipped');
-          try { playSFX('confirm'); } catch(_){}
-          if (player.bowEquipped && !RIZER_PEARLBOW.loaded){
-            showToast('⚠ Pearlbow equipped but sheet missing · assets/2D sprites/rizer/pearlbow.png · anim will fall back to punch until the file lands', 5000);
-          } else {
-            showToast(player.bowEquipped ? `★ PEARLBOW equipped · square fires up to ${PEARLBOW_RANGE} tiles · detonates on contact` : '◇ Pearlbow unequipped', 2400);
-          }
-          try { updateWeaponHUD(); } catch(_){}
-          try { paintZycellContent(); } catch(_){}
-        });
-      }
-      if (brEl && !brEl._zyBound){
-        brEl._zyBound = true;
-        brEl.addEventListener('click', () => {
-          const gc = (typeof countGems === 'function') ? countGems() : 0;
-          if (gc < 100){
-            try { playSFX('doorLock'); } catch(_){}
-            showToast(`◈ Not enough gems · need 100 (have ${gc})`, 2400);
-            return;
-          }
-          spendGems(100);
-          player.bowDurability = BOW_MAX;
-          player.bowBroken = false;
-          try { playSFX('confirm'); } catch(_){}
-          showToast(`★ Pearlbow RESTRUNG · ${BOW_MAX}/${BOW_MAX} arrows`, 2600);
-          try { updateWeaponHUD(); } catch(_){}
-          try { paintZycellContent(); } catch(_){}
-        });
-      }
-    }, 0);
+  try { paintZycellContent(); } catch(_){}
+}
+// ★★ The anim sheet, by name. NOT a string lookup through eval: these are
+//   top-level `const` bindings, so they are not properties of anything a
+//   string can reach, and eval in a file this size is a debugging hazard
+//   bought for four lines of switch.
+function _zyArmSheet(item){
+  switch (item){
+    case 'sapphire_sword': return RIZER_SAPPHIRE_SWORD;
+    case 'rubypaw_sword':  return RIZER_RUBYPAW_SWORD;
+    case 'emerald_axe':    return RIZER_EMERALD_AXE;
+    case 'pearlbow':       return RIZER_PEARLBOW;
+    case 'rubypaw_fang':   return RIZER_RUBYPAW_FANG;
   }
-  return _zySection('⚔ WEAPONS', row || '<div style="color:var(--zy-muted); text-align:center; padding:20px 12px;">· no weapons yet ·</div>');
+  return null;
+}
+function _zyArmCard(W){
+  const S = _zyArmState(W);
+  const dim = !S.owned || !S.fits || S.broken;
+  const bar = S.broken ? '#ff5b5b' : S.pct > 50 ? W.accent : S.pct > 20 ? '#ffd66b' : '#ff9f43';
+  const state = !S.owned ? '· NOT FOUND ·'
+              : S.broken ? `⛔ ${W.dryWord || 'BROKEN'} · 100 ◆ TO RESTORE`
+              : S.equipped ? '● EQUIPPED'
+              : S.fits ? '☆ EQUIP'
+              : `⚠ ${W.form} ONLY`;
+  const stateCol = !S.owned ? '#6b7280' : S.broken ? '#ff5b5b' : S.equipped ? '#5fdc7a' : S.fits ? W.accent : '#8a94a6';
+  const art = S.owned
+    ? `<div style="width:64px; height:64px; ${_zyArtStyle(W.art, 64)} ${dim ? 'filter:grayscale(0.7) brightness(0.65);' : ''}"></div>`
+    : `<div style="width:64px; height:64px; display:flex; align-items:center; justify-content:center; color:#41506a; font-size:26px;">◇</div>`;
+  return `
+    <div ${S.owned ? `data-zyitem="arm_${W.item}" onclick="_zyArmClick('${W.item}')"` : ''}
+         style="position:relative; ${_zyFrame(W.accent, dim)} padding:10px 10px 8px; margin:0 0 10px;
+                cursor:${S.owned ? 'pointer' : 'default'};">
+      ${_zyStuds(W.accent, dim)}
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="flex:0 0 auto; width:72px; height:72px; border-radius:50%;
+                    border:2px solid ${dim ? 'rgba(150,150,160,0.5)' : '#d9a441'};
+                    background:radial-gradient(circle at 50% 42%, ${dim ? 'rgba(90,100,115,0.5)' : W.accent + '44'} 0%, rgba(6,22,38,0.95) 72%);
+                    display:flex; align-items:center; justify-content:center; overflow:hidden;">${art}</div>
+        <div style="flex:1; min-width:0;">
+          <div style="color:#f0c869; font:bold 12px 'Courier New',monospace; letter-spacing:.12em;">${W.name}</div>
+          <div style="color:${dim ? '#7f8a9c' : '#cfe6ff'}; font-size:9px; line-height:1.55; margin-top:3px;">${(typeof W.blurb === 'function') ? W.blurb() : W.blurb}</div>
+          ${W.lore ? `<div style="color:#b892c8; font-size:9px; font-style:italic; margin-top:2px;">${W.lore}</div>` : ''}
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+        <span style="color:#8fb7d8; font:bold 8px 'Courier New',monospace; letter-spacing:.12em;">${W.unit}</span>
+        <div style="flex:1; height:9px; background:rgba(0,0,0,0.6); border:1px solid rgba(240,200,105,0.4);">
+          <div style="height:100%; width:${S.owned ? S.pct : 0}%; background:${bar};"></div>
+        </div>
+        <span style="color:#fff; font:bold 9px 'Courier New',monospace;">${S.owned ? S.dur : 0}/${W.max}</span>
+      </div>
+      <div style="margin-top:7px; color:${stateCol}; font:bold 9px 'Courier New',monospace;
+                  letter-spacing:.14em; text-align:center;">${state}</div>
+    </div>`;
+}
+// ★★ THE MAIN SLOT · the arch from the reference sheet, and the one place on
+//   this screen that answers "what am I actually holding right now". It reads
+//   the same state the cards do, so it cannot disagree with them.
+function _zyMainSlot(){
+  const held = ZYARMS.find(W => _zyArmState(W).equipped);
+  const S = held ? _zyArmState(held) : null;
+  const acc = held ? held.accent : '#4fb3ff';
+  const inner = held
+    ? `<div style="width:104px; height:104px; ${_zyArtStyle(held.art, 104)}"></div>`
+    : `<div style="color:#41506a; font-size:40px;">✊</div>`;
+  return `
+    <div style="position:relative; ${_zyFrame(acc, !held)} padding:12px 12px 10px; margin-bottom:12px;">
+      ${_zyStuds(acc, !held)}
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div style="flex:0 0 auto; width:124px; height:150px; position:relative;
+                    border-radius:62px 62px 8px 8px; overflow:hidden;
+                    border:2px solid #d9a441;
+                    background:radial-gradient(ellipse at 50% 38%, ${acc}55 0%, rgba(8,30,52,0.96) 68%);
+                    display:flex; align-items:center; justify-content:center;">
+          ${inner}
+        </div>
+        <div style="flex:1; min-width:0;">
+          ${_zyPlaque('MAIN SLOT', acc)}
+          <div style="margin-top:10px; color:#f0c869; font:bold 13px 'Courier New',monospace; letter-spacing:.10em;">
+            ${held ? held.name : 'BARE HANDS'}</div>
+          <div style="margin-top:4px; color:#9fc4e4; font-size:9px; line-height:1.6;">
+            ${held ? ((typeof held.blurb === 'function') ? held.blurb() : held.blurb)
+                   : 'nothing equipped · square throws a punch · pick an arm below'}</div>
+          ${held ? `
+          <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+            <span style="color:#8fb7d8; font:bold 8px 'Courier New',monospace; letter-spacing:.12em;">${held.unit}</span>
+            <div style="flex:1; height:10px; background:rgba(0,0,0,0.6); border:1px solid rgba(240,200,105,0.45);">
+              <div style="height:100%; width:${S.pct}%; background:${S.pct > 50 ? acc : S.pct > 20 ? '#ffd66b' : '#ff9f43'};"></div>
+            </div>
+            <span style="color:#fff; font:bold 10px 'Courier New',monospace;">${S.dur}/${held.max}</span>
+          </div>
+          <div style="margin-top:6px; color:#8a94a6; font-size:8px; letter-spacing:.10em;">
+            ${held.form} FORM · ONE ARM AT A TIME</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+function _zyArmsHeader(){
+  const gems = (typeof countGems === 'function') ? countGems() : 0;
+  const bow  = !!((player.items && player.items.pearlbow) || 0);
+  const arrows = bow ? Math.max(0, Math.min(BOW_MAX, player.bowDurability == null ? BOW_MAX : player.bowDurability)) : 0;
+  const counter = (mark, val, col) => `
+    <div style="flex:0 0 auto; display:flex; align-items:center; gap:5px; padding:2px 10px;
+                border:2px solid #d9a441; background:linear-gradient(180deg, rgba(16,64,92,0.9), rgba(6,22,38,0.95));">
+      <span style="color:${col}; font-size:11px;">${mark}</span>
+      <span style="color:#fff; font:bold 10px 'Courier New',monospace;">${val}</span>
+    </div>`;
+  return `
+    <div style="flex:0 0 auto; display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      ${counter('◆', gems, '#ffd66b')}
+      <div style="flex:1;">${_zyPlaque('ARMORY', '#f0c869')}</div>
+      ${counter('➶', bow ? arrows + '/' + BOW_MAX : '—', '#ffd9ee')}
+    </div>`;
+}
+// ★ The three round tabs, straight off the reference's Inventory/Quest/Settings
+//   row. They carry data-zyitem so the pad walks them like any other stop —
+//   this panel has no bumper axis of its own, because L1/R1 already belong to
+//   the ZyCube's drawers and a second meaning for the same button is how you
+//   get a player pressing L1 and watching the wrong thing move.
+function _zyArmsTabs(){
+  const cur = _zyArmsTab();
+  const tab = (id, mark, label) => {
+    const on = cur === id;
+    return `
+      <div data-zyitem="armstab_${id}" onclick="_zyArmsSetTab('${id}')"
+           style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer;">
+        <div style="width:42px; height:42px; border-radius:50%; border:2px solid ${on ? '#f0c869' : '#3d5f7d'};
+                    background:radial-gradient(circle at 50% 38%, ${on ? 'rgba(90,200,255,0.45)' : 'rgba(18,54,82,0.8)'} 0%, rgba(6,22,38,0.96) 72%);
+                    display:flex; align-items:center; justify-content:center; font-size:18px;
+                    color:${on ? '#bff0ff' : '#6d8aa6'};">${mark}</div>
+        <div style="color:${on ? '#f0c869' : '#6d8aa6'}; font:bold 8px 'Courier New',monospace; letter-spacing:.12em;">${label}</div>
+      </div>`;
+  };
+  return `<div style="flex:0 0 auto; display:flex; gap:6px; margin-bottom:10px;">
+      ${tab('arms', '⚔', 'WEAPONS')}${tab('gear', '⛊', 'GEAR')}${tab('trinket', '◈', 'TRINKETS')}
+    </div>`;
+}
+function _zyGearCard(G){
+  const owned = !!((player.items && player.items[G.item]) || 0);
+  const art = zycubeArtFor(G.item);
+  return `
+    <div style="position:relative; ${_zyFrame(G.accent, !owned)} padding:9px; margin-bottom:9px;
+                display:flex; align-items:center; gap:10px;">
+      ${_zyStuds(G.accent, !owned)}
+      <div style="flex:0 0 auto; width:56px; height:56px; border-radius:50%;
+                  border:2px solid ${owned ? '#d9a441' : 'rgba(150,150,160,0.5)'};
+                  background:radial-gradient(circle at 50% 42%, ${owned ? G.accent + '44' : 'rgba(90,100,115,0.35)'} 0%, rgba(6,22,38,0.95) 72%);
+                  display:flex; align-items:center; justify-content:center; overflow:hidden;">
+        ${owned && art
+          ? `<div style="width:44px; height:44px; background:url('${art}') center/contain no-repeat;"></div>`
+          : `<span style="color:#41506a; font-size:22px;">◇</span>`}
+      </div>
+      <div style="flex:1; min-width:0;">
+        <div style="color:${owned ? '#f0c869' : '#7f8a9c'}; font:bold 11px 'Courier New',monospace; letter-spacing:.12em;">${G.name}</div>
+        <div style="color:${owned ? '#cfe6ff' : '#5f6b7d'}; font-size:9px; line-height:1.55; margin-top:2px;">${G.role}</div>
+      </div>
+      <div style="flex:0 0 auto; color:${owned ? '#5fdc7a' : '#5f6b7d'}; font:bold 8px 'Courier New',monospace; letter-spacing:.12em;">
+        ${owned ? '● CARRIED' : '· EMPTY ·'}</div>
+    </div>`;
+}
+function renderZycellWeapons(){
+  const tab = _zyArmsTab();
+  let body = '';
+  if (tab === 'arms'){
+    const owns = ZYARMS.some(W => (player.items && player.items[W.item]));
+    body = _zyMainSlot()
+      + (owns ? '' : `<div style="color:#8a94a6; text-align:center; padding:8px 12px 12px; font-size:9px; line-height:1.7;">
+            · no arms found yet ·<br><span style="color:#5f6b7d;">explore the world · treehouse chests hold gear</span></div>`)
+      + ZYARMS.map(_zyArmCard).join('')
+      // ★★ AMMO · the bow's quiver is the only ammunition in the game, and it
+      //   is the bow's durability field. Saying so here stops a player hunting
+      //   for a separate arrow count that does not exist.
+      + `<div style="position:relative; ${_zyFrame('#ffd9ee', !(player.items && player.items.pearlbow))} padding:9px; margin-bottom:9px;">
+          ${_zyStuds('#ffd9ee', !(player.items && player.items.pearlbow))}
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="color:#ffd9ee; font-size:20px;">➶</span>
+            <div style="flex:1;">
+              <div style="color:#f0c869; font:bold 10px 'Courier New',monospace; letter-spacing:.14em;">AMMO · ARROWS</div>
+              <div style="color:#9fc4e4; font-size:9px; margin-top:2px;">the quiver IS the Pearlbow's durability · bundles refill it · a miss still spends one</div>
+            </div>
+            <span style="color:#fff; font:bold 11px 'Courier New',monospace;">${
+              (player.items && player.items.pearlbow)
+                ? Math.max(0, Math.min(BOW_MAX, player.bowDurability == null ? BOW_MAX : player.bowDurability)) + '/' + BOW_MAX
+                : '—'}</span>
+          </div>
+        </div>`;
+  } else if (tab === 'gear'){
+    body = `<div style="color:#9fc4e4; font-size:9px; line-height:1.6; margin-bottom:10px;">
+        combat utilities · carried, not equipped · the game reads these straight out of the ZyCube</div>`
+      + ZYGEAR.map(_zyGearCard).join('');
+  } else {
+    // ★★★ TRINKETS ARE EMPTY SOCKETS AND NOTHING ELSE. Creator: "trinkets
+    //   (coming)". Drawing plausible trinkets here would look finished and
+    //   quietly become the spec — the same trap the R.A.I.D. card avoided.
+    body = `<div style="color:#9fc4e4; font-size:9px; line-height:1.6; margin-bottom:10px;">
+        passive slots · not yet forged</div>`
+      + [0,1,2,3].map(i => `
+        <div style="position:relative; ${_zyFrame('#bc83ff', true)} padding:14px 9px; margin-bottom:9px;
+                    display:flex; align-items:center; gap:10px;">
+          ${_zyStuds('#bc83ff', true)}
+          <div style="flex:0 0 auto; width:48px; height:48px; border-radius:50%;
+                      border:2px dashed rgba(150,150,160,0.5); display:flex; align-items:center;
+                      justify-content:center; color:#41506a; font-size:20px;">◈</div>
+          <div style="flex:1; color:#5f6b7d; font:bold 10px 'Courier New',monospace; letter-spacing:.14em;">
+            TRINKET SLOT ${i + 1}</div>
+          <div style="flex:0 0 auto; color:#5f6b7d; font:bold 8px 'Courier New',monospace; letter-spacing:.12em;">COMING</div>
+        </div>`).join('');
+  }
+  return _zySection('⚔ ARMORY',
+    `<div style="flex:0 0 auto;">${_zyArmsHeader()}${_zyArmsTabs()}</div>
+     <div style="flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:2px;">${body}</div>`,
+    '#f0c869', true);
 }
 
 // ── MAP · locked until Zoryn Town Map · then live pin + district outline ──

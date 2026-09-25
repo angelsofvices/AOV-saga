@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_whud · v0.95.784 · the weapon wheel shows what is in hand
 const FS=require('fs');
 try{new Function(require('./lib/all_src.cjs')()+
-  ';globalThis.__C={WEAPON_MAX_DUR,SWORD_MAX,RUBY_MAX,_armWeapon,_migrateWeaponDurability,renderZycellWeapons,WHUD_ART,currentWeaponKey,updateWeaponHUD,player,game};')();}
+  ';globalThis.__C={WEAPON_MAX_DUR,SWORD_MAX,RUBY_MAX,_armWeapon,_migrateWeaponDurability,renderZycellWeapons,WHUD_ART,currentWeaponKey,updateWeaponHUD,player,game,ZYARMS,_zyArmClick,_zyArmState};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)fail++;};
@@ -132,21 +132,44 @@ H('5 · ★★ IT IS ACTUALLY CALLED');
   //   call missing while looking straight at it. An absence check must read
   //   CODE, never prose.
   const code = src.replace(/^\s*\/\/.*$/gm, '');
-  const toggles = [...code.matchAll(/player\.swordEquipped = !player\.swordEquipped;/g)];
-  ok(toggles.length >= 2, `${toggles.length} places toggle the Sapphire`);
-  const missing = toggles.filter(m =>
-    !/updateWeaponHUD\(\)/.test(code.slice(m.index, m.index + 500)));
-  ok(missing.length === 0,
-     `every Sapphire toggle repaints the weapon HUD (${toggles.length} sites, `
-     + `${missing.length} silent)`);
-  // ★ and the one-Square-slot rule holds at every one of them
-  const twoHanded = toggles.filter(m =>
-    !/axeEquipped = false; player\.bowEquipped = false;/.test(code.slice(m.index, m.index + 500)));
+  // ★★★★ v0.99.45 · THIS BLOCK USED TO GREP FOR ONE LITERAL LINE and the
+  //   Armory rebuild stranded four of its checks in a single commit — not
+  //   because the rule broke, but because `player.swordEquipped =
+  //   !player.swordEquipped;` is now written once, generically, as
+  //   `player[W.equipFlag] = !player[W.equipFlag]`. A check that names one
+  //   spelling of the rule reports a rename as a regression, and the fix for
+  //   that is to test the RULE.
+  // ★★★ The one-Square-slot rule has a name in this file — keepOneS1Weapon —
+  //   so the honest check is: every site that flips an S1 equip flag calls it,
+  //   whatever it calls the flag. (The old literal `axeEquipped = false;
+  //   player.bowEquipped = false;` had ALREADY been replaced by that function
+  //   at v0.96.18, which is why this check was red before the rebuild too.)
+  const flips = [...code.matchAll(/player(\.\w+Equipped|\[\w+\.equipFlag\]) = !player(\.\w+Equipped|\[\w+\.equipFlag\]);/g)];
+  ok(flips.length >= 2, `${flips.length} places flip an equip flag`);
+  const silent = flips.filter(m => !/updateWeaponHUD\(\)/.test(code.slice(m.index, m.index + 700)));
+  ok(silent.length === 0,
+     `every one repaints the weapon HUD (${flips.length} sites, ${silent.length} silent)`);
+  // ★★ SCOPED TO S1. The Longsword's toggle does not call keepOneS1Weapon and
+  //   should not: S2 owns exactly one arm, so there is no ring to collapse and
+  //   calling it there would reach across a form boundary to stow blades the
+  //   player is not holding. The rule is one arm at a time PER FORM.
+  const s1flips = flips.filter(m => !/rubypawEquipped/.test(m[0]));
+  const twoHanded = s1flips.filter(m => !/keepOneS1Weapon\(/.test(code.slice(m.index, m.index + 700)));
   ok(twoHanded.length === 0,
-     `every toggle drops the axe and bow (${twoHanded.length} that don't) · Square `
-     + 'holds exactly one weapon, so a site that skips this leaves you holding two');
-  ok(/player\.rubypawEquipped = !player\.rubypawEquipped;\s*\n\s*try \{ updateWeaponHUD/.test(src),
-     'and so does toggling the Rubypaw');
+     `and every S1 flip collapses the ring (${s1flips.length} S1 sites, ${twoHanded.length} that don't) · `
+     + 'Square holds exactly one weapon, so a site that skips this leaves you holding two');
+  ok(s1flips.length >= 2, `★ and there are ${s1flips.length} of them · the HUD slot and the phone are both real ways to do it`);
+  // ★★ DRIVEN, not grepped: the phone really does hold one arm at a time.
+  {
+    const P = C.player;
+    P.items = { sapphire_sword:1, emerald_axe:1, pearlbow:1 }; P.cosmeticSkin = 'normal';
+    for (const W of C.ZYARMS){ P[W.equipFlag] = false; P[W.brokenFlag] = false; P[W.durFlag] = W.max; }
+    C._zyArmClick('sapphire_sword');
+    C._zyArmClick('emerald_axe');
+    const held = C.ZYARMS.filter(W => P[W.equipFlag]).map(W => W.item);
+    ok(held.length === 1 && held[0] === 'emerald_axe',
+       `★★★ equipping a second S1 arm through the phone stowed the first · holding [${held.join(', ')}]`);
+  }
   ok(!/intentionally empty/.test(src),'the old no-op stub is gone');
 }
 
@@ -186,13 +209,24 @@ H('9 · ★★ THE PANEL PRINTS THE RIGHT CEILING');
 // This is what the Creator actually sees. The constants can be right while the
 // readout still says /200 — which is exactly how it shipped a minute ago.
 {
+  C.player.items={sapphire_sword:1,rubypaw_sword:1};
   C.player.cosmeticSkin='normal'; C.player.swordEquipped=true;
   const html=C.renderZycellWeapons();
-  const pairs=[...html.matchAll(/DURABILITY<\/span><span[^>]*>(\d+)\/(\d+)</g)].map(m=>m[1]+'/'+m[2]);
-  ok(pairs.length===2,`both blades listed · ${pairs.join(' and ')}`);
-  ok(pairs.some(p=>p.endsWith('/100')),'one reads out of 100');
-  ok(pairs.some(p=>p.endsWith('/200')),'the other out of 200');
-  ok(!/\/200<\/span>[\s\S]{0,400}SAPPHIRE/i.test(html),'the Sapphire is not the one showing /200');
+  // ★★★ v0.99.45 · the readout moved when the Armory was rebuilt, so this
+  //   reads the CARD rather than one span shape. Slicing per weapon matters:
+  //   a panel-wide search for "/100" is satisfied by whichever blade happens
+  //   to carry it, which is the exact confusion this block exists to catch.
+  const cardOf = item => {
+    const i = html.indexOf(`data-zyitem="arm_${item}"`);
+    if (i < 0) return '';
+    const j = html.indexOf('data-zyitem="arm_', i + 10);
+    return html.slice(i, j < 0 ? html.length : j);
+  };
+  const blue = cardOf('sapphire_sword'), red = cardOf('rubypaw_sword');
+  ok(!!blue && !!red, 'both blades listed');
+  ok(/\/100</.test(blue) && blue.includes('SAPPHIRE'), 'the Sapphire reads out of 100');
+  ok(/\/200</.test(red) && red.includes('RUBYPAW LONGSWORD'), 'the Rubypaw reads out of 200');
+  ok(!/\/200</.test(blue), 'the Sapphire is not the one showing /200');
 }
 
 H('10 · ★★ NO STRAY 200s LEFT ON THE BLUE BLADE');

@@ -1422,6 +1422,12 @@
       <button data-devtab="warp" class="active">Warp</button>
       <button data-devtab="rizer">Rizer</button>
       <button data-devtab="give">Give</button>
+      <!-- ★★★ v0.99.44 · Creator: "add a weapons tab in the dev menu.. add give
+           arrows and all gemlord weapons." GIVE grants ITEMS; a Gemlord blade
+           is not just an item, it is an item plus a durability pool plus an
+           unbroken flag, and handing over the key alone leaves you holding a
+           sword the HUD calls broken. This tab arms them properly. -->
+      <button data-devtab="weapons">Weapons</button>
       <button data-devtab="story">Story</button>
       <button data-devtab="factions">Factions</button>
       <button data-devtab="world">World</button>
@@ -1548,6 +1554,25 @@
       </div>
       <div class="devtab-hint" style="margin:4px 0;">Click an item to grant the selected amount · count in brackets is what you hold</div>
       <div class="row" id="devGiveList" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+    </div>
+
+    <!-- ★★★★ v0.99.44 · WEAPONS · the Creator's dev bypass for the lock ladder.
+         Every Gemlord arm is sealed in a town-hall mythic vault behind that
+         district's Elder trials (v0.99.22-41), which is correct for a player
+         and useless for testing a fight. These buttons hand them over ARMED:
+         item + full durability + unbroken, the same three writes _armWeapon()
+         does, so the HUD and the swing code agree with the bag. -->
+    <div class="devtab" data-devtab="weapons">
+      <div class="row">
+        <button id="devGiveAllWeapons" style="background:#521;color:#ffd66b;border:1px solid #d4af37;">⚔ ALL GEMLORD WEAPONS · armed &amp; full</button>
+        <button id="devGiveArrows" style="background:#152;color:#9bffb0;border:1px solid #6bd48a;">🏹 FILL ARROWS</button>
+      </div>
+      <div class="devtab-hint" style="margin:4px 0;">Arrows ARE the Pearlbow's durability · filling them un-breaks a dry bow</div>
+      <div class="row" id="devWeaponList" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+      <div class="row">
+        <button id="devRepairWeapons" style="background:#124;color:#8ff;border:1px solid #4fb3ff;">🔧 REPAIR ALL · every pool to full</button>
+        <button id="devBreakWeapons" style="background:#411;color:#ff9b9b;border:1px solid #d46b6b;">✖ EMPTY ALL POOLS</button>
+      </div>
     </div>
 
     <!-- ★★★ v0.96.69 · STORY · "dev mode should give me full control over
@@ -42933,7 +42958,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.43' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.44' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -67267,6 +67292,89 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   // v0.95.294 · Dev · GIVE ALL · fill ZyCube with EVERYTHING for fast playtest
   // Grants every known item + all gift/unlock flags · maxes fae + coins ·
   // primes RAID card / Zycube / Gearbag / Faenet / Zphone / Townmap all as owned
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★★ v0.99.44 · DEV · WEAPONS TAB.
+  //   Creator: "add a weapons tab in the dev menu.. add give arrows and all
+  //   gemlord weapons."
+  //
+  // ★★★★ A WEAPON IS THREE WRITES, NOT ONE. The GIVE tab grants items, and
+  //   granting `pearlbow` alone leaves the bow in the bag with a null
+  //   durability the HUD reads as BROKEN — you hold the weapon and cannot fire
+  //   it. _armWeapon() is the function that already knows the other two writes
+  //   per weapon, so this calls it rather than re-listing the pools here and
+  //   drifting from it.
+  // ★★★ Reads WEAPON_MAX_DUR for the list instead of hardcoding five names, so
+  //   a sixth weapon appears in this tab the day it exists.
+  (function wireDevWeapons(){
+    const LIST = (typeof WEAPON_MAX_DUR !== 'undefined') ? Object.keys(WEAPON_MAX_DUR) : [];
+    const label = k => ((typeof INVENTORY_META !== 'undefined' && INVENTORY_META[k] && INVENTORY_META[k].label) || k);
+    const arm = (k) => {
+      player.items = player.items || {};
+      player.items[k] = (player.items[k] || 0) + 1;
+      try { _armWeapon(k); } catch(_){}          // durability + unbroken, per weapon
+    };
+    const refresh = () => {
+      const box = document.getElementById('devWeaponList');
+      if (!box) return;
+      box.innerHTML = LIST.map(k => {
+        const held = (player.items && player.items[k]) || 0;
+        return `<button data-devweapon="${k}" style="${held ? 'background:#243;color:#9bffb0;' : ''}">`
+             + `${label(k)} [${held}]</button>`;
+      }).join('');
+    };
+    const bar = document.getElementById('devWeaponList');
+    if (bar && !bar._wired){
+      bar._wired = true;
+      bar.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-devweapon]');
+        if (!b) return;
+        const k = b.getAttribute('data-devweapon');
+        arm(k);
+        try { showToast(`⚔ ${label(k)} · armed`, 2000); } catch(_){}
+        try { updateWeaponHUD(); } catch(_){}
+        refresh();
+      });
+    }
+    const on = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el && !el._wired){ el._wired = true; el.addEventListener('click', fn); }
+    };
+    on('devGiveAllWeapons', () => {
+      for (const k of LIST) arm(k);
+      try { showToast(`⚔ ${LIST.length} weapons granted · armed and full`, 2600); } catch(_){}
+      try { updateWeaponHUD(); } catch(_){}
+      refresh();
+    });
+    on('devGiveArrows', () => {
+      // ★★ addBowArrows() REFUSES without the bow, by design (arrows are its
+      //   durability). In a dev tool that reads as a dead button, so hand over
+      //   the bow first if it is missing.
+      if (!(player.items && player.items.pearlbow)) arm('pearlbow');
+      try { addBowArrows(BOW_MAX); } catch(_){ player.bowDurability = BOW_MAX; player.bowBroken = false; }
+      try { showToast(`🏹 arrows filled · ${player.bowDurability}/${BOW_MAX}`, 2400); } catch(_){}
+      try { updateWeaponHUD(); } catch(_){}
+      refresh();
+    });
+    on('devRepairWeapons', () => {
+      for (const k of LIST) if ((player.items && player.items[k])) { try { _armWeapon(k); } catch(_){} }
+      try { showToast('🔧 every weapon pool refilled', 2200); } catch(_){}
+      try { updateWeaponHUD(); } catch(_){}
+      refresh();
+    });
+    on('devBreakWeapons', () => {
+      // the inverse, for testing the broken-weapon paths the phone repairs
+      player.swordDurability = 0;   player.swordBroken = true;
+      player.rubypawDurability = 0; player.rubypawBroken = true;
+      player.axeDurability = 0;     player.axeBroken = true;
+      player.bowDurability = 0;     player.bowBroken = true;
+      player.fangDurability = 0;    player.fangBroken = true;
+      try { showToast('✖ every weapon pool emptied', 2200); } catch(_){}
+      try { updateWeaponHUD(); } catch(_){}
+      refresh();
+    });
+    refresh();
+    try { window._devWeaponRefresh = refresh; } catch(_){}
+  })();
   const giveAllBtn = document.getElementById('devGiveAll');
   if (giveAllBtn){
     giveAllBtn.addEventListener('click', () => {

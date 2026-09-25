@@ -42958,7 +42958,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.45' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.46' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -58411,6 +58411,7 @@ function quickSummonStashAll(){
 //   still outranks beside, and the rings still fill by angle so the team flanks
 //   him evenly instead of queueing along one row.
 const _FORM_CACHE = {};
+const _FORM_VIS_CACHE = {};
 // ★★★★ THE FORMATION IS WIDE AND SHALLOW, BECAUSE THE VIEWPORT IS.
 //   20x11 tiles with Rizer centred gives about ten tiles of room to each SIDE
 //   and only five BEHIND him. A square lattice stepped by the widest body puts
@@ -58425,54 +58426,193 @@ const FORM_MAX_BEHIND = 4;
 //   and a body standing there is half off the screen. ±9 is the last column
 //   that reads.
 const FORM_MAX_SIDE = 9;
-function summonFormation(stepX, stepY){
-  stepX = Math.max(2, Math.ceil((stepX || 2) / 2) * 2);
-  stepY = Math.max(2, Math.ceil((stepY || 2) / 2) * 2);
-  const key = stepX + 'x' + stepY;
-  if (_FORM_CACHE[key]) return _FORM_CACHE[key];
+// ★ A party is six at the outside; twice that in stations means the modulo in
+//   _formationTile can never alias two members onto one tile.
+const FORM_MIN_STATIONS = 14;
+// ★★★★ v0.99.46 · THE BOUNDS ARE ARGUMENTS NOW, because the axes swap.
+//   The lattice is built in LOCAL coordinates (+x = his right, +y = behind him)
+//   and _formationRotate maps it to the world — so under a LEFT or RIGHT basis
+//   local-x lands on SCREEN-Y and local-y lands on SCREEN-X. The steps and the
+//   room available swap with them, and passing them in is the only way this
+//   function can be right for all four facings.
+function summonFormation(stepX, stepY, maxSide, maxBehind){
+  // ★ ceil to a whole tile, not to an EVEN tile. The old even-rounding existed
+  //   to make a Chebyshev separation proof work on one shared step; the two
+  //   axes are measured independently now, so evenness buys nothing and costs
+  //   a whole tile of screen on every odd-width body.
+  stepX = Math.max(2, Math.ceil(stepX || 2));
+  stepY = Math.max(2, Math.ceil(stepY || 2));
+  maxSide   = maxSide   || FORM_MAX_SIDE;
+  maxBehind = maxBehind || FORM_MAX_BEHIND;
+  const key = stepX + 'x' + stepY + 'x' + maxSide + 'x' + maxBehind;
+  if (_FORM_CACHE[key] ) return _FORM_CACHE[key];
   const out = [], seen = new Set();
-  // rows first, near to far: the team fans out ACROSS the screen behind him
-  for (let ly = stepY; ly <= FORM_MAX_BEHIND; ly += stepY){
-    const row = [];
-    for (let lx = -FORM_MAX_SIDE; lx <= FORM_MAX_SIDE; lx += stepX) row.push([lx, ly]);
-    // centre-out, so a small team sits directly behind him and grows sideways
-    row.sort((a, b) => Math.abs(a[0]) - Math.abs(b[0]) || a[0] - b[0]);
-    for (const p of row){ const k = p.join(','); if (!seen.has(k)){ seen.add(k); out.push(p); } }
+  const push = (lx, ly) => { const k = lx + ',' + ly; if (!seen.has(k)){ seen.add(k); out.push([lx, ly]); } };
+  // ★★★ LANES · multiples of the step measured OUT FROM HIM, so lx = 0 is
+  //   always a lane and a lone Zyrex still falls in directly at his back.
+  //   Walking in from -maxSide only lands on 0 by luck.
+  const lanes = [0];
+  for (let k = 1; k * stepX <= maxSide; k++){ lanes.push(k * stepX); lanes.push(-k * stepX); }
+  // ★★★★ ONE LANE IS THE RIGHT ANSWER WHEN ONLY ONE FITS, and it took two
+  //   wrong ones to see it. Walking east or west the lane axis is the SCREEN's
+  //   VERTICAL — four rows of room, not nine columns — so a four-and-a-quarter-
+  //   tile body leaves no multiple of the step inside the band at all.
+  //   ★ Pinning two lanes to the edges instead looked like the fix and was
+  //   not: sprites are bottom-anchored and draw UPWARD, so feet parked four
+  //   rows above him put the head three tiles off the top of the screen. A
+  //   lone Anciuxor measured 58% visible that way and 100% in the single
+  //   centre lane. Keeping the centre lane AND the edges was worse again —
+  //   four tiles of gap under a 4.28-tile body is a quarter tile of the exact
+  //   overlap this whole change exists to remove.
+  //   ★★ So when the band holds one lane, it gets one, and the rest of the
+  //   team queues along the other axis, which walking sideways is the screen's
+  //   HORIZONTAL and has nine tiles rather than four.
+  // rows first, near to far: the team fans out ACROSS the screen behind him,
+  // each rank filled centre-out so it flanks him evenly
+  let lastRow = 0;
+  for (let ly = stepY; ly <= Math.max(maxBehind, stepY); ly += stepY){
+    for (const lx of lanes) push(lx, ly);
+    lastRow = ly;
   }
   // then the flanks, level with him — still never IN FRONT (ly >= 0)
-  for (let lx = stepX; lx <= FORM_MAX_SIDE; lx += stepX)
-    for (const sx of [lx, -lx]){
-      const k = sx + ',0';
-      if (!seen.has(k)){ seen.add(k); out.push([sx, 0]); }
-    }
-  // and finally deeper ranks for a very large faction, if it ever needs them
-  for (let ly = FORM_MAX_BEHIND + stepY; ly <= FORM_MAX_BEHIND + stepY * 4; ly += stepY)
-    for (let lx = -FORM_MAX_SIDE; lx <= FORM_MAX_SIDE; lx += stepX){
-      const k = lx + ',' + ly;
-      if (!seen.has(k)){ seen.add(k); out.push([lx, ly]); }
-    }
+  for (const lx of lanes) if (lx !== 0) push(lx, 0);
+  // ★★★ AND DEEPER RANKS FOR THE OVERFLOW, measured from the last rank that
+  //   fit rather than from the bound — a follower given a station thirty tiles
+  //   back never arrives, it just runs forever.
+  //   ★ Six Anciuxor-sized bodies need about thirty tiles of width and the
+  //   viewport has twenty: they CANNOT all be on screen at once, and that is
+  //   geometry rather than a bug. The choice is between a Zyrex the camera has
+  //   not reached yet and two Zyrex in the same pixels, and these ranks are
+  //   what make the first one the answer.
+  //   ★★ THE RANK COUNT IS DRIVEN BY THE SEATS, not by a constant. A narrow
+  //   band gives ONE lane, so four extra ranks is five stations in total — and
+  //   a six-member party then wrapped two of them onto the same tile through
+  //   `% length`, which is the pile arriving by a third route. Keep adding
+  //   ranks until there are more seats than any party can fill.
+  for (let r = 1; r <= 12 && out.length < FORM_MIN_STATIONS; r++)
+    for (const lx of lanes) push(lx, lastRow + r * stepY);
   _FORM_CACHE[key] = out;
   return out;
 }
-// How wide and how deep does the widest Zyrex standing with you actually DRAW?
-// ★ Cheap: the party is small and wildBodyFootprint memoises per species.
+// ★★★★ v0.99.46 · HOW BIG DOES IT DRAW — BOTH WAYS.
+//   Creator, 2026-09-24: "the zyrex still stand on top of eachother. I cant
+//   see all their beautiful sprites."
+//
+// ★★★★ THE ROW STEP WAS A COLLISION NUMBER WEARING A SPACING NUMBER'S HAT.
+//   wildBodyFootprint.depth answers "how many tile ROWS does this body block",
+//   and its whole definition is `tilesW >= 4 ? 1 : 0` — derived from WIDTH and
+//   capped at one. That is correct for collision: a creature's feet occupy the
+//   row it stands on and maybe one behind. It is nothing at all to do with how
+//   tall the thing DRAWS. Measured across the 38 species that have sheets,
+//   THIRTY-SEVEN draw taller than the gap that number gave them, and Anciuxor
+//   draws 4.28 tiles tall into a 2-tile slot. So the rank behind was always
+//   buried to the shoulders in the rank in front.
+//
+// ★★★ The height is right there in the same bboxes wildBodyFootprint already
+//   reads — it computes the scale, takes the max width and throws the max
+//   height away. This keeps it.
+const _drawSpanCache = {};
+function zyrexDrawSpan(speciesId){
+  if (_drawSpanCache[speciesId]) return _drawSpanCache[speciesId];
+  const d = SUMMONABLE_SPRITES[speciesId];
+  let w = 1, h = 2;
+  if (d && d.bboxes){
+    let maxBh = 216, wmax = 0, hmax = 0;
+    for (const r of d.bboxes){
+      if (r[0][3] > maxBh) maxBh = r[0][3];
+      for (const b of r){ if (b[2] > wmax) wmax = b[2]; if (b[3] > hmax) hmax = b[3]; }
+    }
+    const scale = (TILE * 2) / maxBh * (d.scaleMul || 1);
+    w = wmax * scale / TILE;
+    h = hmax * scale / TILE;
+  }
+  return (_drawSpanCache[speciesId] = { w, h });
+}
+// How wide and how TALL does the widest Zyrex standing with you actually draw?
 function partyFormationStep(){
-  let w = 2, d = 2;
+  let w = 2, h = 2;
   try {
     for (const z of (player.party || [])){
       if (!z || !z.speciesId) continue;
-      const f = wildBodyFootprint(z.speciesId);
-      if (!f) continue;
-      w = Math.max(w, (f.left || 0) + (f.right || 0) + 1);
-      d = Math.max(d, (f.depth || 0) + 1);
+      const s = zyrexDrawSpan(z.speciesId);
+      if (!s) continue;
+      w = Math.max(w, s.w);
+      h = Math.max(h, s.h);
     }
   } catch(_){}
-  return [w, d];
+  return [w, h];
 }
 // The default table stays a 2-step lattice so anything that reads it directly
 // behaves exactly as it did; the live stations come from partyFormation().
 const SUMMON_FORMATION = summonFormation(2, 2);
-function partyFormation(){ const [w, d] = partyFormationStep(); return summonFormation(w, d); }
+// ★ The viewport is 20x11 tiles with Rizer centred: nine columns of room to
+//   each SIDE, and only four rows above or below that still read (±5 is the
+//   edge itself). These are SCREEN bounds — which is exactly why they have to
+//   swap when the basis turns.
+const FORM_VIEW_HALF_X = 9;
+const FORM_VIEW_HALF_Y = 4;
+// ★★★★ THE ROTATION SWAPPED THE AXES AND NOT THE STEPS — the second half of
+//   the Creator's pile. summonFormation builds in LOCAL space (+x his right,
+//   +y behind him) and _formationRotate maps local→world, so under a LEFT or
+//   RIGHT basis `case 'right': return [-ly, lx]` puts local-x on SCREEN-Y and
+//   local-y on SCREEN-X. The sideways step, measured from how WIDE a body
+//   draws, then governed the screen's VERTICAL spacing, and the rank step
+//   governed the HORIZONTAL — five-tile-wide bodies two tiles apart across the
+//   screen. Every separation this file proves held only while he walked north
+//   or south, which is why the pile appears the moment he heads east.
+// ★★★★ AND THEN THE SEATS ARE SORTED BY WHAT YOU WILL ACTUALLY SEE.
+//   Creator: "I cant see all their beautiful sprites." Removing the overlap
+//   was only half of that sentence — a Zyrex whose head is off the top of the
+//   screen is just as unseen as one buried in a friend.
+//
+// ★★★★ SPRITES ARE BOTTOM-ANCHORED, SO THE ROOM BEHIND HIM IS ASYMMETRIC.
+//   Walking NORTH, "behind" is down-screen and a body's feet land on a low row
+//   with its bulk drawn back up into view. Walking SOUTH, "behind" is UP-
+//   screen, and the same station puts a 4.28-tile Anciuxor's head three tiles
+//   above the top edge — 35% of it visible. No single lattice can be right for
+//   both, because the constraint is not "how far back" but "which way does the
+//   art grow".
+// ★★★ A giant walking south has NO legal station directly behind him: it
+//   needs to be at least a body-height back not to cover Rizer, and at most
+//   (6.5 - height) back for its head to stay on screen, and for Anciuxor those
+//   two demands cross. That is geometry, and arguing with it produces the
+//   35%. Ranking the stations instead lets the wings — which are fully
+//   visible, level with him, and already in the lattice — fill first exactly
+//   when the centre cannot be used.
+// ★ A stable sort, so every preference the lattice already encodes (near
+//   ranks before far, centre-out within a rank) survives intact among seats
+//   that are equally visible.
+function _formVisibleFraction(lx, ly, facing, w, h){
+  const R = _formationRotate(lx, ly, facing);
+  const dx = R[0], dy = R[1];
+  const vx = Math.max(0, Math.min(dx + w / 2, FORM_VIEW_HALF_X + 1) - Math.max(dx - w / 2, -FORM_VIEW_HALF_X - 1));
+  const vy = Math.max(0, Math.min(dy + 1, FORM_VIEW_HALF_Y + 1.5) - Math.max(dy - h + 1, -FORM_VIEW_HALF_Y - 1.5));
+  return (vx * vy) / (w * h);
+}
+// ★★★★ AND THE AXIS SWAP IS GONE, BECAUSE MEASURING IT SAID SO.
+//   The rotation genuinely does put the width-derived step on the screen's
+//   vertical when he walks east, and my fix for that was to swap the steps and
+//   the bounds with the basis. It worked — and then ranking the seats by
+//   visibility turned out to fix the same thing better, on its own: three
+//   giants walking east read 100/84/83% visible with the ranking alone against
+//   100/50/0% with the swap as well, identical everywhere else, and zero
+//   overlap either way. The swap was starving the lattice of lanes to satisfy
+//   a bound the ranking already respects.
+//   ★★★ So it came out. Two mechanisms doing one job is exactly how the
+//   original bug hid for nine builds — and this one was mine, reasoned into
+//   the file and then contradicted by the first thing I measured against it.
+function partyFormation(){
+  const [w, h] = partyFormationStep();
+  const facing = _formationBasis();
+  const base = summonFormation(w, h, FORM_VIEW_HALF_X, FORM_VIEW_HALF_Y);
+  const key = facing + '|' + w.toFixed(2) + 'x' + h.toFixed(2);
+  if (_FORM_VIS_CACHE[key]) return _FORM_VIS_CACHE[key];
+  const scored = base.map((p, i) => ({ p, i, v: _formVisibleFraction(p[0], p[1], facing, w, h) }));
+  // ★ rounded to a twentieth so near-identical seats keep the lattice's own
+  //   ordering rather than being shuffled by a hundredth of a tile
+  scored.sort((a, b) => (Math.round(b.v * 20) - Math.round(a.v * 20)) || (a.i - b.i));
+  return (_FORM_VIS_CACHE[key] = scored.map(s => s.p));
+}
 // ★ The basis is the direction he last WALKED, not the direction he is FACING.
 // Turning on the spot to look around must not make the whole team scramble to
 // re-form; only travelling does.  Derived from his own tile deltas, so nothing
@@ -58523,8 +58663,16 @@ function _claimFormationSlot(){
   for (const n of NPCS){
     if (n && n._summoned && n._formSlot != null && n.scene === game.scene) used.add(n._formSlot);
   }
-  for (let i = 0; i < SUMMON_FORMATION.length; i++) if (!used.has(i)) return i;
-  return NPCS.filter(n => n && n._summoned).length % SUMMON_FORMATION.length;
+  // ★★★★ v0.99.46 · THE SAME LIST _formationTile READS. This walked the
+  //   default 2x2 SUMMON_FORMATION while _formationTile indexed the
+  //   party-stepped one and took `% _FORM.length` — two different arrays of
+  //   two different lengths. A unique slot INDEX is only a unique STATION if
+  //   both ends agree on which list the index is into, and a big party on a
+  //   short lattice wrapped two members onto one tile. Claiming out of the
+  //   live list is the only version of this that means anything.
+  const FORM = partyFormation();
+  for (let i = 0; i < FORM.length; i++) if (!used.has(i)) return i;
+  return NPCS.filter(n => n && n._summoned).length % FORM.length;
 }
 // station tile for a follower · nudged to the nearest clear tile so a slot
 // landing on a tree/wall does not strand its owner pacing forever

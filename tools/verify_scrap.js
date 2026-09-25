@@ -22,7 +22,7 @@ global.matchMedia = () => ({ matches:false, addEventListener:noop, addListener:n
 global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
 global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
-// verify_scrap · v0.95.772 · scrap spills from every tower chest, collected on foot
+// verify_scrap · generic scrap/coin ground-pickup mechanics
 try{new Function(require('./lib/all_src.cjs')()+
   ';globalThis.__C={PICKUP_KINDS,CHEST_COIN_TIERS,spillChestCoins,collectPickupsAt,spillPickups,addItems,game,WORLD_PROPS,TOWER_NETWORK,spillScrap,collectScrapAt,restoreScrapDrops,_rememberPickups,SCRAP_PER_CHEST, player,isWorldLandTile,isWorldBorderTile,_propBlocked,snapBuildingsToLattice,buildAllTrails,worldDistrictAt};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
@@ -32,15 +32,12 @@ const H=t=>console.log('\n'+t);
 C.snapBuildingsToLattice(); C.buildAllTrails();
 C.player.items=C.player.items||{}; C.player.items.scrap_metal=0; C.player.groundPickups=[];
 
-H('1 · ★★ EVERY TOWER CHEST EXISTS AND CAN SPILL');
+H('1 · ★★ TOWER QUEST ITEMS MOVED INSIDE · SCRAP STAYS GENERIC');
 {
   ok(C.TOWER_NETWORK.length===10,`${C.TOWER_NETWORK.length} radio towers`);
   const chests=C.WORLD_PROPS.filter(p=>p&&/^chest_tower_/.test(p.id||''));
-  ok(chests.length===10,`${chests.length} silver chests placed at tower bases`);
-  const dists=new Set(C.TOWER_NETWORK.map(t=>t.dist));
-  const covered=new Set(chests.map(c=>C.worldDistrictAt(c.tileX,c.tileY)));
-  const missing=[...dists].filter(d=>!covered.has(d));
-  ok(missing.length===0,`one per district${missing.length?' — missing: '+missing.join(', '):''}`);
+  ok(chests.length===0,'no legacy objective chests remain at tower bases');
+  ok(typeof C.spillScrap==='function','generic scrap spills remain available for salvage and Scanobot rewards');
 }
 
 H('2 · ★★ A SPILL LANDS ON WALKABLE GROUND');
@@ -120,7 +117,7 @@ H('6 · ★★ AN UNSWEPT PILE SURVIVES A RELOAD');
 H('7 · THE ART IS REAL AND SITS IN ONE TILE');
 {
   const fs=require('fs');
-  const f='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/assets/2D sprites/decor/scrap-metal.png';
+  const f=require('path').join(__dirname,'..','assets/2D sprites/decor/scrap-metal.png');
   ok(fs.existsSync(f),'scrap-metal.png is on disk');
   ok(fs.statSync(f).size>10000,`${(fs.statSync(f).size/1024|0)}KB · not a stub`);
   const drawH=C.PICKUP_KINDS.scrap.tileW*C.PICKUP_KINDS.scrap.bbox[3]/C.PICKUP_KINDS.scrap.bbox[2];
@@ -191,7 +188,7 @@ H('11 · ★★ AN INDOOR CHEST STILL PAYS ITS TIER');
 H('12 · ★ THE COIN ART IS REAL');
 {
   const fs=require('fs');
-  const f='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/assets/2D sprites/decor/coins-pile.png';
+  const f=require('path').join(__dirname,'..','assets/2D sprites/decor/coins-pile.png');
   ok(fs.existsSync(f)&&fs.statSync(f).size>10000,`coins-pile.png on disk (${(fs.statSync(f).size/1024|0)}KB)`);
   const K=C.PICKUP_KINDS.coins;
   const h=K.tileW*K.bbox[3]/K.bbox[2];

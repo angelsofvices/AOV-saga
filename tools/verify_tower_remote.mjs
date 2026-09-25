@@ -7,13 +7,13 @@
 //
 // ★★★★ THE ITEM ALREADY EXISTED AND THE ART DID NOT MATCH IT. `tower_battery`
 //   has been the per-district tower pickup since v0.95.611: one drops from the
-//   Scrap Chest at each tower's base, Scrapjaw spends it to bring that
+//   silver chest inside each tower, Scrapjaw spends it to bring that
 //   district's signal back. Its icon was a steel battery cell. The Creator's
 //   delivery is a radio handset, and they confirmed it REPLACES the battery.
 //
 // ★★★★ SO THE KEY DID NOT CHANGE AND THE LABEL DID. `tower_battery` is written
-//   into every save, into player.towerBatteries, into the chest ids
-//   (`chest_tower_battery_<district>`) and into Scrapjaw's delivery loop.
+//   into every save, into player.towerBatteries and into Scrapjaw's delivery
+//   loop. The new interior chest ids use the player-facing "remote" name.
 //   Renaming it to match a string would strand a live playthrough's progress.
 //   A key is a database column; a label is what the player reads. This suite
 //   exists mostly to hold that line — it checks that the key survived AND that
@@ -36,7 +36,8 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['INVENTORY_META','ZYCUBE_ART','ZYCUBE_ICON','ZYCUBE_CAT_OF',
   'zycubeArtFor','zycubeIconFor','zycubeCategoryOf','player','game','TOWER_ORDER',
-  'towerRestored','towersRestoredCount','heldTowerBatteries','renderZycellZycube'] });
+  'TOWER_REMOTE_CHESTS','towerRestored','towersRestoredCount','heldTowerRemotes',
+  'heldTowerBatteries','renderZycellZycube'] });
 console.log = _L;
 
 const SRC  = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
@@ -63,9 +64,8 @@ H('★★★★ THE KEY SURVIVED THE RENAME · this is the assertion that protec
      `★★★★ and reads "${G.INVENTORY_META.tower_battery.label}" to the player · label changed, key did not`);
   ok(G.ZYCUBE_CAT_OF.tower_battery === 'mat',
      '★★ still filed under MATERIALS · the drawer it has always been in');
-  // the three places the key is baked into ids and state
-  ok(/chest_tower_battery_\$\{spot\.dist\}/.test(CODE),
-     '★★★ the per-district chest id still spells tower_battery · renaming the key would have orphaned every chest');
+  ok(G.TOWER_REMOTE_CHESTS.length === 10 && G.TOWER_REMOTE_CHESTS.every(c => c.id === `chest_tower_remote_${c.dist}`),
+     '★★★ ten interior chest ids use the player-facing remote name');
   ok(/player\.towerBatteries/.test(CODE),
      '★★★ and player.towerBatteries is untouched · it is the record Scrapjaw actually spends');
   ok(/player\.items\.tower_battery/.test(CODE),
@@ -90,27 +90,24 @@ H('★★★★ NO SURFACE STILL CALLS IT A BATTERY TO THE PLAYER');
    + (offenders.length ? ' · ' + offenders.slice(0, 3).map(t => t.slice(0, 80)).join(' | ') : ''));
   // and the replacements really landed
   for (const [needle, where] of [
-    ['remote in hand',            'the tower approach toast'],
-    ['SILVER CHEST at the base holds the remote', 'the chest hint'],
-    ['TRANSMISSION REMOTE retrieved', 'the pickup toast'],
+    ['recover the TRANSMISSION REMOTE from the silver chest', 'the tower approach toast'],
+    ['find the silver chest and recover its transmission remote', 'the interior objective'],
+    ['TRANSMISSION REMOTE · bring it to Scrapjaw', 'the pickup toast'],
     ['keys the remote in',        "Scrapjaw's delivery line"],
     ['Keep the remotes coming',   "Scrapjaw's grid status"],
     ['Bring me the remote',       "Scrapjaw's pitch"],
   ]) ok(CODE.includes(needle), `  ${where} says remote`);
 }
 
-H('★★★★ AND THE PHONE BATTERY QUEST IS UNTOUCHED · two batteries, one Scrapjaw');
+H('★★★★ THE PHONE BATTERY REMAINS A DISTINCT REWARD');
 {
-  // ★★★★ The scrap-metal → PHONE BATTERY exchange in Malezor unlocks overworld
-  //   contact calls and has nothing to do with the towers. A rename that swept
-  //   the whole file would have eaten it silently.
   ok(/PHONE BATTERY/.test(CODE), '★★★★ the PHONE BATTERY still exists by name');
-  ok(/workbench-warm PHONE BATTERY/.test(CODE),
-     '★★★ Scrapjaw still hands one over, warm off the bench · the line is intact');
-  ok(/trade to Scrapjaw for Phone Battery/.test(SRC),
-     '★★ and scrap metal still says what it is for');
-  ok(/Trade SCRAP METAL for the Phone Battery|trade SCRAP METAL for the Phone Battery/.test(CODE),
-     '★★★ the quest hint is intact · the sweep stopped where it should have');
+  ok(/player\.phoneBattery\s*=\s*true/.test(CODE),
+     '★★★ restoring Malezor still awards the distinct Phone Battery');
+  ok(/Receive the PHONE BATTERY \(unlocks calls\)/.test(CODE),
+     '★★ the quest log explains what the Phone Battery unlocks');
+  ok(/tower_battery:\s*\{ label: 'Tower Transmission Remote'/.test(CODE),
+     '★★★ remote inventory text remains separate from the Phone Battery');
 }
 
 H('★★★ ONE PER TOWER, AND THE DELIVERY LOOP STILL RUNS ON IT');
@@ -121,13 +118,13 @@ H('★★★ ONE PER TOWER, AND THE DELIVERY LOOP STILL RUNS ON IT');
   G.player.towerBatteries = {}; G.player.scrapjawTowersRestored = {}; G.player.radioTowerFixed = false;
   const [a, b] = G.TOWER_ORDER.filter(d => d !== 'malezor').slice(0, 2);
   G.player.towerBatteries[a] = true; G.player.towerBatteries[b] = true;
-  const held = G.heldTowerBatteries();
+  const held = G.heldTowerRemotes();
   ok(held.includes(a) && held.includes(b) && held.length === 2,
-     `★★★ holding ${a} and ${b} remotes · heldTowerBatteries reports exactly those two`);
+     `★★★ holding ${a} and ${b} remotes · heldTowerRemotes reports exactly those two`);
   // ★★★ and a remote is DISTRICT-TAGGED · the v0.95.611 bug was a Korathen
   //   pickup restoring Zarvane, because loot was district-agnostic
   G.player.scrapjawTowersRestored[a] = true;
-  ok(!G.heldTowerBatteries().includes(a) && G.heldTowerBatteries().includes(b),
+  ok(!G.heldTowerRemotes().includes(a) && G.heldTowerRemotes().includes(b),
      `★★★★ restoring ${a} drops only ${a} from the held list · a remote still belongs to ITS tower`);
   G.player.towerBatteries = {}; G.player.scrapjawTowersRestored = {};
 }

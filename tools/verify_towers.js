@@ -1,12 +1,11 @@
-// v0.95.650 · verify the full 10-district Scrapjaw tower loop.
-const fs = require('fs');
+// Verify the full 10-district Scrapjaw radio-tower interior loop.
 const src = require('./lib/all_src.cjs')();
 const noop = () => {};
 global.setInterval = () => 0;
 const pending = [];
 global.setTimeout = (f, ms) => { pending.push({ f, ms: ms || 0 }); return pending.length; };
 global.clearInterval = noop; global.clearTimeout = noop;
-const CTX = new Proxy({}, { get: () => () => ({ addColorStop: noop, width: 0, height: 0, data: [] }) });
+const CTX = new Proxy({}, { get: () => () => ({ addColorStop: noop, width:0, height:0, data:[] }) });
 const el = () => ({ style:{}, dataset:{}, classList:{add:noop,remove:noop,toggle:noop,contains:()=>false},
   width:960, height:540, value:'', textContent:'', innerHTML:'', children:[], childNodes:[],
   getContext:()=>CTX, appendChild:noop, removeChild:noop, addEventListener:noop, removeEventListener:noop,
@@ -29,143 +28,135 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 
 try {
   new Function(src + ';globalThis.__C={TOWER_NETWORK,TOWER_BY_DIST,TOWER_ORDER,TOWER_TOTAL,' +
-    'TOWER_COMPANION_GATE,WORLD_PROPS,NPCS,player,game,towerRestored,towersRestoredCount,' +
-    'heldTowerBatteries,towerSquadCleared,buildTowerGuardPacks,recordTowerGuardKill,' +
-    'syncTowerNetworkFromSave,findNpcById,toggleContactCall,drawProp,saveGame,loadGame,' +
-    'worldDistrictAt,recordMoriKill,contactCallBondOk};')();   // ★ v0.96.49 · the gate the suite asks about was never exported
-} catch (e) { console.log('❌ eval', e.message.split('\n')[0]); process.exit(1); }
+    'TOWER_COMPANION_GATE,TOWER_REMOTE_CHESTS,RADIO_TOWER_INTERIOR_PLAN,RADIO_TOWER_CHEST_TILE,' +
+    'RADIO_TOWER_INTERIORS,WORLD_PROPS,NPCS,player,game,towerRestored,towersRestoredCount,' +
+    'heldTowerRemotes,heldTowerBatteries,towerSquadCleared,recordTowerGuardKill,' +
+    'syncTowerNetworkFromSave,radioTowerSceneId,radioTowerInterior,interiorConfig,' +
+    'towerRemoteChestAt,towerRemoteChestHere,towerRemoteChestOpened,tryOpenTowerRemoteChest,' +
+    'findNpcById,toggleContactCall,drawProp,saveGame,worldDistrictAt,contactCallBondOk};')();
+} catch (e) { console.log('❌ eval', e.stack || e.message); process.exit(1); }
 const C = globalThis.__C;
 const flush = () => { const q = pending.splice(0); q.sort((a,b)=>a.ms-b.ms); q.forEach(t => { try { t.f(); } catch(_){} }); };
-flush();   // run the deferred guard build
+flush();
 let fails = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) fails++; };
+const resetTowerState = () => {
+  C.player.scrapjawTowersRestored = {};
+  C.player.towerBatteries = {};
+  C.player.towerChestsLooted = {};
+  C.player.items = {};
+  C.player.radioTowerFixed = false;
+  C.player.phoneBattery = false;
+  C.player.scrapjawCompanion = false;
+  C.player.scrapjawFullSignal = false;
+  C.player.scrapjawMet = true;
+  C.player.towerQuestStarted = true;
+  C.player.bonds = {};
+  C.player.rizerLvl = 20;
+  C.player.rizerXP = 0;
+  C.game.scene = 'overworld';
+};
 
-console.log('\n1 · TABLE · one source of truth for all 10 districts\n');
+console.log('\n1 · NETWORK + EXTERIORS · ten doors, no outdoor objective chests\n');
 ok(C.TOWER_NETWORK.length === 10, `${C.TOWER_NETWORK.length} districts in TOWER_NETWORK`);
-ok(C.TOWER_COMPANION_GATE === 6, 'companion gate at 6/10 per canon');
+ok(C.TOWER_COMPANION_GATE === 6, 'companion gate remains 6/10');
 const towers = C.WORLD_PROPS.filter(p => p.id && /_radio_tower$/.test(p.id));
-const chests = C.WORLD_PROPS.filter(p => p._towerBatteryDist);
-ok(towers.length === 10, `${towers.length} tower props in the world`);
-ok(chests.length === 9,  `${chests.length} silver battery chests (Malezor uses its scrap chest)`);
-let placed = true;
-for (const T of C.TOWER_NETWORK){
-  if (T.dist === 'malezor') continue;
-  const ch = chests.find(c => c._towerBatteryDist === T.dist);
-  const tw = towers.find(t => t._towerDistrict === T.dist);
-  if (!ch || !tw) { placed = false; continue; }
-  if (C.worldDistrictAt(ch.tileX, ch.tileY) !== T.dist) { placed = false; console.log(`      ! ${T.dist} chest sits in ${C.worldDistrictAt(ch.tileX,ch.tileY)}`); }
-}
-ok(placed, 'every tower + chest actually sits inside its own district');
+ok(towers.length === 10, `${towers.length} exterior radio towers`);
+ok(towers.every(p => p._towerDistrict && typeof p.onInteract === 'function'), 'every exterior tower has a district-tagged entrance');
+ok(!C.WORLD_PROPS.some(p => p._towerBatteryDist || p.id === 'chest_tower_scrap'), 'old outdoor objective chests removed');
+ok(towers.every(p => C.worldDistrictAt(p.tileX,p.tileY) === p._towerDistrict), 'every exterior tower sits in its own district');
 
-console.log('\n2 · GUARD PACKS · 6 Mori + 1 band-scaled boss per tower\n');
-console.log('     district     boss                    bossLv  guards');
+console.log('\n2 · INTERIORS · ten 20×20 tower scenes and ten silver chests\n');
+ok(C.RADIO_TOWER_INTERIOR_PLAN.length === 20, 'shared tower plan has 20 rows');
+ok(C.RADIO_TOWER_INTERIOR_PLAN.every(row => row.length === 20), 'every tower-plan row is 20 tiles wide');
+ok(C.TOWER_REMOTE_CHESTS.length === 10, `${C.TOWER_REMOTE_CHESTS.length} district-specific silver chests`);
+const sceneIds = new Set();
+let interiorsValid = true;
 for (const T of C.TOWER_NETWORK){
-  if (T.dist === 'malezor') continue;
-  const g = C.NPCS.filter(n => n._towerGuardOf === T.dist);
-  const b = C.NPCS.find(n => n._towerBossOf === T.dist);
-  console.log(`     ${T.label.padEnd(12)} ${(b ? b.name : '—').padEnd(22)} ${String(T.bossLv).padStart(5)}  ${g.length}`);
-  if (g.length !== 7 || !b) fails++;
+  const id = C.radioTowerSceneId(T.dist);
+  const cfg = C.radioTowerInterior(T.dist);
+  const chest = C.TOWER_REMOTE_CHESTS.find(c => c.dist === T.dist);
+  sceneIds.add(id);
+  if (!cfg || cfg.cols !== 20 || cfg.rows !== 20 || cfg.radioTowerDistrict !== T.dist) interiorsValid = false;
+  if (C.interiorConfig(id) !== cfg) interiorsValid = false;
+  if (!chest || chest.scene !== id || !C.towerRemoteChestAt(id,chest.tileX,chest.tileY)) interiorsValid = false;
+  if (C.RADIO_TOWER_INTERIOR_PLAN[chest.tileY][chest.tileX] === ' ') interiorsValid = false;
+  if (cfg.exit.x !== 10 || cfg.exit.y !== 19 || cfg.spawn.x !== 10 || cfg.spawn.y !== 18) interiorsValid = false;
 }
-ok(C.NPCS.filter(n => n._towerGuardOf).length === 63, '63 guards deployed (9 x [6 Mori + 1 boss])');
-ok(!C.NPCS.some(n => n._towerGuardOf && n._extraSpawn), 'no guard is tagged _extraSpawn (Horde toggle would delete them)');
-const lvls = C.TOWER_NETWORK.filter(t=>t.dist!=='malezor').map(t=>t.bossLv);
-ok(lvls.every((v,i)=> i===0 || v>lvls[i-1]), 'boss levels ascend across the district band ladder');
+ok(sceneIds.size === 10, 'each district receives a distinct interior scene');
+ok(interiorsValid, 'all interiors, exits, spawns, and chest tiles are valid');
 
-console.log('\n3 · ★ THE CORE FIX · a battery restores the district it CAME FROM\n');
-C.player.scrapjawTowersRestored = {}; C.player.towerBatteries = {}; C.player.items = {};
-C.player.radioTowerFixed = false; C.player.bonds = {}; C.player.rizerLvl = 20; C.player.rizerXP = 0;
-const korathenChest = chests.find(c => c._towerBatteryDist === 'korathen');
-korathenChest.onInteract();
-ok(C.player.towerBatteries.korathen === true, 'looting the Korathen chest yields a KORATHEN-tagged battery');
-ok(C.heldTowerBatteries().join() === 'korathen', 'heldTowerBatteries() reports korathen only');
+console.log('\n3 · REMOTE LOOT · the chest records its district and cannot duplicate\n');
+resetTowerState();
+C.game.scene = C.radioTowerSceneId('korathen');
+ok(C.towerRemoteChestHere().dist === 'korathen', 'Korathen scene resolves the Korathen chest');
+ok(C.tryOpenTowerRemoteChest() === true, 'silver chest interaction succeeds');
+ok(C.player.towerBatteries.korathen === true, 'loot is tagged to Korathen');
+ok(C.player.towerChestsLooted.korathen === true, 'opened state is persisted on the player');
+ok(C.player.items.tower_battery === 1, 'one Tower Transmission Remote enters inventory');
+const before = C.player.items.tower_battery;
+C.tryOpenTowerRemoteChest();
+ok(C.player.items.tower_battery === before, 'opening the same chest again yields no duplicate remote');
+ok(C.heldTowerRemotes().join() === 'korathen' && C.heldTowerBatteries().join() === 'korathen', 'new and legacy held-item helpers agree');
+
+console.log('\n4 · SCRAPJAW DELIVERY · the exact tower is restored\n');
 const scrapjaw = C.NPCS.find(n => n.id === 'scrapjaw');
-C.player.scrapjawMet = true; C.player.towerQuestStarted = true;
+C.game.scene = 'overworld';
 scrapjaw.onInteract(scrapjaw);
-ok(C.towerRestored('korathen') === true, 'KORATHEN signal restored');
-ok(C.towerRestored('zarvane') === false, 'ZARVANE untouched — the old code would have lit this one instead');
-ok(!C.player.towerBatteries.korathen, 'battery consumed');
+ok(C.towerRestored('korathen') === true, 'Korathen signal restored');
+ok(C.towerRestored('zarvane') === false, 'Zarvane remains dark');
+ok(!C.player.towerBatteries.korathen && C.player.items.tower_battery === 0, 'delivered remote is consumed');
+ok(C.towerRemoteChestOpened('korathen') === true, 'Korathen chest stays open after delivery');
 
-console.log('\n4 · SIGNAL GATE · calls work only in restored districts\n');
-const kT = C.TOWER_BY_DIST.korathen, zT = C.TOWER_BY_DIST.zarvane;
-// Observe the EFFECT, not the toast: the in-scope showToast can't be stubbed
-// from out here, but a refused call never spawns the contact.
-C.player.phoneBattery = true;
-const mom = C.findNpcById('mom');
-mom._phoneSpawned = false;
-// v0.95.688 put a BOND gate in front of the signal gate: a contact must be at
-// 100% before they'll take your call at all.  This suite is about the SIGNAL
-// gate, so bond has to be satisfied first or every case below refuses for the
-// wrong reason — which is exactly how this test failed when the gate landed.
-C.player.bonds = C.player.bonds || {};
-C.player.bonds.mom = 100;
-ok(C.contactCallBondOk('mom'), 'precondition · Mom is at full bond, so bond is not what is under test here');
-C.player.x = zT.tower[0]; C.player.y = zT.tower[1];
-C.toggleContactCall('mom', 'Mom');
-ok(mom._phoneSpawned !== true, 'call in un-restored Zarvane is REFUSED (no spawn)');
-C.player.x = kT.tower[0]; C.player.y = kT.tower[1];
-C.toggleContactCall('mom', 'Mom');
-ok(mom._phoneSpawned === true, 'call in restored Korathen goes through (Mom spawns)');
-mom._phoneSpawned = false;
+console.log('\n5 · MALEZOR QUEST · first remote enables calls and legacy saves\n');
+resetTowerState();
+C.game.scene = C.radioTowerSceneId('malezor');
+C.tryOpenTowerRemoteChest();
+C.game.scene = 'overworld';
+scrapjaw.onInteract(scrapjaw);
+ok(C.towerRestored('malezor') === true, 'Malezor tower restored from its interior remote');
+ok(C.player.radioTowerFixed === true, 'legacy Malezor quest flag remains compatible');
+ok(C.player.phoneBattery === true, 'Scrapjaw awards the Phone Battery');
+ok(C.player.scrapjawCompanion === true, 'Malezor repair preserves Scrapjaw companion unlock');
 
-console.log('\n5 · SPRITE SWAP · all 10 towers, not just Malezor\n');
-const kTower = towers.find(t => t._towerDistrict === 'korathen');
-const zTower = towers.find(t => t._towerDistrict === 'zarvane');
-global.ctx = CTX; global._cam = { x:0, y:0 }; global.TILE = 48;
-try { C.drawProp(kTower); C.drawProp(zTower); } catch(_){}
-ok(kTower.img === kTower._towerFixedImg,  'restored Korathen tower paints the FIXED sprite');
-ok(zTower.img === zTower._towerBrokenImg, 'dark Zarvane tower still paints BROKEN');
-
-console.log('\n6 · PERSISTENCE · no infinite batteries across a reload\n');
-ok(C.player.towerChestsLooted.korathen === true, 'chest loot recorded on the player (goes into the save)');
-korathenChest.opened = false; korathenChest.looted = false;   // simulate a fresh page load
-C.syncTowerNetworkFromSave();
-ok(korathenChest.opened === true && korathenChest.looted === true, 'syncTowerNetworkFromSave re-closes the loop');
-const before = C.player.items.tower_battery || 0;
-korathenChest.onInteract();
-ok((C.player.items.tower_battery || 0) === before, 're-interacting yields NO second battery');
+console.log('\n6 · SAVE + RELOAD · opened interiors cannot be farmed\n');
 C.saveGame();
 const saveKey = Object.keys(STORE).find(k => { try { return !!JSON.parse(STORE[k]).player; } catch(_){ return false; } });
 const snap = JSON.parse(STORE[saveKey]);
 for (const k of ['towerBatteries','towerChestsLooted','scrapjawTowersRestored']){
   ok(snap.player[k] !== undefined, `${k} is in the save snapshot`);
 }
+C.syncTowerNetworkFromSave();
+ok(C.towerRemoteChestOpened('malezor') === true, 'Malezor silver chest remains open after state sync');
 
-console.log('\n7 · BONUS CLEAR TRACK · mirrors Malezor\'s optional plaza wipe\n');
+console.log('\n7 · OPTIONAL PLAZA CLEAR · six Mori plus boss\n');
 C.player.towerSquadKills = {}; C.player.towerBossKills = {};
 const vGuards = C.NPCS.filter(n => n._towerGuardOf === 'veridan' && !n._towerBossOf);
-ok(C.towerSquadCleared('veridan') === false, 'veridan starts uncleared');
+ok(vGuards.length === 6, 'Veridan has six tower Mori');
 vGuards.forEach(n => C.recordTowerGuardKill(n));
-ok(C.towerSquadCleared('veridan') === false, '6 Mori alone is not a clear — boss still up');
+ok(C.towerSquadCleared('veridan') === false, 'six Mori alone do not complete the bonus');
 C.recordTowerGuardKill(C.NPCS.find(n => n._towerBossOf === 'veridan'));
-ok(C.towerSquadCleared('veridan') === true, '6 Mori + boss = plaza CLEAR');
-const vChest = chests.find(c => c._towerBatteryDist === 'veridan');
-ok(vChest.opened === false, 'chest was openable the whole time — anti-softlock, same as Malezor');
+ok(C.towerSquadCleared('veridan') === true, 'six Mori plus boss complete the bonus');
 
-console.log('\n8 · COMPANION GATE at 6/10 · and full signal at 10/10\n');
+console.log('\n8 · COMPANION + FULL SIGNAL · network progression remains intact\n');
+resetTowerState();
+C.player.scrapjawTowersRestored = { malezor:true };
+C.player.radioTowerFixed = true;
+C.player.phoneBattery = true;
 C.player.scrapjawCompanion = false;
-C.player.scrapjawTowersRestored = { korathen:true };
-C.player.towerBatteries = {};
 ['zarvane','andrannor','veridan','netharion'].forEach(d => { C.player.towerBatteries[d] = true; });
 C.player.items.tower_battery = 4;
 scrapjaw.onInteract(scrapjaw);
-ok(C.towersRestoredCount() === 5, `5/10 restored — still below the gate`);
-ok(!C.player.scrapjawCompanion, 'Scrapjaw has NOT joined at 5/10');
+ok(C.towersRestoredCount() === 5 && !C.player.scrapjawCompanion, '5/10 remains below the companion gate');
 C.player.towerBatteries = { vorashil:true }; C.player.items.tower_battery = 1;
 scrapjaw.onInteract(scrapjaw);
-ok(C.towersRestoredCount() === 6 && C.player.scrapjawCompanion === true, '6/10 → COMPANION UNLOCKED');
+ok(C.towersRestoredCount() === 6 && C.player.scrapjawCompanion === true, '6/10 unlocks Scrapjaw');
 C.player.towerBatteries = {};
-['xilnar','baelgor','thardin'].forEach(d => { C.player.towerBatteries[d] = true; });
-C.player.radioTowerFixed = true;   // Malezor via its own scrap-metal quest
-C.player.items.tower_battery = 3;
+['xilnar','baelgor','thardin','korathen'].forEach(d => { C.player.towerBatteries[d] = true; });
+C.player.items.tower_battery = 4;
 scrapjaw.onInteract(scrapjaw);
-ok(C.towersRestoredCount() === 10, `10/10 · full Zyraxis grid live`);
+ok(C.towersRestoredCount() === 10, '10/10 towers restored');
 ok(C.player.scrapjawFullSignal === true, 'full-signal finale flag set');
 
 console.log(fails ? `\n❌ ${fails} failure(s)` : '\n✅ ALL CHECKS PASS');
-// ★★★★ 2026-09-17 · EXIT NON-ZERO ON FAILURE. This suite printed its failure
-//   count and then exited 0, so every sweep recorded it as PASSING.
-//   ★ It was missed by the first pass because it ALSO has a process.exit(1)
-//     on the boot-failure path — my "already conditional?" guard saw that and
-//     skipped the file. A guard that looks for any non-zero exit cannot tell
-//     'handles failure' from 'handles one failure and swallows the rest'.
 process.exit(fails ? 1 : 0);

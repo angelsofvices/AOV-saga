@@ -73,9 +73,18 @@ const _half=Math.max(...fh.footprint.map(([dx])=>Math.abs(dx)));
 const base=[];
 for(let dx=-_half;dx<=_half;dx++) if(dx!==0) base.push(C._propBlocked.has((fh.tileX+dx)+','+fh.tileY));
 ok(base.every(Boolean),`all ${base.length} other base-row tiles ARE blocked (span ±${_half})`);
-let roofOpen=0;
-for(let dx=-6;dx<=6;dx++) if(!C._propBlocked.has((fh.tileX+dx)+','+(fh.tileY-8))) roofOpen++;
-ok(roofOpen===13,'★ the roofline (dy -8) is walkable — same rule as the town hall, so no invisible collision on the horns and banners');
+// ★★★★ v0.99.43 · READ THE ROOFLINE OFF THE PROP, DO NOT HARDCODE IT. This
+//    probed dy -8, which was roofline while the hall was 10 tiles tall and is
+//    GROUND STOREY now that it is 32 — so scaling the building 10x in area
+//    turned a correct rule into a false alarm. The rule itself has not changed:
+//    only the ground block collides, the horns and banners above it do not.
+//    Derive the first row ABOVE the declared footprint and test there.
+const _deep=Math.min(...fh.footprint.map(([,dy])=>dy));   // topmost solid row
+const _roofY=_deep-1;                                      // first row above it
+let roofOpen=0, roofSpan=0;
+for(let dx=-_half;dx<=_half;dx++){ roofSpan++;
+  if(!C._propBlocked.has((fh.tileX+dx)+','+(fh.tileY+_roofY))) roofOpen++; }
+ok(roofOpen===roofSpan,`★ the roofline (dy ${_roofY}, the row above the ${-_deep+1}-row ground block) is walkable across all ${roofSpan} tiles — same rule as the town hall, so no invisible collision on the horns and banners`);
 
 console.log('\n4 · ★ PLACEMENT WAS CONSTRAINED, AND THE COMMENT SAYS SO\n');
 const raw=FS.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');

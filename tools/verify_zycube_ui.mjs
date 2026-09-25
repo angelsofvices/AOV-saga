@@ -209,9 +209,29 @@ H('★★★★ FULL HEIGHT · rail and pane pinned, grid takes every leftover p
   const _src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
   ok(/_zySection\(['"`]◈ ZYCUBE['"`], body, accent, true\)/.test(_src),
      '★★ fill mode is OPT-IN · passed only by this panel, a no-op on the other ten');
-  ok((_src.match(/, true\);/g) || []).length >= 1 && !/_zySection\([^)]*, true\)/.test(
-       _src.replace(/_zySection\(['"`]◈ ZYCUBE['"`], body, accent, true\)/, '')),
-     '★★★ and NO other panel asks for it · fill mode changes layout, so a second caller would be a silent relayout');
+  // ★★★★ v0.99.48 · was "NO other panel asks for it". True when written — the
+  //   ZyCube was the only fill-mode caller — and stranded by two deliberate
+  //   rebuilds since: the ARMORY (v0.99.45) and the FACTION roster (v0.99.47)
+  //   both own the full height of the phone on purpose. A count of one was
+  //   never the property; the property is that fill mode is OPT-IN and every
+  //   caller is a panel that means to claim the whole content box. So the
+  //   check is now a named allowlist — an unlisted panel turning it on is
+  //   still the silent relayout this assertion exists to catch.
+  // ★ 'title' is the FACTION roster, whose header is a variable (the view
+//   name changes with the tab); the R.A.I.D. card is the ZyCube's own
+//   full-height sub-view and has claimed the box since v0.99.34.
+  const FILL_OK = ['◈ ZYCUBE', '⚔ ARMORY', 'title', '◈ R.A.I.D. CARD'];
+  const fillCalls = [..._src.matchAll(/_zySection\(\s*([^,]+),/g)]
+    .filter(m => {
+      const i = m.index;
+      const call = _src.slice(i, _src.indexOf(');', i) + 2);
+      return /,\s*true\s*\)/.test(call);
+    })
+    .map(m => m[1].trim().replace(/^['"`]|['"`]$/g, ''));
+  const stray = fillCalls.filter(t => !FILL_OK.includes(t));
+  ok(!stray.length,
+     `★★★ fill mode has ${fillCalls.length} callers and all are on the list (${fillCalls.join(', ')})`
+   + (stray.length ? ` · STRAY: ${stray.join(', ')}` : ''));
 }
 
 H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallback');
@@ -250,8 +270,21 @@ H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallba
   const dir = fs.readdirSync(path.join(ROOT, 'assets/2D sprites/items/bag'))
     .filter(f => /\.png$/.test(f));   // _rejected/ is a subdir · not listed here
   const named = new Set(Object.values(man));
-  ok(dir.every(f => named.has(f)),
-     `★★ and no imported file is orphaned · ${dir.length} on disk, all named by the manifest`);
+  // ★★★ v0.99.48 · A DELIVERY IS NOT AN ORPHAN, and the difference has to be
+  //   written down somewhere the suite can read. _PENDING.md lists icons that
+  //   are on disk on purpose and not yet wired — so a new drop shows up as
+  //   either LIVE or PENDING, and never as silently ignored. An unlisted,
+  //   unwired file is still a failure, which is the whole value of the check.
+  const pendingDoc = path.join(ROOT, 'assets/2D sprites/items/bag/_PENDING.md');
+  const pendingTxt = fs.existsSync(pendingDoc) ? fs.readFileSync(pendingDoc, 'utf8') : '';
+  const pending = new Set([...pendingTxt.matchAll(/`([^`]+\.png)`/g)].map(m => m[1]));
+  const orphans = dir.filter(f => !named.has(f) && !pending.has(f));
+  ok(!orphans.length,
+     `★★ no imported file is orphaned · ${dir.length} on disk, ${named.size} wired, ${pending.size} parked in _PENDING.md`
+   + (orphans.length ? ` · UNACCOUNTED: ${orphans.join(', ')}` : ''));
+  for (const f of pending)
+    ok(fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag', f)),
+       `  _PENDING names ${f} and it is really there · a stale parking slip would hide the next orphan`);
   const h = render(null);
   ok(/<img src="assets\/2D%20sprites\/items\/bag\//.test(h), '★★★ slots render the art');
   ok(/onerror="this\.style\.display='none'"/.test(h),

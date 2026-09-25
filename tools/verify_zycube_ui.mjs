@@ -292,11 +292,21 @@ H('★★★★ REAL ART · 72 keyed icons, glyph still underneath as the fallba
   const pending = new Set([...pendingTxt.matchAll(/`([^`]+\.png)`/g)].map(m => m[1]));
   const orphans = dir.filter(f => !named.has(f) && !pending.has(f));
   ok(!orphans.length,
-     `★★ no imported file is orphaned · ${dir.length} on disk, ${named.size} wired, ${pending.size} parked in _PENDING.md`
+     `★★ no imported file is orphaned · ${dir.length} on disk, ${named.size} wired to ZYCUBE_ART, `
+   + `${pending.size} accounted for in _PENDING.md`
    + (orphans.length ? ` · UNACCOUNTED: ${orphans.join(', ')}` : ''));
   for (const f of pending)
     ok(fs.existsSync(path.join(ROOT, 'assets/2D sprites/items/bag', f)),
        `  _PENDING names ${f} and it is really there · a stale parking slip would hide the next orphan`);
+  // ★★★ v0.99.54 · "accounted for" now covers THREE states, not two: wired
+  //   into the bag, live somewhere else, or parked. barehands.png is the
+  //   middle one — it sits in this folder and the ARMORY draws it, but it has
+  //   no item key because "unarmed" is not something you carry. A file that is
+  //   used and unlisted is indistinguishable from a file that was forgotten,
+  //   which is the whole reason this check exists.
+  ok(/Live, but not as a bag icon/.test(pendingTxt),
+     '★★★ _PENDING.md separates LIVE-elsewhere from PARKED · "not in ZYCUBE_ART" and "unused" '
+   + 'are different facts, and filing them together would let a real orphan hide behind a used one');
   const h = render(null);
   ok(/<img src="assets\/2D%20sprites\/items\/bag\//.test(h), '★★★ slots render the art');
   ok(/onerror="this\.style\.display='none'"/.test(h),

@@ -1,17 +1,21 @@
-# Bag icons delivered but NOT yet wired
+# Bag icons on disk but NOT wired into `ZYCUBE_ART`
 
-Files listed here are on disk and deliberately absent from `ZYCUBE_ART` in
-`rp7b.html`. `verify_zycube_ui` reads this file, so a delivery parked here is
-not reported as an orphan — and anything in the folder that is neither wired
-nor listed here still is. That is the point: a new icon should show up as
-either *live* or *pending*, never as *silently ignored*.
+`verify_zycube_ui` reads this file, so a sprite parked here is not reported as
+an orphan — and anything in the folder that is neither wired nor listed here
+still is. That is the point: an icon should always be *live* or *parked*, never
+*silently ignored*.
 
 To wire one: give it an item key, add `key: 'file-name.png'` to `ZYCUBE_ART`,
-add the key to `ZYCUBE_CAT_OF` so it lands in a drawer, then delete its line
-below.
+add the key to `ZYCUBE_CAT_OF` so it lands in a drawer, then delete its row.
 
-| file | what it looks like | blocked on |
+| file | what it is | why it is parked |
 |---|---|---|
-| `radio-tower-transmission-remote.png` | field radio handset — green enamel body, brass fittings, VU meter, tuning dial, two toggles, red and blue buttons, coiled cable, a glowing cyan crystal seated on top | no item key exists. The radio tower itself does (`malezor_radio_tower`, `towerBossKills`), so this is almost certainly its quest piece — but what the item IS called and what using it DOES are the Creator's to say, and inventing either would make a guess canon. |
+| `tower-battery.png` | steel cell, red and blue terminals, four cyan charge cells, rust down one side | **Superseded, not rejected.** It was the icon for `tower_battery` — the per-district radio-tower pickup — until v0.99.50, when the Creator delivered a transmission remote for that role and confirmed it replaces the battery. The art is good and the object is coherent; it is kept here in case a real battery item is ever wanted (a Zycellite cell, a tower spare, a crafting material). Nothing references it. |
 
-1254×1254 RGBA, transparent background, same as every other bag icon.
+## Not parked, for the record
+
+`radio-tower-transmission-remote.png` was listed here from v0.99.48 until
+v0.99.50 and is now **live** as the icon for `tower_battery` — the item key is
+unchanged because it is written into every save, into `player.towerBatteries`,
+into the chest ids and into Scrapjaw's delivery loop. Only the label changed,
+to **Tower Transmission Remote**.

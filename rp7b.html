@@ -42951,7 +42951,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.48' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.49' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -49860,6 +49860,62 @@ function giveDevElzebub(){
 // otherwise deposit into player.pcZyrex for later swap-in via Nebuladock PC.
 // Callers still get a toast so the player knows where the Zyrex went.
 const PARTY_MAX = 8;
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.49 · ONE DOOR INTO THE PARTY.
+//
+//   Creator, 2026-09-25: "for some reason my party UI doesnt match the active
+//   zyrex. make sure the pc (storage) and the zysphere (8 max) always match in
+//   gameplay. or else player wont ever know who is in their party."
+//
+// ★★★★ MEASURED, NOT GUESSED: toggling every dev faction actor on puts
+//   THIRTY-EIGHT Zyrex in player.party against a cap of eight, and leaves
+//   player.pcZyrex EMPTY. The cap was real and the overflow route was real —
+//   catchZyrex has honoured both since v0.95.536 — but two writers never went
+//   through that door and just pushed:
+//     · setDevFactionActor()  · the dev faction toggles
+//     · devSummonAllZyrex     · the "summon all" button, which adds every
+//                               species in DEV_FACTION_ACTORS in one press
+//   Nothing was broken about the UI. The UI was showing eight because eight is
+//   the roster; the ROSTER had thirty-eight in it, so thirty of them were
+//   real, summonable, and invisible. "Player wont ever know who is in their
+//   party" is exactly right, and it was true of the data, not the drawing.
+//
+// ★★★★ SO THE RULE LIVES IN ONE FUNCTION AND EVERY WRITER CALLS IT. A cap
+//   enforced at four call sites is a cap enforced at three of them the day
+//   someone adds a fifth — which is precisely how this happened.
+function joinParty(z, opts){
+  const o = opts || {};
+  if (!z) return 'none';
+  player.party   = player.party   || [];
+  player.pcZyrex = player.pcZyrex || [];
+  // ★★★ CONTACTS ARE NOT ZYREX · the v0.95.628 gate, applied at this door too
+  //   so a humanoid cannot enter the roster through a dev button either.
+  try {
+    if (isHumanoidAlly(z.speciesId) || canonType(z.type) === 'Humanoid') return 'none';
+  } catch(_){}
+  // ★★ the same creature twice is a UI that disagrees with itself
+  const already = [].concat(player.party, player.pcZyrex)
+    .some(x => x && x !== z && x.speciesId === z.speciesId && (x.name || '') === (z.name || ''));
+  if (already && o.unique !== false) return 'duplicate';
+  if (player.party.filter(Boolean).length < PARTY_MAX){
+    player.party.push(z);
+    return 'party';
+  }
+  player.pcZyrex.push(z);
+  return 'pc';
+}
+// ★★★ AND THE REPAIR, because saves already carry the overflow. Spilling keeps
+//   ORDER — the first eight stay the team the player has been looking at, and
+//   the rest go to the vault in the order they arrived rather than being
+//   dropped. Nobody loses a Zyrex to a bug fix.
+function enforcePartyCap(){
+  player.party   = (player.party   || []).filter(Boolean);
+  player.pcZyrex = (player.pcZyrex || []).filter(Boolean);
+  if (player.party.length <= PARTY_MAX) return 0;
+  const spill = player.party.splice(PARTY_MAX);
+  player.pcZyrex.push(...spill);
+  return spill.length;
+}
 // v0.95.537 · RIZER BOND · a GLOBAL 0-3330 metric that gates which Zyrex tier
 // the player is allowed to add to their active faction (per new canon
 // [[aov-type-tier-level-master]] + [[aov-bond-tier-gate]]).
@@ -50374,14 +50430,15 @@ function addZyrexToRoster(z, opts){
   // open — the roster existed, the tab did not.  Set on BOTH the party and the
   // PC path below, because a bond-gated overflow is still ownership.
   player.zyrexMenuUnlocked = true;
-  const activeCount = player.party.filter(Boolean).length;
-  if (activeCount < PARTY_MAX){
-    player.party.push(z);
+  // ★ v0.99.49 · the placement itself now goes through joinParty, so this
+  //   path and the dev paths cannot disagree about where the ninth one lands.
+  //   `unique:false` because a catch is allowed to bring home a second of a
+  //   species — two Snoks is a roster, two of the SAME instance is a bug.
+  if (joinParty(z, { unique: false }) === 'party'){
     // v0.95.538 · Bonded Zyrex XP · +200 per new party addition · tier bonus
     try { awardRizerXP(200 + tier * 50); } catch(_){}
     return { location: 'party' };
   }
-  player.pcZyrex.push(z);
   showToast(`◈ Party FULL · ${z.name} sent to PC storage (${player.pcZyrex.length} stored) · swap at Nebuladock`, 3600);
   try { playSFX('confirm'); } catch(_){}
   return { location: 'pc', reason: 'partyFull' };
@@ -50406,8 +50463,14 @@ function withdrawZyrexFromPC(pcIdx){
     return false;
   }
   player.pcZyrex.splice(pcIdx, 1);
-  player.party = player.party || [];
-  player.party.push(z);
+  // ★★★ v0.99.49 · through the door like everyone else. The cap check above
+  //   stays because it OWNS the refusal message — "deposit one to PC first" is
+  //   better than silently bouncing the Zyrex back where it came from — but
+  //   the placement itself is not a third copy of the rule.
+  if (joinParty(z, { unique: false }) !== 'party'){
+    player.pcZyrex.splice(pcIdx, 0, z);      // put it back exactly where it was
+    return false;
+  }
   showToast(`★ ${z.name} withdrawn from PC · joined party`, 2400);
   try { playSFX('confirm'); } catch(_){}
   return true;
@@ -51526,6 +51589,14 @@ function migrateSavedZyrex(){
 
   player.party   = fix(player.party);
   player.pcZyrex = fix(player.pcZyrex);
+  // ★★★★ v0.99.49 · REPAIR THE SAVES THAT ALREADY OVERFLOWED. Capping new
+  //   writes does nothing for a file that is already carrying thirty-eight,
+  //   and that file is the one the Creator is playing.
+  const _spilled = enforcePartyCap();
+  if (_spilled){
+    console.log(`[migrate] party was over cap by ${_spilled} · spilled to the PC in arrival order`);
+    try { showToast(`◈ Roster tidied · ${_spilled} Zyrex moved to the PC · the team is ${PARTY_MAX} again`, 4200); } catch(_){}
+  }
   if (evicted || resynced){
     console.log(`[migrate] ${resynced} Zyrex resynced to current canon, ${evicted} evicted`);
     if (retiered.length){
@@ -51647,7 +51718,11 @@ function setDevFactionActor(id,enabled,opts={}){
   if(enabled&&!has){
     const z=createZyrex(id,cfg.level);
     if(!z){playSFX('doorLock');showToast(`◈ DEV · ${cfg.label} roster data unavailable`,1800);return false;}
-    player.party.push(z);
+    // ★★★★ v0.99.49 · was a raw push · this is one of the two writers that put
+    //   thirty-eight Zyrex in an eight-slot party and left the PC empty.
+    const _where = joinParty(z);
+    if (_where === 'pc' && !silent)
+      try { showToast(`◈ Party full · ${cfg.label} went to the PC · swap at the Nebuladock`, 2800); } catch(_){}
   }else if(!enabled&&has){
     if(player.activeActor===id)endFactionSoulSwitch();
     const n=findNpcById(id);
@@ -68231,7 +68306,10 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
           if (!SPECIES[sid]) continue;
           try {
             const z = createZyrex(sid, cfg.level);
-            if (z){ player.party.push(z); owned.add(sid); added++; }
+            // ★★★★ v0.99.49 · the other raw writer · "summon all" adds every
+            //   species in DEV_FACTION_ACTORS in ONE press, so this is the one
+            //   that did the real damage. The overflow lands in the PC now.
+            if (z && joinParty(z) !== 'none'){ owned.add(sid); added++; }
           } catch(_){}
         }
         // Ensure Zyrex menu is unlocked so the touchpad Faction page renders

@@ -21,6 +21,9 @@
 //   slot and the card disagreeing about the same weapon) is invisible to a
 //   grep and obvious to a render.
 import { bootGame } from './lib/boot_game.mjs';
+import fs from 'fs';
+import path from 'path';
+const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
 let f = 0;
 const ok = (c, m) => { console.log((c ? '  ✅ ' : '  ❌ ') + m); if (!c) f++; return !!c; };
@@ -30,6 +33,7 @@ const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['renderZycellWeapons','ZYARMS','ZYGEAR','player','game',
   '_zyArmState','_zyArmClick','_zyArmsSetTab','_zyArmsTab','_zyArtStyle','_zyMainSlot',
   '_zyArmSheet','countGems','spendGems','keepOneS1Weapon','_armWeapon','WEAPON_MAX_DUR',
+  'RIZER_FIST_ART','WHUD_ART',
   'BOW_MAX','SWORD_MAX','RUBY_MAX','AXE_MAX','FANG_MAX','zycubeArtFor','addBowArrows'] });
 console.log = _L;
 
@@ -255,12 +259,67 @@ H('★★★ ART · every arm draws its own icon, cropped off its own bbox');
      `★★★ the crop scales the WHOLE sheet so the bbox lands at 64px · ${s.match(/background-size:[^;]*/)[0]}`);
 }
 
+H('★★★★ BARE HANDS IS THE WHUD FIST · the same file the wheel draws');
+{
+  BASE();
+  for (const W of G.ZYARMS){ G.player[W.equipFlag] = false; }
+  const h = paint('arms');
+  ok(/BARE HANDS/.test(h), '  nothing equipped');
+  ok(!/\u270a/.test(h),
+     '★★★★ the ✊ emoji is gone · Creator: "the bare hands weopns icon should be the rizer fist from the whud"');
+  ok(h.includes(G.RIZER_FIST_ART.src),
+     `★★★★ the main slot draws ${G.RIZER_FIST_ART.src.split('/').pop()} instead`);
+  // ★★★★ THE SAME FILE, NOT A LOOKALIKE. The path is written out in the armory
+  //   because WHUD_ART is a `const` ~24,000 lines below it and a TDZ read at
+  //   module init is a dead boot — this file has shipped that twice. So the
+  //   guard the reference would have given us is this assertion instead.
+  ok(G.RIZER_FIST_ART.src === G.WHUD_ART.fists,
+     `★★★★ and it IS WHUD_ART.fists (${G.WHUD_ART.fists}) · one image, so the panel and the HUD `
+   + 'can never show two different fists');
+  ok(fs.existsSync(path.join(ROOT, decodeURIComponent(G.RIZER_FIST_ART.src))),
+     '★★★ the file is on disk');
+  // ★★★ bbox IS [x, y, WIDTH, HEIGHT] · read as corners the crop is a sliver
+  //   and nothing throws. x+w and y+h must both FIT.
+  const [bx, by, bw, bh] = G.RIZER_FIST_ART.bbox;
+  ok(bx + bw <= G.RIZER_FIST_ART.W && by + bh <= G.RIZER_FIST_ART.H,
+     `★★★ bbox [${G.RIZER_FIST_ART.bbox}] fits the 1254 canvas · x+w=${bx+bw} y+h=${by+bh}`);
+  ok(Math.abs(bw - bh) <= 4,
+     `★★ and it is square (${bw}x${bh}) · the disc is a circle, so a square crop keeps it round`);
+  ok(bw > 250 && bw < 500,
+     `★★★ ${bw}px of a 1254 canvas · the centre disc, not the whole wheel — cropping the `
+   + 'sheet as-is would put six empty sockets and the L1/R1 chips in the slot');
+  // and it stops being drawn the moment something IS equipped
+  G._zyArmClick('sapphire_sword');
+  ok(!paint('arms').includes(G.RIZER_FIST_ART.src),
+     '★★★ equipping a weapon replaces it · the fist is the EMPTY state, not a frame around every arm');
+  BASE();
+}
+
 H('★★ THE ANIM SHEET IS LOOKED UP BY SWITCH, NOT BY eval');
 {
   ok(typeof G._zyArmSheet === 'function', '  _zyArmSheet exists');
   for (const W of G.ZYARMS)
     ok(G._zyArmSheet(W.item) != null, `  ${W.tag.padEnd(10)} resolves to a real sheet object`);
   ok(G._zyArmSheet('nope') === null, '★★ and an unknown key returns null instead of throwing');
+}
+
+H('★★★ THE RAIL SAYS ARMORY, AND THE KEY STILL SAYS WEAPONS');
+{
+  // ★★★★ Creator: "name the weapons panel in the zyphone armory instead since
+  //   it now contains gear and trinkets too." data-zynav is read by the panel
+  //   dispatcher, the controller's page cycle and zycellPage's saved state —
+  //   renaming the KEY to match a caption would break all three and strand a
+  //   save mid-panel. Caption and key are different things.
+  const html = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  const i = html.indexOf('data-zynav="weapons"');
+  const btn = html.slice(i, html.indexOf('</button>', i));
+  ok(i > 0, 'the rail button is still keyed `weapons`');
+  ok(/ARMORY/.test(btn), '★★★★ and it READS ARMORY');
+  ok(!/WEAPONS<\/|>\u2694  WEAPONS/.test(btn), '★★★ the old caption is gone');
+  ok(/ZYCELL_PANELS = \[[^\]]*'weapons'/.test(html),
+     '★★★ and `weapons` is still the panel key the dispatcher and the saved page state use');
+  ok(/\u2694 ARMORY/.test(paint('arms')),
+     '★★ the section header agrees · it has said ARMORY since v0.99.45, and the rail has now caught up');
 }
 
 H('★★★★ NOTHING OWNED · the empty armory still draws, and still says so');

@@ -1828,6 +1828,17 @@ const INTERIOR_SCALE = {
   shop:     { cols: 19, rows: 14 },
   building: { cols: 20, rows: 20 },
   cave:     { cols: 30, rows: 30 },
+  // ★★★★ v0.99.51 · THE HALL RUNG · Creator, 2026-09-24/25: "make the
+  //   [bloodscent lodge] 10x bigger but keep the same shape" → "I meant the
+  //   interior tile map."
+  //   ★★★ 10x the AREA of the `building` rung it was on: 20x20 = 400 tiles,
+  //   and 400 x 10 = 4000, which is 63.2 on a side. 63x63 = 3969 is 9.92x —
+  //   the closest whole-tile square, and a square keeps the room's 1:1 shape
+  //   exactly rather than stretching it.
+  //   ★★ It goes on the LADDER rather than being written inline on one room,
+  //   because that is what this table is for: the next hall gets the same
+  //   number without anyone re-deriving it.
+  hall:     { cols: 63, rows: 63 },
   landmark: { cols: Math.round(MAP_COLS * _LANDMARK_F),
               rows: Math.round(MAP_ROWS * _LANDMARK_F) },
 };
@@ -7388,29 +7399,28 @@ const WORLD_PROPS = [
     src: 'assets/2D%20sprites/buildings/the-fanghall.png',
     bbox: [45, 50, 1248, 1156],
     // ══════════════════════════════════════════════════════════════════
-    // ★★★★ v0.99.43 · TEN TIMES BIGGER, SAME SHAPE.
-    //   Creator, 2026-09-24: "make the fanghall 10x bigger but keep the same
-    //   shape."
+    // ★★★★ v0.99.51 · BACK TO 11x10. I ENLARGED THE WRONG THING.
+    //   Creator, 2026-09-25: "when I said make the fanghall 10x bigger I didnt
+    //   mean the overworld building. I meant the interior tile map. please put
+    //   it back where it was. same size, just make the interior world bigger."
     //
-    // ★★★★ TEN TIMES *AREA*, BECAUSE TEN TIMES LINEAR DOES NOT FIT. 11x10 at
-    //   linear x10 is 110x100 tiles — five and a half screens wide on a 20x11
-    //   viewport, and measured against the world it fails hard: the clear land
-    //   around this spot runs out past radius 30, and the nearest villager home
-    //   sits 18 tiles away. A x10 linear hall would swallow that home and spill
-    //   out of Malezor entirely. x10 AREA is sqrt(10) = 3.162 on each side,
-    //   which lands at 35x32 and fits with a tile to spare.
+    // ★★★★ v0.99.43 read "make the fanghall 10x bigger" as the SPRITE and grew
+    //   it to 35x32 — 454 solid tiles, a third of a district's width, and a
+    //   measurably wrong answer to the actual request. Every number in that
+    //   commit was correct and every one of them was about the wrong object.
+    //   The lesson is not "measure harder": I measured the world, the land, the
+    //   neighbours and the walk. It is that a building has TWO sizes, and
+    //   nothing in that pass asked which one was meant.
     //
-    // ★★★ SHAPE IS THE RATIO, AND IT IS HELD. 11:10 is 1.100; 35:32 is 1.094,
-    //   half a percent out — the closest whole-tile pair to sqrt(10) that does
-    //   not distort it. The footprint keeps its proportion too: it was 4 of the
-    //   10 rows deep (0.4), and 0.4 of 32 is 13.
+    // ★ Restored exactly: 11x10, footprint dy -3..0 x dx -5..5, doorstep kept
+    //   walkable. Same as v0.95.742 shipped it.
     tileX: -34, tileY: 12,
-    tileW: 35, tileH: 32,
+    tileW: 11, tileH: 10,
     _district30: 'malezor', _tri: 'apex',
     footprint: (function(){
       const f = [];
-      for (let dy = -12; dy <= 0; dy++)
-        for (let dx = -17; dx <= 17; dx++){
+      for (let dy = -3; dy <= 0; dy++)
+        for (let dx = -5; dx <= 5; dx++){
           if (dx === 0 && dy === 0) continue;      // doorstep stays walkable
           f.push([dx, dy]);
         }
@@ -21867,36 +21877,106 @@ applyBuildingDecor(INTERIOR_TRAINING_FARM, 'beast-farm', { x: 8, y: 10, w: 4, h:
 // ★ 206 walkable tiles inside the 20x20 building rung. The canvas is the rung;
 //   the room inside it is not — the same doctrine the Seer HQ floors follow.
 const INTERIOR_BLOODSCENT_LODGE = {
-  ...interiorSize('building'),
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★★ v0.99.51 · TEN TIMES THE ROOM, THE SAME ROOM.
+  //   Creator, 2026-09-25: "when I said make the fanghall 10x bigger I didnt
+  //   mean the overworld building. I meant the interior tile map... sorry I
+  //   didnt mean the fanghall I meant the bloodscent lodge."
+  //
+  // ★★★★ v0.99.43 GREW THE WRONG OBJECT ON THE WRONG BUILDING — the Fanghall's
+  //   overworld sprite, from 11x10 to 35x32. Every measurement in that pass was
+  //   sound and every one of them was aimed at something nobody asked about.
+  //   The Fanghall is back to 11x10 and this is the thing that grows.
+  //
+  // ★★★★ THE SHAPE IS NOT REDRAWN, IT IS RESAMPLED. Hand-typing sixty-three
+  //   rows of a cross-and-throat would drift — a column off here, a tapered
+  //   row there — and "keep the same shape" would quietly stop being true.
+  //   Every row below is a nearest-neighbour upscale of the 20x20 plan at
+  //   63/20, so the silhouette is identical by construction: the same four
+  //   arms, the same crossbar, the same funnel down to the mouth.
+  //
+  // ★★★ EXCEPT THE MOUTH, WHICH STAYS DOOR-SIZED ON PURPOSE. Resampled
+  //   faithfully the throat would be twelve tiles across, and `autoExit` is a
+  //   single-tile check (player.x === exit.x && player.y === exit.y) — so
+  //   eleven of those twelve tiles would be a dead end you walk into wondering
+  //   why the door stopped working. A hall can be ten times bigger; a doorway
+  //   is sized to a person either way. The last six rows funnel to four tiles,
+  //   the width the throat has always been.
+  ...interiorSize('hall'),
   plan: [
-    '                    ',
-    '    ............    ',
-    '    ............    ',
-    '    ............    ',
-    '    ............    ',
-    '....................',
-    '....................',
-    '....................',
-    '....................',
-    '    ............    ',
-    '    ............    ',
-    '    ............    ',
-    '    ............    ',
-    '      ........      ',
-    '       ......       ',
-    '        ....        ',
-    '        ....        ',
-    '        ....        ',
-    '        ....        ',
-    '                    ',
+    '                                                               ',
+    '                                                               ',
+    '                                                               ',
+    '                                                               ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '...............................................................',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '             ......................................            ',
+    '                   ..........................                  ',
+    '                   ..........................                  ',
+    '                   ..........................                  ',
+    '                   ..........................                  ',
+    '                       ..................                      ',
+    '                       ..................                      ',
+    '                       ..................                      ',
+    '                          ............                         ',
+    '                          ............                         ',
+    '                          ............                         ',
+    '                          ............                         ',
+    '                          ............                         ',
+    '                          ............                         ',
+    '                          ...........                          ',
+    '                           .........                           ',
+    '                            ........                           ',
+    '                            .......                            ',
+    '                             .....                             ',
+    '                              ....                             ',
+    '                                                               ',
+    '                                                               ',
+    '                                                               ',
   ],
   tileImg: new Image(),
   // ★ "return by walking back down out of imaginary door" — there is no door
   //   tile and no door art. The last floor tile of the throat IS the threshold,
   //   and autoExit fires when you step onto it, which is the same gesture that
   //   leaves every other interior in the game.
-  spawn: { x: 10, y: 17, dir: 'up' },
-  exit:  { x: 10, y: 18 },
+  // ★ the last floor tile of the funnel IS the threshold · same gesture that
+  //   leaves every other interior, now at the centre of the four-tile mouth
+  spawn: { x: 32, y: 58, dir: 'up' },
+  exit:  { x: 32, y: 59 },
   autoExit: true,
   blocked: [],
   label: '◈ BLOODSCENT LODGE',
@@ -42961,7 +43041,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.50' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.52' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -44589,9 +44669,38 @@ function notebookNotePropInteract(prop){
     else if (/radio_tower/.test(id)) notebookVisit(`tower:${worldDistrictAt(prop.tileX, prop.tileY)}`, 'Radio Tower');
   } catch(_){}
 }
+// ★★★★ v0.99.52 · A LIVE DRAG FREEZES THIS PAINT.
+//   Creator, 2026-09-25: "the drag and drop items to sort them is buggy. items
+//   stay stuck fixed on screen even when u release them. they should stay
+//   contained in the zycube panel."
+//
+// ★★★★ THE 1-SECOND TICK WAS EATING THE DRAG. paintZycellNav() runs on a
+//   1000ms interval while the phone is open and ends here, and this function
+//   replaces #zycellContent's innerHTML — which destroys #zyBagList and every
+//   listener bound to it. So once a second, mid-drag, the element holding the
+//   pointerup handler stopped existing. endDrag never ran, the ghost (which
+//   lives outside the list) was never removed, and pointer capture was lost
+//   silently. "Items stay stuck fixed on screen even when u release them" is
+//   that, exactly: the release had nowhere left to land.
+//
+// ★★★ Freezing the repaint is the fix at the cause. The listeners moving to
+//   `window` below is the fix at the symptom, and BOTH ship — a drag that
+//   survives a repaint is worth having even if a future caller repaints from
+//   somewhere this guard does not cover.
+function zycubeDragLive(){ try { return !!(game && game._zyDragLive); } catch(_){ return false; } }
+// ★★ And a sweep, because a ghost that outlives its drag is stuck on screen
+//   FOREVER — there is no second release to clean it up. Cheap, runs on every
+//   paint, and costs nothing when the common case is zero ghosts.
+function zycubeSweepGhosts(){
+  try {
+    document.querySelectorAll('[data-zyghost="1"]').forEach(g => g.remove());
+  } catch(_){}
+}
 function paintZycellContent(){
   const c = document.getElementById('zycellContent');
   if (!c) return;
+  // ★★★★ never rebuild the DOM out from under a live drag
+  if (zycubeDragLive()) return;
   // v0.95.411 · Dispatcher · every panel has a live DOM renderer
   const map = {
     home:        renderZycellHome,
@@ -45063,6 +45172,19 @@ function renderZycellZycube(){
         const el = document.elementFromPoint(x, y);
         return el && el.closest ? el.closest('.zyCubeSlot') : null;
       };
+      // ★★★★ v0.99.52 · THE GHOST LIVES IN THE PANEL, NOT ON THE BODY.
+      //   Creator: "they should stay contained in the zycube panel." It was
+      //   appended to document.body at position:fixed and followed the cursor
+      //   anywhere on the screen — across the phone's frame, over the canvas,
+      //   off the edge. Parenting it to the panel and clamping to that panel's
+      //   rect means the item cannot leave the box it belongs to, which is
+      //   also the only region where dropping it means anything.
+      const panel = () => document.getElementById('zycellContent') || document.body;
+      const clampToPanel = (left, top, w, h) => {
+        const p = panel().getBoundingClientRect();
+        return [ Math.max(p.left, Math.min(left, p.right  - w)),
+                 Math.max(p.top,  Math.min(top,  p.bottom - h)) ];
+      };
       list.addEventListener('pointerdown', (ev) => {
         if (ev.button !== 0 && ev.pointerType === 'mouse') return;
         const el = ev.target.closest && ev.target.closest('.zyCubeSlot');
@@ -45075,22 +45197,27 @@ function renderZycellZycube(){
         if (!drag.live && Math.hypot(dx, dy) < DEAD) return;
         if (!drag.live){
           drag.live = true;
+          try { game._zyDragLive = true; } catch(_){}   // ★ freeze the 1s repaint
           try { list.setPointerCapture(ev.pointerId); } catch(_){}
           drag.el.style.opacity = '0.35';
           drag.el.style.cursor = 'grabbing';
           const r = drag.el.getBoundingClientRect();
           const gh = drag.el.cloneNode(true);
+          gh.setAttribute('data-zyghost', '1');        // ★ so a sweep can find it
           gh.style.cssText += `position:fixed; left:${r.left}px; top:${r.top}px;
             width:${r.width}px; height:${r.height}px; margin:0; opacity:0.92;
             pointer-events:none; z-index:99999; transform:scale(1.10);
             box-shadow:0 6px 18px rgba(0,0,0,0.6);`;
-          document.body.appendChild(gh);
+          panel().appendChild(gh);
           drag.ghost = gh; drag.r0 = r;
           try { playSFX('cursor'); } catch(_){}
         }
         if (drag.ghost){
-          drag.ghost.style.left = (drag.r0.left + dx) + 'px';
-          drag.ghost.style.top  = (drag.r0.top  + dy) + 'px';
+          // ★★★ clamped · the item cannot be dragged out of the ZyCube panel
+          const [cl, ct] = clampToPanel(drag.r0.left + dx, drag.r0.top + dy,
+                                        drag.r0.width, drag.r0.height);
+          drag.ghost.style.left = cl + 'px';
+          drag.ghost.style.top  = ct + 'px';
         }
         // live target highlight
         const over = slotAt(ev.clientX, ev.clientY);
@@ -45101,9 +45228,11 @@ function renderZycellZycube(){
       const endDrag = (ev) => {
         if (!drag) return;
         const d = drag; drag = null;
+        try { game._zyDragLive = false; } catch(_){}   // ★ the repaint may resume
         if (d.ghost) d.ghost.remove();
-        d.el.style.opacity = ''; d.el.style.cursor = '';
-        list.querySelectorAll('.zyCubeSlot').forEach(c => { c.style.transform = ''; });
+        zycubeSweepGhosts();                           // ★ and take any stragglers with it
+        try { d.el.style.opacity = ''; d.el.style.cursor = ''; } catch(_){}
+        try { list.querySelectorAll('.zyCubeSlot').forEach(c => { c.style.transform = ''; }); } catch(_){}
         if (!d.live) return;                       // a tap · let click handle it
         d.suppressClick = true;
         const over = ev ? slotAt(ev.clientX, ev.clientY) : null;
@@ -45118,8 +45247,18 @@ function renderZycellZycube(){
         //   the drop also USES the item you just moved.
         list._zySwallow = Date.now();
       };
-      list.addEventListener('pointerup', endDrag);
-      list.addEventListener('pointercancel', () => endDrag(null));
+      // ★★★★ ON THE WINDOW, NOT ON THE LIST. A listener bound to #zyBagList dies
+      //   with it — and the 1s repaint replaced that element out from under the
+      //   drag once a second. Release has to be caught somewhere that outlives
+      //   the panel, or the ghost has nothing to clean it up.
+      //   ★ `list._zyBound` still guards the one-time wiring, so these are
+      //     registered once per list, and each keeps a closure over its own
+      //     `drag` — which is null on every list but the one being dragged in.
+      window.addEventListener('pointerup', endDrag);
+      window.addEventListener('pointercancel', () => endDrag(null));
+      // ★★ a drag interrupted by the window losing focus (alt-tab mid-drag)
+      //   also has no release coming
+      window.addEventListener('blur', () => endDrag(null));
     }
     list.addEventListener('click', (ev) => {
       ev.stopPropagation();

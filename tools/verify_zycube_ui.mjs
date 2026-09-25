@@ -67,10 +67,22 @@ H('★★★ THE RAIL · every drawer one stop away, ALL included');
   //   code for the test's reach.
   const _s = src.indexOf('function renderZycellZycube(){');
   const body = src.slice(_s, src.indexOf('\n// ── RIZER · attribute allocation', _s));
-  // ★ bound raised 14k -> 22k at v0.99.20 when drag-and-move landed inside
-  //   the panel. It is a SANITY bound on the slice, not a budget on the
-  //   function — its only job is to catch a slice that ran off the end.
-  ok(body.length > 4000 && body.length < 22000, `  the panel body is ${body.length} chars · one function, not half the file`);
+  // ★★ v0.99.52 · THE CHAR BOUND STOPPED BEING THE CHECK. It went 14k → 22k at
+  //   v0.99.20 when drag-and-move landed in the panel, and 22k → red again
+  //   today when the drag repair documented itself. A number that has to be
+  //   raised every time the function is legitimately edited is not guarding
+  //   anything — it is a tripwire on maintenance.
+  //   ★ Its ACTUAL job was to catch a slice that ran off the end of the
+  //   function (the v0.99.15 miss, where the cut ran thousands of lines
+  //   downstream and swept the phone-wide L/R handlers into "the panel"). So
+  //   check THAT, by name: the slice must not have swallowed a later panel.
+  ok(body.length > 4000, `  the panel body is ${body.length} chars · not an empty slice`);
+  const swallowed = ['function renderZycellRizer', 'function renderZycellFaction',
+                     'function renderZycellWeapons', 'function renderZycellMap']
+    .filter(n => body.includes(n));
+  ok(!swallowed.length,
+     `★★★ and it stops before the next panel (${swallowed.join(', ') || 'none swallowed'}) · `
+   + 'the slice running off the end is the failure this guards, and a char count only noticed it by accident');
   ok(!/zycellCyclePage/.test(body),
      '★★★ the panel does NOT rebind L/R · they still cycle phone panels, and the chips only label that');
 }

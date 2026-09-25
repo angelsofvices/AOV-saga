@@ -42958,7 +42958,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.46' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.47' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -45171,121 +45171,439 @@ function renderZycellRizer(){
 }
 
 // ── FACTION · 2×4 party grid · click a slot for details ─────────────
-function renderZycellFaction(){
-  // v0.95.480 · Show ALL party members · always at least 8 slots for the empty
-  // grid presentation · scrolls when party grows beyond 8
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★★ v0.99.47 · THE FACTION ROSTER · Creator, 2026-09-24: "lets upgrade the
+//   faction UI for zyrex team. use this reference" (Pokémon SV boxes screen).
+//
+// ★★★★ THE REFERENCE IS THREE COLUMNS, AND THE GAME ALREADY HAD THE DATA FOR
+//   ALL THREE. player.party is the left rail, player.pcZyrex — the overflow
+//   store that has existed since v0.95.536 and has never had a screen of its
+//   own — is the box grid, and every field the detail panel wants is on the
+//   Zyrex object already. Nothing here is invented; it is the same roster the
+//   old two-column grid showed, laid out so you can see a team and one
+//   member's numbers at the same time.
+//
+// ★★★★ AND THE PC WAS THE REAL FIND. depositZyrexToPC / withdrawZyrexFromPC
+//   have been callable since v0.95.537 with a comment reading "call from the
+//   Faction / Nebuladock UI" — and the Faction UI never called them. A Zyrex
+//   past the party cap of 8 went into a store the player could only reach by
+//   walking to a specific machine, which is why the old panel showed
+//   "n/8" and stopped. The vault IS that store, and the withdraw gate (bond
+//   total vs the species' tier) is surfaced rather than discovered by a
+//   refusal toast.
+//
+// ★★★ THE HEX RADAR IS THE ONE THING THE OLD PANEL COULDN'T DO. Six bars down
+//   a column tell you a Zyrex's numbers; the reference's hexagon tells you its
+//   SHAPE — glass cannon, wall, brick — in one look, which is the thing you
+//   actually compare two party members on.
+const ZY_SHEET_PX = 1254;   // ★ every zyrex sheet is 1254² (two are 1252²
+                            //   — a 0.16% crop error, well under one pixel)
+// ★ Row 0 of a 4x4 zyrex sheet is the DOWN walk · facing the camera is the
+//   right frame for a portrait, and it is the frame the overworld shows most.
+function facPortraitStyle(speciesId, box){
+  const d = (typeof SUMMONABLE_SPRITES !== 'undefined') ? SUMMONABLE_SPRITES[speciesId] : null;
+  if (!d || !d.bboxes || !d.bboxes[0] || !d.bboxes[0][0]) return null;
+  const [bx, by, bw, bh] = d.bboxes[0][0];
+  const k = box / Math.max(bw, bh);
+  const ox = (box - bw * k) / 2, oy = (box - bh * k) / 2;
+  return `background-image:url('${d.src}'); background-repeat:no-repeat;`
+       + `background-size:${(ZY_SHEET_PX*k).toFixed(1)}px ${(ZY_SHEET_PX*k).toFixed(1)}px;`
+       + `background-position:${(ox - bx*k).toFixed(1)}px ${(oy - by*k).toFixed(1)}px;`
+       + 'image-rendering:pixelated;';
+}
+// ★★ A Zyrex with no sheet is NOT a blank square. Only 38 species have
+//   overworld art, so most of a full roster would be empty boxes — and the
+//   game already answers this in the field with drawZyrexOrb, a procedural
+//   orb in the species' own type colour. The roster uses the same idea so an
+//   art-less Zyrex still reads as itself.
+function facOrbMark(z){
+  const t = (typeof zyrexTypes === 'function') ? (zyrexTypes(z) || []) : [];
+  const c = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[t[0]]) || '#4fb3ff';
+  return `<div style="width:60%; height:60%; border-radius:50%;
+      background:radial-gradient(circle at 38% 32%, #fff 0%, ${c} 38%, rgba(6,18,38,0.95) 100%);
+      box-shadow:0 0 10px ${c}66;"></div>`;
+}
+function facPortrait(z, box, dim){
+  const st = z ? facPortraitStyle(z.speciesId, box) : null;
+  const inner = st
+    ? `<div style="width:${box}px; height:${box}px; ${st}"></div>`
+    : (z ? facOrbMark(z) : `<span style="color:#2d3d55; font-size:${Math.round(box/2.6)}px;">+</span>`);
+  return `<div style="width:${box}px; height:${box}px; flex:0 0 auto; display:flex;
+      align-items:center; justify-content:center; overflow:hidden;
+      ${dim ? 'filter:grayscale(0.75) brightness(0.6);' : ''}">${inner}</div>`;
+}
+function facTypeChips(z){
+  const t = (typeof zyrexTypes === 'function') ? (zyrexTypes(z) || []) : [];
+  if (!t.length) return `<span style="color:#7f8a9c; font-size:10px;">— no typing —</span>`;
+  return t.map(n => {
+    const c = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[n]) || '#9aa0ad';
+    return `<span style="background:${c}; color:#08121f; font:bold 9px 'Courier New',monospace;
+        letter-spacing:.10em; padding:2px 9px; border-radius:9px; border:1px solid rgba(255,255,255,0.45);">${n.toUpperCase()}</span>`;
+  }).join('');
+}
+function facIsOut(z){
+  try {
+    const fid = zyrexFollowerId(z);
+    return (typeof NPCS !== 'undefined') && NPCS.some(n => n && n.id === fid && n._summoned);
+  } catch(_){ return false; }
+}
+// ── selection · which Zyrex the detail column is describing ───────────────
+// ★★ The cursor and the detail panel are the SAME selection. In the reference
+//   you move the cursor and the right-hand page follows it; a panel that only
+//   updated on a click would make the grid a place you hunt rather than read.
+function facSel(){
+  const s = (game && game._facSel) || null;
+  if (s && s.where === 'party' && (player.party || [])[s.idx]) return s;
+  if (s && s.where === 'vault' && (player.pcZyrex || [])[s.idx]) return s;
+  const first = (player.party || []).findIndex(Boolean);
+  return first >= 0 ? { where:'party', idx:first } : null;
+}
+function facSelZyrex(){
+  const s = facSel(); if (!s) return null;
+  return (s.where === 'party' ? (player.party || []) : (player.pcZyrex || []))[s.idx] || null;
+}
+function facSelect(where, idx, quiet){
+  try {
+    game._facSel = { where, idx };
+    if (!quiet) playSFX('cursor');
+    paintZycellContent();
+  } catch(_){}
+}
+function facVaultPage(){ try { return Math.max(0, game._facVaultPage | 0); } catch(_){ return 0; } }
+const FAC_VAULT_COLS = 6, FAC_VAULT_ROWS = 5;
+const FAC_VAULT_SIZE = FAC_VAULT_COLS * FAC_VAULT_ROWS;
+function facVaultPages(){
+  return Math.max(1, Math.ceil(((player.pcZyrex || []).length + 1) / FAC_VAULT_SIZE));
+}
+function facVaultTurn(dir){
+  try {
+    const n = facVaultPages();
+    game._facVaultPage = ((facVaultPage() + dir) % n + n) % n;
+    playSFX('menuOpen'); paintZycellContent();
+  } catch(_){}
+}
+// ── the hexagon ───────────────────────────────────────────────────────────
+// ★★★ SIX AXES, SCALED AGAINST THE ROSTER'S OWN BEST — not against a fixed
+//   number. Zyrex stats run from double digits at tier 1 to four at tier 10,
+//   so any constant ceiling makes every early Zyrex a dot and every late one a
+//   filled hexagon. Against the best value ON THIS ROSTER the shape is always
+//   readable, and comparing two members — which is what the picture is for —
+//   is exactly a comparison within that set.
+function facStatCeiling(){
+  let m = 1;
+  for (const z of [].concat(player.party || [], player.pcZyrex || [])){
+    if (!z) continue;
+    for (const k of ['maxHp','atk','def','spd','satk','sdef']) m = Math.max(m, z[k] || 0);
+  }
+  return m;
+}
+function facRadar(z){
+  if (!z) return '';
+  const ceil = facStatCeiling();
+  // clockwise from the top, matching the reference: HP, ATK, DEF, SPD, SP.DEF, SP.ATK
+  const AX = [
+    { k:'maxHp', label:'HP',     col:'#7fe6a8' },
+    { k:'atk',   label:'ATK',    col:'#ffb454' },
+    { k:'def',   label:'DEF',    col:'#8fd0ff' },
+    { k:'spd',   label:'SPD',    col:'#c8ff8f' },
+    { k:'sdef',  label:'SP.DEF', col:'#b0d8ff' },
+    { k:'satk',  label:'SP.ATK', col:'#d8a0ff' },
+  ];
+  const R = 62, CX = 96, CY = 78;
+  const pt = (i, r) => {
+    const a = (-90 + i * 60) * Math.PI / 180;
+    return [CX + Math.cos(a) * r, CY + Math.sin(a) * r];
+  };
+  const ring = (f) => AX.map((_, i) => pt(i, R * f).map(n => n.toFixed(1)).join(',')).join(' ');
+  const shape = AX.map((a, i) => {
+    const v = Math.max(0.06, Math.min(1, (z[a.k] || 0) / ceil));
+    return pt(i, R * v).map(n => n.toFixed(1)).join(',');
+  }).join(' ');
+  const labels = AX.map((a, i) => {
+    const [x, y] = pt(i, R + 17);
+    const anchor = x < CX - 6 ? 'end' : x > CX + 6 ? 'start' : 'middle';
+    return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="${anchor}"
+       font-family="'Courier New',monospace" font-size="8" font-weight="bold" fill="${a.col}">${a.label}</text>
+      <text x="${x.toFixed(1)}" y="${(y + 12).toFixed(1)}" text-anchor="${anchor}"
+       font-family="'Courier New',monospace" font-size="9" fill="#ffffff">${z[a.k] || 0}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 192 172" style="width:100%; max-width:230px; height:auto; display:block; margin:0 auto;">
+      ${[0.25, 0.5, 0.75, 1].map(f =>
+        `<polygon points="${ring(f)}" fill="none" stroke="rgba(79,179,255,0.22)" stroke-width="1"/>`).join('')}
+      ${AX.map((_, i) => { const [x, y] = pt(i, R);
+        return `<line x1="${CX}" y1="${CY}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(79,179,255,0.18)" stroke-width="1"/>`; }).join('')}
+      <polygon points="${shape}" fill="rgba(79,179,255,0.42)" stroke="#8fd0ff" stroke-width="2"/>
+      ${labels}
+    </svg>`;
+}
+// ── the three columns ─────────────────────────────────────────────────────
+function facPartyRail(){
   const party = (player.party || []);
-  const total = Math.max(8, party.length);
-  const cells = [];
-  for (let i = 0; i < total; i++){
+  const cap = (typeof PARTY_MAX !== 'undefined') ? PARTY_MAX : 8;
+  const sel = facSel();
+  const rows = [];
+  for (let i = 0; i < cap; i++){
     const z = party[i];
-    const filled = !!z;
-    const summonedId = z ? zyrexFollowerId(z) : null;   // ★ v0.95.863
-    const isOut = z && (typeof NPCS !== 'undefined')
-      && NPCS.some(n => n && n.id === summonedId && n._summoned);
-    const summonBadge = isOut
-      ? `<div style="position:absolute; top:4px; right:6px; color:var(--zy-ok); font-size:10px; font-weight:bold; letter-spacing:.08em;">◉ OUT</div>`
-      : '';
-    const xpMax = filled ? xpToNextLevel(z.level || 1) : 1;
-    const xpPct = filled ? Math.min(100, ((z.xp || 0) / xpMax) * 100) : 0;
-    // ★★ v0.95.995 · data-zyrow makes the grid navigate the way it LOOKS.
-    // The slots render into `grid-template-columns:1fr 1fr` but carried no row
-    // tag, so DOWN moved you one cell to the RIGHT and RIGHT did nothing at
-    // all. _stepRow() has collapsed same-row runs into single units since
-    // v0.95.809 — the faction panel simply never opted in.
-    // ★★★ v0.98.3 · AN EMPTY SLOT IS STILL A CELL. Creator: "make sure all
-    // phone UI menus are accessible fully by controller."  Only FILLED slots
-    // were enrolled, which cost two things: the three empty cells could be
-    // clicked by mouse (they answer "recruit more Zyrex to fill it") and
-    // reached by nothing else — and, worse, the 2-wide grid LOST ITS RIGHT
-    // COLUMN on the last partly-filled row.  With five Zyrex, slot 4 sat alone
-    // in fac_r2 and RIGHT dead-stopped there, because its partner carried no
-    // row tag to walk to.  v0.95.995 opted this grid into data-zyrow so it
-    // "navigates the way it LOOKS"; half a row does not look like this grid.
-    // ★ The slot is enrolled with its row and NOTHING else: data-zysummon /
-    //   zyswap / zyexamine stay off, and both handlers already guard on
-    //   `!= null`, so Triangle and Square simply pass over an empty cell.
-    cells.push(`<div class="zyFactionSlot" data-slot="${i}" data-zyitem="fac_${i}" data-zyrow="fac_r${Math.floor(i/2)}" ${filled ? `data-zysummon="${i}" data-zyswap="${i}" data-zyexamine="${i}"` : ''}
-      style="position:relative; border:2px solid ${isOut ? 'var(--zy-ok)' : filled ? 'var(--zy-blue)' : 'rgba(79,179,255,0.3)'}; background:${filled ? 'rgba(20,50,120,0.55)' : 'rgba(0,0,0,0.4)'}; padding:10px; min-height:96px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; transition:transform 120ms, box-shadow 120ms;"
-      onmouseover="this.style.transform='scale(1.03)';this.style.boxShadow='0 0 14px rgba(79,179,255,0.5)'"
-      onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
-      ${summonBadge}
-      ${filled
-        ? `<div style="color:var(--zy-gold); font-weight:bold; font-size:11px; letter-spacing:.06em;">${(z.name || z.speciesId).toUpperCase()}</div>
-           <!-- v0.95.488 · Level pops in a bright badge so level-ups read at a glance -->
-           <div style="display:flex; align-items:center; gap:4px; margin-top:4px;">
-             <div style="background:linear-gradient(180deg,var(--zy-gold),var(--zy-warn)); color:#1a0f00; font-weight:bold; font-size:12px; padding:1px 6px; border:1px solid #fff; text-shadow:none; letter-spacing:.04em;">Lv ${z.level || 1}</div>
-             <div style="color:var(--zy-cyan); font-size:10px;">T${z.tier || '?'}</div>
-           </div>
-           <div style="color:var(--zy-text); font-size:10px; margin-top:2px;">HP ${z.hp}/${z.maxHp}</div>
-           <div style="width:80%; height:4px; background:rgba(0,0,0,0.5); margin-top:5px;">
-             <div style="height:100%; width:${xpPct}%; background:linear-gradient(90deg,var(--zy-gold),var(--zy-warn));"></div>
-           </div>
-           <div style="color:var(--zy-cyan); font-size:9px; margin-top:2px;">XP ${z.xp || 0}/${xpMax}</div>`
-        : `<div style="color:rgba(200,220,255,0.4); font-size:22px;">+</div>
-           <div style="color:rgba(200,220,255,0.4); font-size:9px; letter-spacing:.10em; margin-top:4px;">EMPTY SLOT</div>`}
-    </div>`);
+    const on = sel && sel.where === 'party' && sel.idx === i;
+    const out = z && facIsOut(z);
+    // ★★★ v0.98.3's rule survives the rebuild: an EMPTY slot is still a cell.
+    //   Only filled slots used to be enrolled, which cost the grid its right
+    //   column on a partly-filled row and left the empty cells reachable by
+    //   mouse and nothing else. Every row is a stop; the action attributes are
+    //   what stay off, and both handlers already guard on `!= null`.
+    rows.push(`
+      <div data-zyitem="fac_p${i}" data-zyrow="fac_pr${i}"
+           ${z ? `data-zysummon="${i}" data-zyswap="${i}" data-zyexamine="${i}"` : ''}
+           onmouseenter="facSelect('party',${i},true)"
+           onclick="${z ? `facSelect('party',${i})` : `try{showToast('◇ Slot empty · recruit more Zyrex to fill it',2200)}catch(_){}`}"
+           style="display:flex; align-items:center; gap:8px; padding:6px 8px; cursor:pointer;
+                  border:2px solid ${on ? '#ffd66b' : out ? 'rgba(95,220,122,0.55)' : z ? 'rgba(79,179,255,0.35)' : 'rgba(79,179,255,0.15)'};
+                  border-radius:18px 6px 6px 18px;
+                  background:${on ? 'linear-gradient(90deg, rgba(255,214,107,0.22), rgba(10,30,60,0.6))'
+                                  : z ? 'rgba(12,38,72,0.66)' : 'rgba(6,16,32,0.5)'};">
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:5px;">
+            <span style="background:rgba(4,14,28,0.85); border:1px solid rgba(255,255,255,0.35); color:#cfe6ff;
+                         font:bold 9px 'Courier New',monospace; padding:1px 6px; border-radius:8px;">Lv ${z ? (z.level || 1) : '--'}</span>
+            ${out ? `<span style="color:#5fdc7a; font-size:9px; font-weight:bold;">◉</span>` : ''}
+          </div>
+          <div style="color:${z ? '#ffffff' : '#4a5a70'}; font:bold 11px 'Courier New',monospace;
+                      margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            ${z ? (z.name || z.speciesId) : 'EMPTY'}</div>
+        </div>
+        ${facPortrait(z, 34, !z)}
+      </div>`);
   }
-  // v0.95.581 · Sub-page dispatcher · if game._factionExamineIdx points at a
-  // valid party slot, render the Zyrex Examine detail page IN PLACE of the
-  // 8-slot grid.  LEFT arrow / B closes examine back to the grid, no dialog.
+  return `
+    <div style="flex:0 0 226px; display:flex; flex-direction:column; min-height:0;">
+      <div style="flex:0 0 auto; display:flex; align-items:center; gap:7px; padding:6px 10px; margin-bottom:8px;
+                  background:linear-gradient(90deg, rgba(79,179,255,0.28), rgba(79,179,255,0.06));
+                  border:1px solid rgba(79,179,255,0.5); border-radius:16px;">
+        <span style="color:#8fd0ff; font-size:13px;">◈</span>
+        <span style="color:#ffffff; font:bold 11px 'Courier New',monospace; letter-spacing:.10em;">CURRENT TEAM</span>
+        <span style="flex:1;"></span>
+        <span style="color:#8fb7d8; font:bold 10px 'Courier New',monospace;">${party.filter(Boolean).length}/${cap}</span>
+      </div>
+      <div style="flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:5px; padding-right:3px;">
+        ${rows.join('')}
+      </div>
+    </div>`;
+}
+function facVault(){
+  const pc = (player.pcZyrex || []);
+  const page = Math.min(facVaultPage(), facVaultPages() - 1);
+  const start = page * FAC_VAULT_SIZE;
+  const sel = facSel();
+  const cells = [];
+  for (let c = 0; c < FAC_VAULT_SIZE; c++){
+    const i = start + c;
+    const z = pc[i];
+    const on = sel && sel.where === 'vault' && sel.idx === i;
+    cells.push(`
+      <div ${z ? `data-zyitem="fac_v${i}" data-zyrow="fac_vr${Math.floor(c / FAC_VAULT_COLS)}"` : ''}
+           ${z ? `onmouseenter="facSelect('vault',${i},true)" onclick="facSelect('vault',${i})"` : ''}
+           style="aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+                  border:2px solid ${on ? '#ffd66b' : z ? 'rgba(79,179,255,0.4)' : 'rgba(79,179,255,0.14)'};
+                  background:${on ? 'rgba(255,214,107,0.20)' : z ? 'rgba(14,44,82,0.72)' : 'rgba(8,22,42,0.5)'};
+                  cursor:${z ? 'pointer' : 'default'};">
+        ${z ? facPortrait(z, 40) : ''}
+      </div>`);
+  }
+  const selZ = facSelZyrex();
+  const inVault = sel && sel.where === 'vault';
+  const move = inVault
+    ? `<button data-zyclick onclick="facWithdraw(${sel.idx})"
+         style="flex:1; padding:8px; background:rgba(95,220,122,0.18); color:#5fdc7a; border:1px solid #5fdc7a;
+                font:bold 10px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">↑ TO TEAM</button>`
+    : `<button data-zyclick onclick="facDeposit(${sel ? sel.idx : -1})"
+         style="flex:1; padding:8px; background:rgba(79,179,255,0.16); color:#8fd0ff; border:1px solid rgba(79,179,255,0.6);
+                font:bold 10px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">↓ TO VAULT</button>`;
+  return `
+    <div style="flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0;">
+      <div style="flex:0 0 auto; display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <div data-zyitem="fac_boxl" onclick="facVaultTurn(-1)"
+             style="flex:0 0 auto; width:28px; height:26px; display:flex; align-items:center; justify-content:center;
+                    border:1px solid rgba(79,179,255,0.55); background:rgba(10,30,60,0.7); border-radius:6px;
+                    color:#8fd0ff; font:bold 10px 'Courier New',monospace; cursor:pointer;">L</div>
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:5px 12px;
+                    background:linear-gradient(90deg, rgba(79,179,255,0.10), rgba(79,179,255,0.30), rgba(79,179,255,0.10));
+                    border:1px solid rgba(79,179,255,0.5); border-radius:16px;">
+          <span style="color:#8fd0ff; font-size:12px;">◈</span>
+          <span style="color:#ffffff; font:bold 11px 'Courier New',monospace; letter-spacing:.10em;">ZYSPHERE VAULT ${page + 1}</span>
+        </div>
+        <div data-zyitem="fac_boxr" onclick="facVaultTurn(1)"
+             style="flex:0 0 auto; width:28px; height:26px; display:flex; align-items:center; justify-content:center;
+                    border:1px solid rgba(79,179,255,0.55); background:rgba(10,30,60,0.7); border-radius:6px;
+                    color:#8fd0ff; font:bold 10px 'Courier New',monospace; cursor:pointer;">R</div>
+      </div>
+      <div style="flex:1 1 auto; min-height:0; overflow-y:auto;">
+        <div style="display:grid; grid-template-columns:repeat(${FAC_VAULT_COLS}, 1fr); gap:5px;">${cells.join('')}</div>
+      </div>
+      <div style="flex:0 0 auto; display:flex; gap:6px; margin-top:8px;">
+        ${move}
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:8px;
+                    border:1px solid rgba(79,179,255,0.3); background:rgba(8,22,42,0.6);
+                    color:#8fb7d8; font:bold 10px 'Courier New',monospace; letter-spacing:.08em;">
+          ▦ ${pc.length} STORED · ${facVaultPages()} VAULT${facVaultPages() === 1 ? '' : 'S'}</div>
+      </div>
+    </div>`;
+}
+function facDetail(){
+  const sel = facSel();
+  const z = facSelZyrex();
+  if (!z){
+    return `<div style="flex:0 0 312px; display:flex; align-items:center; justify-content:center;
+        border:1px solid rgba(79,179,255,0.3); background:rgba(6,18,38,0.6); color:#4a5a70;
+        font:bold 11px 'Courier New',monospace; letter-spacing:.10em; text-align:center; padding:20px;">
+        ◇ NO ZYREX BONDED YET ·<br>a Zysphere and a wild one is<br>all it takes</div>`;
+  }
+  const sp = (typeof SPECIES !== 'undefined') ? SPECIES[z.speciesId] : null;
+  const out = facIsOut(z);
+  const bond = (player.bonds && player.bonds[z.speciesId]) || 0;
+  const xpMax = (typeof xpToNextLevel === 'function') ? xpToNextLevel(z.level || 1) : Math.max(1, 100 * (z.level || 1));
+  const hpPct = Math.max(0, Math.min(100, ((z.hp || 0) / Math.max(1, z.maxHp || 1)) * 100));
+  const moves = (Array.isArray(z.moves) ? z.moves : []).filter(Boolean);
+  const moveRows = moves.length
+    ? moves.map(m => {
+        const c = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[m.type]) || '#9aa0ad';
+        return `<div style="display:flex; align-items:center; gap:8px; padding:5px 8px; margin-bottom:4px;
+            background:rgba(8,26,50,0.7); border-left:3px solid ${c};">
+            <span style="width:13px; height:13px; border-radius:50%; background:${c}; flex:0 0 auto;
+                         border:1px solid rgba(255,255,255,0.5);"></span>
+            <span style="flex:1; color:#ffffff; font:bold 11px 'Courier New',monospace;">${m.name || '—'}</span>
+            <span style="color:#8fb7d8; font:bold 9px 'Courier New',monospace;">${m.power ? 'PW ' + m.power : '—'}</span>
+            <span style="color:#8fb7d8; font:bold 9px 'Courier New',monospace;">${m.pp != null ? m.pp + '/' + m.maxPp : ''}</span>
+          </div>`;
+      }).join('')
+    : `<div style="color:#4a5a70; font-size:10px; text-align:center; padding:10px;">· no moves learned yet ·</div>`;
+  return `
+    <div style="flex:0 0 312px; display:flex; flex-direction:column; min-height:0;
+                border:1px solid rgba(79,179,255,0.4); background:rgba(6,20,40,0.78);">
+      <div style="flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:7px 10px;
+                  background:linear-gradient(90deg, #d9a441, #b8862c);">
+        <span style="color:#12283c; font-size:13px;">◈</span>
+        <span style="flex:1; color:#12283c; font:bold 13px 'Courier New',monospace; letter-spacing:.06em;
+                     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${z.name || z.speciesId}</span>
+        <span style="background:rgba(8,22,42,0.85); color:#ffe6a8; font:bold 10px 'Courier New',monospace;
+                     padding:2px 8px; border-radius:9px;">Lv ${z.level || 1}</span>
+        ${out ? `<span style="color:#0c3a1c; font:bold 10px 'Courier New',monospace;">◉ OUT</span>` : ''}
+      </div>
+      <div style="flex:1 1 auto; min-height:0; overflow-y:auto; padding:9px 11px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="color:#8fb7d8; font:bold 10px 'Courier New',monospace;">TIER ${z.tier || '?'}</span>
+          <span style="color:#ffffff; font:bold 11px 'Courier New',monospace;">${sp && sp.name ? sp.name : z.speciesId}</span>
+          <span style="flex:1;"></span>
+          ${facPortrait(z, 40)}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:7px;">${facTypeChips(z)}</div>
+        <div style="margin-top:9px; display:flex; align-items:center; gap:7px;">
+          <span style="color:#7fe6a8; font:bold 10px 'Courier New',monospace;">HP</span>
+          <div style="flex:1; height:8px; background:rgba(0,0,0,0.6); border:1px solid rgba(79,179,255,0.3);">
+            <div style="height:100%; width:${hpPct}%; background:${hpPct > 50 ? '#5fdc7a' : hpPct > 20 ? '#ffd66b' : '#ff5b5b'};"></div>
+          </div>
+          <span style="color:#ffffff; font:bold 10px 'Courier New',monospace;">${z.hp || 0}/${z.maxHp || 0}</span>
+        </div>
+        <div style="margin-top:6px;">${facRadar(z)}</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:4px; padding:5px 8px;
+                    background:rgba(8,26,50,0.7); border:1px solid rgba(79,179,255,0.25);">
+          <span style="color:#ffd66b; font:bold 9px 'Courier New',monospace; letter-spacing:.10em;">BOND</span>
+          <div style="flex:1; height:7px; background:rgba(0,0,0,0.6);">
+            <div style="height:100%; width:${Math.min(100, bond)}%; background:linear-gradient(90deg,#d9a441,#ffe6a8);"></div>
+          </div>
+          <span style="color:#ffffff; font:bold 9px 'Courier New',monospace;">${bond}/100</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:5px; padding:5px 8px;
+                    background:rgba(8,26,50,0.7); border:1px solid rgba(79,179,255,0.25);">
+          <span style="color:#8fd0ff; font:bold 9px 'Courier New',monospace; letter-spacing:.10em;">XP</span>
+          <div style="flex:1; height:7px; background:rgba(0,0,0,0.6);">
+            <div style="height:100%; width:${Math.min(100, ((z.xp || 0) / Math.max(1, xpMax)) * 100)}%; background:linear-gradient(90deg,#4fb3ff,#bff0ff);"></div>
+          </div>
+          <span style="color:#ffffff; font:bold 9px 'Courier New',monospace;">${z.xp || 0}/${xpMax}</span>
+        </div>
+        <div style="color:#ffd66b; font:bold 9px 'Courier New',monospace; letter-spacing:.12em; margin:9px 0 5px;">MOVES</div>
+        ${moveRows}
+        ${sel && sel.where === 'vault' ? facWithdrawGate(z) : ''}
+      </div>
+      <div data-zyitem="fac_examine" onclick="try{openZyrexExamine(${sel && sel.where === 'party' ? sel.idx : -1})}catch(_){}"
+           style="flex:0 0 auto; padding:7px; text-align:center; cursor:${sel && sel.where === 'party' ? 'pointer' : 'default'};
+                  border-top:1px solid rgba(79,179,255,0.35); background:rgba(79,179,255,0.10);
+                  color:${sel && sel.where === 'party' ? '#8fd0ff' : '#4a5a70'};
+                  font:bold 10px 'Courier New',monospace; letter-spacing:.10em;">
+        ${sel && sel.where === 'party' ? '✕ FULL DOSSIER · LORE · SIGNATURE' : '· in the vault · bring it to the team to examine ·'}
+      </div>
+    </div>`;
+}
+// ★★★ THE WITHDRAW GATE, SHOWN RATHER THAN DISCOVERED. withdrawZyrexFromPC
+//   refuses when Rizer's total bond is under the species' tier requirement —
+//   a real rule since v0.95.537, and one the player previously met only as a
+//   refusal toast after pressing a button that looked available.
+function facWithdrawGate(z){
+  let need = 0, have = 0;
+  try { need = requiredBondForTier(z.tier || 1); have = rizerBondTotal(); } catch(_){ return ''; }
+  const okNow = have >= need;
+  return `<div style="margin-top:9px; padding:6px 8px; border:1px solid ${okNow ? 'rgba(95,220,122,0.5)' : 'rgba(255,91,91,0.5)'};
+      background:${okNow ? 'rgba(95,220,122,0.12)' : 'rgba(255,91,91,0.10)'};
+      color:${okNow ? '#5fdc7a' : '#ff9a9a'}; font:bold 9px 'Courier New',monospace; letter-spacing:.06em; line-height:1.6;">
+      ${okNow ? '✓ TIER ' + (z.tier || 1) + ' · BOND ' + have + '/' + need + ' · READY TO WITHDRAW'
+              : '⚠ TIER ' + (z.tier || 1) + ' · BOND ' + have + '/' + need + ' · finish more allies and missions first'}
+    </div>`;
+}
+function facWithdraw(pcIdx){
+  try {
+    if (withdrawZyrexFromPC(pcIdx)){
+      game._facSel = { where:'party', idx:(player.party || []).length - 1 };
+    }
+    paintZycellContent();
+  } catch(_){}
+}
+function facDeposit(partyIdx){
+  try {
+    const s = facSel();
+    if (!s || s.where !== 'party'){ playSFX('doorLock'); showToast('◈ Pick a team member to send down', 2200); return; }
+    if (depositZyrexToPC(s.idx)) game._facSel = { where:'vault', idx:(player.pcZyrex || []).length - 1 };
+    paintZycellContent();
+  } catch(_){}
+}
+function renderZycellFaction(){
+  // v0.95.581 · Sub-page dispatcher · the full dossier replaces the roster
   const exIdx = (game._factionExamineIdx != null) ? game._factionExamineIdx : null;
-  if (exIdx != null && (player.party || [])[exIdx]){
-    return renderZycellFactionExamine(exIdx);
-  }
-  // v0.95.480 · Wrap grid in a scrollable container so >8 party members are reachable
-  const grid = `<div style="max-height:420px; overflow-y:auto; padding-right:6px;">
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">${cells.join('')}</div>
-  </div>`;
-  const hint = `<div style="color:var(--zy-cyan); font-size:10px; text-align:center; margin-top:8px; letter-spacing:.06em; line-height:1.6;">
-    ▲ TRIANGLE · summon / recall &nbsp;·&nbsp; ■ SQUARE · swap w/ next slot &nbsp;·&nbsp; ✕ X · examine (stats · moves · lore)
-  </div>`;
-  setTimeout(() => {
-    document.querySelectorAll('.zyFactionSlot').forEach(el => {
-      if (el._zyBound) return; el._zyBound = true;
-      el.addEventListener('click', () => {
-        const idx = +el.dataset.slot;
-        const z = (player.party || [])[idx];
-        if (!z){ showToast('◇ Slot empty · recruit more Zyrex to fill it', 2200); return; }
-        try { openZyrexExamine(idx); } catch(err){ console.warn('examine failed', err); }
-      });
-    });
-  }, 0);
+  if (exIdx != null && (player.party || [])[exIdx]) return renderZycellFactionExamine(exIdx);
+  const party = (player.party || []).filter(Boolean);
+  const cap = (typeof PARTY_MAX !== 'undefined') ? PARTY_MAX : 8;
   // ── v0.95.629 · FACTION ALLIES · humanoid contacts, kept VISIBLY separate ──
   // Creator directive: there must ALWAYS be a difference between faction
   // CONTACTS (Humanoid primary · earned by Rizer-bonding through quests) and
   // faction ZYREX (non-Humanoid · earned by Zysphere-bonding).  Different
-  // accent colour (amber vs blue), different glyph, different stat line —
-  // allies show BOND %, Zyrex show Lv/Tier/HP/XP.  They never share a grid.
+  // accent colour, different glyph, different stat line — allies show BOND %,
+  // Zyrex show Lv/Tier/HP/XP.  They never share a grid.
   const allies = (typeof factionAllies === 'function') ? factionAllies() : [];
-  let allySection = '';
-  if (allies.length){
-    const allyCells = allies.map(a => `
-      <div style="position:relative; border:2px solid var(--zy-gold); background:rgba(80,55,10,0.45); padding:8px; min-height:70px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
-        <div style="position:absolute; top:3px; left:5px; color:var(--zy-gold); font-size:9px; letter-spacing:.08em;">☗ ALLY</div>
-        <div style="color:#ffe9a8; font-weight:bold; font-size:11px; letter-spacing:.06em; margin-top:6px;">${(a.name || a.id).toUpperCase()}</div>
-        <div style="color:#d8c48a; font-size:9px; margin-top:2px;">${a.loc}</div>
-        <div style="width:78%; height:4px; background:rgba(0,0,0,0.5); margin-top:5px;">
-          <div style="height:100%; width:${a.bond}%; background:linear-gradient(90deg,var(--zy-gold),var(--zy-warn));"></div>
-        </div>
-        <div style="color:var(--zy-gold); font-size:9px; margin-top:2px;">RIZER BOND ${a.bond}%</div>
-      </div>`).join('');
-    allySection = `
-      <div style="margin-top:14px; border-top:1px solid rgba(255,214,107,0.35); padding-top:10px;">
-        <div style="color:var(--zy-gold); font:bold 11px 'Courier New',monospace; letter-spacing:.10em; margin-bottom:6px;">
-          ☗ FACTION ALLIES · ${allies.length} CONTACT${allies.length === 1 ? '' : 'S'}
-        </div>
-        <div style="color:#a99765; font-size:9px; letter-spacing:.04em; margin-bottom:8px; line-height:1.6;">
-          humanoids · Rizer-bonded through their quests · cannot be Zybonded or stored in a Zysphere
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">${allyCells}</div>
-      </div>`;
-  }
+  const allyStrip = allies.length ? `
+    <div style="flex:0 0 auto; margin-top:8px; border-top:1px solid rgba(255,214,107,0.35); padding-top:7px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+        <span style="color:#ffd66b; font:bold 10px 'Courier New',monospace; letter-spacing:.10em;">☗ FACTION ALLIES · ${allies.length}</span>
+        <span style="color:#a99765; font-size:9px;">humanoids · Rizer-bonded through their quests · never Zybonded, never stored</span>
+      </div>
+      <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:3px;">
+        ${allies.map(a => `
+          <div style="flex:0 0 auto; min-width:128px; border:1px solid #d9a441; background:rgba(80,55,10,0.45); padding:5px 8px;">
+            <div style="color:#ffe9a8; font:bold 10px 'Courier New',monospace; letter-spacing:.05em;">${(a.name || a.id).toUpperCase()}</div>
+            <div style="color:#d8c48a; font-size:9px; margin-top:1px;">${a.loc}</div>
+            <div style="height:4px; background:rgba(0,0,0,0.5); margin-top:4px;">
+              <div style="height:100%; width:${a.bond}%; background:linear-gradient(90deg,#d9a441,#ffe6a8);"></div>
+            </div>
+            <div style="color:#d9a441; font-size:8px; margin-top:2px;">BOND ${a.bond}%</div>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+  const hint = `<div style="flex:0 0 auto; margin-top:7px; padding-top:6px; border-top:1px solid rgba(79,179,255,0.25);
+      color:#8fb7d8; font:bold 9px 'Courier New',monospace; letter-spacing:.06em; text-align:center;">
+      ▲ TRIANGLE · summon / recall &nbsp;·&nbsp; ■ SQUARE · swap slots &nbsp;·&nbsp; ✕ X · full dossier &nbsp;·&nbsp; L / R · turn the vault</div>`;
   return _zySection(
-    `◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX${allies.length ? ` · ${allies.length} ALLIES` : ''}`,
-    `<div style="color:var(--zy-cyan); font-size:9px; letter-spacing:.06em; margin-bottom:6px;">◈ ZYREX · Zysphere-bonded</div>`
-    + grid + hint + allySection
-  );
+    `◇ FACTION · ${party.length}/${cap} ON THE TEAM · ${(player.pcZyrex || []).length} IN THE VAULT${allies.length ? ` · ${allies.length} ALLIES` : ''}`,
+    `<div style="flex:1 1 auto; min-height:0; display:flex; gap:10px;">
+       ${facPartyRail()}${facVault()}${facDetail()}
+     </div>${allyStrip}${hint}`,
+    '#ffd66b', true);
 }
 
 // v0.95.581 · Zyrex Examine page · full-stat detail lives INSIDE the phone

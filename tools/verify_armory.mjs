@@ -259,35 +259,42 @@ H('★★★ ART · every arm draws its own icon, cropped off its own bbox');
      `★★★ the crop scales the WHOLE sheet so the bbox lands at 64px · ${s.match(/background-size:[^;]*/)[0]}`);
 }
 
-H('★★★★ BARE HANDS IS THE WHUD FIST · the same file the wheel draws');
+H('★★★★ BARE HANDS HAS ITS OWN ICON · no ring, no border, like the other five');
 {
   BASE();
   for (const W of G.ZYARMS){ G.player[W.equipFlag] = false; }
   const h = paint('arms');
   ok(/BARE HANDS/.test(h), '  nothing equipped');
-  ok(!/\u270a/.test(h),
-     '★★★★ the ✊ emoji is gone · Creator: "the bare hands weopns icon should be the rizer fist from the whud"');
+  ok(!/\u270a/.test(h), '★★★ the ✊ emoji is long gone');
   ok(h.includes(G.RIZER_FIST_ART.src),
-     `★★★★ the main slot draws ${G.RIZER_FIST_ART.src.split('/').pop()} instead`);
-  // ★★★★ THE SAME FILE, NOT A LOOKALIKE. The path is written out in the armory
-  //   because WHUD_ART is a `const` ~24,000 lines below it and a TDZ read at
-  //   module init is a dead boot — this file has shipped that twice. So the
-  //   guard the reference would have given us is this assertion instead.
-  ok(G.RIZER_FIST_ART.src === G.WHUD_ART.fists,
-     `★★★★ and it IS WHUD_ART.fists (${G.WHUD_ART.fists}) · one image, so the panel and the HUD `
-   + 'can never show two different fists');
+     `★★★★ the main slot draws ${G.RIZER_FIST_ART.src.split('/').pop()}`);
+  // ★★★★ v0.99.54 · was "and it IS WHUD_ART.fists". That assertion guarded a
+  //   CROP of the HUD wheel against drifting from the wheel itself — correct
+  //   for what v0.99.53 did, and the wrong property now. Creator: "no WHUD
+  //   background or border. cleaner like the other weapon icons." The fist is
+  //   a sibling of the other five icons now, so what has to hold is that it
+  //   looks like one of them, not that it matches the HUD.
+  ok(G.RIZER_FIST_ART.src !== G.WHUD_ART.fists,
+     '★★★★ and it is NOT the WHUD wheel any more · that sheet carries a gold ring, a navy '
+   + 'field and a corner of every spoke, which is a border round one slot in a row of bare objects');
+  ok(!/weapon-hud/.test(h),
+     '★★★ no weapon-hud art reaches the panel at all');
+  // ★★★ A SIBLING OF THE FIVE · same folder, same shape of entry
+  const dir = f2 => f2.slice(0, f2.lastIndexOf('/'));
+  const armDirs = new Set(G.ZYARMS.map(W => dir(W.art.src)));
+  ok(armDirs.has(dir(G.RIZER_FIST_ART.src)),
+     `★★★ it lives with the weapon icons (${dir(G.RIZER_FIST_ART.src).split('/').pop()}/) · `
+   + 'an icon filed somewhere else is the one that gets missed when the set is re-cut');
   ok(fs.existsSync(path.join(ROOT, decodeURIComponent(G.RIZER_FIST_ART.src))),
-     '★★★ the file is on disk');
-  // ★★★ bbox IS [x, y, WIDTH, HEIGHT] · read as corners the crop is a sliver
-  //   and nothing throws. x+w and y+h must both FIT.
-  const [bx, by, bw, bh] = G.RIZER_FIST_ART.bbox;
-  ok(bx + bw <= G.RIZER_FIST_ART.W && by + bh <= G.RIZER_FIST_ART.H,
-     `★★★ bbox [${G.RIZER_FIST_ART.bbox}] fits the 1254 canvas · x+w=${bx+bw} y+h=${by+bh}`);
-  ok(Math.abs(bw - bh) <= 4,
-     `★★ and it is square (${bw}x${bh}) · the disc is a circle, so a square crop keeps it round`);
-  ok(bw > 250 && bw < 500,
-     `★★★ ${bw}px of a 1254 canvas · the centre disc, not the whole wheel — cropping the `
-   + 'sheet as-is would put six empty sockets and the L1/R1 chips in the slot');
+     '★★★ and the file is on disk');
+  // ★★★★ NO BBOX · the whole file is the icon, which is what "tight" means.
+  //   Two of the five arms DO carry a bbox because their sheets are 1254 with
+  //   the object somewhere inside; this one does not, and asserting that is
+  //   how a future re-crop that reintroduces a frame gets caught.
+  ok(!G.RIZER_FIST_ART.bbox,
+     '★★★★ no bbox · the file is tight, so there is nothing to crop away');
+  ok(G.RIZER_FIST_ART.W === 758 && G.RIZER_FIST_ART.H === 992,
+     `★★ and the declared size is the file's own (${G.RIZER_FIST_ART.W}x${G.RIZER_FIST_ART.H})`);
   // and it stops being drawn the moment something IS equipped
   G._zyArmClick('sapphire_sword');
   ok(!paint('arms').includes(G.RIZER_FIST_ART.src),

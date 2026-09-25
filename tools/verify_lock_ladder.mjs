@@ -50,10 +50,20 @@ H('★★★★ MYTHIC NEEDS THE ELDER TRIAL · this is what locks the weapons a
   ok(sealed.open === false, '★★★★ a mythic vault with no trial done REFUSES');
   ok(/ELDER/.test(sealed.why || ''), `★★★ and names the trial · "${(sealed.why||'').slice(0, 58)}…"`);
   ok(!G.hasDistrictKey('vorashil') || true, '  (a district key does NOT open mythic)');
+  // ★★★★ v0.99.40 · THIS ASSERTION INVERTED, BY RULING. It used to prove the key
+  //   and the vault were SEPARATE locks. The Creator then settled the naming
+  //   and the scope: "elder key is the ancient name for vault key. the vault
+  //   key can open mythic chests and gem caves, mealux opens the gemlord
+  //   santuary" — so the key IS the vault's lock, and the story gate is kept by
+  //   moving WHEN you get it: completeElderTrial() is now the only place a key
+  //   is handed over.
   G.grantDistrictKey('vorashil', 'TEST');
-  ok(G.chestUnlockState('cosmic', 'vorashil').open === false,
-     '★★★★ holding the district KEY still does not open the vault · gold and mythic are different locks');
+  ok(G.chestUnlockState('cosmic', 'vorashil').open === true,
+     '★★★★ the VAULT KEY opens the vault · and the trials are how you get the key, so the story gate holds without a second condition');
+  reset();
   G.completeElderTrial('vorashil');
+  ok(!!P.items.key_vorashil,
+     '★★★★ finishing the trials HANDS OVER the key · earned, not given on a first hello');
   ok(G.chestUnlockState('cosmic', 'vorashil').open === true, '★★★ finishing the trial opens it');
   ok(G.chestUnlockState('cosmic', 'veridan').open === false, '★★ and only that district\'s');
 }
@@ -128,11 +138,12 @@ H('★★★★ THE KEYS HAVE A SOURCE · v0.99.22 shipped the lock without one'
   //   obtained — it proved the door was shut and called that success.
   const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
   const calls = (src.match(/grantDistrictKey\(/g) || []).length - 1;   // minus the definition
-  ok(calls >= 2, `★★★★ grantDistrictKey has ${calls} call site(s) · a lock whose key has no source is a dead end`);
-  ok(/grantDistrictKey\(e\.dist, e\.name\)/.test(src),
-     '★★★ the generic elder factory grants its district key on first meeting · one giver per district, scales to all ten');
-  ok(/grantDistrictKey\('malezor', 'Warden Kelthor'\)/.test(src),
-     "★★★★ …and Kelthor is granted EXPLICITLY · he is hand-built and never goes through that factory, so without this the FIRST district is the one whose gold never opens");
+  ok(calls === 1,
+     `★★★★ grantDistrictKey has exactly ${calls} call site · ONE place a key is ever handed over, so "when do you get it" cannot drift between Kelthor's bespoke ladder and the nine generated ones`);
+  ok(/try \{ grantDistrictKey\(dist, 'the Elder..s trials'\); \} catch/.test(src),
+     '★★★★ and that site is completeElderTrial() · the trials ARE the key');
+  ok(!/grantDistrictKey\(e\.dist, e\.name\)/.test(src),
+     '★★★ meeting an Elder no longer hands it over · while the key opens the vault, granting it on a greeting would put a Gemlord weapon one conversation away');
   // ★★★★ ALL TEN NOW. This assertion was written at v0.99.23 pinned to 9/10
   //   with korathen named as the exception, because its elder was `id: null`.
   //   Alizarae closed it at v0.99.26 and the count is the thing that told us —

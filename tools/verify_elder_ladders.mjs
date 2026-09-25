@@ -15,7 +15,7 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const _L = console.log; console.log = () => {};
 const G = bootGame({ extra: ['ELDER_LADDERS','ELDER_TRIAL_DATA','ELDER_LADDER_GROUPS','elderNextRung',
   'elderLadderComplete','elderRungDone','_elderKillCount','_elderChestCount','player','game',
-  'ELDER_BY_DIST','DISTRICT_ORDER','elderTrialComplete','chestUnlockState','KELTHOR_LADDER',
+  'ELDER_BY_DIST','DISTRICT_ORDER','elderTrialComplete','chestUnlockState','KELTHOR_LADDER','hasDistrictKey',
   'towerRestored','DISTRICT_ENEMY_ROSTER','TOWN_HALL_VAULTS'] });
 console.log = _L;
 const P = G.player;
@@ -62,10 +62,21 @@ H('★★★★ EVERY RUNG READS STATE THAT ALREADY EXISTS');
   //   read an empty object and blamed the code for the test's ordering.
   ok(P.elderTrials[d] === undefined,
      '★★ the flag is not written until something asks · promotion is lazy, exactly as Kelthor\'s is');
+  // ★★★★ v0.99.40 · WHO ASKS CHANGED, AND THAT IS THE DESIGN. The vault used to
+  //   test elderTrialComplete(), so merely walking up to it promoted the flag.
+  //   It tests the VAULT KEY now, and the key is handed over by
+  //   completeElderTrial() — which means the ELDER is what promotes it, when
+  //   you report back. Finishing the last rung in the field no longer posts
+  //   you the reward; you go and receive it, which is what "gifted by its
+  //   district elder" says.
+  ok(G.chestUnlockState('cosmic', d).open === false,
+     '★★★ the vault is still shut on a finished ladder you have not reported · the key is not in your hand yet');
+  ok(G.elderLadderComplete(d) === true,
+     '★★★★ reporting to the Elder completes the ladder · this is the call their onInteract makes');
+  ok(!!P.elderTrials[d] && !!P.items['key_' + d],
+     '★★★★ …and THAT promotes the flag AND hands over the vault key · one ceremony, once');
   ok(G.chestUnlockState('cosmic', d).open === true,
-     '★★★★ asking the vault unseals it · chestUnlockState -> elderTrialComplete -> elderLadderComplete');
-  ok(!!P.elderTrials[d],
-     '★★★ …and THAT promoted the trial flag, so the ceremony fires once and the state persists');
+     '★★★ with the key in hand the vault opens');
   ok(G.chestUnlockState('cosmic', 'xilnar').open === false, '★★ while every other vault stays sealed');
 }
 

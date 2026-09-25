@@ -511,6 +511,44 @@ H('★★★★ A FAIRY IS A FAE · one creature, one key');
     astralite_1_1:3, astralite_2_4:1, moon_gem:2, life_seed:4, prismshard:1, tower_battery:2 };
 }
 
+H('★★★★ D-PAD NAV · no wrap, no sideways drift, L2/R2 switch panels');
+{
+  //   Creator, 2026-09-24: "fix the controller navigation of the items menu. no
+  //   dpad wrapping. also, no horizontal scrolling when pressing down from the
+  //   top bar. it should just go down. R2 L2 on the zycube panel switches the
+  //   panel"
+  const src = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+  const step = src.slice(src.indexOf('const _stepRow = (dir) =>'), src.indexOf('if (k === \'arrowup\')  { _stepRow(-1)'));
+  // ★★★★ The list used to close the loop with `% units.length`, so DOWN on the
+  //   last row teleported you to the top — on a grid that reads as the cursor
+  //   vanishing, not as wrapping.
+  // ★★ STRIP COMMENTS FIRST. The fix's own comment explains what it removed by
+  //   naming it, so a raw scan finds `% units.length` in the explanation and
+  //   reports the wrap as still present — second time a check of mine has read
+  //   its own documentation as code.
+  const stepCode = step.split('\n').filter(L => !/^\s*(\/\/|\*)/.test(L)).join('\n');
+  ok(!/%\s*units\.length/.test(stepCode),
+     '★★★★ the wrap is GONE · no `% units.length` closing the loop');
+  ok(/uNext < 0 \|\| uNext >= units\.length/.test(step),
+     '★★★ the edge answers and stops · the same rule LEFT/RIGHT have had inside a row since v0.95.980');
+  // ★★★★ column must not carry from a 10-tab rail into a 5-wide grid
+  // ★★ ASSERT THE COMPARISON, NOT THE NAME. My first cut matched the identifier
+  //   `sameFamily`, which survives `const sameFamily = true` — the exact way
+  //   this could be broken while reading as fixed.
+  ok(/_fam\(_curRow\) === _fam\(U\.row\)/.test(stepCode),
+     '★★★★ the column only carries between rows of the SAME family · rail-to-grid resets to 0, so DOWN from the top bar goes straight down instead of landing mid-row and dragging the view sideways');
+  ok(/const col = \(sameFamily/.test(stepCode), '★★★ …and the column is chosen by that comparison');
+  // ★★★ and the rail really is a different family from the grid rows
+  const h = render(null);
+  ok(/data-zyrow="zycube_tabs"/.test(h) && /data-zyrow="zycube_r0"/.test(h),
+     '★★★ the rail is `zycube_tabs` and the grid is `zycube_r0..` · different families by name, which is what the reset keys on');
+  // ★★ L2/R2
+  ok(/k === 'l' \|\| k === 'q' \|\| k === 'shift'/.test(src),
+     "★★★ L2 (BTN[6]='shift') now cycles the panel back · R2 (BTN[7]='i') already went forward, so the pair was half-wired and only one direction worked on a pad");
+  ok((src.match(/k === 'shift'\)\{ zycellCyclePage\(-1\)/g) || []).length >= 2,
+     '★★ wired at BOTH call sites · the phone has two, and fixing one leaves the other stale');
+}
+
 H('★★★ THE SLOT IS A UI-NATIVE PLATE, NOT A BARE BOX');
 {
   const h = render(null);

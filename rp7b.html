@@ -4436,16 +4436,16 @@ const INVENTORY_META = {
   //   entry. Found while enumerating items for the drop-art handoff:
   //   it was the one key the item census could not see.
   dads_notebook:    { label: "Dad's Notebook",    order: 37 },
-  key_malezor:       { label: 'Malezor Key',      order: 600 },   // ★ v0.99.22 · opens every GOLD chest in Malezor
-  key_zarvane:       { label: 'Zarvane Key',      order: 601 },   // ★ v0.99.22 · opens every GOLD chest in Zarvane
-  key_andrannor:     { label: 'Andrannor Key',    order: 602 },   // ★ v0.99.22 · opens every GOLD chest in Andrannor
-  key_veridan:       { label: 'Veridan Key',      order: 603 },   // ★ v0.99.22 · opens every GOLD chest in Veridan
-  key_netharion:     { label: 'Netharion Key',    order: 604 },   // ★ v0.99.22 · opens every GOLD chest in Netharion
-  key_vorashil:      { label: 'Vorashil Key',     order: 605 },   // ★ v0.99.22 · opens every GOLD chest in Vorashil
-  key_xilnar:        { label: 'Xilnar Key',       order: 606 },   // ★ v0.99.22 · opens every GOLD chest in Xilnar
-  key_baelgor:       { label: 'Baelgor Key',      order: 607 },   // ★ v0.99.22 · opens every GOLD chest in Baelgor
-  key_thardin:       { label: 'Thardin Key',      order: 608 },   // ★ v0.99.22 · opens every GOLD chest in Thardin
-  key_korathen:      { label: 'Korathen Key',     order: 609 },   // ★ v0.99.22 · opens every GOLD chest in Korathen
+  key_malezor:       { label: 'Malezor Vault Key', order: 600 },
+  key_zarvane:       { label: 'Zarvane Vault Key', order: 601 },
+  key_andrannor:     { label: 'Andrannor Vault Key', order: 602 },
+  key_veridan:       { label: 'Veridan Vault Key', order: 603 },
+  key_netharion:     { label: 'Netharion Vault Key', order: 604 },
+  key_vorashil:      { label: 'Vorashil Vault Key', order: 605 },
+  key_xilnar:        { label: 'Xilnar Vault Key', order: 606 },
+  key_baelgor:       { label: 'Baelgor Vault Key', order: 607 },
+  key_thardin:       { label: 'Thardin Vault Key', order: 608 },
+  key_korathen:      { label: 'Korathen Vault Key', order: 609 },
   zycube:           { label: 'Zycube',              order: 36 },   // v0.95.268 · utility Prism · storage · Mom gifts on 1st talk
   skateboard:       { label: 'Skateboard',         order: 70 },
   // v0.95.134 · Harvesting + science crafting
@@ -4882,6 +4882,10 @@ const ZYCUBE_CAT_OF = Object.freeze({
   field_station:'gear',                                   // ★ v0.96.12
   broken_raygun:'key',                                    // ★ v0.96.14 · a QUEST item · never a weapon
   portalkey_broken:'key', portalkey:'key',
+  // ★★★ v0.99.40 · THE VAULT KEY · "elder key" is its ancient name (Creator).
+  //   One key per district, gifted by that district's Elder, and it opens
+  //   THREE things: the district's gold chests, its gem cave, and — with the
+  //   Elder's trials finished — its town hall mythic vault.
   // ★ v0.99.22 · the ten district keys · KEY ITEMS by definition
   key_malezor:'key', key_zarvane:'key', key_andrannor:'key', key_veridan:'key', key_netharion:'key', key_vorashil:'key', key_xilnar:'key', key_baelgor:'key', key_thardin:'key', key_korathen:'key',
 
@@ -6499,7 +6503,10 @@ function buildDistrictElderNpcs(){
             //   the authority the Creator routed every expedition through. Two
             //   stages of one relationship — MEET them and their district's
             //   gold opens; finish their TRIALS and their vault does.
-            try { grantDistrictKey(e.dist, e.name); } catch(_){}
+            // ★★★ v0.99.40 · meeting an Elder OPENS their ladder · finishing it
+            //   earns the key. Handing it over here would make the vault a
+            //   greeting away.
+            try { showToast(`◈ ${e.dist.toUpperCase()} · finish the Elder's trials to earn the VAULT KEY`, 4200); } catch(_){}
             try { pingNextObjective(); } catch(_){}
           }
         } catch(_){}
@@ -15368,7 +15375,10 @@ const NPCS = [
           //   elder factory above, so he needs the same grant spelled out or
           //   Malezor — the FIRST district, the one every player is standing
           //   in — is the one district whose gold never opens.
-          try { grantDistrictKey('malezor', 'Warden Kelthor'); } catch(_){}
+          // ★★★ v0.99.40 · Kelthor's grant moved too · completeElderTrial() is
+          //   the one place a key is handed over, and his ladder promotes into
+          //   it via kelthorLadderComplete().
+
           try{pingNextObjective()}catch(_){}
         }
         {
@@ -20880,9 +20890,15 @@ function completeElderTrial(dist){
   player.elderTrials = player.elderTrials || {};
   if (player.elderTrials[dist]) return false;
   player.elderTrials[dist] = true;
+  // ★★★★ v0.99.40 · THE SINGLE PLACE A KEY IS EVER HANDED OVER. One key per
+  //   district, earned by finishing its Elder's trials, and it opens that
+  //   district's gold chests, its mythic vault and the mouth of its gem cave.
+  //   The Mealux is a separate key for a separate door — the Gemlord sanctuary
+  //   at the bottom of the cave.
+  try { grantDistrictKey(dist, 'the Elder\'s trials'); } catch(_){}
   try { playSFX('levelUp'); } catch(_){}
-  showToast(`★ ELDER TRIAL COMPLETE · ${String(dist).toUpperCase()} · `
-          + 'the town hall vault will open to you', 5200);
+  showToast(`★ ELDER TRIAL COMPLETE · ${String(dist).toUpperCase()} · the VAULT KEY is yours`
+          + ' · it opens this district\'s vault, its gold chests and its gem cave', 6000);
   return true;
 }
 // The one answer. `why` is player-facing and names what is missing, because a
@@ -20903,10 +20919,25 @@ function chestUnlockState(tier, dist){
                 + ' · an ally in this district carries it' };
   }
   if (tier === 'cosmic' || tier === 'mythic'){
-    if (elderTrialComplete(dist)) return { open: true };
+    // ══════════════════════════════════════════════════════════════════
+    // ★★★★ v0.99.40 · THE VAULT TAKES THE KEY, AND THE KEY IS THE TRIALS.
+    //   Creator, 2026-09-24: "elder key is the ancient name for vault key. the
+    //   vault key can open mythic chests and gem caves, mealux opens the
+    //   gemlord santuary." — and, earlier: "player has to play through story to
+    //   have mythic weapons."
+    //
+    // ★★★★ BOTH ARE TRUE ONLY IF THE KEY IS EARNED. While the key was granted
+    //   on MEETING an Elder (v0.99.23), "the key opens the vault" would have
+    //   put a Gemlord weapon in reach the moment you said hello — the opposite
+    //   of the stated intent. So the grant moved to completeElderTrial(): the
+    //   trials ARE how you get the key.
+    //   ★★★ Which means this check needs one condition, not two. Holding the
+    //   key IS proof the trials are done, so testing both would be testing the
+    //   same fact twice and inviting them to drift apart.
+    if (hasDistrictKey(dist)) return { open: true };
     return { open: false, sfx: 'caveGrowl',
-             why: `◈ MYTHIC VAULT · sealed · finish the ${String(dist || '').toUpperCase()} ELDER'S TRIALS`
-                + ' to earn what is inside' };
+             why: `◈ MYTHIC VAULT · sealed · you need the ${String(dist || '').toUpperCase()} VAULT KEY`
+                + ` · finish this district's ELDER TRIALS to earn it` };
   }
   return { open: true };
 }
@@ -42885,7 +42916,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.39' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.41' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -47591,7 +47622,11 @@ function handleZycellKey(k){
       }
       zycellExitContent(); return true;
     }
-    if (k === 'l' || k === 'q'){ zycellCyclePage(-1); return true; }
+    // ★★★ v0.99.41 · L2/R2 SWITCH THE PANEL. Creator: "R2 L2 on the zycube
+    //   panel switches the panel." R2 (BTN[7]='i') already did; L2
+    //   (BTN[6]='shift') did not, so the pair was half-wired and only one
+    //   direction worked on a pad.
+    if (k === 'l' || k === 'q' || k === 'shift'){ zycellCyclePage(-1); return true; }
     if (k === 'r' || k === 'i'){ zycellCyclePage(+1); return true; }
     // ★★★ v0.95.995 · A PANEL WITH NOTHING TO PRESS IS STILL SOMETHING TO READ.
     // Previously: zero items meant UP/DOWN bounced you straight back to the nav
@@ -47646,9 +47681,27 @@ function handleZycellKey(k){
         else { units.push({ row:r, idxs:[i] }); seen=r; }
       });
       const uNow = units.findIndex(u=>u.idxs.includes(game._zycellItemIdx));
-      const col  = _curRow ? _rowItems(_curRow).findIndex(x=>x.i===game._zycellItemIdx) : 0;
-      const uNext = (uNow + dir + units.length) % units.length;   // list-level wrap only
+      // ★★★★ v0.99.41 · NO WRAP. Creator: "no dpad wrapping." The list used to
+      //   close the loop with `% units.length`, so DOWN on the last row
+      //   teleported you to the top — on a grid that reads as the cursor
+      //   vanishing. The edge answers instead, which is the same rule LEFT and
+      //   RIGHT have followed inside a row since v0.95.980.
+      const uNext = uNow + dir;
+      if (uNext < 0 || uNext >= units.length){ try { playSFX('doorLock'); } catch(_){} return; }
+      // ★★★★ AND THE COLUMN DOES NOT CARRY BETWEEN DIFFERENT ROW FAMILIES.
+      //   Creator: "no horizontal scrolling when pressing down from the top
+      //   bar. it should just go down." The ZyCube's tab rail is ONE row of ten
+      //   tabs above a FIVE-wide grid, so holding the column meant DOWN from
+      //   tab 8 landed on slot 4 and dragged the view sideways to get there.
+      //   Column is a meaningful thing to hold between rows of the SAME family
+      //   (grid row to grid row); between the rail and the grid it is a
+      //   coincidence of index.
+      const _fam = r => String(r || '').replace(/\d+$/, '');
       const U = units[uNext];
+      const sameFamily = _curRow && U.row && _fam(_curRow) === _fam(U.row);
+      const col = (sameFamily && _curRow)
+        ? _rowItems(_curRow).findIndex(x=>x.i===game._zycellItemIdx)
+        : 0;
       game._zycellItemIdx = U.idxs[Math.max(0, Math.min(col, U.idxs.length-1))];
       _zycellPaintFocus(); _zycellScrollFocusIntoView(); playSFX('cursor');
     };
@@ -47738,7 +47791,7 @@ function handleZycellKey(k){
   if (k === 'k' || k === 'y'){ zyTriangleArm(); return true; }   // v0.95.743
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
-  if (k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
+  if (k === 'q' || k === 'l' || k === 'shift'){ zycellCyclePage(-1); return true; }
   if (k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
   if (k === 'arrowleft'){ /* already at nav · no-op */ playSFX('cancel'); return true; }
   // ★★★ v0.95.980 · RIGHT NAVIGATES, IT DOES NOT ENTER.  Creator: *"pressing

@@ -191,9 +191,20 @@
     if (bump && lastLv !== null) { hud.classList.remove('bump'); void hud.offsetWidth; hud.classList.add('bump'); }
     lastLv = L.lv;
     renderSave();
+    renderMenuCard(L);
   }
   hud.querySelector('.gm-snd').addEventListener('click', function(){ S.sound = !S.sound; save(); renderHud(); sfx.ok(); });
   $all('[data-open]', hud).forEach(function(b){ b.addEventListener('click', function(){ openJournal(b.getAttribute('data-open')); }); });
+
+  // Player card at the foot of the hamburger drawer.
+  var drawer = doc.querySelector('.menu-drawer'), menuCard = null;
+  if (drawer) { menuCard = el('div', 'menu-save'); drawer.appendChild(menuCard); }
+  function renderMenuCard(L){
+    if (!menuCard) return;
+    menuCard.innerHTML = '<div class="ms"><span class="gem" aria-hidden="true"></span><div>' +
+      '<b>LV ' + L.lv + ' · ' + esc(L.title.toUpperCase()) + '</b>' +
+      '◆ ' + count(S.shards) + '/' + SHARDS.length + ' · ★ ' + count(S.ach) + '/' + ACH.length + ' · ' + S.xp + ' XP</div></div>';
+  }
 
   // Save-file window on the home page.
   function renderSave(){

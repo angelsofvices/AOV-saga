@@ -17,6 +17,28 @@
 // astronaut's 1936 description until a canon name is supplied here.
 window.EXP_DATA = {
 
+  // ── THE STORY · locked canon: docs/card-explorer/02_CARL_NASARO_LIVING_MASTER_CODEX_CANON.md
+  //   The player is Carl Nasaro. The game is the Living Master Codex.
+  //   Primary narrative 1936–1945; the coda runs to 1955 and Mutagenesis.
+  story: {
+    title: 'THE LIVING MASTER CODEX',
+    hero: 'CARL NASARO',
+    year: 1936,
+    goals: [
+      ['COLLECT THE EXPANSE', 'Every discovery manifests as a card for the voyage home.'],
+      ['MAP THE EXPANSE',     'Humanity\u2019s first map of the Aethryx Expanse.'],
+      ['BRING IT HOME',       'Earth\u2019s position: unknown. None of my charts can place it.']
+    ],
+    // Chapter titles stay hidden in-game until reached, so the story is not spoiled.
+    chapters: [
+      { era:'1936', title:'Discovery', note:'Carl Nasaro reaches Zyraxis.', open:true },
+      { era:'1936–1945', title:'The Expedition', note:'' },
+      { era:'1945', title:'Contact', note:'' },
+      { era:'1945–1955', title:'Coda', note:'' }
+    ],
+    rule: 'The AOV\u2122 Saga establishes canon. The Living Master Codex allows players to discover it.'
+  },
+
   // ── THE EXPANSE · 28 worlds on four spires around Aenor ──────────────────
   //   spire: which arm of the schematic the world sits on (n mod 4)
   //   ring:  1 (nearest Aenor) … 7 (outermost)

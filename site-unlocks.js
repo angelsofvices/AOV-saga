@@ -63,9 +63,9 @@ window.AOV_UNLOCKS = {
     { id:'game-rp7b', kind:'game', name:'RP7B', title:'Rizing Power · Beta V7.5.16', status:'unlocked',
       since:'2026-10-06', href:'/rp7b.html', color:'#FFC83D', cta:'PLAY NOW',
       blurb:'The mainline open-world beta of Rizing Power. Playable in your browser today.' },
-    { id:'game-project1936', kind:'game', name:'Project 1936', title:'Mainline · Survey Build 2 · Working Title', status:'unlocked',
+    { id:'game-project1936', kind:'game', name:'The Living Master Codex', title:'Mainline · 1936 · The Expedition of Carl Nasaro', status:'unlocked',
       since:'2026-10-07', href:'/explorer/', color:'#E2C27D', cta:'BEGIN THE EXPEDITION',
-      blurb:'1936. A classified American rocket is thrown off course into the Aethryx Expanse. Explore, photograph, collect. Find a way home.' },
+      blurb:'1936. Carl Nasaro\u2019s classified rocket is thrown off course to Zyraxis. Collect the Expanse. Map the Expanse. Bring it home.' },
     { id:'game-rp7d', kind:'game', name:'RP7D', title:'Rizing Power · Deluxe 3D', status:'soon',
       blurb:'The Deluxe 3D build of Rizing Power. In development.' },
 
@@ -83,6 +83,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-07', build:'LIVING MASTER CODEX · SURVEY 3', title:'Carl Nasaro',
+      notes:[
+        'Project 1936 is now THE LIVING MASTER CODEX: the playable, ever-expanding Master Codex of the saga',
+        'You are Carl Nasaro, the first Earth astronaut to reach the Aethryx Expanse, in 1936',
+        'Three objectives: Collect the Expanse. Map the Expanse. Bring it home.'
+      ] },
     { date:'2026-10-07', build:'PROJECT 1936 · SURVEY 2', title:'The First Map',
       notes:[
         'Project 1936 opens on a map board of the whole system: every world unidentified until you reach it',

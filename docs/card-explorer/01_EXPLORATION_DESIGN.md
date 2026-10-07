@@ -371,3 +371,35 @@ Recorded from the Creator's direction after the first playable build. These take
 - Plants and minerals: examine → SPECIMEN DOCUMENTED → card acquired on the spot.
 - Encounter screens per temperament: observe, offer (curious), photograph with a focus ring (flighty ones must be caught mid-hover), and a CARD BATTLE slot for territorial Aethren, marked *soon* until the battle system is designed.
 - A Haemen whose card is earned by first contact, then returning with developed photographs, which also teaches the first true names.
+
+---
+
+## 20 · Carl Nasaro canon · integrated 2026-10-07
+
+Source (locked): [02_CARL_NASARO_LIVING_MASTER_CODEX_CANON.md](02_CARL_NASARO_LIVING_MASTER_CODEX_CANON.md). It supersedes this document wherever they differ.
+
+**Answered by the canon**
+- §17 Q6 *(the astronaut)*: the player is **Carl Nasaro**, an ordinary Earth human of exceptional intelligence. No powers, no hidden lineage.
+- The game is **The Living Master Codex**, the playable, continuously expandable Master Codex of the saga. *The AOV™ Saga establishes canon. The Living Master Codex allows players to discover it.* The game never overwrites established history.
+- Carl's objectives: **COLLECT THE EXPANSE · MAP THE EXPANSE · BRING IT HOME.**
+- Carl reaches **Zyraxis** in 1936 (the in-game arrival adrift in open space, within range of Zyraxis only, fits this).
+- Primary narrative **1936–1945**: arrival on Zyraxis → meeting **Aurellyn** → the **1945 nuclear ping through the Aetherstride** locates Earth → Carl and Aurellyn travel to Earth. The **coda** runs through the Conspiracy Era to 1955: containment, Carl's imprisonment, Aurellyn's rescue, the Ovauron crisis over California, the Aurelleap, the Skyfall and Mutagenesis.
+
+**Implemented in survey build 3**
+- Title, page title and site door: *The Living Master Codex · The Expedition of Carl Nasaro*.
+- The dossier is addressed to Carl Nasaro and signed by him. There is no name entry, and older saves are renamed.
+- The three objectives sit on the map board and in the log. *Bring it home* reads "Earth's position: UNKNOWN", and an Earth panel on the board says the same.
+- The Archive is now **The Codex** (*The Living Master Codex*).
+- The chapter list shows I · 1936 · DISCOVERY. Later chapters read "A FUTURE CHAPTER" so the story isn't spoiled.
+
+**Not yet in the game (needs Creator-approved scenes)**
+- Meeting Aurellyn; his and Aurexion's cards; the Rizer connection.
+- The 1945 ping and the journey to Earth (the moment *Bring it home* becomes possible).
+- The coda (1945–1955).
+
+**Reconciliation notes for the Creator**
+1. **Aurexion / Auraxion.** This canon spells it **Aurexion** (matching `cards_v2`). The website and `data/AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` spell it **Auraxion** (about 34 files). The game uses *Aurexion*.
+2. **Ovauron and AEP-28.** The older canon file says *AEP-28* is destroyed above Earth in the second Aurelleap; this canon says *Ovauron* is defeated above Earth in 1955. That reads as one body, which would close the "Ovauron / AEP-28" naming question in the older file.
+3. **Two Aurelleaps?** The older file lists a *first* Aurelleap through the Aetherstride and a *second* one that destroys AEP-28. This canon names the 1955 launch "THE AURELLEAP". Possibly the 1945 crossing is the first and 1955 the second.
+4. **Timeline warning resolved.** The older file flagged Aurexion's expedition (after 2031) against Earth contact (1945). The fixed chain and dates in this canon settle that.
+5. **Aurellyn's later life.** The older file says Aurellyn "spends decades as Earth's first hero" and later "dies heroically", with no natural children. This canon doesn't contradict it, and the coda stops at 1955.

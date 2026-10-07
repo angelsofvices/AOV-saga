@@ -1,9 +1,9 @@
-// ★ 2026-10-07 · PROJECT 1936 (working title) · survey build 2
+// ★ 2026-10-07 · THE LIVING MASTER CODEX · survey build 3
+// Canon: docs/card-explorer/02_CARL_NASARO_LIVING_MASTER_CODEX_CANON.md (locked)
 // Design: docs/card-explorer/01_EXPLORATION_DESIGN.md · Content: explorer/data.js
 //
-// The two goals of the game (Creator, 2026-10-07):
-//   I.  Collect cards to bring back to Earth.
-//   II. Construct the first map of the newly discovered star system.
+// The player is Carl Nasaro, 1936. His objectives (canon):
+//   COLLECT THE EXPANSE · MAP THE EXPANSE · BRING IT HOME
 //
 // Flow: dossier → launch → hyperspace → ship (restore systems)
 //       → THE MAP BOARD (home) → world panel → districts → land
@@ -11,7 +11,7 @@
 //       → cards → back to the ship (darkroom, laboratory) → the board again.
 (function(){
   'use strict';
-  var D = window.EXP_DATA;
+  var D = window.EXP_DATA, STORY = D.story;
   var doc = document, ui = doc.getElementById('ui'), cv = doc.getElementById('view'), ctx = cv.getContext('2d');
   var A = '/explorer/assets/';
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -27,7 +27,7 @@
   // ───────────────────────── save ─────────────────────────
   var KEY = 'aov.explorer.v1';
   function blank(){
-    return { v:2, name:'', stage:'title', flags:{}, film:12, frames:[], archive:{}, cards:{}, lex:{},
+    return { v:2, name:'Carl Nasaro', stage:'title', flags:{}, film:12, frames:[], archive:{}, cards:{}, lex:{},
              suit:100, air:100, flares:2, visited:{}, last:null, map:null, pos:null, fog:{}, notes:{}, found:{},
              sound:false, started:Date.now() };
   }
@@ -41,6 +41,7 @@
     S.stage = S.flags.power ? 'map' : 'ship';
   }
   if (fresh || !S || S.v !== 2) S = fresh ? null : (S && S.v === 2 ? S : null);
+  if (S) S.name = 'Carl Nasaro';
   function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ /* storage full or blocked: keep playing */ } }
 
   // ───────────────────────── helpers ─────────────────────────
@@ -186,10 +187,24 @@
   }
 
   // ───────────────────────── objectives (Expedition Log) ─────────────────────────
+  function goalLines(){
+    return [
+      Object.keys(S.cards).length + ' cards · ' + totalCopies() + ' copies in the locker',
+      mapPct() + '% charted · ' + identifiedCount() + ' of 28 bodies named',
+      'Earth\u2019s position: UNKNOWN'
+    ];
+  }
   function goalsHtml(){
-    return '<div class="x-goals">' +
-      '<div class="x-goal"><span>GOAL I</span><b>CARDS FOR EARTH</b><em>' + Object.keys(S.cards).length + ' cards · ' + totalCopies() + ' copies aboard</em></div>' +
-      '<div class="x-goal"><span>GOAL II</span><b>THE FIRST MAP</b><em>' + mapPct() + '% charted · ' + identifiedCount() + ' of 28 bodies named</em></div></div>';
+    var L = goalLines();
+    return '<div class="x-goals">' + STORY.goals.map(function(g, i){
+      return '<div class="x-goal"><span>' + ['I','II','III'][i] + '</span><b>' + esc(g[0]) + '</b><em>' + esc(L[i]) + '</em></div>';
+    }).join('') + '</div>';
+  }
+  function chaptersHtml(){
+    return '<div class="x-chapters"><p class="x-mono">THE EXPEDITION</p><ol>' + STORY.chapters.map(function(c, i){
+      return '<li class="' + (c.open ? 'open' : '') + '"><span>' + ['I','II','III','IV'][i] + '</span>' +
+        (c.open ? '<b>' + esc(c.era) + ' · ' + esc(c.title.toUpperCase()) + '</b><em>' + esc(c.note) + '</em>' : '<b>· · · A FUTURE CHAPTER</b>') + '</li>';
+    }).join('') + '</ol></div>';
   }
   function objectives(){
     var F = S.flags, fauna = classifiedCount('aethren'), spec = classifiedCount('plant') + classifiedCount('mineral');
@@ -203,11 +218,11 @@
       { t: known('firstden') ? 'Copy the carved markings in The First Den' : 'Explore the stone cave and copy its markings', done: F.copied },
       { t:'Decode the markings (Laboratory)', done: F.decoded },
       { t: known('aenor') ? 'Photograph Aenor and Zoryth from the Observation Port' : 'Photograph the radiant body and its satellite (Observation Port)', done: F.shotAenor && F.shotZoryth, side:true },
-      { t:'FIND A WAY HOME', done:false, main:true }
+      { t:'BRING IT HOME', done:false, main:true }
     ];
   }
   function objList(){
-    return goalsHtml() + '<ol class="x-obj">' + objectives().map(function(o){ return '<li class="' + (o.done ? 'done' : '') + (o.main ? ' main' : '') + (o.side ? ' side' : '') + '">' + esc(o.t) + '</li>'; }).join('') + '</ol>';
+    return goalsHtml() + chaptersHtml() + '<ol class="x-obj">' + objectives().map(function(o){ return '<li class="' + (o.done ? 'done' : '') + (o.main ? ' main' : '') + (o.side ? ' side' : '') + '">' + esc(o.t) + '</li>'; }).join('') + '</ol>';
   }
 
   // ═════════════════════════ SCENES (DOM) ═════════════════════════
@@ -221,15 +236,15 @@
   function title(){
     var s = screen('x-title',
       '<div class="x-title-in">' +
-        '<p class="x-stamp">TOP SECRET</p>' +
-        '<h1>PROJECT<br>1936</h1>' +
-        '<p class="x-tsub">AN AOV™ SAGA EXPEDITION</p>' +
-        '<p class="x-tgoals">Collect the cards and bring them home to Earth.<br>Draw humanity’s first map of a newly discovered star system.</p>' +
+        '<p class="x-stamp">TOP SECRET · 1936</p>' +
+        '<h1>THE LIVING<br>MASTER CODEX</h1>' +
+        '<p class="x-tsub">THE AOV™ SAGA · THE EXPEDITION OF CARL NASARO</p>' +
+        '<p class="x-tgoals">Collect the Expanse.<br>Map the Expanse.<br>Bring it home.</p>' +
         '<div class="x-btns">' +
           (S ? '<button class="x-btn" data-a="continue">CONTINUE EXPEDITION</button>' : '') +
           '<button class="x-btn' + (S ? ' ghost' : '') + '" data-a="new">' + (S ? 'NEW EXPEDITION' : 'OPEN THE DOSSIER') + '</button>' +
         '</div>' +
-        '<p class="x-fine">Working title · survey build 2 · progress is saved in this browser only<br><a href="/games.html">← THE GAMES</a></p>' +
+        '<p class="x-fine">Survey build 3 · progress is saved in this browser only<br>' + esc(STORY.rule) + '<br><a href="/games.html">← THE GAMES</a></p>' +
       '</div>');
     s.addEventListener('click', function(e){
       var a = e.target.closest('[data-a]'); if (!a) return;
@@ -254,20 +269,17 @@
         '<p class="x-stamp red">MOST SECRET</p>' +
         '<p class="x-mono">EXPERIMENTAL ROCKET PROGRAM · MISSION ORDERS · 1936</p>' +
         '<pre class="x-typed"></pre>' +
-        '<label class="x-sign">PILOT-OBSERVER<input type="text" maxlength="24" autocomplete="off" placeholder="sign your surname"></label>' +
-        '<button class="x-btn" data-a="go" disabled>SIGN &amp; PROCEED TO LAUNCH</button>' +
+        '<p class="x-sign">PILOT-OBSERVER<b class="x-sig"></b></p>' +
+        '<button class="x-btn" data-a="go" disabled>PROCEED TO LAUNCH</button>' +
       '</div>');
-    var text = 'You are hereby assigned as Pilot-Observer aboard the experimental rocket vessel described in Annex A (withheld).\n\n' +
+    var text = 'TO: Mr. CARL NASARO\n\nYou are hereby assigned as Pilot-Observer aboard the experimental rocket vessel described in Annex A (withheld).\n\n' +
       'OBJECTIVE: Proceed beyond the atmosphere. Survey the planets of the Solar System. Return with photographic and written records.\n\n' +
       'ISSUED:\n· Bellows field camera, 12 exposures per roll\n· Field journal and typewriter\n· Specimen case\n' +
       '· Pressure suit with SUIT and AIR instruments\n· Signal flares (2)\n\n' +
       'The existence of this vessel is not to be disclosed.';
-    var pre = $('.x-typed', s), inp = $('input', s), go = $('[data-a="go"]', s);
-    typeInto(pre, text, 12).then(function(){ inp.focus(); });
-    function ok(){ go.disabled = !inp.value.trim(); }
-    inp.addEventListener('input', ok);
-    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !go.disabled) go.click(); });
-    go.addEventListener('click', function(){ S.name = inp.value.trim().slice(0, 24); save(); sfx.click(); launch(); });
+    var pre = $('.x-typed', s), go = $('[data-a="go"]', s);
+    typeInto(pre, text, 12).then(function(){ return typeInto($('.x-sig', s), 'C. Nasaro', 70); }).then(function(){ go.disabled = false; go.focus(); });
+    go.addEventListener('click', function(){ S.name = 'Carl Nasaro'; save(); sfx.click(); launch(); });
   }
 
   // ── launch & malfunction ──
@@ -327,8 +339,8 @@
     ['port', 'OBSERVATION PORT', 'Telescope & camera'],
     ['dark', 'DARKROOM', 'Develop film'],
     ['lab', 'LABORATORY', 'Decoding'],
-    ['locker', 'CARD LOCKER', 'Cards for Earth'],
-    ['archive', 'ARCHIVE', 'What has been documented'],
+    ['locker', 'CARD LOCKER', 'The collection'],
+    ['archive', 'THE CODEX', 'Carl\u2019s Living Master Codex'],
     ['log', 'EXPEDITION LOG', 'Goals & objectives']
   ];
   function systemsUp(){ return S.flags.power && S.flags.air && S.flags.radio; }
@@ -462,16 +474,17 @@
 
   function expanse(selectId){
     S.stage = 'map'; save();
-    var name = S.name ? S.name.toUpperCase() : 'THE PILOT-OBSERVER';
+    var name = STORY.hero;
     var visited = D.worlds.filter(function(w){ return S.visited[w.no]; }).length;
     var s = screen('x-board',
       '<div class="x-board-in">' +
         '<aside class="x-bcol left">' +
-          '<section class="x-plq x-plq-title"><h2>' + (known('expanse') ? 'THE AETHRYX EXPANSE' : 'AN UNCHARTED SYSTEM') + '</h2><p class="x-plq-sub">THE FIRST MAP · DRAWN BY ' + esc(name) + ' · 1936</p>' +
+          '<section class="x-plq x-plq-title"><h2>' + (known('expanse') ? 'THE AETHRYX EXPANSE' : 'AN UNCHARTED SYSTEM') + '</h2><p class="x-plq-sub">THE FIRST MAP · DRAWN BY ' + esc(name) + ' · ' + STORY.year + '</p>' +
             '<p>' + (known('expanse') ? 'Twenty-eight worlds on four spires around one star. No person from Earth has seen it before.' : 'Bodies on four lines around a single star. No Earth chart matches it. I am drawing the first.') + '</p></section>' +
-          '<section class="x-plq"><h3>THE TWO GOALS</h3>' +
-            '<div class="x-gl"><span>I</span><div><b>CARDS FOR EARTH</b><em>' + Object.keys(S.cards).length + ' cards · ' + totalCopies() + ' copies in the locker</em></div></div>' +
-            '<div class="x-gl"><span>II</span><div><b>THE FIRST MAP</b><em>' + mapPct() + '% charted</em><i class="x-bar"><i style="width:' + mapPct() + '%"></i></i></div></div></section>' +
+          '<section class="x-plq"><h3>THE OBJECTIVES</h3>' + STORY.goals.map(function(g, i){
+              return '<div class="x-gl"><span>' + ['I','II','III'][i] + '</span><div><b>' + esc(g[0]) + '</b><em>' + esc(goalLines()[i]) + '</em>' +
+                (i === 1 ? '<i class="x-bar"><i style="width:' + mapPct() + '%"></i></i>' : '') + '</div></div>';
+            }).join('') + '</section>' +
           '<section class="x-plq x-hide-sm"><h3>THE SYSTEM</h3><ul class="x-facts">' +
             '<li><span>Central star</span><b>' + esc(term('aenor')) + '</b></li><li><span>Satellite</span><b>' + esc(term('zoryth')) + '</b></li>' +
             '<li><span>Bodies charted</span><b>' + D.worlds.filter(function(w){ return !w.hidden; }).length + '</b></li><li><span>Named</span><b>' + identifiedCount() + '</b></li><li><span>Landed upon</span><b>' + visited + '</b></li></ul></section>' +
@@ -482,6 +495,7 @@
             '<li><i class="k visited"></i>VISITED</li><li><i class="k identified"></i>NAMED, NOT YET VISITED</li><li><i class="k unidentified"></i>UNIDENTIFIED</li><li><i class="k range"></i>RANGE OF THE DRIVE</li></ul></section>' +
           '<section class="x-plq x-hide-sm"><h3>BODIES NAMED</h3><ol class="x-named">' + D.worlds.filter(function(w){ return !w.hidden; }).map(function(w){
             return '<li class="' + (known(w.term) ? 'k' : '') + '"><span>' + w.no + '.</span>' + (known(w.term) ? esc(title1936(w.name)) : '· · ·') + '</li>'; }).join('') + '</ol></section>' +
+          '<section class="x-plq x-earth"><h3>EARTH</h3><p><b>HOME.</b> Position: <b>UNKNOWN</b>. No star in this sky matches any chart from home. The flight log cannot tell me which way I came.</p></section>' +
           '<section class="x-plq x-vplq"><h3>THE VESSEL</h3><p>Film ' + S.film + ' · Prints waiting ' + S.frames.length + '</p><button class="x-btn" data-a="ship">BOARD SHIP</button></section>' +
         '</aside>' +
       '</div>' +
@@ -667,7 +681,7 @@
   // ── archive (knowledge) ──
   function archive(){
     var sets = [9, 29, 30];
-    sub('ARCHIVE', sets.map(function(n){
+    sub('THE LIVING MASTER CODEX', '<p class="x-mono light">Carl Nasaro\u2019s expedition archive. ' + esc(STORY.rule) + '</p>' + sets.map(function(n){
       var ids = Object.keys(D.subjects).filter(function(id){ return subj(id).set === n; });
       return '<section class="x-arc riv"><h3>' + esc(setName(n)) + ' <b>' + setPct(n) + '%</b></h3>' +
         (n === 9 ? '<p class="x-mono">This build covers one district of this world.</p>' : '') +
@@ -681,9 +695,8 @@
   }
 
   function logbook(){
-    var name = S.name ? esc(S.name.toUpperCase()) : 'PILOT-OBSERVER';
-    sub('EXPEDITION LOG', '<div class="x-paper"><p class="x-mono">LOG OF ' + name + '</p>' + objList() +
-    (S.flags.decoded ? '<p class="x-mono">END OF THIS BUILD\'S SURVEY. Keep documenting: every Good or Excellent photograph adds a copy to your Card Locker. The way home lies further out, in a future build.</p>' : '') +
+    sub('EXPEDITION LOG', '<div class="x-paper"><p class="x-mono">LOG OF ' + STORY.hero + ' · ' + STORY.year + '</p>' + objList() +
+    (S.flags.decoded ? '<p class="x-mono">END OF THIS BUILD\'S SURVEY. Keep documenting: every Good or Excellent photograph adds a copy to your Card Locker. Earth is still lost. The way home lies further out, in a future chapter.</p>' : '') +
     '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>');
     $('[data-a="reset"]').addEventListener('click', function(){
       if (!confirm('Erase this expedition and start over?')) return;

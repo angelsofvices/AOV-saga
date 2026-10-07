@@ -148,13 +148,13 @@ window.EXP_DATA = {
     volcanut: {
       kind:'aethren', art:'volcanut_down', set:9, term:'volcanut', district:'malezor', tier:1, types:'Beast / Aura', temperament:'territorial',
       canonNote:'',
-      journal:'Spined, heavy, glowing like a stove. The air shimmers above its back. It defends its ground. Photograph quickly and back away.'
+      journal:'Spined, heavy, glowing like a stove. The air shimmers above its back. It defends its ground. Scan quickly and back away.'
     },
     furtrader: {
       kind:'haemen', art:'haemen_down', set:9, term:'furtrader', district:'malezor', tier:null, types:'Haemen',
       species:null,
       canonNote:'',
-      journal:'A man in furs and a heavy cap, bearded, broad. Carries a knife but never reached for it. Watched my camera more than he watched me.'
+      journal:'A man in furs and a heavy cap, bearded, broad. Carries a knife but never reached for it. Watched my AstraNav more than he watched me.'
     },
     astralite: {
       kind:'mineral', art:'astralite', set:9, term:'astralite', district:'malezor', tier:null, types:'Mineral',

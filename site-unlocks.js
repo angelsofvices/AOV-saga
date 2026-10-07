@@ -65,7 +65,7 @@ window.AOV_UNLOCKS = {
       blurb:'The mainline open-world beta of Rizing Power. Playable in your browser today.' },
     { id:'game-project1936', kind:'game', name:'The Living Master Codex', title:'Mainline · 1936 · The Expedition of Carl Nasaro', status:'unlocked',
       since:'2026-10-07', href:'/explorer/', color:'#E2C27D', cta:'BEGIN THE EXPEDITION',
-      blurb:'1936. Carl Nasaro\u2019s classified rocket is thrown off course to Zyraxis. Collect the Expanse. Map the Expanse. Bring it home.' },
+      blurb:'1936. You are Nasaro, the first person from Earth in the Aethryx Expanse. Scan its creatures into the AstraNav, battle them with your cards, meet its peoples. Collect the Expanse. Map the Expanse. Bring it home.' },
     { id:'game-rp7d', kind:'game', name:'RP7D', title:'Rizing Power · Deluxe 3D', status:'soon',
       blurb:'The Deluxe 3D build of Rizing Power. In development.' },
 
@@ -83,6 +83,15 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-07', build:'LIVING MASTER CODEX · SURVEY 7', title:'The AstraNav and the Open Expanse',
+      notes:[
+        'A classic handheld opening: name yourself, choose a man or a woman, fit your kit, and play the role of Nasaro',
+        'The AstraNav, 1936 American tech issued on the first mission, is now the whole interface: star map, cards, Codex, log and setup',
+        'Wake after hyperspace with all 28 bodies in view through the telescope, a natural spiral, and choose your first landing',
+        'Open worlds on every planet, Zyraxis as one seamless map of all ten districts, and travel from world to world',
+        'Scan Aethren into the AstraNav, battle them with your cards on the canon type chart, and meet each world\u2019s people to learn its lore',
+        'Full DualSense support with rumble, and built for landscape on phones'
+      ] },
     { date:'2026-10-07', build:'LIVING MASTER CODEX · SURVEY 5', title:'The World Atlas',
       notes:[
         'Every one of the 28 worlds and the ten Zyraxis districts now has a designed environment, drawn from the Codex',

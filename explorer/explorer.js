@@ -1,19 +1,26 @@
-// ★ 2026-10-07 · THE LIVING MASTER CODEX · survey build 3
+// ★ 2026-10-07 · THE LIVING MASTER CODEX · survey build 7 · THE ASTRANAV · OPEN EXPANSE
 // Canon: docs/card-explorer/02_CARL_NASARO_LIVING_MASTER_CODEX_CANON.md (locked)
-// Design: docs/card-explorer/01_EXPLORATION_DESIGN.md · Content: explorer/data.js
+// Design: docs/card-explorer/01_EXPLORATION_DESIGN.md · 04_OPEN_EXPANSE.md
+// Content: data.js (story, Malezor) · environments.js (every world) · fauna.js (canon Aethren, type chart)
+// Engine helpers: art.js (native pixel art) · worldgen.js (open worlds) · pad.js (DualSense)
 //
-// The player is Carl Nasaro, 1936. His objectives (canon):
+// The player plays the role of Nasaro: they choose a first name, a gender and a
+// look in a classic pocket-style opening. Three objectives (canon):
 //   COLLECT THE EXPANSE · MAP THE EXPANSE · BRING IT HOME
 //
-// Flow: dossier → launch → hyperspace → ship (restore systems)
-//       → THE MAP BOARD (home) → world panel → districts → land
-//       → classic top-down exploration (examine, talk, encounters, caves)
-//       → cards → back to the ship (darkroom, laboratory) → the board again.
+// Flow: PRESS START → the Director → who are you → the kit → dossier (the AstraNav
+//       is issued) → launch → hyperspace → the AstraNav wakes with all 28 bodies in
+//       view → choose a first landing → open-world exploration: scan Aethren into
+//       the AstraNav, battle them with your cards, meet the peoples and learn the
+//       world → back aboard, set course for the next world.
+// THE ASTRANAV is the whole interface: star map, field sketch, cards, Codex, log, setup.
 (function(){
   'use strict';
-  var D = window.EXP_DATA, STORY = D.story;
+  var D = window.EXP_DATA, STORY = D.story, ENVS = window.AOV_ENV || [], FAUNA = window.AOV_FAUNA, GEN = window.AOV_WORLDGEN, PAD = window.AOV_PAD;
+  var ART = window.AOV_ART;
   var doc = document, ui = doc.getElementById('ui'), cv = doc.getElementById('view'), ctx = cv.getContext('2d');
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
   // World names join the lexicon: unknown bodies are catalogued by number.
   D.worlds.forEach(function(w){
@@ -21,27 +28,140 @@
     D.lexicon[w.term] = { unknown:'UNIDENTIFIED BODY No. ' + w.no, canon:w.name };
   });
   var WORLD = {}; D.worlds.forEach(function(w){ WORLD[w.no] = w; });
+  var ENV = {}; ENVS.forEach(function(e){ ENV[e.id] = e; });
+  function envOf(no){ var w = WORLD[no]; return w && ENV[w.term]; }
   function setTerm(n){ return n === 29 ? 'aenor' : n === 30 ? 'zoryth' : WORLD[n].term; }
+
+  // ───────────────────────── the Codex's content, registered from the data files ─────────────────────────
+  // Canon Aethren (fauna.js) and every world's plants, minerals, landmarks and peoples
+  // become subjects that can be recorded and turned into cards.
+  var SP = FAUNA.species, BODY = { quad:'otterlin', amph:'verdanix', wing:'aetherwing', spine:'volcanut' };
+  function shade(hex, k){
+    var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    function f(c){ return Math.max(0, Math.min(255, Math.round(k < 0 ? c * (1 + k) : c + (255 - c) * k))); }
+    return '#' + ((1 << 24) + (f(r) << 16) + (f(g) << 8) + f(b)).toString(16).slice(1);
+  }
+  function registerContent(){
+    Object.keys(SP).forEach(function(id){
+      var s = SP[id];
+      if (!D.subjects[id]) D.subjects[id] = { kind:'aethren', set:s.world, term:id, district:s.district, tier:s.tier, types:s.types.join(' / '),
+        temperament:s.temperament, canonNote:s.note || '', journal:s.journal, provisional:!!s.provisional };
+      D.subjects[id].sp = id;
+      if (!D.lexicon[id]) D.lexicon[id] = { unknown:s.unknown, canon:s.canon ? s.name : null };
+      if (!ART.ANIM[id]) {
+        var c = s.col || '#888888', c2 = s.col2 || c, map;
+        if (s.body === 'quad') map = { i:shade(c, -.25), j:shade(c, .35), I:c2 };
+        else if (s.body === 'amph') map = { x:shade(c, -.45), q:c, Q:shade(c, .4), h:shade(c2, -.3) };
+        else if (s.body === 'wing') map = { V:c, c:c2, C:shade(c2, .6) };
+        else map = { r:c, R:shade(c, .4), u:shade(c, -.5), y:c2 };
+        ART.recolour('sp-' + id, map);
+      }
+    });
+    D.worlds.forEach(function(w){
+      var e = ENV[w.term]; if (!e || w.no === 9 || w.hidden) return;
+      var p = e.palette || {}, gr = p.ground || {}, sp = p.special || p.liquid || {}, sv = Object.keys(sp).map(function(k){ return sp[k]; });
+      var g0 = gr.g || '#5fa845';
+      ART.recolour('pl-' + w.no, { h:shade(g0, -.35), g:shade(g0, .1), G:shade(g0, .4), c:sv[0] || '#3fa0e0', C:sv[1] || '#a8e8ff' });
+      ART.recolour('mn-' + w.no, { c:sv[0] || '#3fa0e0', C:shade(sv[0] || '#3fa0e0', .6), N:shade(g0, -.5), n:shade(g0, -.2) });
+      var terr = (e.terrain || ['ground', 'rock']);
+      D.subjects['pl_' + w.no] = { kind:'plant', set:w.no, term:'pl_' + w.no, art:'shrub@pl-' + w.no, tier:null, types:'Botanical', canonNote:'',
+        journal:'A plant growing among the ' + terr[0] + '. I pressed a leaf into the journal. Nothing on Earth grows like it.' };
+      D.lexicon['pl_' + w.no] = { unknown:'PLANT · BODY No. ' + w.no, canon:null };
+      D.subjects['mn_' + w.no] = { kind:'mineral', set:w.no, term:'mn_' + w.no, art:'astralite@mn-' + w.no, tier:null, types:'Mineral', canonNote:'',
+        journal:'A crystalline sample from the ' + (terr[1] || terr[0]) + '. It is warm through the glove, and the wireless hisses when I hold it close.' };
+      D.lexicon['mn_' + w.no] = { unknown:'MINERAL · BODY No. ' + w.no, canon:null };
+    });
+    ART.recolour('lm-gold', { c:'#e8c46a', C:'#fff3c8', N:'#5a4a2a', n:'#a8834c' });
+    ENVS.forEach(function(e){
+      (e.landmarks || []).forEach(function(name, i){
+        var id = 'lm_' + e.id + '_' + i, no = e.kind === 'world' ? e.no : 9;
+        D.subjects[id] = { kind:'location', set:no, term:id, art:'spire@lm-gold', district:e.kind === 'district' ? e.id : null, tier:null, types:'Location', canonNote:'',
+          journal:'A structure no animal built. I sketched it from every side and paced out its base.' };
+        D.lexicon[id] = { unknown:'UNNAMED STRUCTURE No. ' + (i + 1), canon:name.toUpperCase() };
+      });
+      var wall = (e.palette && e.palette.wall) || {}, path = (e.palette && e.palette.path) || {};
+      ART.recolour('ppl-' + e.id, { u:wall.L || '#4b2e1a', b:path.P || path.p || '#7a4f2c', W:wall.W || '#cfc8b4' });
+    });
+    // the peoples: one relationship card per world (per district on Zyraxis)
+    Object.keys(FAUNA.peoples).forEach(function(no){
+      var pe = FAUNA.peoples[no]; no = +no;
+      if (!pe.race || no === 9) return;
+      var id = 'ppl_w' + no;
+      D.subjects[id] = { kind:'haemen', set:no, term:id, art:'haemen_down@ppl-' + (envOf(no) || {}).id, tier:null, types:'People', species:pe.race, canonNote:'',
+        journal:'They met me without fear. They looked longest at the AstraNav.' };
+      D.lexicon[id] = { unknown:pe.unknown, canon:pe.race };
+    });
+    GEN.DISTRICTS.forEach(function(d, i){
+      if (i === 0) return;
+      var id = 'ppl_z_' + d;
+      D.subjects[id] = { kind:'haemen', set:9, term:id, district:d, art:'haemen_down@ppl-' + d, tier:null, types:'Haemen', species:null, canonNote:'',
+        journal:'People of this district. Their dress is nothing like the furs of the meadow.' };
+      D.lexicon[id] = { unknown:'INHABITANTS, REGION ' + ['I','II','III','IV','V','VI','VII','VIII','IX','X'][i], canon:'HAEMEN OF ' + D.lexicon[d].canon };
+    });
+  }
+  registerContent();
 
   // ───────────────────────── save ─────────────────────────
   var KEY = 'aov.explorer.v1';
+  var LOOK = { skin:0, hair:0, style:0, hc:0, suit:0, helmet:0, visor:0 };
   function blank(){
-    return { v:2, name:'Carl Nasaro', stage:'title', flags:{}, film:12, frames:[], archive:{}, cards:{}, lex:{},
-             suit:100, air:100, flares:2, visited:{}, last:null, map:null, pos:null, fog:{}, notes:{}, found:{},
-             sound:false, started:Date.now() };
+    return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{}, archive:{}, cards:{}, lex:{},
+             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{},
+             opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
   var S = null, fresh = /[?&]newgame\b/.test(location.search);
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch(e){}
   if (S && S.v === 1) {          // carry an early-build save forward
-    var old = S; S = blank();
-    ['name','cards','archive','notes','lex','sound'].forEach(function(k){ if (old[k]) S[k] = old[k]; });
-    ['power','air','radio','shotAenor','shotZoryth','copied','decoded'].forEach(function(k){ if (old.flags && old.flags[k]) S.flags[k] = old.flags[k]; });
-    if (old.landed) S.visited[9] = Date.now();
-    S.stage = S.flags.power ? 'map' : 'ship';
+    var old1 = S; S = blank(); S.v = 2;
+    ['cards','archive','notes','lex'].forEach(function(k){ if (old1[k]) S[k] = old1[k]; });
+    ['power','air','radio','shotAenor','shotZoryth','copied','decoded'].forEach(function(k){ if (old1.flags && old1.flags[k]) S.flags[k] = old1.flags[k]; });
+    if (old1.landed) S.visited[9] = Date.now();
+    S.opts.sound = !!old1.sound;
   }
-  if (fresh || !S || S.v !== 2) S = fresh ? null : (S && S.v === 2 ? S : null);
-  if (S) S.name = 'Carl Nasaro';
+  if (S && S.v === 2) {          // survey builds 2-5: one map per district → the open Expanse
+    var old2 = S, nu = blank();
+    ['flags','archive','cards','lex','visited','notes','suit','air','flares'].forEach(function(k){ if (old2[k] != null) nu[k] = old2[k]; });
+    nu.opts.sound = !!old2.sound;
+    // undeveloped film becomes scans: every sharp frame is a card now
+    (old2.frames || []).forEach(function(f){ if (f.subj && D.subjects[f.subj] && (f.grade === 'good' || f.grade === 'excellent')) { var c = nu.cards[f.subj] || (nu.cards[f.subj] = { qty:0, at:Date.now() }); c.qty++; } });
+    Object.keys(nu.cards).forEach(function(id){ nu.cards[id].img = null; if (!nu.archive[id]) nu.archive[id] = { classified:Date.now() }; });
+    nu.at = old2.visited && old2.visited[9] ? 9 : null; nu.landed = !!nu.at;
+    nu.stage = old2.stage === 'title' || old2.stage === 'dossier' || old2.stage === 'launch' ? 'title' : 'nav';
+    if (old2.pos && old2.pos.map === 'malezor') { nu.pos = { map:'w9', x:old2.pos.x + 3, y:old2.pos.y + 2, dir:old2.pos.dir }; nu.landed = true; }
+    else if (old2.pos && old2.pos.map === 'firstden') { nu.pos = old2.pos; nu.landed = true; }
+    Object.keys(nu.cards).forEach(function(id){ if (SP[id]) { nu.cards[id].lv = 4; nu.cards[id].xp = 0; } });
+    S = nu;
+  }
+  if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
+  if (fresh || !S || S.v !== 3) S = null;
   function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ /* storage full or blocked: keep playing */ } }
+  function opt(k){ return S && S.opts ? S.opts[k] : blank().opts[k]; }
+
+  // ───────────────────────── the hero: the player is Nasaro ─────────────────────────
+  var SKIN = [['#f0d0b0','#cca482'], ['#e8c8a8','#c49a78'], ['#d0a07a','#a8784e'], ['#a87450','#7e5234'], ['#7a4e30','#583420']];
+  var HAIRC = [['#5a3a22','#8a5c34','BROWN'], ['#1e1814','#3e3228','BLACK'], ['#c89a48','#ecc878','FAIR'], ['#9a3e1e','#c8642e','AUBURN'], ['#8a8a8a','#c0c0c0','GREY'], ['#e8e0d0','#ffffff','WHITE']];
+  var STYLES = [['hair_short','SHORT'], ['hair_slick','SLICKED'], ['hair_bob','BOB'], ['hair_long','LONG']];
+  var SUITS = [['#b3a982','#d8cfa8','#6e6450','KHAKI'], ['#6e7a4a','#94a06a','#3e4628','OLIVE'], ['#3e4a6a','#5e6c92','#242c40','NAVY'], ['#7a7a74','#a4a49c','#4a4a44','GREY'], ['#8a4e34','#b2704e','#5a2e1c','RUST']];
+  var HELMS = [['#c8843c','#eaa860','COPPER'], ['#c8a040','#ecd078','BRASS'], ['#8a949c','#c0c8d0','STEEL'], ['#2a2a30','#545460','ENAMEL']];
+  var VISORS = [['#9fd2e6','#dff4fb','SKY'], ['#e8b860','#fbe8b8','AMBER'], ['#8ad0a0','#d8f4e0','GREEN']];
+  function hero(){ return (S && S.hero) || blank().hero; }
+  function heroName(){ return hero().first + ' NASARO'; }
+  function heroSet(){ return hero().gender === 'f' ? 'nasf' : 'carl'; }
+  function applyLook(look, id){
+    look = look || hero().look;
+    var sk = SKIN[look.skin] || SKIN[1], hc = HAIRC[look.hc] || HAIRC[0], su = SUITS[look.suit] || SUITS[0], he = HELMS[look.helmet] || HELMS[0], vi = VISORS[look.visor] || VISORS[0];
+    ART.recolour(id || 'player', { t:sk[0], T:sk[1], Z:hc[0], X:hc[1], s:su[0], S:su[1], d:su[2], o:he[0], O:he[1], e:vi[0], E:vi[1] });
+  }
+  ART.recolour('director', { t:SKIN[1][0], T:SKIN[1][1], Z:'#a8a8a8', X:'#dcdcdc', s:'#2a2a34', S:'#3a3a48', d:'#1a1a22', y:'#9a2a2a', W:'#efe6d0' });
+  function withRc(spec, rc){ var p = spec.split('|'); return p[0] + '@' + rc + (p[1] ? '|' + p[1] : ''); }
+  function heroSpec(dir, n){ return withRc(ART.frame(heroSet(), dir, n), 'player'); }
+  function portraitDraw(c, look, gender, scale){
+    var g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.imageSmoothingEnabled = false;
+    applyLook(look, 'preview');
+    var st = STYLES[look.style] || STYLES[0];
+    ART.draw(g, (gender === 'f' ? 'face_f' : 'face_m') + '@preview', c.width / 2, c.height, scale);
+    ART.draw(g, st[0] + '@preview', c.width / 2, c.height, scale);
+  }
 
   // ───────────────────────── helpers ─────────────────────────
   function el(tag, cls, html){ var n = doc.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; }
@@ -57,11 +177,12 @@
   function wait(ms){ return new Promise(function(r){ setTimeout(r, reduced ? Math.min(ms, 60) : ms); }); }
   function pad2(n){ return (n < 10 ? '0' : '') + n; }
   function title1936(s){ return s.charAt(0) + s.slice(1).toLowerCase(); }
+  function textSpeed(){ return [30, 16, 6][opt('text')] || 16; }
 
-  // ───────────────────────── sound (off by default) ─────────────────────────
+  // ───────────────────────── sound (off by default) & haptics ─────────────────────────
   var actx = null;
   function tone(f, d, type, vol, when){
-    if (!S || !S.sound) return;
+    if (!S || !opt('sound')) return;
     try {
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
       var t = actx.currentTime + (when || 0), o = actx.createOscillator(), g = actx.createGain();
@@ -78,8 +199,15 @@
     warn:    function(){ tone(220, .25, 'sawtooth', .05); tone(180, .25, 'sawtooth', .05, .25); },
     bump:    function(){ tone(90, .06, 'square', .04); },
     reveal:  function(){ [392,494,587,784].forEach(function(f,i){ tone(f, .18, 'triangle', .04, i*.09); }); },
-    meet:    function(){ [660,520,780].forEach(function(f,i){ tone(f, .1, 'square', .035, i*.07); }); }
+    meet:    function(){ [660,520,780].forEach(function(f,i){ tone(f, .1, 'square', .035, i*.07); }); },
+    hit:     function(){ tone(120, .12, 'square', .06); tone(70, .15, 'sawtooth', .05, .05); },
+    start:   function(){ [523,659,784,1046].forEach(function(f,i){ tone(f, .12, 'square', .04, i*.08); }); }
   };
+  function vibrate(ms, strong){
+    if (S && opt('haptics') === false) return;
+    if (PAD && PAD.rumble(ms, strong == null ? .7 : strong, .4)) return;
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){}
+  }
 
   // ───────────────────────── toasts ─────────────────────────
   var toasts = el('div', 'x-toasts'); toasts.setAttribute('aria-live', 'polite'); doc.body.appendChild(toasts);
@@ -94,7 +222,7 @@
   function typeInto(node, text, speed){
     return new Promise(function(res){
       var i = 0, done = false;
-      function finish(){ if (done) return; done = true; node.textContent = text; node.removeEventListener('click', finish); res(); }
+      function finish(){ if (done) return; done = true; node.textContent = text; node.removeEventListener('click', finish); node._finish = null; node._doneAt = performance.now(); res(); }
       node.addEventListener('click', finish);
       node._finish = finish;
       if (reduced) return finish();
@@ -102,24 +230,25 @@
         if (done) return;
         node.textContent = text.slice(0, ++i);
         if (i % 2) sfx.key();
-        if (i >= text.length) finish(); else setTimeout(step, speed || 22);
+        if (i >= text.length) finish(); else setTimeout(step, speed || textSpeed());
       })();
     });
   }
 
   // ───────────────────────── archive & cards ─────────────────────────
   var POINTS = {
-    aethren:{ observe:1, fair:1, classified:2 }, haemen:{ talk:1, classified:2 },
+    aethren:{ observe:1, battled:1, fair:1, classified:2 }, haemen:{ talk:1, classified:2 },
     mineral:{ classified:3 }, plant:{ classified:3 }, location:{ reached:1, classified:2 }, celestial:{ classified:3 }
   };
   function arc(id){ return S.archive[id] || (S.archive[id] = {}); }
   function mark(id, what){ var a = arc(id); if (a[what]) return false; a[what] = Date.now(); save(); return true; }
+  var setCache = {};
+  function setSubjects(n){ return setCache[n] || (setCache[n] = Object.keys(D.subjects).filter(function(id){ return subj(id).set === n; })); }
   function setPct(n){
     var got = 0, max = 0;
-    Object.keys(D.subjects).forEach(function(id){
-      var s = subj(id); if (s.set !== n) return;
-      var P = POINTS[s.kind] || {}, a = S.archive[id] || {};
-      Object.keys(P).forEach(function(k){ max += P[k]; if (a[k] || (a.classified && k === 'fair')) got += P[k]; });
+    setSubjects(n).forEach(function(id){
+      var s = subj(id), P = POINTS[s.kind] || {}, a = S.archive[id] || {};
+      Object.keys(P).forEach(function(k){ max += P[k]; if (a[k] || (a.classified && (k === 'fair' || k === 'battled' || k === 'observe'))) got += P[k]; });
     });
     return max ? Math.round(got / max * 100) : 0;
   }
@@ -129,18 +258,19 @@
     return Object.keys(S.archive).filter(function(id){ return S.archive[id].classified && subj(id) && (!kind || subj(id).kind === kind); }).length;
   }
   // GOAL II: the first map. Half credit for identifying a body, half for visiting
-  // (or, for Aenor and Zoryth, photographing) it.
+  // (or, for Aenor and Zoryth, scanning) it.
   function mapPct(){
-    var pts = 0;
-    D.worlds.forEach(function(w){ if (known(w.term)) pts += .5; if (S.visited[w.no]) pts += .5; });
+    var pts = 0, list = D.worlds.filter(function(w){ return !w.hidden; });
+    list.forEach(function(w){ if (known(w.term)) pts += .5; if (S.visited[w.no]) pts += .5; });
     ['aenor','zoryth'].forEach(function(k){ if (known(k)) pts += .5; if (S.cards[k]) pts += .5; });
-    return Math.round(pts / (D.worlds.length + 2) * 100);
+    return Math.round(pts / (list.length + 2) * 100);
   }
-  function identifiedCount(){ return D.worlds.filter(function(w){ return known(w.term); }).length; }
-  function manifest(id, img, foil){
+  function identifiedCount(){ return D.worlds.filter(function(w){ return !w.hidden && known(w.term); }).length; }
+  function manifest(id, img, foil, lv){
     var c = S.cards[id], first = !c;
     if (!c) c = S.cards[id] = { qty:0, img:img || null, foil:false, at:Date.now() };
     c.qty++; if (foil) c.foil = true; if (!c.img && img) c.img = img;
+    if (subj(id).sp) { c.lv = Math.max(c.lv || 0, lv || 3); c.xp = c.xp || 0; if (c.hp == null) c.hp = maxHp(id); autoTeam(); }
     if (!arc(id).classified) arc(id).classified = Date.now();
     S.notes[id] = 1;
     save();
@@ -148,36 +278,48 @@
   }
   function rarity(s){ return s.tier ? s.tier + '/10' : 'UNRATED'; }
   function classLine(s){
-    return s.kind === 'aethren' ? term('aethren') : s.kind === 'haemen' ? term('haemen') : s.kind === 'mineral' ? 'MINERAL SPECIMEN' :
+    return s.kind === 'aethren' ? term('aethren') : s.kind === 'haemen' ? (s.types === 'Haemen' ? term('haemen') : 'PEOPLE') : s.kind === 'mineral' ? 'MINERAL SPECIMEN' :
       s.kind === 'plant' ? 'BOTANICAL SPECIMEN' : s.kind === 'location' ? 'LOCATION' : 'CELESTIAL BODY';
   }
-  function artHtml(s, c){
+  // the sprite for any Aethren: its own art if drawn, else its body plan in its colours
+  function critterSpec(id, dir, n){
+    if (ART.ANIM[id]) return ART.frame(id, dir, n);
+    var s = SP[id]; if (!s) return 'boulder';
+    return withRc(ART.frame(BODY[s.body] || 'otterlin', dir, n), 'sp-' + id);
+  }
+  function subjArt(id){ var s = subj(id); return s.art || (s.sp ? critterSpec(s.sp, 'down', 0) : null); }
+  function artHtml(s, c, id){
     if (c && c.img) return '<img alt="" src="' + c.img + '">';
-    if (s.art) return '<img class="x-pix" alt="" src="' + window.AOV_ART.url(s.art, 8) + '">';
+    var a = subjArt(id);
+    if (a) return '<img class="x-pix" alt="" src="' + ART.url(a, 8) + '">';
     return '<span class="x-noimg">NO PLATE</span>';
   }
+  function worldOfSubj(s){ return s.set <= 28 ? term(setTerm(s.set)) : null; }
   function cardHtml(id, big){
     var s = subj(id), c = S.cards[id] || { qty:0 };
     var rows = [['SET', setName(s.set)], ['CLASS', classLine(s)]];
-    if (s.district) rows.push(['WORLD', term('zyraxis')], ['DISTRICT', term(s.district)]);
-    if (s.kind === 'aethren') rows.push(['SPECIES', subjName(id)]);
-    if (s.kind === 'haemen') rows.push(['SPECIES', s.species || '— awaiting canon —']);
+    if (s.district) rows.push(['DISTRICT', term(s.district)]);
+    if (s.kind === 'aethren') rows.push(['SPECIES', subjName(id)], ['TYPES', s.types]);
+    if (s.kind === 'haemen') rows.push(['PEOPLE', s.species ? (known(s.term) ? s.species : '— not yet learned —') : '— awaiting canon —']);
+    if (s.sp && c.lv) rows.push(['LEVEL', String(c.lv)], ['VIGOUR', Math.max(0, c.hp == null ? maxHp(id) : c.hp) + ' / ' + maxHp(id)]);
     rows.push(['RARITY', rarity(s)], ['QUANTITY', String(c.qty)]);
     return '<div class="x-card' + (c.foil ? ' foil' : '') + (big ? ' big' : '') + '" data-card="' + id + '">' +
       '<div class="x-card-band">' + esc(setName(s.set)) + '</div>' +
-      '<div class="x-card-art">' + artHtml(s, c) + '</div>' +
+      '<div class="x-card-art">' + artHtml(s, c, id) + '</div>' +
       '<div class="x-card-nm">' + esc(subjName(id)) + '</div>' +
       (big ? '<dl class="x-card-dl">' + rows.map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('') + '</dl>' +
+        (s.sp && c.lv ? '<p class="x-card-moves">' + spMoves(s.sp).map(function(m){ return '<span style="--tc:' + typeCol(m.t) + '">' + esc(m.n) + ' · ' + esc(m.t.toUpperCase()) + '</span>'; }).join('') + '</p>' : '') +
         (s.canonNote && known(s.term) ? '<p class="x-card-canon">' + esc(s.canonNote) + '</p>' : '') +
+        (s.provisional ? '<p class="x-card-canon">PROVISIONAL · awaiting the Creator’s species for this world</p>' : '') +
         '<p class="x-card-note">“' + esc(s.journal) + '”</p>'
-        : '<div class="x-card-meta"><span>' + esc(classLine(s)) + '</span><b>' + rarity(s) + '</b></div>') +
+        : '<div class="x-card-meta"><span>' + esc(classLine(s)) + (s.sp && c.lv ? ' · LV ' + c.lv : '') + '</span><b>' + rarity(s) + '</b></div>') +
       (c.qty > 1 ? '<span class="x-qty">×' + c.qty + '</span>' : '') +
       '</div>';
   }
   // The field reveal: a card flips into existence over the game.
   function cardReveal(id, first, label){
     return new Promise(function(res){
-      sfx.reveal();
+      sfx.reveal(); vibrate(60, .3);
       var m = el('div', 'x-modal x-reveal', '<div class="x-modal-in"><p class="x-man-k">' + esc(label || (first ? 'CARD ACQUIRED' : 'ANOTHER COPY · QUANTITY +1')) + '</p>' + cardHtml(id, true) + '<button class="x-btn">CONTINUE</button></div>');
       ui.appendChild(m);
       var b = $('.x-btn', m); setTimeout(function(){ b.focus(); }, 50);
@@ -185,12 +327,44 @@
     });
   }
 
+  // ───────────────────────── battle numbers (canon stats, canon chart) ─────────────────────────
+  function typeCol(t){ return FAUNA.colors[t] || '#8a8a8a'; }
+  function spMoves(spId){ return (SP[spId] && SP[spId].moves) || []; }
+  function stat(base, lv){ return Math.floor(base * 2 * lv / 100) + 5; }
+  function hpOf(spId, lv){ var b = SP[spId].base; return Math.floor(b.hp * 2 * lv / 100) + lv + 10; }
+  function maxHp(cardId){ var s = subj(cardId), c = S.cards[cardId]; return s && s.sp ? hpOf(s.sp, (c && c.lv) || 3) : 0; }
+  function mult(moveType, defTypes){
+    var m = 1, strong = FAUNA.strong;
+    defTypes.forEach(function(d){
+      if (!strong[moveType] || !strong[d]) return;
+      if (strong[moveType].indexOf(d) >= 0) m *= 2;
+      else if (strong[d].indexOf(moveType) >= 0) m *= .5;
+    });
+    return m;
+  }
+  function effLabel(m){ return m >= 3 ? 'It’s overwhelming!' : m > 1 ? 'It’s super effective!' : m <= .25 ? 'It barely scratched it . . .' : m < 1 ? 'It’s not very effective . . .' : null; }
+  function damage(att, def, mv){
+    var sa = SP[att.sp], sd = SP[def.sp], special = mv.s === 'A3';
+    var A = stat(special ? sa.base.spc : sa.base.atk, att.lv), Dd = stat(special ? sd.base.spc : sd.base.def, def.lv);
+    var mu = mult(mv.t, sd.types), stab = sa.types.indexOf(mv.t) >= 0 ? 1.5 : 1;
+    var dmg = Math.floor(((2 * att.lv / 5 + 2) * mv.p * A / Dd) / 50 + 2);
+    dmg = Math.max(1, Math.floor(dmg * mu * stab * (.85 + Math.random() * .15)));
+    return { dmg:dmg, mult:mu };
+  }
+  function aethrenCards(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp && S.cards[id].lv; }); }
+  function autoTeam(){
+    S.team = (S.team || []).filter(function(id){ return S.cards[id]; });
+    aethrenCards().sort(function(a, b){ return (S.cards[b].lv || 0) - (S.cards[a].lv || 0); }).forEach(function(id){ if (S.team.length < 3 && S.team.indexOf(id) < 0) S.team.push(id); });
+  }
+  function teamReady(){ autoTeam(); return S.team.filter(function(id){ var c = S.cards[id]; return c.hp == null || c.hp > 0; }); }
+  function healTeam(){ aethrenCards().forEach(function(id){ S.cards[id].hp = maxHp(id); }); }
+
   // ───────────────────────── objectives (Expedition Log) ─────────────────────────
   function goalLines(){
     return [
       Object.keys(S.cards).length + ' cards · ' + totalCopies() + ' copies in the locker',
-      mapPct() + '% charted · ' + identifiedCount() + ' of 28 bodies named',
-      'Earth\u2019s position: UNKNOWN'
+      mapPct() + '% charted · ' + identifiedCount() + ' of 27 bodies named',
+      'Earth’s position: UNKNOWN'
     ];
   }
   function goalsHtml(){
@@ -202,21 +376,26 @@
   function chaptersHtml(){
     return '<div class="x-chapters"><p class="x-mono">THE EXPEDITION</p><ol>' + STORY.chapters.map(function(c, i){
       return '<li class="' + (c.open ? 'open' : '') + '"><span>' + ['I','II','III','IV'][i] + '</span>' +
-        (c.open ? '<b>' + esc(c.era) + ' · ' + esc(c.title.toUpperCase()) + '</b><em>' + esc(c.note) + '</em>' : '<b>· · · A FUTURE CHAPTER</b>') + '</li>';
+        (c.open ? '<b>' + esc(c.era) + ' · ' + esc(c.title.toUpperCase()) + '</b><em>' + esc(c.note.replace('Carl Nasaro', title1936(hero().first) + ' Nasaro')) + '</em>' : '<b>· · · A FUTURE CHAPTER</b>') + '</li>';
     }).join('') + '</ol></div>';
   }
+  function peoplesMet(){ return Object.keys(S.lore).length; }
+  function battlesWon(){ return Object.keys(S.archive).filter(function(id){ return S.archive[id].battled; }).length; }
   function objectives(){
     var F = S.flags, fauna = classifiedCount('aethren'), spec = classifiedCount('plant') + classifiedCount('mineral');
+    var worlds = D.worlds.filter(function(w){ return S.visited[w.no]; }).length;
     return [
-      { t:'Restore ship systems: power, air, wireless', done: F.power && F.air && F.radio },
-      { t:'Chart the surrounding bodies and land on one within range', done: !!S.visited[9] },
-      { t:'Make contact with an inhabitant', done: !!(S.archive.furtrader && S.archive.furtrader.talk) },
-      { t:'Photograph local ' + (known('aethren') ? 'Aethren' : 'fauna') + ' and develop the prints aboard (' + Math.min(fauna,3) + '/3 classified)', done: fauna >= 3 },
-      { t:'Document botanical and mineral specimens (' + Math.min(spec,3) + '/3)', done: spec >= 3 },
-      { t:'Show the inhabitant your photographs', done: !!F.taught },
+      { t:'Choose a first landing from the AstraNav and land', done: worlds > 0 },
+      { t:'Make contact with an inhabitant', done: !!(S.archive.furtrader && S.archive.furtrader.talk) || peoplesMet() > 0 },
+      { t:'Scan ' + (known('aethren') ? 'Aethren' : 'creatures') + ' into the AstraNav (' + Math.min(fauna, 3) + '/3)', done: fauna >= 3 },
+      { t:'Win a card battle with one of your ' + (known('aethren') ? 'Aethren' : 'animal') + ' cards (' + Math.min(battlesWon(), 1) + '/1)', done: battlesWon() >= 1 },
+      { t:'Document botanical and mineral specimens (' + Math.min(spec, 3) + '/3)', done: spec >= 3 },
+      { t:'Show an inhabitant your scans and learn their words', done: !!F.taught || peoplesMet() > 0 },
       { t: known('firstden') ? 'Copy the carved markings in The First Den' : 'Explore the stone cave and copy its markings', done: F.copied },
-      { t:'Decode the markings (Laboratory)', done: F.decoded },
-      { t: known('aenor') ? 'Photograph Aenor and Zoryth from the Observation Port' : 'Photograph the radiant body and its satellite (Observation Port)', done: F.shotAenor && F.shotZoryth, side:true },
+      { t:'Decode the markings (AstraNav · CODEX)', done: F.decoded },
+      { t:'Set course for another world and land there (' + Math.min(worlds, 2) + '/2 worlds)', done: worlds >= 2 },
+      { t:'Learn the ways of three peoples (' + Math.min(peoplesMet(), 3) + '/3)', done: peoplesMet() >= 3 },
+      { t: known('aenor') ? 'Scan Aenor and Zoryth (AstraNav · SYSTEM)' : 'Scan the radiant body and its satellite (AstraNav · SYSTEM)', done: F.shotAenor && F.shotZoryth, side:true },
       { t:'BRING IT HOME', done:false, main:true }
     ];
   }
@@ -226,43 +405,212 @@
 
   // ═════════════════════════ SCENES (DOM) ═════════════════════════
   function screen(cls, html){
-    stopWorld();
-    camOpen = false; aim = { x:0, y:0 };
-    ui.innerHTML = ''; var s = el('div', 'x-screen ' + cls, html); ui.appendChild(s); return s;
+    stopWorld(); closeDialog(-2);
+    ui.innerHTML = ''; var s = el('div', 'x-screen ' + cls, html); ui.appendChild(s);
+    doc.body.classList.toggle('in-nav', /\bx-nav\b/.test(cls));
+    setTimeout(function(){ if (padOn) focusFirst(); }, 30);
+    return s;
+  }
+  // phones play sideways: go full screen and hold landscape where the browser allows
+  function goLandscape(){
+    if (!coarse) return;
+    var de = doc.documentElement;
+    try {
+      var p = de.requestFullscreen ? de.requestFullscreen({ navigationUI:'hide' }) : de.webkitRequestFullscreen ? de.webkitRequestFullscreen() : null;
+      var sc = window.screen; Promise.resolve(p).then(function(){ if (sc.orientation && sc.orientation.lock) return sc.orientation.lock('landscape'); }).catch(function(){});
+    } catch(e){}
   }
 
-  // ── title ──
+  // ── title · PRESS START ──
   function title(){
     var s = screen('x-title',
       '<div class="x-title-in">' +
         '<p class="x-stamp">TOP SECRET · 1936</p>' +
         '<h1>THE LIVING<br>MASTER CODEX</h1>' +
-        '<p class="x-tsub">THE AOV™ SAGA · THE EXPEDITION OF CARL NASARO</p>' +
-        '<p class="x-tgoals">Collect the Expanse.<br>Map the Expanse.<br>Bring it home.</p>' +
-        '<div class="x-btns">' +
-          (S ? '<button class="x-btn" data-a="continue">CONTINUE EXPEDITION</button>' : '') +
-          '<button class="x-btn' + (S ? ' ghost' : '') + '" data-a="new">' + (S ? 'NEW EXPEDITION' : 'OPEN THE DOSSIER') + '</button>' +
+        '<p class="x-tsub">THE AOV™ SAGA · THE EXPEDITION OF NASARO</p>' +
+        '<img class="x-title-ship x-pix" alt="" src="' + ART.url('ship', 5) + '">' +
+        '<p class="x-press" data-nav tabindex="0" role="button">PRESS START</p>' +
+        '<div class="x-btns" hidden>' +
+          (S ? '<button class="x-btn" data-a="continue">CONTINUE</button>' : '') +
+          '<button class="x-btn' + (S ? ' ghost' : '') + '" data-a="new">NEW GAME</button>' +
         '</div>' +
-        '<p class="x-fine">Survey build 3 · progress is saved in this browser only<br>' + esc(STORY.rule) + '<br><a href="/games.html">← THE GAMES</a></p>' +
+        '<p class="x-fine">Survey build 7 · The AstraNav · progress is saved in this browser only<br>' + esc(STORY.rule) + '<br><a href="/games.html">← THE GAMES</a></p>' +
       '</div>');
+    var pressed = false;
+    function start(){
+      if (pressed) return; pressed = true;
+      sfx.start(); goLandscape();
+      $('.x-press', s).hidden = true; var b = $('.x-btns', s); b.hidden = false;
+      setTimeout(function(){ var f = $('.x-btn', b); if (f) f.focus(); }, 30);
+      removeEventListener('keydown', anyKey);
+    }
+    function anyKey(e){ if (!/^(Tab|Shift|Alt|Control|Meta)$/.test(e.key)) { e.preventDefault(); start(); } }
+    addEventListener('keydown', anyKey);
     s.addEventListener('click', function(e){
+      if (!pressed) { if (!e.target.closest('a')) start(); return; }
       var a = e.target.closest('[data-a]'); if (!a) return;
-      if (a.dataset.a === 'continue') { resume(); return; }
-      if (S && !confirm('Start a new expedition? Your current records will be lost.')) return;
-      S = blank(); save(); dossier();
+      sfx.click();
+      if (a.dataset.a === 'continue') { applyLook(); resume(); return; }
+      if (S && !confirm('Start a new game? Your current expedition will be lost.')) return;
+      intro();
+    });
+    titleStart = start;
+  }
+  var titleStart = null;
+  function resume(){
+    if (S.stage === 'surface' && S.pos && S.landed) surface(S.pos.map);
+    else if (S.stage === 'nav' || S.stage === 'surface') ship();
+    else if (S.stage === 'launch') launch();
+    else if (S.stage === 'dossier') dossier();
+    else intro();
+  }
+
+  // ── the opening, in the classic pocket style: the Director, who are you, your name, your kit ──
+  function gbaScene(){
+    var g = screen('x-gba',
+      '<div class="x-gba-stage"><div class="x-gba-floor"></div>' +
+        '<canvas class="x-gba-por" width="144" height="192" aria-hidden="true"></canvas>' +
+        '<div class="x-gba-pick" hidden></div>' +
+        '<img class="x-gba-prop x-pix" alt="" hidden></div>' +
+      '<div class="x-dialog gba" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
+    g.addEventListener('click', function(e){ if (dlg && !e.target.closest('[data-c]')) advanceDialog(); });
+    return g;
+  }
+  function drawDirector(c){
+    var g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.imageSmoothingEnabled = false;
+    ['face_m','hair_slick','moustache'].forEach(function(n){ ART.draw(g, n + '@director', c.width / 2, c.height, 6); });
+  }
+  async function intro(){
+    S = blank(); S.stage = 'intro';
+    var s = gbaScene(), por = $('.x-gba-por', s), prop = $('.x-gba-prop', s), pick = $('.x-gba-pick', s);
+    drawDirector(por); por.classList.add('in');
+    await wait(500);
+    await say(['Hello there! Welcome to the EXPERIMENTAL ROCKET PROGRAM.',
+               'Around here, they call me the DIRECTOR. My name is not important. Yours will be.']);
+    prop.src = ART.url('ship', 6); prop.hidden = false;
+    await say(['This is our vessel. It has never flown.',
+               'Some of our astronomers believe the sky is full of other worlds, with creatures and peoples no one on Earth has ever seen.',
+               'We know nothing about them. That is why we need an observer.']);
+    prop.hidden = true;
+    prop.src = ART.url('astranav', 8); prop.hidden = false;
+    await say(['And this is yours: the ASTRANAV. Navigation, survey and a scanner, all in one case. American-made.',
+               'Point it at anything you find out there and it will take its measure: plants, minerals, places, living things. Every scan is kept.',
+               'It is the only one in the world. Do not lose it.']);
+    prop.hidden = true;
+    await say(['First, tell me a little about yourself.']);
+    por.hidden = true;
+    var lookM = Object.assign({}, LOOK), lookF = Object.assign({}, LOOK, { style:2 });
+    pick.innerHTML = '<figure data-g="m"><canvas width="120" height="160"></canvas><figcaption>MAN</figcaption></figure><figure data-g="f"><canvas width="120" height="160"></canvas><figcaption>WOMAN</figcaption></figure>';
+    var cs = $$('canvas', pick); portraitDraw(cs[0], lookM, 'm', 5); portraitDraw(cs[1], lookF, 'f', 5);
+    pick.hidden = false;
+    var g = await say(['Are you a man or a woman?'], ['MAN', 'WOMAN'], null, function(i){ $$('figure', pick).forEach(function(f, k){ f.classList.toggle('on', k === i); }); });
+    S.hero.gender = g === 1 ? 'f' : 'm'; S.hero.look = g === 1 ? lookF : lookM;
+    pick.hidden = true; por.hidden = false;
+    var name = '';
+    while (!name) {
+      var presets = S.hero.gender === 'm' ? ['NEW NAME', 'CARL'] : ['NEW NAME'];
+      var choice = presets.length > 1 ? await say(['Let’s begin with your name. What is it?'], presets) : 0;
+      if (presets.length === 1) await say(['Let’s begin with your name. What is it?']);
+      var first = choice === 1 ? 'CARL' : await naming(S.hero.gender);
+      s = gbaScene(); por = $('.x-gba-por', s); prop = $('.x-gba-prop', s); drawDirector(por); por.classList.add('in', 'now');
+      var ok = await say(['Right . . . so your name is ' + first + ' NASARO?'], ['YES', 'NO']);
+      if (ok === 0) name = first;
+    }
+    S.hero.first = name;
+    await say(['' + name + ' NASARO. Good. Before you suit up, let’s get your kit fitted.']);
+    S.hero.look = await kit(S.hero.gender, S.hero.look);
+    applyLook();
+    s = gbaScene(); por = $('.x-gba-por', s); drawDirector(por); por.classList.add('in', 'now');
+    await say([name + ' NASARO! You will be the first person from Earth to see what is out there.',
+               'Scan everything into the AstraNav. Keep a record. And whatever you find . . .', 'bring it home.',
+               'Your very own expedition is about to unfold! A sky full of worlds is waiting. Let’s go!']);
+    // the classic shrink: the portrait becomes the little figure who walks the worlds
+    var c = por.getContext('2d'); portraitDraw(por, S.hero.look, S.hero.gender, 6);
+    await wait(400);
+    por.classList.add('shrink'); await wait(reduced ? 50 : 900);
+    c.clearRect(0, 0, por.width, por.height); c.imageSmoothingEnabled = false;
+    ART.draw(c, heroSpec('down', 0), por.width / 2, por.height - 40, 6);
+    por.classList.remove('shrink'); por.classList.add('tiny');
+    await wait(reduced ? 50 : 900);
+    fade(function(){ S.stage = 'dossier'; save(); dossier(); });
+  }
+
+  // the naming screen: a letter grid, as on a handheld (type on a keyboard too)
+  function naming(gender){
+    return new Promise(function(res){
+      var rows = ['ABCDEFGHI', 'JKLMNOPQR', 'STUVWXYZ-', "'.     "], v = '';
+      var s = screen('x-name',
+        '<div class="x-name-in"><div class="x-name-head"><canvas width="48" height="64" aria-hidden="true"></canvas><div><p>YOUR NAME?</p>' +
+          '<p class="x-name-v"><span class="x-name-slots"></span> <b>NASARO</b></p></div></div>' +
+        '<div class="x-name-grid">' + rows.map(function(r){ return '<div>' + r.split('').map(function(ch){
+          return ch === ' ' ? '<span></span>' : '<button data-k="' + esc(ch) + '">' + esc(ch) + '</button>'; }).join('') + '</div>'; }).join('') +
+          '<div class="x-name-ctl"><button data-k="DEL">DEL</button><button data-k="OK" class="ok">OK</button></div></div></div>');
+      var cnv = $('canvas', s), g2 = cnv.getContext('2d'); g2.imageSmoothingEnabled = false;
+      applyLook(S.hero.look); ART.draw(g2, withRc(ART.frame(gender === 'f' ? 'nasf' : 'carl', 'down', 0), 'player'), 24, 64, 3);
+      function paint(){ $('.x-name-slots', s).innerHTML = Array.from({ length:10 }, function(_, i){ return '<i>' + (v[i] ? esc(v[i]) : i === v.length ? '▁' : '·') + '</i>'; }).join(''); }
+      paint();
+      function key(k){
+        if (k === 'DEL') v = v.slice(0, -1);
+        else if (k === 'OK') { if (!v.trim()) { toast('Enter a name first', 'red'); sfx.bump(); return; } removeEventListener('keydown', kb); sfx.click(); res(v.trim()); return; }
+        else if (v.length < 10) v += k;
+        sfx.key(); paint();
+      }
+      function kb(e){
+        if (/^[a-zA-Z.'\-]$/.test(e.key)) { e.preventDefault(); key(e.key.toUpperCase()); }
+        else if (e.key === 'Backspace') { e.preventDefault(); key('DEL'); }
+        else if (e.key === 'Enter' && doc.activeElement && !doc.activeElement.closest('.x-name-grid')) { e.preventDefault(); key('OK'); }
+      }
+      addEventListener('keydown', kb);
+      s.addEventListener('click', function(e){ var b = e.target.closest('[data-k]'); if (b) key(b.dataset.k); });
     });
   }
-  function resume(){
-    if (S.stage === 'surface' && S.map) surface(S.map);
-    else if (S.stage === 'map') expanse();
-    else if (S.stage === 'ship' || S.stage === 'adrift') ship();
-    else if (S.stage === 'launch') launch();
-    else dossier();
+
+  // the kit: skin, hair, suit, helmet and visor. Everything is a recolour of the native sprites.
+  var KIT = [
+    ['skin', 'SKIN', SKIN.map(function(x, i){ return 'TONE ' + (i + 1); })],
+    ['style', 'HAIR', STYLES.map(function(x){ return x[1]; })],
+    ['hc', 'HAIR COLOUR', HAIRC.map(function(x){ return x[2]; })],
+    ['suit', 'SUIT', SUITS.map(function(x){ return x[3]; })],
+    ['helmet', 'HELMET', HELMS.map(function(x){ return x[2]; })],
+    ['visor', 'VISOR', VISORS.map(function(x){ return x[2]; })]
+  ];
+  function kit(gender, look, back){
+    return new Promise(function(res){
+      look = Object.assign({}, LOOK, look);
+      var s = screen('x-kit',
+        '<div class="x-kit-in riv"><p class="x-plate">FIT YOUR KIT</p><div class="x-kit-grid">' +
+          '<div class="x-kit-prev"><canvas class="por" width="120" height="160" aria-label="Portrait"></canvas><canvas class="spr" width="96" height="96" aria-label="Field sprite"></canvas></div>' +
+          '<div class="x-kit-rows">' + KIT.map(function(k){
+            return '<div class="x-kit-row" data-k="' + k[0] + '"><span>' + k[1] + '</span><button data-d="-1" aria-label="Previous ' + k[1] + '">◀</button><b></b><button data-d="1" aria-label="Next ' + k[1] + '"' + (k[0] === 'skin' ? ' data-first' : '') + '>▶</button></div>';
+          }).join('') + '<button class="x-btn" data-a="done">' + (back ? 'SAVE KIT' : 'DONE') + '</button>' + (back ? '<button class="x-btn ghost" data-a="back">CANCEL</button>' : '') + '</div></div></div>');
+      var por = $('.por', s), spr = $('.spr', s), t0 = performance.now(), raf2 = 0;
+      function paint(){
+        KIT.forEach(function(k){ $('[data-k="' + k[0] + '"] b', s).textContent = k[2][look[k[0]]]; });
+        portraitDraw(por, look, gender, 5);
+      }
+      (function anim(now){
+        if (!spr.isConnected) return;
+        var g = spr.getContext('2d'), dirs = ['down','left','up','right'], d = dirs[Math.floor((now - t0) / 1400) % 4];
+        g.clearRect(0, 0, 96, 96); g.imageSmoothingEnabled = false;
+        ART.draw(g, withRc(ART.frame(gender === 'f' ? 'nasf' : 'carl', d, Math.floor(now / 180)), 'preview'), 48, 88, 5);
+        raf2 = requestAnimationFrame(anim);
+      })(t0);
+      paint();
+      s.addEventListener('click', function(e){
+        var b = e.target.closest('button'); if (!b) return;
+        if (b.dataset.a === 'done') { cancelAnimationFrame(raf2); sfx.click(); res(look); return; }
+        if (b.dataset.a === 'back') { cancelAnimationFrame(raf2); back(); return; }
+        var row = b.closest('[data-k]'); if (!row) return;
+        var k = KIT.filter(function(x){ return x[0] === row.dataset.k; })[0], n = k[2].length;
+        look[k[0]] = (look[k[0]] + (+b.dataset.d) + n) % n; sfx.key(); paint();
+      });
+    });
   }
 
   // ── dossier ──
   function dossier(){
     S.stage = 'dossier'; save();
+    var hn = heroName(), sig = hero().first.charAt(0) + '. Nasaro';
     var s = screen('x-dossier',
       '<div class="x-paper">' +
         '<p class="x-stamp red">MOST SECRET</p>' +
@@ -271,14 +619,14 @@
         '<p class="x-sign">PILOT-OBSERVER<b class="x-sig"></b></p>' +
         '<button class="x-btn" data-a="go" disabled>PROCEED TO LAUNCH</button>' +
       '</div>');
-    var text = 'TO: Mr. CARL NASARO\n\nYou are hereby assigned as Pilot-Observer aboard the experimental rocket vessel described in Annex A (withheld).\n\n' +
-      'OBJECTIVE: Proceed beyond the atmosphere. Survey the planets of the Solar System. Return with photographic and written records.\n\n' +
-      'ISSUED:\n· Bellows field camera, 12 exposures per roll\n· Field journal and typewriter\n· Specimen case\n' +
+    var text = 'TO: ' + (hero().gender === 'f' ? 'MISS ' : 'MR. ') + hn + '\n\nYou are hereby assigned as Pilot-Observer aboard the experimental rocket vessel described in Annex A (withheld).\n\n' +
+      'OBJECTIVE: Proceed beyond the atmosphere. Survey the planets of the Solar System. Return with scanned and written records.\n\n' +
+      'ISSUED:\n· ASTRANAV navigation and survey unit, Mk. I (experimental)\n· Field journal\n· Specimen case\n' +
       '· Pressure suit with SUIT and AIR instruments\n· Signal flares (2)\n\n' +
       'The existence of this vessel is not to be disclosed.';
     var pre = $('.x-typed', s), go = $('[data-a="go"]', s);
-    typeInto(pre, text, 12).then(function(){ return typeInto($('.x-sig', s), 'C. Nasaro', 70); }).then(function(){ go.disabled = false; go.focus(); });
-    go.addEventListener('click', function(){ S.name = 'Carl Nasaro'; save(); sfx.click(); launch(); });
+    typeInto(pre, text, 12).then(function(){ return typeInto($('.x-sig', s), sig, 70); }).then(function(){ go.disabled = false; go.focus(); });
+    go.addEventListener('click', function(){ sfx.click(); launch(); });
   }
 
   // ── launch & malfunction ──
@@ -295,13 +643,13 @@
     setNeedle(s, 'alt', 0); setNeedle(s, 'vel', 0); setNeedle(s, 'fuel', 1);
     (async function(){
       for (var i = 3; i > 0; i--) { r.textContent = 'T-MINUS ' + i; sfx.click(); await wait(700); }
-      r.textContent = 'IGNITION'; s.classList.add('shake'); tone(60, 1.5, 'sawtooth', .06);
+      r.textContent = 'IGNITION'; s.classList.add('shake'); tone(60, 1.5, 'sawtooth', .06); vibrate(900, .9);
       setNeedle(s, 'alt', .7); setNeedle(s, 'vel', .8); setNeedle(s, 'fuel', .55);
       await wait(1800);
       s.classList.add('alarm');
-      r.textContent = 'NAVIGATION FAILURE'; sfx.warn(); await wait(1100);
+      r.textContent = 'NAVIGATION FAILURE'; sfx.warn(); vibrate(200); await wait(1100);
       r.textContent = 'WIRELESS · NO SIGNAL'; setNeedle(s, 'alt', 1.1); setNeedle(s, 'vel', 1.25); await wait(1100);
-      r.textContent = 'VELOCITY · OFF SCALE'; sfx.warn();
+      r.textContent = 'VELOCITY · OFF SCALE'; sfx.warn(); vibrate(300);
       s.classList.remove('shake', 'shake-soft');
       var lever = $('.x-lever', s); lever.hidden = false; lever.focus();
       lever.addEventListener('click', function(){ sfx.click(); hyperspace(); }, { once:true });
@@ -319,266 +667,281 @@
 
   function hyperspace(){
     var s = screen('x-hyper', '<p class="x-hyper-t"></p>');
-    startWorld('hyper');
+    startWorld('hyper'); vibrate(1200, .5);
     (async function(){
       await wait(2600);
       s.classList.add('white'); await wait(700);
       stopWorld(); s.classList.remove('white'); s.classList.add('black');
       var t = $('.x-hyper-t', s);
-      await typeInto(t, 'Silence.\n\nThe instruments are dead. The stars outside are wrong.', 30);
+      await typeInto(t, 'Silence.\n\nThe instruments are dead. The stars outside are wrong.\n\nOnly the AstraNav is still glowing.', 30);
       await wait(1100);
-      S.stage = 'adrift'; save(); ship(true);
+      navBoot();
     })();
   }
 
-  // ── ship hub ──
-  var STATIONS = [
-    ['chart', 'CHART ROOM', 'The map board'],
-    ['panel', 'CONTROL PANEL', 'Power · air · wireless'],
-    ['port', 'OBSERVATION PORT', 'Telescope & camera'],
-    ['dark', 'DARKROOM', 'Develop film'],
-    ['lab', 'LABORATORY', 'Decoding'],
-    ['locker', 'CARD LOCKER', 'The collection'],
-    ['archive', 'THE CODEX', 'Carl\u2019s Living Master Codex'],
-    ['log', 'EXPEDITION LOG', 'Goals & objectives']
-  ];
-  function systemsUp(){ return S.flags.power && S.flags.air && S.flags.radio; }
-  function ship(firstArrival){
-    if (S.stage !== 'adrift') S.stage = 'ship';
-    S.suit = 100; S.air = 100; S.flares = 2; save();
-    var undeveloped = S.frames.length;
-    var s = screen('x-ship' + (S.flags.power ? '' : ' unpowered'),
-      '<header class="x-shiphead riv"><div><p class="x-plate">EXPERIMENTAL VESSEL</p>' +
-        '<p class="x-where">' + (S.map ? 'LANDED · ' + esc(term(D.maps[S.map].district)) + ' · ' + esc(term('zyraxis')) : 'ADRIFT · ' + esc(term('expanse'))) + '</p></div>' +
-        '<button class="x-snd" aria-pressed="' + !!S.sound + '" title="Sound">' + (S.sound ? '♪ ON' : '♪ OFF') + '</button></header>' +
-      '<div class="x-stations">' + STATIONS.map(function(st){
-        var off = (!S.flags.power && st[0] !== 'panel' && st[0] !== 'log') || (st[0] === 'chart' && !systemsUp());
-        var badge = st[0] === 'dark' && undeveloped ? '<i>' + undeveloped + '</i>' : st[0] === 'lab' && canDecode() ? '<i>!</i>' : '';
-        return '<button class="x-station riv' + (st[0] === 'chart' ? ' wide' : '') + '" data-st="' + st[0] + '"' + (off ? ' disabled' : '') + '><b>' + st[1] + '</b><span>' +
-          (off ? (S.flags.power ? 'RESTORE ALL SYSTEMS' : 'NO POWER') : st[2]) + '</span>' + badge + '</button>';
-      }).join('') + '</div>' +
-      (S.map ? '<button class="x-btn big" data-st="out">▶ DISEMBARK · ' + esc(term(D.maps[S.map].district)) + '</button>' : '') +
-      '<p class="x-shipnote"></p>');
-    s.addEventListener('click', function(e){
-      if (e.target.closest('.x-snd')) { S.sound = !S.sound; save(); ship(); sfx.click(); return; }
-      var b = e.target.closest('[data-st]'); if (!b || b.disabled) return;
-      sfx.click();
-      ({ chart:expanse, panel:controlPanel, port:observationPort, dark:darkroom, lab:laboratory, locker:locker, archive:archive, log:logbook,
-         out:function(){ surface(S.map); } })[b.dataset.st]();
-    });
-    var note = $('.x-shipnote', s);
-    if (firstArrival) typeInto(note, 'Main power is out. Start at the CONTROL PANEL.', 24);
-    else if (!S.flags.power) note.textContent = 'Main power is out. Start at the CONTROL PANEL.';
-    else if (!systemsUp()) note.textContent = 'Restore air and the wireless, then open the CHART ROOM.';
-    else if (undeveloped) note.textContent = undeveloped + ' exposed frame' + (undeveloped > 1 ? 's' : '') + ' waiting in the DARKROOM.';
-    else if (!S.visited[9]) note.textContent = 'All systems nominal. Open the CHART ROOM.';
+  // ═════════════════════════ THE ASTRANAV ═════════════════════════
+  // Early American tech, issued to the pilot-observer on the first mission: a
+  // navigation, survey and scanning unit in cream enamel and chrome with a green
+  // phosphor screen. It is the whole interface: the star map, the field sketch,
+  // the cards, the Codex, the log and the settings all live on it.
+  //
+  //   S.stage 'nav'      aboard the ship (S.landed: on the ground at S.at, or in orbit; S.at null: deep space)
+  //   S.stage 'surface'  on foot, the AstraNav in hand
+  var NAV_TABS = [['system', 'SYSTEM'], ['field', 'FIELD'], ['cards', 'CARDS'], ['codex', 'CODEX'], ['log', 'LOG'], ['setup', 'SETUP']];
+  var navTab = 'system';
+  function onFoot(){ return S.stage === 'surface'; }
+  function whereLine(){
+    if (onFoot() && M) return 'ON FOOT · ' + zoneName() + (M.world ? ' · ' + term(WORLD[M.world].term) : '');
+    if (S.at && S.landed) return 'ABOARD · LANDED ON ' + term(WORLD[S.at].term);
+    if (S.at) return 'ABOARD · IN ORBIT · ' + term(WORLD[S.at].term);
+    return 'ABOARD · DEEP SPACE · ' + term('expanse');
   }
-  function sub(title, body, cls, back){
-    var s = screen('x-sub ' + (cls || ''), '<header class="x-subhead riv"><button class="x-back">◀ ' + (back ? back[0] : 'SHIP') + '</button><p class="x-plate">' + title + '</p></header><div class="x-subbody">' + body + '</div>');
-    $('.x-back', s).addEventListener('click', function(){ sfx.click(); (back ? back[1] : ship)(); });
+  // climbing aboard refills the suit and air and rests the card team
+  function aboard(){
+    S.stage = 'nav'; S.suit = 100; S.air = 100; S.flares = Math.max(S.flares, 2); healTeam(); save();
+  }
+  function ship(){ if (S.stage !== 'nav') aboard(); nav('system'); }
+  function nav(tab, sel){
+    navTab = tab || navTab || 'system';
+    if (navTab === 'field' && !(onFoot() || (S.landed && S.pos))) navTab = 'system';
+    var tabs = NAV_TABS.filter(function(t){ return t[0] !== 'field' || onFoot() || (S.landed && S.pos); });
+    var s = screen('x-nav',
+      '<div class="x-nav-dev">' +
+        '<header class="x-nav-top"><b class="x-nav-logo">ASTRANAV</b><span class="x-nav-mk">MK.I · U.S. EXPERIMENTAL ROCKET PROGRAM · 1936</span>' +
+          '<span class="x-nav-where">' + esc(whereLine()) + '</span></header>' +
+        '<nav class="x-nav-tabs" aria-label="AstraNav">' + tabs.map(function(t){
+          return '<button data-tab="' + t[0] + '" class="' + (t[0] === navTab ? 'on' : '') + '"' + (t[0] === navTab ? ' aria-current="page"' : '') + '>' + t[1] + '</button>';
+        }).join('') + (onFoot() ? '<button data-tab="close" class="x-nav-close">◀ FIELD</button>' : '') + '</nav>' +
+        '<div class="x-nav-screen x-nav-' + navTab + '"></div>' +
+      '</div>');
+    var body = $('.x-nav-screen', s);
+    s.addEventListener('click', function(e){
+      var t = e.target.closest('[data-tab]'); if (!t) return;
+      sfx.click();
+      if (t.dataset.tab === 'close') { backToField(); return; }
+      nav(t.dataset.tab);
+      setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
+    });
+    ({ system:navSystem, field:navField, cards:navCards, codex:navCodex, log:navLog, setup:navSetup })[navTab](body, sel);
     return s;
   }
-
-  // ── control panel ──
-  function controlPanel(){
-    var sys = [['power','MAIN POWER','Generator · vacuum-tube bank'],['air','AIR SCRUBBERS','Requires power'],['radio','WIRELESS SET','Requires power']];
-    var s = sub('CONTROL PANEL', '<div class="x-switches">' + sys.map(function(x){
-      return '<div class="x-sw riv' + (S.flags[x[0]] ? ' on' : '') + '">' + dial(x[1], x[0]) +
-        '<button class="x-toggle" data-sys="' + x[0] + '" aria-pressed="' + !!S.flags[x[0]] + '" aria-label="' + x[1] + '"><span></span></button><small>' + x[2] + '</small></div>';
-    }).join('') + '</div><pre class="x-radio"></pre>');
-    sys.forEach(function(x){ setNeedle(s, x[0], S.flags[x[0]] ? .62 : 0); });
-    s.addEventListener('click', function(e){
-      var b = e.target.closest('[data-sys]'); if (!b) return;
-      var k = b.dataset.sys;
-      if (S.flags[k]) return;
-      if (k !== 'power' && !S.flags.power) { toast('NO POWER · restore MAIN POWER first', 'red'); sfx.warn(); return; }
-      S.flags[k] = true; save(); sfx.click();
-      b.setAttribute('aria-pressed', 'true'); b.closest('.x-sw').classList.add('on');
-      setNeedle(s, k, .62);
-      if (k === 'power') toast('MAIN POWER RESTORED');
-      if (k === 'air') toast('AIR SCRUBBERS RUNNING');
-      if (k === 'radio') typeInto($('.x-radio', s), 'WIRELESS: scanning all Earth bands . . .\n. . . no carrier.\n. . . no carrier.\n. . . a pattern on an unknown band. Not Morse. Not speech I know.', 26);
-      if (systemsUp()) setTimeout(function(){ toast('ALL SYSTEMS NOMINAL · open the CHART ROOM'); }, 600);
-    });
+  function backToField(){ if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else nav('system'); }
+  function navCycle(d){
+    var tabs = $$('.x-nav-tabs [data-tab]').filter(function(b){ return b.dataset.tab !== 'close'; }).map(function(b){ return b.dataset.tab; });
+    var i = tabs.indexOf(navTab); if (i < 0) return;
+    sfx.click(); nav(tabs[(i + d + tabs.length) % tabs.length]);
+    setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
   }
 
-  // ═════════════════════════ THE MAP BOARD (home) ═════════════════════════
-  // Theme: the Creator's map-board reference: a glowing cosmic chart on a board
-  // in a dark stone room, framed by gold-edged parchment panels.
-  // Layout is canon (AETHRYX_EXPANSE_SCHEMATIC.png): Aenor at the centre, four
-  // spires carrying the worlds in order, seven rings, AEP-28 on its drift orbit.
-  var SPIRE = [[-1,0],[0,-1],[1,0],[0,1]];   // n%4: 0 → left, 1 → up, 2 → right, 3 → down
-  function worldPos(w){
-    var ring = Math.ceil(w.no / 4), d = SPIRE[w.no % 4], r = 62 + (ring - 1) * 62;
-    if (w.no === 28) return { x:210, y:700 };
-    return { x:500 + d[0] * r, y:500 + d[1] * r };
-  }
-  var ZORYTH_POS = { x:548, y:452 };
+  // ── SYSTEM · the 28 bodies through the AstraNav telescope ──
+  // A natural spiral: the four canon spires become four arms winding out from
+  // Aenor, the worlds in canon order along them (world n on arm n mod 4, ring
+  // ceil(n/4)), seen at an angle as through a telescope. Positions are in one
+  // table below so the layout can be matched to RP7D's telescope view exactly.
+  var TILT = .4;
+  var POS = (function(){
+    var out = {}, armA = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+    for (var n = 1; n <= 27; n++) {
+      var arm = n % 4, ring = Math.ceil(n / 4), j = ((n * 7919) % 97) / 97 - .5, j2 = ((n * 104729) % 89) / 89 - .5;
+      var r = 92 + (ring - 1) * 64 + j * 22, th = armA[arm] + ring * .62 + j2 * .22;
+      out[n] = { x:Math.cos(th) * r, y:Math.sin(th) * r, h:j * 14 };
+    }
+    out[28] = { x:-500, y:-330, h:40 };        // AEP-28 on its drift orbit, off the plane
+    out.aenor = { x:0, y:0, h:0 }; out.zoryth = { x:34, y:-26, h:-6 };
+    return out;
+  })();
+  function proj(p){ return { x:p.x, y:p.y * TILT - p.h, k:1 + p.y / 900 }; }
   function bodies(){
-    var list = D.worlds.filter(function(w){ return !w.hidden; }).map(function(w){
-      var p = worldPos(w); return { kind:'world', w:w, id:'w' + w.no, x:p.x, y:p.y, set:w.no };
-    });
-    list.push({ kind:'aenor', id:'aenor', x:500, y:500, set:29 });
-    list.push({ kind:'zoryth', id:'zoryth', x:ZORYTH_POS.x, y:ZORYTH_POS.y, set:30 });
+    var list = D.worlds.map(function(w){ return { kind:'world', w:w, id:'w' + w.no, p:POS[w.no], set:w.no }; });
+    list.push({ kind:'aenor', id:'aenor', p:POS.aenor, set:29 }, { kind:'zoryth', id:'zoryth', p:POS.zoryth, set:30 });
     return list;
   }
-  function distAU(b){ var v = D.arrival; return Math.hypot(b.x - v.x, b.y - v.y); }
-  function inRange(b){ return distAU(b) <= D.arrival.range; }
   function bodyStatus(b){
     if (b.kind !== 'world') return known(b.kind) ? 'identified' : 'unidentified';
+    if (b.w.hidden) return 'sealed';
     return S.visited[b.w.no] ? 'visited' : known(b.w.term) ? 'identified' : 'unidentified';
   }
-
-  function chartSvg(){
+  function hopDist(no){ var a = S.at ? POS[S.at] : { x:180, y:-260 }, b = POS[no]; return Math.hypot(a.x - b.x, a.y - b.y); }
+  function spiralSvg(){
     var defs = '<defs>' +
-      '<radialGradient id="neb1" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffe7b0" stop-opacity=".55"/><stop offset=".2" stop-color="#d9a35a" stop-opacity=".25"/><stop offset=".55" stop-color="#5b3c8c" stop-opacity=".18"/><stop offset="1" stop-color="#0b0a14" stop-opacity="0"/></radialGradient>' +
-      '<radialGradient id="sun"><stop offset="0" stop-color="#fffdf0"/><stop offset=".25" stop-color="#ffe7a0"/><stop offset=".6" stop-color="#f0b850" stop-opacity=".55"/><stop offset="1" stop-color="#f0b850" stop-opacity="0"/></radialGradient>' +
-      '<radialGradient id="orbUnk" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#5a5868"/><stop offset=".6" stop-color="#26242e"/><stop offset="1" stop-color="#0c0b10"/></radialGradient>' +
-      '<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>' +
-      '<filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14"/></filter>';
+      '<radialGradient id="core"><stop offset="0" stop-color="#fffdf0"/><stop offset=".12" stop-color="#ffe7a0"/><stop offset=".35" stop-color="#f0a850" stop-opacity=".45"/><stop offset="1" stop-color="#5b3c8c" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="halo"><stop offset="0" stop-color="#3a2a5a" stop-opacity=".55"/><stop offset=".6" stop-color="#1a1430" stop-opacity=".35"/><stop offset="1" stop-color="#05040a" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="orbUnk" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#6a6878"/><stop offset=".6" stop-color="#2a2832"/><stop offset="1" stop-color="#0c0b10"/></radialGradient>' +
+      '<filter id="blur8" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="8"/></filter>' +
+      '<filter id="blur3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>';
     D.worlds.forEach(function(w){
-      defs += '<radialGradient id="orb' + w.no + '" cx="34%" cy="30%" r="72%"><stop offset="0" stop-color="#ffffff" stop-opacity=".85"/><stop offset=".18" stop-color="' + w.color + '"/><stop offset=".75" stop-color="' + w.color + '"/><stop offset="1" stop-color="#05040a"/></radialGradient>';
+      defs += '<radialGradient id="orb' + w.no + '" cx="34%" cy="30%" r="72%"><stop offset="0" stop-color="#ffffff" stop-opacity=".9"/><stop offset=".2" stop-color="' + w.color + '"/><stop offset=".78" stop-color="' + w.color + '"/><stop offset="1" stop-color="#05040a"/></radialGradient>';
     });
     defs += '<radialGradient id="orbZ" cx="34%" cy="30%" r="72%"><stop offset="0" stop-color="#fff"/><stop offset=".3" stop-color="#d8d0e2"/><stop offset="1" stop-color="#3a3444"/></radialGradient></defs>';
-    var svg = '<svg class="x-chart-svg" viewBox="0 0 1000 1000" role="group" aria-label="The first map of the system">' + defs;
-    // the nebula disc and swirling dust lanes
-    svg += '<circle cx="500" cy="500" r="480" fill="url(#neb1)"/>';
-    for (var k = 0; k < 6; k++) svg += '<ellipse cx="500" cy="500" rx="' + (430 - k * 40) + '" ry="' + (190 - k * 14) + '" transform="rotate(' + (k * 31 - 20) + ' 500 500)" class="x-dust" style="opacity:' + (.22 - k * .02).toFixed(2) + '"/>';
-    for (var r = 1; r <= 7; r++) svg += '<circle cx="500" cy="500" r="' + (62 + (r - 1) * 62) + '" class="x-ring"/>';
-    svg += '<line x1="500" y1="40" x2="500" y2="960" class="x-spire"/><line x1="40" y1="500" x2="960" y2="500" class="x-spire"/>';
-    if (known('expanse')) svg += '<ellipse cx="470" cy="520" rx="470" ry="250" transform="rotate(-28 470 520)" class="x-drift"/>';
-    svg += '<circle cx="' + D.arrival.x + '" cy="' + D.arrival.y + '" r="' + D.arrival.range + '" class="x-range-c"/>';
-    bodies().forEach(function(b){
-      var st = bodyStatus(b), lit = st !== 'unidentified';
-      var rr = b.kind === 'aenor' ? 26 : b.kind === 'zoryth' ? 10 : (b.w.no === 9 || b.w.no === 27 ? 19 : 15);
-      svg += '<g class="x-bd ' + st + (inRange(b) ? ' reach' : '') + '" data-id="' + b.id + '" transform="translate(' + b.x + ' ' + b.y + ')">';
+    var svg = '<svg class="x-spiral" viewBox="-620 -300 1240 600" role="group" aria-label="The Aethryx Expanse through the AstraNav telescope">' + defs;
+    var r0 = rng(28);
+    for (var i = 0; i < 260; i++) svg += '<circle cx="' + ((r0() - .5) * 1800).toFixed(0) + '" cy="' + ((r0() - .5) * 1000).toFixed(0) + '" r="' + (r0() < .08 ? 1.6 : .8) + '" class="x-st" style="opacity:' + (.25 + r0() * .6).toFixed(2) + '"/>';
+    svg += '<ellipse cx="0" cy="0" rx="560" ry="' + (560 * TILT + 40) + '" fill="url(#halo)"/>';
+    // the dust of the four arms
+    var armA = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+    svg += '<g filter="url(#blur8)">';
+    armA.forEach(function(a0, k){
+      for (var t = 0; t < 1; t += .025) {
+        var r = 40 + t * 500, th = a0 + .2 + t * 4.4, p = proj({ x:Math.cos(th) * r, y:Math.sin(th) * r, h:0 });
+        svg += '<ellipse cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" rx="' + (26 + t * 46).toFixed(0) + '" ry="' + ((26 + t * 46) * TILT).toFixed(0) + '" class="x-dust2" style="opacity:' + (.32 - t * .22).toFixed(2) + ';fill:' + ['#e8c9a0', '#b89ae8', '#9ac8e8', '#e8a0b8'][k] + '"/>';
+      }
+    });
+    svg += '</g><ellipse cx="0" cy="0" rx="120" ry="60" fill="url(#core)"/>';
+    // faint orbits, one per ring
+    for (var ring = 1; ring <= 7; ring++) { var rr0 = 92 + (ring - 1) * 64; svg += '<ellipse cx="0" cy="0" rx="' + rr0 + '" ry="' + (rr0 * TILT).toFixed(1) + '" class="x-orbit"/>'; }
+    svg += '<ellipse cx="-80" cy="10" rx="520" ry="130" transform="rotate(-14)" class="x-drift2"/>';
+    // bodies, far to near
+    bodies().sort(function(a, b){ return a.p.y - b.p.y; }).forEach(function(b){
+      var st = bodyStatus(b), lit = st === 'visited' || st === 'identified', q = proj(b.p);
+      var base = b.kind === 'aenor' ? 26 : b.kind === 'zoryth' ? 6 : (b.w.no === 9 || b.w.no === 27 ? 15 : 11), rr = base * q.k;
+      var label0 = b.kind === 'aenor' ? term('aenor') : b.kind === 'zoryth' ? term('zoryth') : b.w.hidden ? 'SEALED BODY' : term(b.w.term);
+      svg += '<g class="x-bd ' + st + (b.w && b.w.no === S.at ? ' here' : '') + '" data-id="' + b.id + '" data-nav tabindex="0" role="button" aria-label="' + esc(label0) + '" transform="translate(' + q.x.toFixed(1) + ' ' + q.y.toFixed(1) + ')">';
       if (b.kind === 'aenor') {
-        svg += '<circle r="90" fill="url(#sun)"/><path d="M0 -150 L5 -6 L150 0 L5 6 L0 150 L-5 6 L-150 0 L-5 -6 Z" class="x-flare"/><circle r="' + rr + '" fill="#fffbe8" filter="url(#glow)"/><circle r="' + (rr - 6) + '" fill="#fffef6"/>';
+        svg += '<circle r="60" fill="url(#core)" filter="url(#blur8)"/><circle r="' + rr + '" fill="#fffbe8" filter="url(#blur3)"/><circle r="' + (rr - 7) + '" fill="#fffef6"/>';
       } else {
-        var fill = !lit ? 'url(#orbUnk)' : b.kind === 'zoryth' ? 'url(#orbZ)' : 'url(#orb' + b.w.no + ')';
-        if (lit && b.kind === 'world') svg += '<circle r="' + (rr + 8) + '" fill="' + b.w.color + '" opacity=".35" filter="url(#glow)"/>';
-        if (b.w && b.w.ringed && lit) svg += '<ellipse rx="' + (rr + 13) + '" ry="7" transform="rotate(-18)" class="x-pring back"/>';
-        svg += '<circle r="' + rr + '" fill="' + fill + '" class="x-orb"/>';
-        if (b.w && b.w.ringed && lit) svg += '<path d="M' + -(rr + 13) + ' 0 A' + (rr + 13) + ' 7 0 0 0 ' + (rr + 13) + ' 0" transform="rotate(-18)" class="x-pring"/>';
-        if (!lit) svg += '<text y="5" class="x-q">?</text>';
+        var fill = st === 'sealed' ? 'url(#orbUnk)' : !lit ? 'url(#orbUnk)' : b.kind === 'zoryth' ? 'url(#orbZ)' : 'url(#orb' + b.w.no + ')';
+        if (lit && b.kind === 'world') svg += '<circle r="' + (rr + 7) + '" fill="' + b.w.color + '" opacity=".35" filter="url(#blur3)"/>';
+        if (b.w && b.w.ringed && lit) svg += '<ellipse rx="' + (rr + 10) + '" ry="' + (4 + rr * .2).toFixed(1) + '" transform="rotate(-12)" class="x-pring back"/>';
+        svg += '<circle r="' + rr.toFixed(1) + '" fill="' + fill + '" class="x-orb"/><circle r="' + rr.toFixed(1) + '" class="x-shade"/>';
+        if (b.w && b.w.ringed && lit) svg += '<path d="M' + -(rr + 10) + ' 0 A' + (rr + 10) + ' ' + (4 + rr * .2).toFixed(1) + ' 0 0 0 ' + (rr + 10) + ' 0" transform="rotate(-12)" class="x-pring"/>';
+        if (st === 'sealed') svg += '<text y="4" class="x-q">✕</text>'; else if (!lit) svg += '<text y="4" class="x-q">?</text>';
       }
       var label = b.kind === 'aenor' ? (known('aenor') ? 'AENOR' : '') : b.kind === 'zoryth' ? (known('zoryth') ? 'ZORYTH' : '') :
-        (known(b.w.term) ? b.w.no + ' · ' + b.w.name : 'No. ' + b.w.no);
-      if (label) svg += '<g class="x-tag" transform="translate(0 ' + (rr + 18) + ')"><rect x="' + (-label.length * 4.6 - 8) + '" y="-11" width="' + (label.length * 9.2 + 16) + '" height="18" rx="3"/><text y="3">' + esc(label) + '</text></g>';
+        b.w.hidden ? 'No. 28 · SEALED' : (known(b.w.term) ? b.w.no + ' · ' + b.w.name : 'No. ' + b.w.no);
+      if (label) svg += '<g class="x-tag" transform="translate(0 ' + (rr + 13).toFixed(1) + ')"><rect x="' + (-label.length * 3.9 - 6) + '" y="-9" width="' + (label.length * 7.8 + 12) + '" height="15" rx="3"/><text y="2.5">' + esc(label) + '</text></g>';
+      if (b.w && b.w.no === S.at) svg += '<g class="x-vessel" transform="translate(0 ' + (-rr - 14).toFixed(1) + ')"><path d="M0 8 L-5 -2 L5 -2 Z"/><text y="-7">' + (S.landed ? 'SHIP' : 'ORBIT') + '</text></g>';
       svg += '</g>';
     });
-    svg += '<g class="x-vessel" transform="translate(' + D.arrival.x + ' ' + D.arrival.y + ')"><circle r="12" class="x-vring"/><path d="M-6 -6 L6 6 M6 -6 L-6 6"/><text y="-18">YOUR VESSEL</text></g></svg>';
-    return svg;
+    if (!S.at) svg += '<g class="x-vessel" transform="translate(180 ' + (-260 * TILT - 40) + ')"><circle r="7" class="x-vring"/><path d="M-4 -4 L4 4 M4 -4 L-4 4"/><text y="-12">YOU ARE HERE</text></g>';
+    return svg + '</svg>';
   }
-
-  function expanse(selectId){
-    S.stage = 'map'; save();
-    var name = STORY.hero;
-    var visited = D.worlds.filter(function(w){ return S.visited[w.no]; }).length;
-    var s = screen('x-board',
-      '<div class="x-board-in">' +
-        '<aside class="x-bcol left">' +
-          '<section class="x-plq x-plq-title"><h2>' + (known('expanse') ? 'THE AETHRYX EXPANSE' : 'AN UNCHARTED SYSTEM') + '</h2><p class="x-plq-sub">THE FIRST MAP · DRAWN BY ' + esc(name) + ' · ' + STORY.year + '</p>' +
-            '<p>' + (known('expanse') ? 'Twenty-eight worlds on four spires around one star. No person from Earth has seen it before.' : 'Bodies on four lines around a single star. No Earth chart matches it. I am drawing the first.') + '</p></section>' +
-          '<section class="x-plq"><h3>THE OBJECTIVES</h3>' + STORY.goals.map(function(g, i){
-              return '<div class="x-gl"><span>' + ['I','II','III'][i] + '</span><div><b>' + esc(g[0]) + '</b><em>' + esc(goalLines()[i]) + '</em>' +
-                (i === 1 ? '<i class="x-bar"><i style="width:' + mapPct() + '%"></i></i>' : '') + '</div></div>';
-            }).join('') + '</section>' +
-          '<section class="x-plq x-hide-sm"><h3>THE SYSTEM</h3><ul class="x-facts">' +
-            '<li><span>Central star</span><b>' + esc(term('aenor')) + '</b></li><li><span>Satellite</span><b>' + esc(term('zoryth')) + '</b></li>' +
-            '<li><span>Bodies charted</span><b>' + D.worlds.filter(function(w){ return !w.hidden; }).length + '</b></li><li><span>Named</span><b>' + identifiedCount() + '</b></li><li><span>Landed upon</span><b>' + visited + '</b></li></ul></section>' +
-        '</aside>' +
-        '<div class="x-bmap">' + chartSvg() + '<p class="x-banner">' + (known('expanse') ? 'THE AETHRYX EXPANSE' : 'UNCHARTED REGION') + '</p></div>' +
-        '<aside class="x-bcol right">' +
-          '<section class="x-plq"><h3>KEY</h3><ul class="x-key">' +
-            '<li><i class="k visited"></i>VISITED</li><li><i class="k identified"></i>NAMED, NOT YET VISITED</li><li><i class="k unidentified"></i>UNIDENTIFIED</li><li><i class="k range"></i>RANGE OF THE DRIVE</li></ul></section>' +
-          '<section class="x-plq x-hide-sm"><h3>BODIES NAMED</h3><ol class="x-named">' + D.worlds.filter(function(w){ return !w.hidden; }).map(function(w){
-            return '<li class="' + (known(w.term) ? 'k' : '') + '"><span>' + w.no + '.</span>' + (known(w.term) ? esc(title1936(w.name)) : '· · ·') + '</li>'; }).join('') + '</ol></section>' +
-          '<section class="x-plq x-earth"><h3>EARTH</h3><p><b>HOME.</b> Position: <b>UNKNOWN</b>. No star in this sky matches any chart from home. The flight log cannot tell me which way I came.</p></section>' +
-          '<section class="x-plq x-vplq"><h3>THE VESSEL</h3><p>Film ' + S.film + ' · Prints waiting ' + S.frames.length + '</p><button class="x-btn" data-a="ship">BOARD SHIP</button></section>' +
-        '</aside>' +
-      '</div>' +
-      '<div class="x-sheet" hidden></div>');
-    $('[data-a="ship"]', s).addEventListener('click', function(){ sfx.click(); ship(); });
-    var svgEl = $('svg', s);
-    svgEl.addEventListener('click', function(e){
-      var pt = svgEl.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
-      var p = pt.matrixTransform(svgEl.getScreenCTM().inverse()), best = null, bd = 46;
-      bodies().forEach(function(b){ var d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; best = b; } });
-      if (best) { sfx.click(); openSheet(best); }
+  var VIEW = { x:0, y:0, w:1240 };
+  function setView(svg){ var h = VIEW.w * 600 / 1240; svg.setAttribute('viewBox', (VIEW.x - VIEW.w / 2).toFixed(1) + ' ' + (VIEW.y - h / 2).toFixed(1) + ' ' + VIEW.w.toFixed(1) + ' ' + h.toFixed(1)); }
+  function navSystem(body, sel){
+    body.innerHTML = '<div class="x-scope">' + spiralSvg() + '<div class="x-scope-ui"><button data-z="1" aria-label="Zoom in">+</button><button data-z="-1" aria-label="Zoom out">−</button><button data-z="0" aria-label="Whole system">◎</button></div>' +
+      '<p class="x-scope-k">' + (known('expanse') ? 'THE AETHRYX EXPANSE' : 'AN UNCHARTED SYSTEM') + ' · ' + mapPct() + '% CHARTED</p></div>' +
+      '<aside class="x-sheet2" hidden></aside>';
+    var svg = $('svg', body), sheet = $('.x-sheet2', body);
+    setView(svg);
+    // drag to pan, wheel or pinch to zoom
+    var pts = {}, startV = null, pinch0 = 0;
+    svg.addEventListener('pointerdown', function(e){ pts[e.pointerId] = { x:e.clientX, y:e.clientY }; startV = { x:VIEW.x, y:VIEW.y, w:VIEW.w, cx:e.clientX, cy:e.clientY, moved:false };
+      var k = Object.keys(pts); if (k.length === 2) pinch0 = Math.hypot(pts[k[0]].x - pts[k[1]].x, pts[k[0]].y - pts[k[1]].y); });
+    svg.addEventListener('pointermove', function(e){
+      if (!pts[e.pointerId] || !startV) return;
+      pts[e.pointerId] = { x:e.clientX, y:e.clientY };
+      var k = Object.keys(pts), r = svg.getBoundingClientRect(), sc = VIEW.w / r.width;
+      if (k.length === 2 && pinch0) { var d = Math.hypot(pts[k[0]].x - pts[k[1]].x, pts[k[0]].y - pts[k[1]].y); VIEW.w = clamp(startV.w * pinch0 / d, 360, 1600); startV.moved = true; }
+      else { var dx = e.clientX - startV.cx, dy = e.clientY - startV.cy; if (Math.abs(dx) + Math.abs(dy) > 6) startV.moved = true; VIEW.x = clamp(startV.x - dx * sc, -600, 600); VIEW.y = clamp(startV.y - dy * sc, -300, 300); }
+      setView(svg);
     });
-    if (selectId) { var b0 = bodies().filter(function(b){ return b.id === selectId; })[0]; if (b0) openSheet(b0); }
-    else if (!S.visited[9]) setTimeout(function(){ toast('Every body is unidentified. One lies within range of the drive. Tap it.'); }, 400);
+    function up(e){ delete pts[e.pointerId]; if (!Object.keys(pts).length) setTimeout(function(){ startV = null; }, 0); }
+    svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+    svg.addEventListener('wheel', function(e){ e.preventDefault(); VIEW.w = clamp(VIEW.w * (e.deltaY > 0 ? 1.12 : .89), 360, 1600); setView(svg); }, { passive:false });
+    svg.addEventListener('click', function(e){
+      if (startV && startV.moved) return;
+      var g = e.target.closest && e.target.closest('.x-bd'); if (!g) return;
+      var b = bodies().filter(function(x){ return x.id === g.dataset.id; })[0]; if (b) { sfx.click(); openSheet(b, sheet); }
+    });
+    svg.addEventListener('keydown', function(e){ if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.x-bd')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles:true })); } });
+    $('.x-scope-ui', body).addEventListener('click', function(e){
+      var z = e.target.closest('[data-z]'); if (!z) return;
+      if (z.dataset.z === '0') { VIEW = { x:0, y:0, w:1240 }; } else VIEW.w = clamp(VIEW.w * (z.dataset.z === '1' ? .75 : 1.33), 360, 1600);
+      setView(svg);
+    });
+    var id = sel || (S.at ? 'w' + S.at : null);
+    if (id) { var b0 = bodies().filter(function(x){ return x.id === id; })[0]; if (b0) { openSheet(b0, sheet); var g0 = $('.x-bd[data-id="' + id + '"]', body); if (g0 && padOn) g0.focus(); } }
   }
-  // what Carl's 1936 telescope makes of a body (environments.js)
-  function scope(no){
-    var e = (window.AOV_ENV || []).filter(function(x){ return x.kind === 'world' && x.no === no; })[0];
-    return e && !e.spoiler ? e.telescope || '' : '';
-  }
-  function openSheet(b){
-    var sh = $('.x-sheet'); if (!sh) return;
+  function scope(no){ var e = envOf(no); return e && !e.spoiler ? e.telescope || '' : ''; }
+  function fauna(no){ var lo = GEN.levelFor(no, 0), hi = no === 9 ? GEN.levelFor(9, 9) + 3 : lo + 3; return 'LV ' + lo + '–' + hi; }
+  function openSheet(b, sh){
+    sh = sh || $('.x-sheet2'); if (!sh) return;
     $$('.x-bd').forEach(function(g){ g.classList.toggle('sel', g.dataset.id === b.id); });
-    var html, set = b.set, inR = inRange(b), au = (distAU(b) / 62 * 1.4).toFixed(1);
+    var html;
     if (b.kind === 'aenor' || b.kind === 'zoryth') {
-      var kn = known(b.kind);
-      html = '<p class="x-sh-k">' + esc(setName(set)) + '</p><h3>' + esc(term(b.kind)) + '</h3>' +
-        '<dl><dt>STATUS</dt><dd>' + (S.cards[b.kind] ? 'PHOTOGRAPHED' : 'OBSERVED BY EYE') + '</dd><dt>SURVEY</dt><dd>' + setPct(set) + '%</dd>' +
-        '<dt>CARDS</dt><dd>' + setCards(set) + ' / ???</dd></dl>' +
-        '<p class="x-sh-note">' + (kn ? esc(subj(b.kind).canonNote) + ' ' : '') + 'Cannot be landed upon. Photograph it from the ship.</p>' +
-        '<div class="x-sh-btns"><button class="x-btn" data-a="port">OBSERVATION PORT</button><button class="x-btn ghost" data-a="close">CLOSE</button></div>';
+      var kn = known(b.kind), got = !!S.cards[b.kind];
+      html = '<p class="x-sh-k">' + esc(setName(b.set)) + '</p><h3>' + esc(term(b.kind)) + '</h3>' +
+        '<dl><dt>STATUS</dt><dd>' + (got ? 'SCANNED' : 'IN VIEW') + '</dd><dt>CARDS</dt><dd>' + setCards(b.set) + ' / ???</dd></dl>' +
+        '<p class="x-sh-note">' + (kn ? esc(subj(b.kind).canonNote) + ' ' : '') + 'Cannot be landed upon. The AstraNav can scan it from here.</p>' +
+        '<div class="x-sh-btns">' + (got ? '' : '<button class="x-btn" data-a="scan">SCAN</button>') + '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';
+    } else if (b.w.hidden) {
+      html = '<p class="x-sh-k">CATALOGUE ENTRY</p><h3>BODY No. 28</h3><p class="x-sh-sub">SEALED</p>' +
+        '<p class="x-sh-note">A faint body on an orbit that matches nothing else. The AstraNav will not plot a course to it.</p>' +
+        '<div class="x-sh-btns"><button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     } else {
-      var w = b.w, kn2 = known(w.term), vis = S.visited[w.no];
-      if (!kn2 && !vis) {
-        html = '<p class="x-sh-k">CATALOGUE ENTRY</p><h3>UNIDENTIFIED BODY No. ' + w.no + '</h3>' +
-          '<dl><dt>DISTANCE</dt><dd>' + au + ' A.U. (INSTRUMENT READING)</dd><dt>SURVEY</dt><dd>NONE</dd>' +
-            (scope(w.no) ? '<dt>TELESCOPE</dt><dd>' + esc(scope(w.no)) + '</dd>' : '') + '</dl>' +
-          '<p class="x-sh-note">' + (inR ? (w.playable ? 'Within range of the drive. A landing may be possible.' : 'Within range, but no safe landing site has been found. A future expedition.') :
-            'Beyond the present range of the drive.') + '</p>' +
-          '<div class="x-sh-btns">' + (inR && w.playable ? '<button class="x-btn" data-a="explore">ATTEMPT LANDING</button>' : '') + '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';
-      } else {
-        html = '<p class="x-sh-k">' + esc(setName(w.no)) + '</p><h3>' + esc(term(w.term)) + '</h3>' + (kn2 && w.title ? '<p class="x-sh-sub">' + esc(w.title.toUpperCase()) + '</p>' : '') +
-          '<dl><dt>STATUS</dt><dd>' + (vis ? 'VISITED' : 'NAMED') + '</dd><dt>SURVEY</dt><dd>' + setPct(w.no) + '%</dd>' +
-          '<dt>CARDS</dt><dd>' + setCards(w.no) + ' / ???</dd>' + (S.last && w.no === 9 ? '<dt>LAST EXPEDITION</dt><dd>' + esc(term(S.last)) + '</dd>' : '') + '</dl>' +
-          '<div class="x-sh-btns">' + (w.playable && inR ? '<button class="x-btn" data-a="explore">EXPLORE</button>' : '<p class="x-sh-note">' + (inR ? 'No safe landing site yet. A future expedition.' : 'Beyond the present range of the drive.') + '</p>') +
-          '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';
-      }
+      var w = b.w, no = w.no, kn2 = known(w.term), vis = S.visited[no], here = S.at === no, act;
+      if (onFoot()) act = here ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button>' :
+        '<p class="x-sh-note">Board your ship to set course.</p>' + (S.flares ? '<button class="x-btn" data-a="flare">RECALL FLARE · BOARD (' + S.flares + ')</button>' : '');
+      else if (here) act = '<button class="x-btn" data-a="land">' + (S.landed ? 'DISEMBARK' : vis ? 'LAND' : 'ATTEMPT LANDING') + '</button>';
+      else act = '<button class="x-btn" data-a="go">' + (S.at || vis ? 'SET COURSE' : 'CHOOSE AS FIRST LANDING') + '</button>';
+      html = '<p class="x-sh-k">' + (kn2 || vis ? esc(setName(no)) : 'CATALOGUE ENTRY') + '</p><h3>' + esc(term(w.term)) + '</h3>' + (kn2 && w.title ? '<p class="x-sh-sub">' + esc(w.title.toUpperCase()) + '</p>' : '') +
+        '<dl><dt>' + (here ? 'POSITION' : 'COURSE') + '</dt><dd>' + (here ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : (hopDist(no) / 62 * 1.4).toFixed(1) + ' A.U.') + '</dd>' +
+          '<dt>STATUS</dt><dd>' + (vis ? 'VISITED' : kn2 ? 'NAMED' : 'UNVISITED') + '</dd><dt>SURVEY</dt><dd>' + setPct(no) + '%</dd><dt>CARDS</dt><dd>' + setCards(no) + ' / ???</dd>' +
+          '<dt>FAUNA SIGNALS</dt><dd>' + fauna(no) + '</dd>' +
+          (scope(no) && !vis ? '<dt>TELESCOPE</dt><dd>' + esc(scope(no)) + '</dd>' : '') + '</dl>' +
+        '<div class="x-sh-btns">' + act + '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     }
     sh.innerHTML = '<div class="x-plq x-sheet-in">' + html + '</div>';
     sh.hidden = false;
     sh.onclick = function(e){
       var a = e.target.closest('[data-a]'); if (!a) return;
       sfx.click();
-      if (a.dataset.a === 'close') { sh.hidden = true; $$('.x-bd').forEach(function(g){ g.classList.remove('sel'); }); }
-      if (a.dataset.a === 'port') observationPort();
-      if (a.dataset.a === 'explore') planet(b.w.no);
+      if (a.dataset.a === 'close') { sh.hidden = true; $$('.x-bd').forEach(function(g){ g.classList.remove('sel'); }); var g1 = $('.x-bd[data-id="' + b.id + '"]'); if (g1 && padOn) g1.focus(); }
+      if (a.dataset.a === 'scan') scanCelestial(b.kind);
+      if (a.dataset.a === 'go') travel(b.w.no);
+      if (a.dataset.a === 'land') { if (S.landed) disembark(); else land(b.w.no); }
+      if (a.dataset.a === 'field') backToField();
+      if (a.dataset.a === 'flare') fireFlare();
     };
+    if (padOn) setTimeout(function(){ var f = sh.querySelector('.x-btn:not(.ghost)') || sh.querySelector('.x-btn'); if (f) f.focus(); }, 30);
+  }
+  async function scanCelestial(id){
+    var o = el('div', 'x-modal x-scanning', '<div class="x-modal-in"><p class="x-man-k">ASTRANAV · LOCKING ON</p><div class="x-scanbar"><i></i></div></div>');
+    ui.appendChild(o); vibrate(300, .3); sfx.shutter();
+    await wait(1200); o.remove();
+    S.flags[id === 'aenor' ? 'shotAenor' : 'shotZoryth'] = true;
+    var first = manifest(id, null, true); S.notes[id] = 1; save();
+    await cardReveal(id, first, 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED');
+    nav('system', id);
+  }
+  function fireFlare(){
+    if (!S.flares) { toast('NO FLARES LEFT · walk back to the ship', 'red'); return; }
+    S.flares--; if (M && fogArr) S.fog[M.id] = fogEnc(fogArr);
+    if (M && M.ship) S.pos = { map:M.world ? 'w' + M.world : M.id, x:M.ship.x, y:M.ship.y + 1, dir:'down' };
+    aboard(); toast('RECALL FLARE · the ship homed in on you'); nav('system');
   }
 
-  // ── a world: its districts ──
-  function planet(no){
-    var w = WORLD[no], list = D.districts[no] || [];
-    var s = sub(esc(term(w.term)), '<div class="x-plq"><p class="x-sh-k">' + esc(setName(no)) + ' · SURVEY ' + setPct(no) + '% · CARDS ' + setCards(no) + ' / ???</p>' +
-      '<p class="x-sh-note">Orbital survey: ten distinct regions visible from orbit.' + (known('malezor') ? '' : ' None are named.') + '</p>' +
-      '<ol class="x-dist">' + list.map(function(d, i){
-        var open = !!d.map;
-        return '<li class="' + (open ? 'open' : '') + '"><span class="x-roman">' + ['I','II','III','IV','V','VI','VII','VIII','IX','X'][i] + '</span>' +
-          '<b>' + esc(term(d.id)) + '</b>' + (open ? '<button class="x-btn small" data-d="' + d.id + '">' + (S.visited[no] ? 'LAND' : 'ATTEMPT LANDING') + '</button>' : '<em>Not yet surveyed</em>') + '</li>';
-      }).join('') + '</ol></div>', 'x-planet', ['MAP', function(){ expanse('w' + no); }]);
-    s.addEventListener('click', function(e){
-      var b = e.target.closest('[data-d]'); if (!b) return;
-      var d = list.filter(function(x){ return x.id === b.dataset.d; })[0];
-      if (!S.visited[no]) descent(no, d.map); else land(no, d.map);
-    });
+  // ── the drive ──
+  function travel(no){
+    var from = S.at ? term(WORLD[S.at].term) : 'DEEP SPACE', d = hopDist(no);
+    var s = screen('x-hyper', '<p class="x-hyper-t x-travel"></p>');
+    startWorld('hyper'); vibrate(700, .4);
+    S.stage = 'nav'; S.landed = false; S.pos = null; save();
+    (async function(){
+      await typeInto($('.x-hyper-t', s), 'COURSE SET\n' + from + ' → ' + term(WORLD[no].term), 18);
+      await wait(700 + Math.min(1600, d * 2.2));
+      stopWorld();
+      S.at = no; save();
+      toast('IN ORBIT · ' + term(WORLD[no].term));
+      nav('system', 'w' + no);
+    })();
   }
-  function land(no, mapId){
+  function land(no){
+    if (WORLD[no].hidden || !envOf(no)) { toast('The AstraNav will not plot a landing.', 'red'); return; }
+    if (!S.visited[no]) return descent(no);
+    touchdown(no);
+  }
+  function touchdown(no){
     S.visited[no] = S.visited[no] || Date.now();
-    if (S.map !== mapId) S.pos = null;
-    S.map = mapId; S.last = D.maps[mapId].district; save();
-    surface(mapId);
+    S.at = no; S.landed = true;
+    var m = GEN.build('w' + no);
+    S.pos = { map:m.id, x:m.ship.x, y:m.ship.y + 1, dir:'down' }; save();
+    surface(m.id);
   }
-  function descent(no, mapId){
-    var s = screen('x-cockpit shake', '<div class="x-panel riv"><p class="x-plate">DESCENT</p><p class="x-alt">ALT <b>0420000</b> FT</p><p class="x-readout">HULL TEMPERATURE RISING</p></div>');
-    tone(55, 3, 'sawtooth', .05);
+  function disembark(){ if (S.pos && S.pos.map) surface(S.pos.map); else touchdown(S.at); }
+  function descent(no){
+    var s = screen('x-cockpit shake', '<div class="x-panel riv"><p class="x-plate">DESCENT · ' + esc(term(WORLD[no].term)) + '</p><p class="x-alt">ALT <b>0420000</b> FT</p><p class="x-readout">HULL TEMPERATURE RISING</p></div>');
+    tone(55, 3, 'sawtooth', .05); vibrate(1600, .5);
     var b = $('.x-alt b', s), t0 = performance.now();
     (function tick(now){
       var k = Math.min(1, (now - t0) / (reduced ? 200 : 3200));
@@ -586,132 +949,179 @@
       if (k < 1) requestAnimationFrame(tick);
       else {
         $('.x-readout', s).textContent = 'TOUCHDOWN';
-        s.classList.remove('shake'); sfx.click();
-        setTimeout(function(){ land(no, mapId); setTimeout(function(){ toast('TOUCHDOWN · ' + term(D.maps[mapId].district) + ' · SUIT ON, AIR TANK FULL'); }, 300); }, reduced ? 50 : 900);
+        s.classList.remove('shake'); sfx.click(); vibrate(250, 1);
+        setTimeout(function(){ touchdown(no); setTimeout(function(){ toast('TOUCHDOWN · ' + term(WORLD[no].term) + ' · SUIT ON, AIR TANK FULL'); }, 300); }, reduced ? 50 : 900);
       }
     })(t0);
   }
 
-  // ── darkroom: film → cards ──
-  function darkroom(){
-    var s = sub('DARKROOM', '<div class="x-dark"><div class="x-tray"><div class="x-print"><img alt=""></div><p class="x-grade"></p></div>' +
-      '<div class="x-darkctl"><p class="x-darknote"></p><button class="x-btn" data-a="dev">DEVELOP ROLL</button></div>' +
-      '<div class="x-manifest"></div></div>', 'x-redroom');
-    var n = S.frames.length, note = $('.x-darknote', s), btn = $('[data-a="dev"]', s);
-    note.textContent = n ? n + ' exposed frame' + (n > 1 ? 's' : '') + ' on the roll.' : 'No exposed film. Photograph things on the surface or from the Observation Port.';
-    btn.disabled = !n;
-    btn.addEventListener('click', function(){ btn.disabled = true; develop(s); });
-  }
-  async function develop(s){
-    var print = $('.x-print', s), img = $('img', print), grade = $('.x-grade', s), man = $('.x-manifest', s), note = $('.x-darknote', s);
-    var frames = S.frames.slice();
-    S.film = Math.max(S.film, 12); save();
-    for (var i = 0; i < frames.length; i++) {
-      if (!$('.x-redroom')) return;     // left the darkroom: the rest stay on the roll
-      var f = frames[i];
-      S.frames.shift(); save();
-      note.textContent = 'FRAME ' + (i + 1) + ' OF ' + frames.length;
-      print.className = 'x-print'; grade.textContent = ''; man.innerHTML = '';
-      img.src = f.img; void print.offsetWidth; print.classList.add('dev');
-      await wait(1700);
-      grade.textContent = f.grade.toUpperCase(); grade.className = 'x-grade g-' + f.grade;
-      sfx.click();
-      await wait(500);
-      if (f.subj) {
-        if (f.grade === 'excellent' || f.grade === 'good') {
-          var first = manifest(f.subj, f.img, f.grade === 'excellent');
-          man.innerHTML = '<p class="x-man-k">' + (first ? 'CARD MANIFESTED' : 'ANOTHER COPY · QUANTITY +1') + '</p>' + cardHtml(f.subj, false);
-          sfx.reveal();
-        } else {
-          mark(f.subj, 'fair');
-          man.innerHTML = '<p class="x-man-k dim">' + (f.grade === 'fair' ? 'USABLE AS EVIDENCE · TOO SOFT FOR A CARD' : 'UNUSABLE PRINT') + '<br>' + esc(subjName(f.subj)) + '</p>';
-        }
-      } else man.innerHTML = '<p class="x-man-k dim">NO SUBJECT IN FRAME</p>';
-      await wait(1500);
-    }
-    S.flags.developed = true; save();
-    note.textContent = 'Roll finished. Film reloaded: ' + S.film + ' exposures.';
-    $('[data-a="dev"]', s).hidden = true;
+  // ── FIELD · the sketch of where you stand ──
+  function navField(body){
+    if (!M || (S.pos && M.id !== S.pos.map)) { var m0 = S.pos && GEN.build(S.pos.map); if (m0) { M = m0; fogArr = fogDec(S.fog[M.id], M.W * M.H); if (!P) P = { x:S.pos.x, y:S.pos.y }; } }
+    var team = S.team || [];
+    body.innerHTML = '<div class="x-field2"><canvas class="x-sketch" width="640" height="400" aria-label="Field sketch map"></canvas>' +
+      '<div class="x-field-side"><p class="x-crt">' + esc(zoneName()) + '<br><small>SUIT ' + Math.round(S.suit) + ' · AIR ' + Math.round(S.air) + ' · FLARES ' + S.flares + '</small></p>' +
+        (team.length ? '<div class="x-teamrow">' + team.map(teamChip).join('') + '</div>' : '<p class="x-crt dim">NO CARD TEAM YET · scan a creature</p>') +
+        '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
+          '<button class="x-btn" data-a="out">DISEMBARK</button>') + '</div></div></div>';
+    if (M && P && fogArr) drawSketch($('.x-sketch', body));
+    body.onclick = function(e){
+      var a = e.target.closest('[data-a]'); if (!a) return;
+      if (a.dataset.a === 'field') backToField();
+      if (a.dataset.a === 'flare') fireFlare();
+      if (a.dataset.a === 'out') disembark();
+    };
   }
 
-  // ── laboratory: decoding ──
+  // ── CARDS · the collection and the battle team ──
+  function navCards(body){
+    autoTeam();
+    var ids = Object.keys(S.cards).filter(subj).sort(function(a, b){ return subj(a).set - subj(b).set || (subj(a).kind > subj(b).kind ? 1 : -1); });
+    body.innerHTML = '<p class="x-crt">COLLECT THE EXPANSE · ' + ids.length + ' card' + (ids.length === 1 ? '' : 's') + ' · ' + totalCopies() + ' copies, sealed for the voyage home</p>' +
+      '<section class="x-team riv"><h3>BATTLE TEAM <small>up to 3 · the first leads</small></h3><div class="x-teamrow">' +
+        (S.team.length ? S.team.map(teamChip).join('') : '<p class="x-mono light">No ' + (known('aethren') ? 'Aethren' : 'creature') + ' cards yet. Scan one in the field.</p>') + '</div></section>' +
+      (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>'
+      : '<p class="x-empty">No cards yet. Scan creatures, plants, minerals and places with the AstraNav.</p>');
+    body.onclick = function(e){
+      var c = e.target.closest('.x-grid [data-card], .x-teamrow [data-card]'); if (!c) return;
+      var id = c.dataset.card, isA = !!(subj(id).sp && S.cards[id].lv), on = S.team.indexOf(id);
+      var m = el('div', 'x-modal', '<div class="x-modal-in">' + cardHtml(id, true) + '<div class="x-sh-btns">' +
+        (isA ? (on >= 0 ? (on > 0 ? '<button class="x-btn" data-t="lead">MAKE LEAD</button>' : '') + '<button class="x-btn ghost" data-t="off">REMOVE FROM TEAM</button>' :
+          '<button class="x-btn" data-t="on">ADD TO TEAM</button>') : '') + '<button class="x-btn ghost" data-t="close">CLOSE</button></div></div>');
+      ui.appendChild(m); sfx.click();
+      setTimeout(function(){ if (padOn) focusFirst(); }, 30);
+      m.addEventListener('click', function(ev){
+        var t = ev.target.closest('[data-t]');
+        if (ev.target === m || (t && t.dataset.t === 'close')) { m.remove(); return; }
+        if (!t) return;
+        if (t.dataset.t === 'on') { if (S.team.length >= 3) S.team.pop(); S.team.push(id); }
+        if (t.dataset.t === 'off') S.team.splice(S.team.indexOf(id), 1);
+        if (t.dataset.t === 'lead') { S.team.splice(S.team.indexOf(id), 1); S.team.unshift(id); }
+        S.flags.teamSet = true; save(); m.remove(); nav('cards');
+      });
+    };
+  }
+  function teamChip(id){
+    var c = S.cards[id], mh = maxHp(id), hp = c.hp == null ? mh : c.hp;
+    return '<button class="x-chip" data-card="' + id + '"><img class="x-pix" alt="" src="' + ART.url(subjArt(id), 3) + '"><span><b>' + esc(subjName(id)) + '</b><em>LV ' + c.lv + ' · ' + hp + '/' + mh + '</em>' +
+      '<i class="x-hpbar"><i style="width:' + Math.round(hp / mh * 100) + '%"></i></i></span></button>';
+  }
+
+  // ── CODEX · what the scans, peoples and records have taught ──
   function canDecode(){ return S.flags.copied && !S.flags.decoded && classifiedCount() >= 4; }
-  function laboratory(){
-    var s = sub('LABORATORY',
-      '<div class="x-lab riv"><h3>DECODING</h3><p>' + (S.flags.decoded ? 'The markings are decoded.' :
-        !S.flags.copied ? 'No inscriptions copied yet. Look for carved markings on the surface.' :
-        classifiedCount() < 4 ? 'Markings copied. Too little to cross-reference: classify at least 4 subjects first (' + classifiedCount() + '/4).' :
-        'Markings copied. Enough records to cross-reference against the carved figures.') + '</p>' +
-      '<button class="x-btn" data-a="dec"' + (canDecode() ? '' : ' disabled') + '>DECODE THE MARKINGS</button></div>' +
-      '<div class="x-lab riv"><h3>CLASSIFICATION</h3><p>' + classifiedCount() + ' subjects classified. Plants and minerals are classified in the field; photographs in the Darkroom.</p></div>');
-    $('[data-a="dec"]', s).addEventListener('click', function(){
-      reclassify(D.teaches.markings, 'The carved figures match your records. Beside each figure, a word. The words repeat in the wireless pattern.', function(){
-        S.flags.decoded = true; save(); expanse(); toast('The map board now reads in the true names.');
+  function loreHtml(e){
+    var c = e.canon || {};
+    return '<div class="x-lore">' +
+      (c.trait ? '<p><b>' + esc(c.trait) + '</b></p>' : '') +
+      (c.notes ? '<p>' + esc(c.notes) + '</p>' : '') +
+      (c.firstRace ? '<p><span>FIRST RACE</span> ' + esc(c.firstRace) + '</p>' : '') +
+      (c.notable ? '<p><span>NOTABLE</span> ' + esc(c.notable) + '</p>' : '') +
+      (e.lord ? '<p><span>GEMLORD</span> ' + esc(e.lord) + (e.gem ? ' · ' + esc(e.gem) : '') + '</p>' : '') +
+      ((e.landmarks || []).length && !(e.mechanic && /spoiler/i.test(e.mechanic.name)) ? '<p><span>LANDMARKS</span> ' + esc(e.landmarks.join(' · ')) + '</p>' : '') +
+      (e.hazard && e.hazard.name !== '—' ? '<p><span>WARNING · ' + esc(e.hazard.name.toUpperCase()) + '</span> ' + esc(e.hazard.rule) + '</p>' : '') +
+      '</div>';
+  }
+  function navCodex(body){
+    var worlds = D.worlds.filter(function(w){ return !w.hidden && (S.visited[w.no] || known(w.term) || setCards(w.no)); }).map(function(w){ return w.no; });
+    var sets = worlds.concat([29, 30]);
+    body.innerHTML = (S.flags.copied && !S.flags.decoded ? '<section class="x-arc riv"><h3>DECODING</h3><p class="x-mono light">' +
+        (canDecode() ? 'The carved markings can be cross-referenced against your scans.' : 'Markings copied. Classify at least 4 subjects to cross-reference them (' + classifiedCount() + '/4).') +
+        '</p><button class="x-btn" data-a="dec"' + (canDecode() ? '' : ' disabled') + '>DECODE THE MARKINGS</button></section>' : '') +
+      '<p class="x-crt">' + esc(heroName()) + '’S LIVING MASTER CODEX · ' + esc(STORY.rule) + '</p>' + sets.map(function(n){
+      var ids = setSubjects(n).filter(function(id){ return S.archive[id] || S.cards[id]; });
+      var e = n <= 28 ? envOf(n) : null, learned = n === 9 ? GEN.DISTRICTS.filter(function(d){ return S.lore['z_' + d] || (d === 'malezor' && S.flags.taught); }) : (S.lore['w' + n] ? [true] : []);
+      return '<section class="x-arc riv"><h3>' + esc(setName(n)) + ' <b>' + setPct(n) + '%</b></h3>' +
+        (e && learned.length ? (n === 9 ? learned.map(function(d){ return '<h4>' + esc(term(d)) + '</h4>' + loreHtml(ENV[d]); }).join('') : loreHtml(e)) :
+          e ? '<p class="x-mono">' + (FAUNA.peoples[n] && FAUNA.peoples[n].record ? 'Find and copy this world’s carved records to learn about it.' : 'Meet its people and show them your scans to learn about this world.') + '</p>' : '') +
+        '<ul>' + (ids.length ? ids : ['']).map(function(id){
+          if (!id) return '<li><b>— nothing recorded yet —</b></li>';
+          var a = S.archive[id] || {};
+          return '<li class="' + (a.classified ? 'done' : 'part') + '"><b>' + esc(subjName(id)) + '</b>' +
+            '<span>' + (a.classified ? 'SCANNED' : a.battled ? 'BATTLED' : 'FIELD RECORD') + '</span>' +
+            (S.notes[id] ? '<em>' + esc(subj(id).journal) + '</em>' : '') + '</li>';
+        }).join('') + '</ul></section>';
+    }).join('') + '<p class="x-mono dim">The master collection holds 30 sets.</p>';
+    var dec = $('[data-a="dec"]', body);
+    if (dec) dec.addEventListener('click', function(){
+      reclassify(D.teaches.markings, 'The carved figures match your scans. Beside each figure, a word. The words repeat in the wireless pattern.', function(){
+        S.flags.decoded = true; save(); nav('system'); toast('The AstraNav now reads in the true names.');
       });
     });
   }
 
   // The premise lands here: 1936 descriptions struck out, true names typed in.
   async function reclassify(terms, intro, done){
-    terms = terms.filter(function(t){ return D.lexicon[t] && D.lexicon[t].canon && !S.lex[t]; });
+    terms = terms.filter(function(t, i){ return terms.indexOf(t) === i && D.lexicon[t] && D.lexicon[t].canon && !S.lex[t]; });
     var s = screen('x-reclass', '<div class="x-paper"><p class="x-stamp red">RECLASSIFICATION</p><p class="x-mono">' + esc(intro) + '</p><ul class="x-relist"></ul><button class="x-btn" hidden>CONTINUE</button></div>');
     var list = $('.x-relist', s);
     for (var i = 0; i < terms.length; i++) {
       var t = terms[i], L = D.lexicon[t];
       var li = el('li', '', '<s>' + esc(L.unknown) + '</s><b></b>'); list.appendChild(li);
       li.scrollIntoView({ block:'nearest' });
-      await wait(320); li.classList.add('struck'); sfx.click();
-      await typeInto(li.querySelector('b'), L.canon, 40);
+      await wait(260); li.classList.add('struck'); sfx.click();
+      await typeInto(li.querySelector('b'), L.canon, 34);
       S.lex[t] = true; save();
-      await wait(160);
+      await wait(120);
     }
+    if (!terms.length) list.appendChild(el('li', '', '<b>Nothing new to learn here yet.</b>'));
     var b = $('.x-btn', s); b.hidden = false; b.focus();
     b.addEventListener('click', done);
   }
 
-  // ── card locker (inventory) ──
-  function locker(){
-    var ids = Object.keys(S.cards).filter(subj).sort(function(a, b){ return subj(a).set - subj(b).set; });
-    var s = sub('CARD LOCKER', '<p class="x-mono light">GOAL I · CARDS FOR EARTH — ' + ids.length + ' card' + (ids.length === 1 ? '' : 's') + ' · ' + totalCopies() + ' copies, sealed for the voyage home</p>' +
-      (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>'
-      : '<p class="x-empty">No cards yet. Examine plants and minerals on the surface; photographs become cards in the DARKROOM.</p>'));
-    s.addEventListener('click', function(e){
-      var c = e.target.closest('.x-grid [data-card]'); if (!c) return;
-      var m = el('div', 'x-modal', '<div class="x-modal-in">' + cardHtml(c.dataset.card, true) + '<button class="x-btn ghost">CLOSE</button></div>');
-      ui.appendChild(m); sfx.click();
-      m.addEventListener('click', function(ev){ if (ev.target === m || ev.target.closest('.x-btn')) m.remove(); });
-    });
+  // ── LOG ──
+  function navLog(body){
+    body.innerHTML = '<div class="x-paper"><p class="x-mono">LOG OF ' + esc(heroName()) + ' · ' + STORY.year + '</p>' + objList() + '</div>';
   }
 
-  // ── archive (knowledge) ──
-  function archive(){
-    var sets = [9, 29, 30];
-    sub('THE LIVING MASTER CODEX', '<p class="x-mono light">Carl Nasaro\u2019s expedition archive. ' + esc(STORY.rule) + '</p>' + sets.map(function(n){
-      var ids = Object.keys(D.subjects).filter(function(id){ return subj(id).set === n; });
-      return '<section class="x-arc riv"><h3>' + esc(setName(n)) + ' <b>' + setPct(n) + '%</b></h3>' +
-        (n === 9 ? '<p class="x-mono">This build covers one district of this world.</p>' : '') +
-        '<ul>' + ids.map(function(id){
-          var a = S.archive[id] || {}, seen = Object.keys(a).length;
-          return '<li class="' + (a.classified ? 'done' : seen ? 'part' : '') + '"><b>' + (seen ? esc(subjName(id)) : '— not yet recorded —') + '</b>' +
-            '<span>' + (a.classified ? 'CLASSIFIED' : seen ? 'FIELD RECORD' : '') + '</span>' +
-            (S.notes[id] ? '<em>' + esc(subj(id).journal) + '</em>' : '') + '</li>';
-        }).join('') + '</ul></section>';
-    }).join('') + '<p class="x-mono dim">The master collection holds 30 sets. 27 remain unexplored.</p>');
+  // ── SETUP · everything a player can tune ──
+  function navSetup(body){
+    var O = S.opts;
+    function row(k, label, vals){
+      return '<div class="x-kit-row" data-o="' + k + '"><span>' + label + '</span><button data-d="-1" aria-label="Previous">◀</button><b>' + esc(vals[typeof O[k] === 'boolean' ? (O[k] ? 1 : 0) : k === 'hand' ? (O[k] === 'left' ? 1 : 0) : k === 'alpha' ? [1, .7, .4].indexOf(O[k]) : O[k]]) + '</b><button data-d="1" aria-label="Next">▶</button></div>';
+    }
+    var padTxt = PAD && PAD.connected() ? (PAD.dualsense() ? 'DUALSENSE CONNECTED' : 'CONTROLLER CONNECTED') : 'NO CONTROLLER · connect a DualSense by USB or Bluetooth, then press any button';
+    body.innerHTML = '<div class="x-opts riv">' +
+      row('sound', 'SOUND', ['OFF', 'ON']) + row('haptics', 'HAPTICS', ['OFF', 'ON']) + row('text', 'TEXT SPEED', ['SLOW', 'NORMAL', 'FAST']) +
+      row('hand', 'TOUCH CONTROLS', ['D-PAD LEFT', 'D-PAD RIGHT']) + row('alpha', 'CONTROL OPACITY', ['SOLID', 'SOFT', 'FAINT']) +
+      '<p class="x-mono light">' + esc(padTxt) + '</p>' +
+      '<p class="x-mono light">✕ examine · ○ back / stalk · □ scan · △ AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
+      '<div class="x-sh-btns"><button class="x-btn" data-a="kit">REFIT YOUR KIT</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
+        '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>' +
+      '<p class="x-mono light">PILOT-OBSERVER: ' + esc(heroName()) + '</p></div>';
+    body.onclick = function(e){
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.a === 'kit') { kit(hero().gender, hero().look, function(){ nav('setup'); }).then(function(l){ S.hero.look = l; applyLook(); save(); toast('KIT REFITTED'); nav('setup'); }); return; }
+      if (b.dataset.a === 'fs') { goLandscape(); return; }
+      if (b.dataset.a === 'reset') { if (!confirm('Erase this expedition and start over?')) return; try { localStorage.removeItem(KEY); } catch(err){} S = null; title(); return; }
+      var r = b.closest('[data-o]'); if (!r) return;
+      var k = r.dataset.o, d = +b.dataset.d;
+      if (k === 'sound' || k === 'haptics') O[k] = !O[k];
+      else if (k === 'text') O.text = (O.text + d + 3) % 3;
+      else if (k === 'hand') O.hand = O.hand === 'left' ? 'right' : 'left';
+      else if (k === 'alpha') { var a = [1, .7, .4], i = (a.indexOf(O.alpha) + d + 3) % 3; O.alpha = a[i]; }
+      save(); sfx.click(); applyOpts(); nav('setup');
+      setTimeout(function(){ var again = $('[data-o="' + k + '"] [data-d="' + d + '"]'); if (again) again.focus(); }, 40);
+    };
+  }
+  function applyOpts(){
+    if (!S) return;
+    doc.body.classList.toggle('lefty', S.opts.hand === 'left');
+    doc.body.style.setProperty('--ctl-alpha', S.opts.alpha || 1);
   }
 
-  function logbook(){
-    sub('EXPEDITION LOG', '<div class="x-paper"><p class="x-mono">LOG OF ' + STORY.hero + ' · ' + STORY.year + '</p>' + objList() +
-    (S.flags.decoded ? '<p class="x-mono">END OF THIS BUILD\'S SURVEY. Keep documenting: every Good or Excellent photograph adds a copy to your Card Locker. Earth is still lost. The way home lies further out, in a future chapter.</p>' : '') +
-    '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>');
-    $('[data-a="reset"]').addEventListener('click', function(){
-      if (!confirm('Erase this expedition and start over?')) return;
-      try { localStorage.removeItem(KEY); } catch(e){}
-      S = null; title();
-    });
+  // ── the AstraNav wakes: after hyperspace, the whole system in view ──
+  async function navBoot(){
+    aboard(); S.at = null; S.landed = false; save();
+    var s = screen('x-nav x-boot', '<div class="x-nav-dev"><header class="x-nav-top"><b class="x-nav-logo">ASTRANAV</b><span class="x-nav-mk">MK.I · U.S. EXPERIMENTAL ROCKET PROGRAM · 1936</span></header><pre class="x-crt x-bootlog"></pre></div>');
+    var log = $('.x-bootlog', s);
+    var lines = ['ASTRANAV MK.I · SELF-TEST', 'VALVES ............ OK', 'GYROSCOPE ......... OK', 'SCANNER ........... OK', 'STAR CATALOGUE .... NO MATCH', 'EARTH .............. NOT FOUND', '', 'CHARTING THE BODIES IN VIEW . . .', '28 BODIES · 1 STAR · 1 SATELLITE', '', 'CHOOSE A FIRST LANDING.'];
+    for (var i = 0; i < lines.length; i++) { await typeInto(log.appendChild(el('span', '')), lines[i] + '\n', 14); await wait(90); }
+    await wait(700);
+    nav('system');
+    toast('Every body is unidentified. Choose your first landing.');
   }
 
   // ═════════════════════════ CANVAS LOOP ═════════════════════════
-
   var raf = 0, mode = null, last = 0;
   var DPR = Math.min(2, window.devicePixelRatio || 1);
   function resize(){
@@ -725,7 +1135,6 @@
   function loop(now){
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (mode === 'hyper') drawHyper(now);
-    else if (mode === 'space') drawSpace(now);
     else if (mode === 'surface') { updateSurface(dt, now); if (mode === 'surface') drawSurface(now); }
     if (mode) raf = requestAnimationFrame(loop);
   }
@@ -746,148 +1155,53 @@
     });
   }
 
-  // ── observation port (space) ──
-  var stars = null, aim = { x:0, y:0 }, camOpen = false, focus = .5;
-  var SPACE = { aenor:{ x:-260, y:-60, r:70 }, zoryth:{ x:300, y:90, r:34 } };
-  function observationPort(){
-    screen('x-port', '<header class="x-subhead riv"><button class="x-back">◀ SHIP</button><p class="x-plate">OBSERVATION PORT</p></header>' +
-      '<p class="x-porthint">Drag to aim the telescope. Set the focus ring, then release the shutter.</p>' +
-      '<div class="x-cam"><div class="x-vf"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i><span class="x-vfc">+</span></div>' +
-      '<div class="x-camctl riv"><div class="x-range"><span>RANGE</span><b class="x-rng">—</b></div>' +
-        '<label class="x-ring"><span>FOCUS</span><input type="range" min="0" max="1000" value="500" aria-label="Focus ring"><span class="x-scale"><i>1</i><i>2</i><i>3</i><i>5</i><i>10</i><i>∞</i></span></label>' +
-        '<div class="x-cambtns"><button class="x-shutter" aria-label="Release shutter"></button></div><p class="x-camfilm"></p></div></div>');
-    aim = { x:0, y:0 }; camOpen = true; focus = .5;
-    startWorld('space');
-    $('.x-back').addEventListener('click', function(){ sfx.click(); ship(); });
-    var ring = $('.x-ring input');
-    ring.addEventListener('input', function(){ focus = ring.value / 1000; });
-    $('.x-shutter').addEventListener('click', spaceShot);
-    $('.x-camfilm').textContent = S.film + ' EXPOSURES LEFT';
-  }
-  function spaceFramed(){
-    var vf = $('.x-vf'); if (!vf) return null;
-    var r = vf.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, best = null, bd = 9;
-    ['aenor', 'zoryth'].forEach(function(id){
-      var b = SPACE[id], sx = innerWidth / 2 + (b.x - aim.x), sy = innerHeight / 2 + (b.y - aim.y);
-      if (sx < r.left || sx > r.right || sy < r.top || sy > r.bottom) return;
-      var off = Math.hypot((sx - cx) / (r.width / 2), (sy - cy) / (r.height / 2));
-      if (off < bd) { bd = off; best = { id:id, off:off }; }
-    });
-    return best;
-  }
-  function drawSpace(now){
-    var w = cv.width, h = cv.height, z = DPR;
-    if (!stars) { var r = rng(3); stars = []; for (var i = 0; i < 420; i++) stars.push({ x:(r()-.5)*2400, y:(r()-.5)*1600, s:r() }); }
-    ctx.fillStyle = '#05040a'; ctx.fillRect(0, 0, w, h);
-    var cx = w/2 - aim.x*z, cy = h/2 - aim.y*z;
-    stars.forEach(function(p){
-      var tw = .5 + .5*Math.sin(now/700 + p.x);
-      ctx.fillStyle = 'rgba(255,255,255,' + (.25 + .6*p.s*tw) + ')';
-      ctx.fillRect(cx + p.x*z, cy + p.y*z, (p.s > .9 ? 2 : 1)*z, (p.s > .9 ? 2 : 1)*z);
-    });
-    var a = SPACE.aenor, ax = cx + a.x*z, ay = cy + a.y*z;
-    var g = ctx.createRadialGradient(ax, ay, 0, ax, ay, a.r*3.2*z);
-    g.addColorStop(0, '#fffbe8'); g.addColorStop(.18, '#ffe9a8'); g.addColorStop(.32, 'rgba(255,200,110,.55)'); g.addColorStop(1, 'rgba(255,170,80,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ax, ay, a.r*3.2*z, 0, 7); ctx.fill();
-    var m = SPACE.zoryth, mx = cx + m.x*z, my = cy + m.y*z;
-    ctx.fillStyle = '#cfc7d8'; ctx.beginPath(); ctx.arc(mx, my, m.r*z, 0, 7); ctx.fill();
-    ctx.fillStyle = 'rgba(90,80,110,.45)';
-    [[-10,-8,8],[12,4,6],[-4,14,5],[8,-14,4]].forEach(function(c){ ctx.beginPath(); ctx.arc(mx + c[0]*z, my + c[1]*z, c[2]*z, 0, 7); ctx.fill(); });
-    var shd = ctx.createLinearGradient(mx - m.r*z, my, mx + m.r*z, my);
-    shd.addColorStop(0, 'rgba(5,4,10,0)'); shd.addColorStop(1, 'rgba(5,4,10,.75)');
-    ctx.fillStyle = shd; ctx.beginPath(); ctx.arc(mx, my, m.r*z, 0, 7); ctx.fill();
-    var f = spaceFramed(), err = Math.abs(focus - 1);
-    cv.style.filter = 'blur(' + clamp(err * 26, 0, 9).toFixed(1) + 'px) sepia(.25)';
-    var rngEl = $('.x-rng'); if (rngEl) rngEl.textContent = f ? '∞' : '—';
-  }
-  function spaceShot(){
-    if (S.film <= 0) { toast('ROLL FINISHED · develop it in the Darkroom', 'red'); return; }
-    var f = spaceFramed(), err = Math.abs(focus - 1) + (f && f.off > .45 ? .06 : 0);
-    var g = !f ? 'poor' : err < .035 ? 'excellent' : err < .085 ? 'good' : err < .17 ? 'fair' : 'poor';
-    var vf = $('.x-vf').getBoundingClientRect(), out = doc.createElement('canvas'); out.width = 240; out.height = 180;
-    var o = out.getContext('2d'); o.filter = 'blur(' + clamp(Math.abs(focus - 1) * 10, 0, 4).toFixed(1) + 'px)';
-    var cw = vf.width * .62, chh = vf.height * .62;
-    try { o.drawImage(cv, (vf.left + (vf.width - cw) / 2) * DPR, (vf.top + (vf.height - chh) / 2) * DPR, cw * DPR, chh * DPR, 0, 0, 240, 180); } catch(e){}
-    var data = ''; try { data = out.toDataURL('image/jpeg', .72); } catch(e){}
-    S.film--; S.frames.push({ subj:f ? f.id : null, grade:g, img:data, t:Date.now() });
-    if (f) { S.notes[f.id] = 1; S.flags[f.id === 'aenor' ? 'shotAenor' : 'shotZoryth'] = true; }
-    save(); sfx.shutter();
-    var box = $('.x-cam'); box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
-    $('.x-camfilm').textContent = S.film + ' EXPOSURES LEFT';
-    toast(f ? 'EXPOSED · ' + subjName(f.id) + ' · develop in the Darkroom' : 'EXPOSED · no subject in frame');
-  }
-
-  // ═════════════════════════ SURFACE · classic tile exploration ═════════════════════════
-  var T = 16, M = null, P = null, critters = [], fogArr = null, dialogOpen = false, encounterOpen = false, held = null, path = [];
-  var SOLID = { T:1, b:1, B:1, '~':1, A:1, S:1, H:1, M:1, X:1, '#':1 };
+  // ═════════════════════════ SURFACE · the open worlds ═════════════════════════
+  var T = 16, M = null, P = null, critters = [], npcs = [], fogArr = null, dialogOpen = false, encounterOpen = false, held = null, path = [], zoneId = null;
   var DIRS = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
+  var SOLID = GEN.SOLID;
 
-  function parseMap(id){
-    var def = D.maps[id], rows = def.rows, H = rows.length, W = rows[0].length;
-    var grid = [], spawns = [], shipAt = null, npc = null;
-    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
-      var ch = rows[y][x];
-      if ('OVWC'.indexOf(ch) >= 0) { spawns.push({ c:ch, x:x, y:y }); ch = '.'; }
-      if (ch === 'S') shipAt = { x:x, y:y };
-      if (ch === 'H') npc = { x:x, y:y, dir:'down' };
-      grid.push(ch);
-    }
-    // the ship covers 3×2 tiles around its anchor
-    if (shipAt) for (var j = -1; j <= 0; j++) for (var i = -1; i <= 1; i++) grid[(shipAt.y + j) * W + shipAt.x + i] = 'S';
-    return { id:id, def:def, W:W, H:H, grid:grid, spawns:spawns, ship:shipAt, npc:npc, ground:null };
-  }
-  function at(x, y){ return (x < 0 || y < 0 || x >= M.W || y >= M.H) ? '#' : M.grid[y * M.W + x]; }
+  function at(x, y){ return M.at(x, y); }
   function critterAt(x, y){ for (var i = 0; i < critters.length; i++) if (critters[i].x === x && critters[i].y === y) return critters[i]; return null; }
+  function npcAt(x, y){ for (var i = 0; i < npcs.length; i++) if (npcs[i].x === x && npcs[i].y === y) return npcs[i]; return null; }
   function blocked(x, y, who){
     var ch = at(x, y);
     if (who && who.swims && ch === '~') return !!critterAt(x, y);
-    if (who && who.flies) return ch === '#' || x <= 0 || y <= 0 || x >= M.W - 1 || y >= M.H - 1 || !!critterAt(x, y) || (P && P.x === x && P.y === y);
+    if (who && who.flies) return ch === '#' || x <= 0 || y <= 0 || x >= M.W - 1 || y >= M.H - 1 || !!critterAt(x, y) || !!npcAt(x, y) || (P && P.x === x && P.y === y);
     if (SOLID[ch]) return true;
-    if (critterAt(x, y)) return true;
+    if (critterAt(x, y) || npcAt(x, y)) return true;
     if (who !== P && P && P.x === x && P.y === y) return true;
     return false;
   }
-
-  // ── the ground, baked from native tiles (two frames so water ripples) ──
-  var ART = window.AOV_ART;
-  function bakeGround(){
-    M.ground = [0, 1].map(function(frame){
-      var gc = doc.createElement('canvas'); gc.width = M.W * T; gc.height = M.H * T;
-      var g = gc.getContext('2d'); g.imageSmoothingEnabled = false;
-      for (var y = 0; y < M.H; y++) for (var x = 0; x < M.W; x++) {
-        var ch = at(x, y), tile;
-        if (M.def.indoor) tile = ch === '#' ? 'rock' : 'den';
-        else if (ch === '~') tile = frame ? 'water1' : 'water';
-        else if (ch === 'd') tile = 'path';
-        else if (ch === '#') tile = 'rock';
-        else if (ch === 'E') tile = 'cave';
-        else if (ch === ',') tile = 'flowers';
-        else tile = (x * 7 + y * 13) % 5 === 0 ? 'grass2' : 'grass';
-        var c = ART.canvas(tile); if (c) g.drawImage(c, x * T, y * T);
-      }
-      return gc;
-    });
-  }
   function shadow(X, Y, z, w){ ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(Math.round(X - w * z / 2), Math.round(Y - 2 * z), w * z, 2 * z); }
 
+  // fog of war, saved compactly (run lengths)
+  function fogEnc(a){ var out = [], cur = 0, run = 0; for (var i = 0; i < a.length; i++) { if (a[i] === cur) run++; else { out.push(run.toString(36)); cur ^= 1; run = 1; } } out.push(run.toString(36)); return out.join('.'); }
+  function fogDec(s, n){ var a = new Uint8Array(n); if (!s) return a; var cur = 0, i = 0; s.split('.').forEach(function(r){ var k = parseInt(r, 36); for (var j = 0; j < k && i < n; j++) a[i++] = cur; cur ^= 1; }); return a; }
+
+  function worldNo(){ return M.world; }
+  function zoneOf(x, y){ var d = GEN.zoneAt(M, x, y); return d ? d.id : null; }
   function surface(mapId){
-    M = parseMap(mapId); bakeGround();
-    S.stage = 'surface'; S.map = mapId; save();
-    var start = S.pos && S.pos.map === mapId ? S.pos : (M.ship ? { x:M.ship.x, y:M.ship.y + 1, dir:'down' } : { x:1, y:1, dir:'down' });
+    M = GEN.build(mapId);
+    if (!M) { ship(); return; }
+    specCache = {};
+    S.stage = 'surface'; S.landed = true; if (M.world) S.at = M.world;
+    var start = S.pos && S.pos.map === mapId ? S.pos : { x:M.ship ? M.ship.x : 1, y:M.ship ? M.ship.y + 1 : 1, dir:'down' };
+    if (SOLID[at(start.x, start.y)]) start = { x:M.ship.x, y:M.ship.y + 1, dir:'down' };
     P = { x:start.x, y:start.y, fx:start.x, fy:start.y, dir:start.dir || 'down', t:0, moving:false, stalk:false, anim:0 };
     critters = M.spawns.map(function(sp){
-      var id = { O:'otterlin', V:'verdanix', W:'aetherwing', C:'volcanut' }[sp.c];
-      return { id:id, x:sp.x, y:sp.y, fx:sp.x, fy:sp.y, fromX:sp.x, fromY:sp.y, t:1, home:{ x:sp.x, y:sp.y }, dir:'down', cool:Math.random() * 2,
-               swims:id === 'otterlin', flies:id === 'aetherwing', state:'idle', anim:0 };
+      var s = SP[sp.id] || {};
+      return { id:sp.id, lv:sp.lv, x:sp.x, y:sp.y, fx:sp.x, fy:sp.y, fromX:sp.x, fromY:sp.y, t:1, home:{ x:sp.x, y:sp.y }, dir:'down', cool:Math.random() * 2,
+               swims:sp.id === 'otterlin' || s.body === 'amph', flies:s.body === 'wing', state:'idle', anim:0, calm:0 };
     });
-    fogArr = new Uint8Array(M.W * M.H);
-    var saved = S.fog[mapId]; if (saved && saved.length === fogArr.length) for (var i = 0; i < fogArr.length; i++) fogArr[i] = saved.charCodeAt(i) === 49 ? 1 : 0;
-    dialogOpen = false; encounterOpen = false; path = []; held = null; dlg = null;
+    npcs = M.npcs.map(function(n){ return Object.assign({}, n); });
+    fogArr = fogDec(S.fog[mapId], M.W * M.H);
+    dialogOpen = false; encounterOpen = false; path = []; held = null; dlg = null; zoneId = null;
     screen('x-surface',
       '<div class="x-hud riv"><div class="x-zone"><b class="x-zn"></b><span class="x-zw"></span></div>' +
         '<div class="x-gauges">' + gauge('SUIT','suit') + gauge('AIR','air') + '</div>' +
-        '<div class="x-counts"><span title="Exposures left"><i>FILM</i><b class="x-film"></b></span></div>' +
-        '<button class="x-menu" aria-label="Field journal">☰</button></div>' +
+        '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
+        '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
+      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ STALK · □ SCAN · △ ASTRANAV</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
       '<div class="x-ab"><button class="x-b" aria-label="B: back, or stalk">B<small>STALK</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
@@ -895,23 +1209,39 @@
     startWorld('surface');
     hudRefresh();
     revealFog();
-    if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Use the arrows to walk, or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B toggles STALK, a slow and quiet walk.']); }
+    checkZone(true);
+    save();
+    if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Walk with the arrows (or the stick), or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B toggles STALK, a slow and quiet walk.', 'NAV opens the AstraNav: the star map, your cards, the Codex and everything else.']); }
   }
   function gauge(label, id){
     return '<div class="x-g" data-g="' + id + '"><svg viewBox="0 0 60 40" aria-hidden="true"><path d="M6 36 A24 24 0 0 1 54 36" class="x-arc"/><path d="M6 36 A24 24 0 0 1 14 18" class="x-arc red"/>' +
       '<line x1="30" y1="36" x2="30" y2="15" class="x-needle"/><circle cx="30" cy="36" r="3"/></svg><span>' + label + '</span></div>';
   }
+  function zoneName(){
+    if (M.indoor) return term(M.location);
+    if (M.world === 9) return term(zoneId || 'malezor');
+    return term(WORLD[M.world].term);
+  }
   function hudRefresh(){
     var zn = $('.x-zn'); if (!zn || !M) return;
-    zn.textContent = M.def.location ? term(M.def.location) : term(M.def.district);
-    $('.x-zw').textContent = (M.def.location ? term(M.def.district) + ' · ' : '') + term('zyraxis');
+    zn.textContent = zoneName();
+    $('.x-zw').textContent = M.world === 9 ? term('zyraxis') : M.indoor ? term(M.name) : setName(M.world).replace(/ — .*/, '');
     [['suit', S.suit], ['air', S.air]].forEach(function(g){
       var n = $('[data-g="' + g[0] + '"] .x-needle'); if (n) n.style.transform = 'rotate(' + (-80 + clamp(g[1], 0, 100) / 100 * 160) + 'deg)';
       var box = $('[data-g="' + g[0] + '"]'); if (box) box.classList.toggle('low', g[1] < 25);
     });
-    $('.x-film').textContent = pad2(S.film);
+    var lead = $('.x-lead'), team = teamReady();
+    if (lead) lead.innerHTML = team.length ? '<img class="x-pix" alt="" src="' + ART.url(subjArt(team[0]), 2) + '"><b>LV ' + S.cards[team[0]].lv + '</b>' : '';
     var b = $('.x-b small'); if (b) b.textContent = P.stalk ? 'WALK' : 'STALK';
     var bb = $('.x-b'); if (bb) bb.classList.toggle('on', P.stalk);
+  }
+  function checkZone(quiet){
+    if (!M || M.indoor || M.world !== 9) return;
+    var z = zoneOf(P.x, P.y); if (!z || z === zoneId) return;
+    zoneId = z;
+    if (!quiet) { toast('ENTERING · ' + term(z)); sfx.meet(); }
+    if (!S.seen[z]) { S.seen[z] = Date.now(); save(); }
+    hudRefresh();
   }
 
   function bindSurfaceUI(){
@@ -923,34 +1253,17 @@
     });
     $('.x-a').addEventListener('click', btnA);
     $('.x-b').addEventListener('click', btnB);
-    $('.x-menu').addEventListener('click', fieldMenu);
-    $('.x-dialog').addEventListener('click', function(e){ if (!e.target.closest('[data-c]')) btnA(); });
+    $('.x-menu').addEventListener('click', function(){ openNav(); });
+    $('.x-dialog').addEventListener('click', function(e){ if (!e.target.closest('[data-c]')) advanceDialog(); });
   }
-  var keys = {}, KEYDIR = { arrowup:'up', w:'up', arrowdown:'down', s:'down', arrowleft:'left', a:'left', arrowright:'right', d:'right' };
-  addEventListener('keydown', function(e){
-    if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-    if (mode !== 'surface' || encounterOpen || doc.querySelector('.x-modal')) return;
-    var k = e.key.toLowerCase(), d = KEYDIR[k];
-    if (d) { e.preventDefault(); keys[d] = true; held = d; path = []; return; }
-    if (k === 'z' || k === 'enter' || k === ' ') { e.preventDefault(); btnA(); }
-    if (k === 'x' || k === 'escape' || k === 'backspace') { e.preventDefault(); btnB(); }
-    if (k === 'j' || k === 'm') fieldMenu();
-  });
-  addEventListener('keyup', function(e){
-    var d = KEYDIR[e.key.toLowerCase()];
-    if (d) { keys[d] = false; if (held === d) held = ['up','down','left','right'].filter(function(x){ return keys[x]; })[0] || null; }
-  });
   // tap the ground: walk there; tap a thing: walk next to it, face it, examine it
   var tapStart = null;
   cv.addEventListener('pointerdown', function(e){
-    if (mode === 'space') { tapStart = { x:e.clientX, y:e.clientY, ax:aim.x, ay:aim.y }; try { cv.setPointerCapture(e.pointerId); } catch(err){} return; }
     if (mode !== 'surface' || dialogOpen || encounterOpen) return;
     tapStart = { x:e.clientX, y:e.clientY };
   });
   cv.addEventListener('pointermove', function(e){
-    if (mode === 'space' && tapStart) {
-      aim.x = clamp(tapStart.ax - (e.clientX - tapStart.x), -520, 520); aim.y = clamp(tapStart.ay - (e.clientY - tapStart.y), -360, 360);
-    }
+
   });
   cv.addEventListener('pointerup', function(e){
     if (mode !== 'surface' || !tapStart || dialogOpen || encounterOpen) { tapStart = null; return; }
@@ -960,8 +1273,8 @@
     walkTo(t.x, t.y);
   });
 
-  // pocket style: whole-number pixel scaling only, so every pixel stays crisp
-  function zoom(){ return Math.max(2, Math.floor(Math.min(cv.width / (11 * T), cv.height / (10 * T)))); }
+  // pocket style: whole-number pixel scaling only, so every pixel stays crisp. Landscape shows 15 × 9 tiles or more.
+  function zoom(){ return Math.max(2, Math.floor(Math.min(cv.width / (15 * T), cv.height / (9 * T)))); }
   function screenToTile(sx, sy){
     var z = zoom();
     return { x:Math.floor(P.fx + .5 + (sx * DPR - cv.width / 2) / (T * z)), y:Math.floor(P.fy + .5 + (sy * DPR - cv.height / 2) / (T * z)) };
@@ -969,17 +1282,17 @@
   function walkTo(tx, ty){
     if (tx === P.x && ty === P.y) return;
     var target = { x:tx, y:ty }, interact = blocked(tx, ty, P) || !!critterAt(tx, ty);
-    var W = M.W, prev = new Int32Array(W * M.H).fill(-1), q = [P.y * W + P.x], seen = new Uint8Array(W * M.H); seen[q[0]] = 1;
+    var W = M.W, prev = new Int32Array(W * M.H).fill(-1), q = [P.y * W + P.x], qi = 0, seen = new Uint8Array(W * M.H); seen[q[0]] = 1;
     var goal = -1, startI = q[0];
     if (interact && Math.abs(P.x - tx) + Math.abs(P.y - ty) === 1) goal = startI;
-    while (goal < 0 && q.length) {
-      var c = q.shift(), cx = c % W, cy = (c / W) | 0;
+    while (goal < 0 && qi < q.length && qi < 6000) {
+      var c = q[qi++], cx = c % W, cy = (c / W) | 0;
       if (interact ? (Math.abs(cx - tx) + Math.abs(cy - ty) === 1) : (cx === tx && cy === ty)) { goal = c; break; }
-      [[0,-1],[0,1],[-1,0],[1,0]].forEach(function(d){
-        var nx = cx + d[0], ny = cy + d[1], ni = ny * W + nx;
-        if (nx < 0 || ny < 0 || nx >= W || ny >= M.H || seen[ni] || blocked(nx, ny, P)) return;
+      for (var k = 0; k < 4; k++) {
+        var d = [[0,-1],[0,1],[-1,0],[1,0]][k], nx = cx + d[0], ny = cy + d[1], ni = ny * W + nx;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= M.H || seen[ni] || blocked(nx, ny, P)) continue;
         seen[ni] = 1; prev[ni] = c; q.push(ni);
-      });
+      }
     }
     if (goal < 0) { sfx.bump(); return; }
     var steps = [];
@@ -991,6 +1304,10 @@
   function facing(){ var d = DIRS[P.dir]; return { x:P.x + d[0], y:P.y + d[1] }; }
 
   var saveTimer = 0, airTimer = 0;
+  function hazardDrain(){
+    var e = M.env(P.x, P.y), r = e && e.hazard && e.hazard.rule || '';
+    return { air:M.indoor ? 0 : .16 * (/AIR/.test(r) ? 1.8 : 1), suit:/SUIT/.test(r) ? .06 : 0 };
+  }
   function updateSurface(dt, now){
     if (!P) return;
     if (P.moving) {
@@ -999,7 +1316,7 @@
       if (P.t >= 1) { P.moving = false; P.fx = P.x; P.fy = P.y; arrived(); if (mode !== 'surface') return; }
       else { P.fx = P.px0 + (P.x - P.px0) * P.t; P.fy = P.py0 + (P.y - P.py0) * P.t; }
     }
-    if (!P.moving && !dialogOpen && !encounterOpen) {
+    if (!P.moving && !dialogOpen && !encounterOpen && !doc.querySelector('.x-modal')) {
       var want = null;
       if (held) want = held;
       else if (path.length) {
@@ -1009,18 +1326,19 @@
       }
       if (want) step(want);
     }
-    critters.forEach(function(c){ if (mode === 'surface') updateCritter(c, dt, now); });
+    for (var i = 0; i < critters.length && mode === 'surface'; i++) updateCritter(critters[i], dt, now);
     if (mode !== 'surface') return;
     airTimer += dt;
     if (airTimer > 1) {
       airTimer = 0;
-      if (!M.def.indoor && !dialogOpen && !encounterOpen) S.air = Math.max(0, S.air - .28);
+      if (!dialogOpen && !encounterOpen) { var hz = hazardDrain(); S.air = Math.max(0, S.air - hz.air); S.suit = Math.max(0, S.suit - hz.suit); }
       hudRefresh();
       if (S.air <= 0) return recall('AIR');
-      if (Math.abs(S.air - 25) < .2) { toast('AIR LOW · return to the ship', 'red'); sfx.warn(); }
+      if (S.suit <= 0) return recall('SUIT');
+      if (Math.abs(S.air - 25) < .17) { toast('AIR LOW · return to the ship or fire a flare', 'red'); sfx.warn(); vibrate(200); }
     }
     saveTimer -= dt;
-    if (saveTimer <= 0) { saveTimer = 3; S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; save(); }
+    if (saveTimer <= 0) { saveTimer = 3; S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save(); }
   }
   function dirTo(x, y){ var dx = x - P.x, dy = y - P.y; return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down'); }
   function step(dir){
@@ -1031,18 +1349,20 @@
     if ((nx + ny) % 2) sfx.step();
   }
   function arrived(){
-    revealFog();
-    var ch = at(P.x, P.y), warp = M.def.warps && M.def.warps[ch];
-    if (warp) { held = null; path = []; S.pos = { map:warp.to, x:warp.x, y:warp.y, dir:warp.dir }; save(); var to = warp.to; stopWorld(); fade(function(){ surface(to); }); return; }
-    if (M.def.location && mark(M.def.location, 'reached')) { S.notes[M.def.location] = 1; toast('NEW FIELD RECORD · ' + term(subj(M.def.location).term)); }
+    revealFog(); checkZone();
+    var ch = at(P.x, P.y), warp = M.warps && M.warps[ch];
+    if (warp) {
+      held = null; path = []; S.pos = { map:warp.to, x:warp.x, y:warp.y, dir:warp.dir }; S.fog[M.id] = fogEnc(fogArr); save();
+      var to = warp.to; stopWorld(); fade(function(){ surface(to); }); return;
+    }
+    if (M.location && mark(M.location, 'reached')) { S.notes[M.location] = 1; toast('NEW FIELD RECORD · ' + term(subj(M.location).term)); }
   }
   function revealFog(){
-    var R = 4, changed = false;
+    var R = M.indoor ? 4 : 5;
     for (var y = P.y - R; y <= P.y + R; y++) for (var x = P.x - R; x <= P.x + R; x++) {
       if (x < 0 || y < 0 || x >= M.W || y >= M.H) continue;
-      if (Math.hypot(x - P.x, y - P.y) <= R + .3 && !fogArr[y * M.W + x]) { fogArr[y * M.W + x] = 1; changed = true; }
+      if (Math.hypot(x - P.x, y - P.y) <= R + .3) fogArr[y * M.W + x] = 1;
     }
-    if (changed) S.fog[M.id] = Array.prototype.map.call(fogArr, function(v){ return v ? '1' : '0'; }).join('');
   }
   function fade(fn){
     var f = el('div', 'x-fade'); doc.body.appendChild(f);
@@ -1057,14 +1377,16 @@
       c.fx = c.fromX + (c.x - c.fromX) * c.t; c.fy = c.fromY + (c.y - c.fromY) * c.t;
       return;
     }
-    if (dialogOpen || encounterOpen) return;
-    var s = subj(c.id), dist = Math.abs(c.x - P.x) + Math.abs(c.y - P.y);
-    c.cool -= dt;
+    if (dialogOpen || encounterOpen || doc.querySelector('.x-modal')) return;
+    var dist = Math.abs(c.x - P.x) + Math.abs(c.y - P.y);
+    if (dist > 22) return;                      // far away: asleep until you come near
+    var s = subj(c.id) || {};
+    c.cool -= dt; if (c.calm > 0) c.calm -= dt;
     if (s.temperament === 'skittish' && dist <= 2 && !P.stalk) {
       if (c.state !== 'flee') { c.state = 'flee'; c.cool = 0; }
     } else if (c.state === 'flee' && dist > 4) c.state = 'idle';
-    if (s.temperament === 'territorial') {
-      if (dist <= 2 && c.state !== 'warn' && c.cool <= 0) { c.state = 'warn'; c.warnT = 1.3; sfx.warn(); toast('The creature bristles and glows. It will charge.', 'red'); }
+    if (s.temperament === 'territorial' && c.calm <= 0) {
+      if (dist <= 2 && c.state !== 'warn' && c.cool <= 0) { c.state = 'warn'; c.warnT = 1.3; sfx.warn(); vibrate(120, .4); toast('It bristles and glows. It will charge.', 'red'); }
       if (c.state === 'warn') {
         c.warnT -= dt; c.dir = c.x === P.x ? (P.y < c.y ? 'up' : 'down') : (P.x < c.x ? 'left' : 'right');
         if (dist > 3) { c.state = 'idle'; c.cool = 2; }
@@ -1080,7 +1402,7 @@
       c.cool = .25;
     } else {
       var o = opts[(Math.random() * 4) | 0], nx = c.x + o[1], ny = c.y + o[2];
-      if (Math.abs(nx - c.home.x) + Math.abs(ny - c.home.y) <= (c.flies ? 5 : 3) && !blocked(nx, ny, c)) choice = o;
+      if (Math.abs(nx - c.home.x) + Math.abs(ny - c.home.y) <= (c.flies ? 6 : 4) && !blocked(nx, ny, c)) choice = o;
       c.cool = c.flies ? .5 + Math.random() * .8 : 1.2 + Math.random() * 2.4;
       if (s.temperament === 'curious' && dist <= 4 && dist > 1 && !P.moving && Math.random() < .5) {
         var toward = opts.filter(function(q){ return Math.abs(c.x + q[1] - P.x) + Math.abs(c.y + q[2] - P.y) < dist && !blocked(c.x + q[1], c.y + q[2], c); })[0];
@@ -1095,23 +1417,33 @@
     if (encounterOpen || doc.querySelector('.x-modal')) return;
     if (dialogOpen) { advanceDialog(); return; }
     if (P.moving) return;
-    var f = facing(), ch = at(f.x, f.y), c = critterAt(f.x, f.y);
+    var f = facing(), ch = at(f.x, f.y), c = critterAt(f.x, f.y), n = npcAt(f.x, f.y), i = f.y * M.W + f.x;
     if (c) { encounter(c, false); return; }
-    if (M.npc && f.x === M.npc.x && f.y === M.npc.y) { talkHaemen(); return; }
-    if (ch === 'b') return examinePlant('shrub');
-    if (ch === 'T') return examinePlant('fruittree');
-    if (ch === 'A') return examineAstralite();
-    if (ch === 'M') return examineMarkings();
+    if (n) { n.dir = { up:'down', down:'up', left:'right', right:'left' }[P.dir]; talkPeople(n); return; }
+    var no = M.world;
+    if (ch === 'b') return examineSpecimen(no === 9 ? 'shrub' : 'pl_' + no);
+    if (ch === 'T') return examineSpecimen(no === 9 ? 'fruittree' : 'pl_' + no);
+    if (ch === 'A') return examineSpecimen(no === 9 ? 'astralite' : 'mn_' + no, true);
+    if (ch === 'M') { var rec = M.records.filter(function(r){ return r.x === f.x && r.y === f.y; })[0]; return rec && rec.key !== 'markings' ? examineRecord(rec) : examineMarkings(); }
+    if (ch === 'L') { var lm = M.landmarks.filter(function(l){ return l.x === f.x && l.y === f.y; })[0]; if (lm) return examineLandmark(lm); }
     if (ch === 'S') return boardShip();
-    if (ch === 'X') return say([M.def.sign]);
+    if (ch === 'X') return say([M.signs[i] || 'A route marker.']);
     if (ch === 'B') return say(['A heavy boulder, streaked with something that glints.']);
-    if (ch === '#') return say([M.def.indoor ? 'Fitted stone. The joints are too fine for hand tools.' : 'Rock, too steep to climb without gear.']);
-    if (ch === '~') return say(['Clear, cold water. Something sleek moves under the surface.']);
+    if (ch === 'P') return say([propLine(M.props[i])]);
+    if (ch === '#') return say([M.indoor ? 'Fitted stone. The joints are too fine for hand tools.' : 'Rock, too steep to climb without gear.']);
+    if (ch === '~') return say([M.env(f.x, f.y).tiles.liquid === 'cloud' ? 'Cloud, far below the edge. Nothing to stand on.' : 'Cold, clear liquid. Something moves under the surface.']);
     var hid = M.id + ':' + f.x + ',' + f.y;
     if (ch === '*' && !S.found[hid]) {
-      S.found[hid] = 1; S.film += 6; save(); hudRefresh(); sfx.reveal();
-      return say(['Half-buried in the ' + (M.def.indoor ? 'dust' : 'grass') + ': your own spare film canister, lost on landing. Dented, but sealed.', 'FILM +6']);
+      S.found[hid] = 1; var k = Object.keys(S.found).length % 2; sfx.reveal(); vibrate(60, .3);
+      if (k === 1) { S.air = Math.min(100, S.air + 40); save(); hudRefresh(); return say(['A spare air cylinder from your own kit, lost on landing. Still charged.', 'AIR +40']); }
+      S.flares++; save(); return say(['A signal flare, wrapped in oilcloth.', 'FLARES +1']);
     }
+  }
+  function propLine(p){
+    var k = p && p[0];
+    return { spire:'A spire of crystal, taller than a man. It rings faintly when the wind passes.', pillar:'A pillar, worked by hands. Whoever made it is not here.',
+      vent:'A vent in the ground, breathing heat. Better not stand over it.', pylon:'A machine, still humming. No one tends it.', deadtree:'A tree with no leaves, hard as iron.',
+      tree:'A tree. Its bark is warm.', shrub:'A thicket, too dense to push through.', boulder:'A boulder.' }[k] || 'Something strange, and too heavy to move.';
   }
   function btnB(){
     if (dialogOpen) { advanceDialog(true); return; }
@@ -1120,211 +1452,290 @@
     toast(P.stalk ? 'STALKING · slow and quiet' : 'WALKING');
   }
 
-  // ── dialog box ──
+  // ── dialog box (the field, and the opening) ──
   var dlg = null;
-  function say(lines, choices){
+  function say(lines, choices, box, onPick){
     return new Promise(function(res){
-      dlg = { lines:lines.slice(), choices:choices, res:res, typing:null };
+      if (dlg) closeDialog(-2);
+      box = box || $('.x-dialog');
+      if (!box) { res(-1); return; }
+      dlg = { lines:lines.slice(), choices:choices, res:res, typing:null, box:box, onPick:onPick };
       dialogOpen = true; held = null; path = [];
-      var box = $('.x-dialog'); if (!box) { dialogOpen = false; res(-1); return; }
       box.hidden = false;
       nextLine();
     });
   }
   function nextLine(){
-    var box = $('.x-dialog'), t = $('.x-dtext', box), ch = $('.x-dchoices', box), d = dlg;
+    var d = dlg, box = d.box, t = $('.x-dtext', box), ch = $('.x-dchoices', box);
     var line = d.lines.shift();
     ch.innerHTML = ''; box.classList.remove('ask');
-    d.typing = typeInto(t, line, 16).then(function(){
+    d.typing = typeInto(t, line).then(function(){
       d.typing = null;
       if (!d.lines.length && d.choices && dlg === d) {
         box.classList.add('ask');
         ch.innerHTML = d.choices.map(function(c, i){ return '<button data-c="' + i + '">' + esc(c) + '</button>'; }).join('');
-        $$('[data-c]', ch).forEach(function(b){ b.addEventListener('click', function(e){ e.stopPropagation(); closeDialog(+b.dataset.c); }); });
+        $$('[data-c]', ch).forEach(function(b){
+          b.addEventListener('click', function(e){ e.stopPropagation(); closeDialog(+b.dataset.c); });
+          b.addEventListener('focus', function(){ if (d.onPick) d.onPick(+b.dataset.c); });
+        });
         $('[data-c]', ch).focus();
       }
     });
   }
   function advanceDialog(isB){
     if (!dlg) return;
-    var t = $('.x-dtext');
+    var t = $('.x-dtext', dlg.box);
     if (dlg.typing) { if (t && t._finish) t._finish(); return; }
+    if (t && t._doneAt && performance.now() - t._doneAt < 120) return;     // the tap that finished the line does not also skip it
     if (dlg.lines.length) { nextLine(); return; }
-    if (dlg.choices) { closeDialog(isB ? dlg.choices.length - 1 : 0); return; }
+    if (dlg.choices) { if (isB) closeDialog(dlg.choices.length - 1); else { var f = doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('[data-c]'); closeDialog(f ? +f.dataset.c : 0); } return; }
     closeDialog(-1);
   }
   function closeDialog(answer){
     var d = dlg; dlg = null; dialogOpen = false;
-    var box = $('.x-dialog'); if (box) box.hidden = true;
-    if (d) d.res(answer);
+    if (d && d.box) { d.box.hidden = true; }
+    if (d && answer !== -2) d.res(answer);
+    else if (d) d.res(-1);
   }
 
   // ── examining things ──
-  async function examinePlant(id){
+  async function examineSpecimen(id, sample){
     var s = subj(id), had = !!S.cards[id];
-    await say([s.journal]);
-    if (had) { await say(['Already documented. ' + title1936(subjName(id)) + ' is in your Card Locker.']); return; }
-    await say(['SPECIMEN DOCUMENTED.']);
-    var first = manifest(id, null, false);
-    await cardReveal(id, first);
-  }
-  async function examineAstralite(){
-    var had = !!S.cards.astralite;
-    await say([subj('astralite').journal, 'You chip a sample into a sealed jar.']);
-    var first = manifest('astralite', null, false);
+    await say([s.journal, 'You hold the AstraNav over it. The needle swings, settles, and the scan prints.']);
+    if (had && !sample) { await say(['Already in the AstraNav: ' + title1936(subjName(id)) + '.']); return; }
+    var first = manifest(id, null, false); vibrate(120, .3);
     if (had) { toast('ANOTHER SAMPLE · QUANTITY +1'); return; }
-    await cardReveal('astralite', first, 'SPECIMEN DOCUMENTED · CARD ACQUIRED');
+    await cardReveal(id, first, 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED');
   }
   async function examineMarkings(){
-    if (S.flags.copied) { await say(['The carved figures and their words are already in your journal.', S.flags.decoded ? 'You can read them now.' : 'Decode them in the LABORATORY aboard ship.']); return; }
+    if (S.flags.copied) { await say(['The carved figures and their words are already in your journal.', S.flags.decoded ? 'You can read them now.' : 'Decode them in the AstraNav CODEX.']); return; }
     await say(['Carved into the stone: figures, each beside a mark like a word. Some figures look like the animals outside. One is a star. One is a small pale circle.', 'You copy every mark into the field journal.']);
-    S.flags.copied = true; save(); toast('MARKINGS COPIED · decode them aboard ship');
-    if (!S.cards.firstden) {
-      var ok = await say(['Photograph the cave for the record? (uses 1 exposure)'], ['YES', 'NO']);
-      if (ok === 0) shootStatic('firstden');
-    }
+    S.flags.copied = true; save(); toast('MARKINGS COPIED · decode them in the AstraNav CODEX');
+    if (!S.cards.firstden) { var ok = await say(['Scan the cave into the AstraNav?'], ['SCAN', 'NOT NOW']); if (ok === 0) scanPlace('firstden'); }
   }
-  function shootStatic(id){
-    if (S.film <= 0) { toast('ROLL FINISHED · develop it aboard ship', 'red'); return; }
-    var out = doc.createElement('canvas'); out.width = 240; out.height = 180;
-    var o = out.getContext('2d'); o.imageSmoothingEnabled = false;
-    var dn = ART.canvas('den'), rk = ART.canvas('cave');
-    for (var gy = 0; gy < 180; gy += 48) for (var gx = 0; gx < 240; gx += 48) o.drawImage(gy < 48 ? rk : dn, gx, gy, 48, 48);
-    o.fillStyle = 'rgba(0,0,0,.35)'; o.fillRect(0, 0, 240, 180);
-    var data = ''; try { data = out.toDataURL('image/jpeg', .75); } catch(e){}
-    S.film--; S.frames.push({ subj:id, grade:'good', img:data, t:Date.now() }); save(); hudRefresh(); sfx.shutter();
-    toast('EXPOSED · ' + subjName(id) + ' · develop aboard ship');
+  async function examineLandmark(lm){
+    var first = mark(lm.id, 'reached'); S.notes[lm.id] = 1; save();
+    await say([known(lm.id) ? title1936(term(lm.id)) + '. ' + subj(lm.id).journal : subj(lm.id).journal,
+      known(lm.id) ? 'The Codex has its name.' : 'Its name is not in your journal. The people of this world will know it.']);
+    if (first) toast('NEW FIELD RECORD · ' + term(lm.id));
+    if (!S.cards[lm.id]) { var ok = await say(['Scan it into the AstraNav?'], ['SCAN', 'NOT NOW']); if (ok === 0) scanPlace(lm.id); }
+  }
+  async function scanPlace(id){
+    sfx.shutter(); vibrate(200, .3);
+    var first = manifest(id, null, false); mark(id, 'reached'); S.notes[id] = 1; save(); hudRefresh();
+    await cardReveal(id, first, 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED');
   }
   async function boardShip(){
-    var a = await say(['Your ship. Board, and return to orbit?'], ['BOARD', 'STAY']);
+    var a = await say(['Your ship. Board?'], ['BOARD', 'STAY']);
     if (a !== 0) return;
-    S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; save(); sfx.click();
-    ship();
+    S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); S.landed = true; save(); sfx.click();
+    aboard(); nav('system');
   }
-  function fieldMenu(){
-    if (dialogOpen || encounterOpen || doc.querySelector('.x-modal')) return;
-    held = null;
-    var m = el('div', 'x-modal', '<div class="x-modal-in x-paper journal"><p class="x-stamp">FIELD JOURNAL</p>' +
-      '<canvas class="x-sketch" width="460" height="340" aria-label="Field sketch map"></canvas>' + objList() +
-      '<div class="x-notes">' + Object.keys(S.notes).filter(function(id){ return subj(id); }).map(function(id){ return '<p><b>' + esc(subjName(id)) + '.</b> ' + esc(subj(id).journal) + '</p>'; }).join('') + '</div>' +
-      '<div class="x-sh-btns"><button class="x-btn" data-a="flare">FIRE RECALL FLARE (' + S.flares + ')</button><button class="x-btn ghost" data-a="close">CLOSE JOURNAL</button></div></div>');
-    ui.appendChild(m);
-    drawSketch(m.querySelector('.x-sketch'));
-    m.addEventListener('click', function(e){
-      var a = e.target.closest('[data-a]');
-      if (e.target === m || (a && a.dataset.a === 'close')) m.remove();
-      if (a && a.dataset.a === 'flare') {
-        if (!S.flares) { toast('NO FLARES LEFT · walk back to the ship', 'red'); return; }
-        S.flares--; m.remove(); S.pos = null; save(); ship(); toast('RECALL FLARE · the ship homed in on you');
-      }
-    });
+  // the AstraNav, opened in the field
+  function openNav(tab){
+    if (dialogOpen || encounterOpen || doc.querySelector('.x-modal, .x-battle')) return;
+    held = null; path = [];
+    S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save(); sfx.click();
+    nav(typeof tab === 'string' ? tab : 'field');
   }
+  // the field sketch: the stretch of ground around you, as far as you have walked it
   function drawSketch(c){
-    var g = c.getContext('2d'), sx = c.width / M.W, sy = c.height / M.H;
+    var g = c.getContext('2d'), VW = Math.min(M.W, 64), VH = Math.min(M.H, 40);
+    var vx = clamp(P.x - (VW >> 1), 0, M.W - VW), vy = clamp(P.y - (VH >> 1), 0, M.H - VH);
+    var s = Math.min(c.width / VW, c.height / VH), ox = (c.width - VW * s) / 2, oy = (c.height - VH * s) / 2;
     g.fillStyle = '#efe6d0'; g.fillRect(0, 0, c.width, c.height);
-    for (var y = 0; y < M.H; y++) for (var x = 0; x < M.W; x++) {
+    for (var y = vy; y < vy + VH; y++) for (var x = vx; x < vx + VW; x++) {
       if (!fogArr[y * M.W + x]) continue;
-      var ch = at(x, y);
-      g.fillStyle = ch === '~' ? 'rgba(40,70,120,.4)' : ch === 'd' ? 'rgba(120,80,40,.3)' : ch === 'T' ? 'rgba(40,80,40,.45)' : ch === '#' ? 'rgba(40,30,20,.55)' : 'rgba(60,50,30,.07)';
-      g.fillRect(x * sx, y * sy, sx + .5, sy + .5);
-      if (ch === 'A') { g.fillStyle = '#3b5bd6'; g.fillRect(x * sx + 2, y * sy + 2, sx - 4, sy - 4); }
-      if (ch === 'E' || ch === 'x') { g.fillStyle = '#2a2118'; g.fillRect(x * sx + 1, y * sy + 1, sx - 2, sy - 2); }
+      var ch = at(x, y), X = ox + (x - vx) * s, Y = oy + (y - vy) * s;
+      g.fillStyle = ch === '~' ? 'rgba(40,70,120,.45)' : ch === 'd' ? 'rgba(120,80,40,.4)' : 'TP'.indexOf(ch) >= 0 ? 'rgba(40,80,40,.45)' : ch === '#' ? 'rgba(40,30,20,.6)' : 'rgba(60,50,30,.1)';
+      g.fillRect(X, Y, s + .5, s + .5);
+      if (ch === 'L') { g.fillStyle = '#b8862a'; g.fillRect(X - 1, Y - 1, s + 2, s + 2); }
+      if (ch === 'A') { g.fillStyle = '#3b5bd6'; g.fillRect(X + 1, Y + 1, s - 2, s - 2); }
     }
-    if (M.ship) { g.fillStyle = '#222'; g.font = 'bold 12px Courier Prime, monospace'; g.fillText('▲ SHIP', (M.ship.x - 1) * sx, (M.ship.y + 1.6) * sy); }
-    g.fillStyle = '#9b2a1f'; g.beginPath(); g.arc((P.x + .5) * sx, (P.y + .5) * sy, 4, 0, 7); g.fill();
-    g.fillStyle = '#3a2a18'; g.font = '13px Special Elite, monospace';
-    g.fillText('FIELD SKETCH · ' + (M.def.location ? term(M.def.location) : term(M.def.district)), 8, 16);
+    npcs.forEach(function(n){ if (fogArr[n.y * M.W + n.x] && n.x >= vx && n.y >= vy && n.x < vx + VW && n.y < vy + VH) { g.fillStyle = '#7a3a8a'; g.beginPath(); g.arc(ox + (n.x - vx + .5) * s, oy + (n.y - vy + .5) * s, 3, 0, 7); g.fill(); } });
+    if (M.districts) M.districts.forEach(function(d){
+      g.strokeStyle = 'rgba(90,60,30,.4)'; g.setLineDash([4, 4]); g.strokeRect(ox + (d.x - vx) * s, oy + (d.y - vy) * s, d.w * s, d.h * s); g.setLineDash([]);
+      if (S.seen[d.id]) { g.fillStyle = '#5a4a36'; g.font = '11px Courier Prime, monospace'; g.fillText(term(d.id), ox + (d.x - vx) * s + 4, oy + (d.y - vy) * s + 13); }
+    });
+    if (M.ship && M.ship.x >= vx && M.ship.x < vx + VW && M.ship.y >= vy && M.ship.y < vy + VH) { g.fillStyle = '#222'; g.font = 'bold 11px Courier Prime, monospace'; g.fillText('▲ SHIP', ox + (M.ship.x - vx - 1) * s, oy + (M.ship.y - vy + 2.5) * s); }
+    g.fillStyle = '#9b2a1f'; g.beginPath(); g.arc(ox + (P.x - vx + .5) * s, oy + (P.y - vy + .5) * s, 4, 0, 7); g.fill();
   }
   function recall(why){
     if (mode !== 'surface') return;
-    S.pos = null; save(); stopWorld();
+    S.pos = null; S.fog[M.id] = fogEnc(fogArr); save(); stopWorld(); vibrate(400, .8);
     var s = screen('x-recall', '<div class="x-paper"><p class="x-stamp red">EMERGENCY RECALL</p><p class="x-mono">' + why + ' gauge at zero. The suit\'s recall beacon fired, and the ship\'s winch hauled you back aboard.</p>' +
-      '<p class="x-mono">Your film, cards and records are safe.</p><button class="x-btn">ABOARD SHIP</button></div>');
-    $('.x-btn', s).addEventListener('click', function(){ ship(); });
+      '<p class="x-mono">Your AstraNav, cards and records are safe.</p><button class="x-btn">ABOARD SHIP</button></div>');
+    $('.x-btn', s).addEventListener('click', function(){ aboard(); nav('system'); });
   }
 
-  // ── the Haemen: a relationship, not a pickup ──
+  // ── the peoples: relationships, and what they teach ──
+  function compass(dx, dy){
+    var a = Math.atan2(dy, dx) * 180 / Math.PI, i = Math.round(((a + 360) % 360) / 45) % 8;
+    return ['east','south-east','south','south-west','west','north-west','north','north-east'][i];
+  }
+  function worldCardsAethren(no, district){
+    return Object.keys(S.cards).filter(function(k){ var s = subj(k); return s && s.sp && s.set === no && (!district || s.district === district); });
+  }
+  function teachTerms(no, district){
+    var t = [];
+    if (no !== 9) t.push(WORLD[no].term, 'ppl_w' + no);
+    else t.push('zyraxis', 'haemen', 'aethren', district, 'ppl_z_' + district);
+    worldCardsAethren(no).forEach(function(k){ if (no !== 9 || subj(k).district === district || !district) t.push(subj(k).term); });
+    var e = no === 9 ? ENV[district] : envOf(no);
+    (e && e.landmarks || []).forEach(function(n, i){ t.push('lm_' + e.id + '_' + i); });
+    return t;
+  }
+  function loreLines(no, district){
+    var e = no === 9 ? ENV[district] : envOf(no), out = [], c = e.canon || {};
+    out.push('They draw this ' + (no === 9 ? 'land' : 'world') + ' in the dust and name it: ' + term(no === 9 ? district : WORLD[no].term) + '.');
+    if (e.hazard && e.hazard.name !== '—') out.push('They warn you, with gestures and the words you share: ' + e.hazard.rule);
+    if (e.mechanic && e.mechanic.name !== '—' && !/spoiler/i.test(e.mechanic.name)) out.push('They explain: ' + e.mechanic.rule);
+    if (c.notable) out.push('One name comes up again and again: ' + c.notable + '.');
+    if (e.lord) out.push('They speak of the Gemlord of this land: ' + e.lord + '.');
+    var lm = M.landmarks.filter(function(l){ return l.env === e.id && !(S.archive[l.id] || {}).reached; })
+      .sort(function(a, b){ return (Math.abs(a.x - P.x) + Math.abs(a.y - P.y)) - (Math.abs(b.x - P.x) + Math.abs(b.y - P.y)); })[0];
+    if (lm) out.push('They point ' + compass(lm.x - P.x, lm.y - P.y) + ': ' + title1936(term(lm.id)) + '.');
+    return out;
+  }
+  async function teach(key, no, district, intro){
+    var mapId = M.id;
+    S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save();
+    var pid = no === 9 ? 'ppl_z_' + district : 'ppl_w' + no;
+    reclassify(teachTerms(no, district), intro, async function(){
+      S.lore[key] = Date.now(); save();
+      surface(mapId);
+      if (subj(pid)) { mark(pid, 'talk'); var first = manifest(pid, null, false); await cardReveal(pid, first, 'RELATIONSHIP · CARD ACQUIRED'); }
+      toast('THE CODEX · ' + term(no === 9 ? district : WORLD[no].term) + ' · new pages');
+    });
+  }
+  async function talkPeople(n){
+    if (n.key === 'furtrader') return talkHaemen();
+    sfx.meet();
+    var no = M.world, district = no === 9 ? n.key.replace('z_', '') : null, key = n.key, pid = no === 9 ? 'ppl_z_' + district : 'ppl_w' + no;
+    var firstMeet = mark(pid, 'talk'); S.notes[pid] = 1; save();
+    if (S.lore[key]) {
+      var lines = loreLines(no, district), k = (S.seen['talk:' + key] || 0); S.seen['talk:' + key] = k + 1; save();
+      await say([lines[k % lines.length]]);
+      return;
+    }
+    if (firstMeet) toast('CONTACT · ' + subjName(pid));
+    if (no === 9) {
+      if (!S.flags.taught) { await say(['They greet you in a tongue like the fur-clad man’s in the meadow, but faster. You cannot follow it yet.', '(Learn the first words from the inhabitant near your ship.)']); return; }
+      await say(['They speak the tongue you began to learn in the meadow. Slowly, with the AstraNav’s scans between you, you understand each other.']);
+      return teach(key, no, district, 'The people of this land name it, its creatures, and its places.');
+    }
+    var have = worldCardsAethren(no);
+    if (have.length < 2) {
+      await say(['They speak. You cannot follow a word, but you know this dance now: they point at the glowing AstraNav, then at the creatures of this world.', '(Scan at least 2 of this world’s creatures into the AstraNav. You have ' + have.length + '.)']);
+      return;
+    }
+    await say(['You show them the AstraNav, scan by scan. They name each creature, then the land, then themselves, slowly, so you can follow.']);
+    teach(key, no, null, 'First contact. The people of this world name it, its creatures, its places, and themselves.');
+  }
+  async function examineRecord(rec){
+    var no = M.world, key = rec.key, fid = 'rec:' + key + ':' + rec.n, pe = FAUNA.peoples[no] || {};
+    if (!S.found[fid]) {
+      S.found[fid] = 1; save();
+      await say(['Carved, grown or pressed into the surface: a record. ' + (pe.record || ''), 'You copy it into the field journal.']);
+    } else await say(['A record you have already copied.']);
+    var copied = M.records.filter(function(r){ return S.found['rec:' + key + ':' + r.n]; }).length;
+    if (S.lore[key]) { var lines = loreLines(no, null); await say([lines[(S.seen['rec:' + key] = (S.seen['rec:' + key] || 0) + 1) % lines.length]]); save(); return; }
+    if (copied < 2) { await say(['(' + copied + ' of this world’s records copied. Copy one more and they may line up with what you know.)']); return; }
+    await say(['Laid side by side, the records line up with your scans. The marks are names.']);
+    var mapId = M.id; S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; save();
+    reclassify(teachTerms(no, null), 'The records of this world, read against your own.', function(){ S.lore[key] = Date.now(); save(); surface(mapId); toast('THE CODEX · new pages'); });
+  }
+  // Malezor's first contact: the relationship that teaches the Haemen words
   async function talkHaemen(){
-    var id = M.def.haemen, a = arc(id), aethrenCards = Object.keys(S.cards).filter(function(k){ return subj(k) && subj(k).kind === 'aethren'; });
+    var id = 'furtrader', a = arc(id), aethren = Object.keys(S.cards).filter(function(k){ return subj(k) && subj(k).kind === 'aethren'; });
     sfx.meet();
     if (!a.talk) {
       mark(id, 'talk'); S.notes[id] = 1; save();
-      await say(['A man in heavy furs. He looks at your helmet for a long moment, then speaks.', '“◆▲◇ ▲◆ ◇◇▲?”', 'The words mean nothing to you. He points at your camera, then out at the meadow, then at your camera again.']);
+      await say(['A man in heavy furs. He looks at your helmet for a long moment, then speaks.', '“◆▲◇ ▲◆ ◇◇▲?”', 'The words mean nothing to you. He points at the glowing AstraNav, then out at the meadow, then at the AstraNav again.']);
       toast('CONTACT · ' + subjName(id));
       return;
     }
     if (S.flags.taught) {
-      await say(['“' + title1936(term('malezor')) + '.” He taps the ground and nods, as if checking you remember.', S.flags.decoded ? 'You have learned a great deal. He seems to approve.' : 'He points north-east, toward the stone cave.']);
+      await say(['“' + title1936(term('malezor')) + '.” He taps the ground and nods, as if checking you remember.', S.flags.decoded ? 'He points east, toward the long road. Other districts lie that way.' : 'He points north-east, toward the stone cave.']);
       return;
     }
-    if (aethrenCards.length < 2) {
-      await say(['He points at your camera again, then at the animals by the water.', '(He seems to want to see photographs. Develop at least 2 photographs of the local animals aboard ship, then come back.)']);
+    if (aethren.length < 2) {
+      await say(['He points at the AstraNav again, then at the animals by the water.', '(He seems to want to see what it can do. Scan at least 2 of the local animals, then come back and show him.)']);
       return;
     }
-    await say(['You hold up your developed prints. He laughs out loud, takes them one by one, and names each animal, slowly, so you can follow.', 'He taps the ground: a word. He points up at the sky: another. He taps his own chest, then yours.']);
-    var mapId = M.id;
-    reclassify(D.teaches.haemen.concat(aethrenCards.map(function(k){ return subj(k).term; })),
-      'First contact. The inhabitant names his land, his world, his people, and the animals in your photographs.',
+    await say(['You hold up the AstraNav and page through your scans. He laughs out loud and names each animal on the screen, slowly, so you can follow.', 'He taps the ground: a word. He points up at the sky: another. He taps his own chest, then yours.']);
+    var mapId = M.id; S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; save();
+    reclassify(D.teaches.haemen.concat(aethren.map(function(k){ return subj(k).term; })),
+      'First contact. The inhabitant names his land, his world, his people, and the animals in your scans.',
       async function(){
-        S.flags.taught = true;
+        S.flags.taught = true; S.lore.z_malezor = Date.now();
         var first = manifest(id, null, false); save();
         surface(mapId);
         await cardReveal(id, first, 'RELATIONSHIP · CARD ACQUIRED');
       });
   }
 
-  // ── encounters: observe, interact, photograph, or (later) battle ──
+  // ── encounters: observe, interact, scan into the AstraNav, or battle with your cards ──
+  // SCAN: tune the AstraNav's dial to the creature's range until the signal locks,
+  // then scan. A strong lock writes it into the AstraNav as a card on the spot.
   function encounter(c, charged){
-    var s = subj(c.id);
+    var s = subj(c.id), team = teamReady();
     if (s.temperament === 'skittish' && !P.stalk && !charged) {
       c.state = 'flee';
       toast('It bolted before you got close. Try STALKING (B).', 'red'); return;
     }
+    if (charged) { S.suit = Math.max(0, S.suit - 18); save(); hudRefresh(); sfx.warn(); vibrate(220, 1); if (S.suit <= 0) { recall('SUIT'); return; } }
+    if (charged && team.length) { battle(c, true); return; }
     encounterOpen = true; held = null; path = [];
-    var dist = 2 + Math.round(Math.random() * 3), acted = 0, gone = false, focusE = .5, t0 = performance.now();
+    var dist = 2 + Math.round(Math.random() * 3), acted = 0, gone = false, tune = .5, t0 = performance.now();
+    var e = M.env(c.x, c.y);
     var o = el('div', 'x-encounter', '<div class="x-enc-in riv">' +
-      '<p class="x-enc-k">' + (charged ? 'IT CHARGES!' : 'ENCOUNTER') + '</p>' +
-      '<div class="x-enc-stage" style="background-image:url(' + ART.url('grass', 4) + ')"><div class="x-enc-spr" style="background-image:url(' + ART.url(s.art, 8) + ')"></div><div class="x-enc-vf" hidden><i></i></div></div>' +
+      '<p class="x-enc-k">' + (charged ? 'IT CHARGES!' : 'ENCOUNTER') + ' · LV ' + c.lv + '</p>' +
+      '<div class="x-enc-stage" style="background-image:url(' + ART.url(M.indoor ? 'den' : e.tiles.ground + '@' + e.id + '-ground', 4) + ')"><div class="x-enc-spr" style="background-image:url(' + ART.url(subjArt(c.id), 8) + ')"></div><div class="x-enc-vf" hidden><i></i><b class="x-sweep"></b></div></div>' +
       '<p class="x-enc-nm">' + esc(subjName(c.id)) + '</p>' +
-      '<p class="x-enc-sub">CLASS: ' + esc(term('aethren')) + ' · RARITY: ' + (S.cards[c.id] ? rarity(s) : 'UNKNOWN') + ' · ' + (S.cards[c.id] ? 'CLASSIFIED' : 'UNCLASSIFIED') + '</p>' +
+      '<p class="x-enc-sub">CLASS: ' + esc(term('aethren')) + ' · RARITY: ' + (S.cards[c.id] ? rarity(s) : 'UNKNOWN') + ' · ' + (S.cards[c.id] ? 'IN THE ASTRANAV' : 'NOT YET SCANNED') + '</p>' +
       '<p class="x-enc-msg" aria-live="polite"></p>' +
       '<div class="x-enc-acts">' +
-        '<button data-e="observe">OBSERVE</button><button data-e="photo">PHOTOGRAPH</button>' +
+        '<button data-e="observe">OBSERVE</button><button data-e="scan">SCAN</button>' +
+        '<button data-e="battle"' + (team.length ? '' : ' disabled title="Scan a creature first"') + '>CARD BATTLE</button>' +
         (s.temperament === 'curious' ? '<button data-e="offer">OFFER RATION</button>' : '') +
-        (s.temperament === 'territorial' ? '<button data-e="battle" disabled title="Card battles arrive in a future build">CARD BATTLE · SOON</button>' : '') +
         '<button data-e="leave" class="ghost">' + (charged ? 'RETREAT' : 'MOVE ON') + '</button></div>' +
       '<div class="x-enc-cam" hidden><div class="x-range"><span>RANGE</span><b>' + dist + ' YD</b></div>' +
-        '<label class="x-ring"><span>FOCUS</span><input type="range" min="0" max="1000" value="500" aria-label="Focus ring"><span class="x-scale"><i>1</i><i>2</i><i>3</i><i>5</i><i>10</i><i>∞</i></span></label>' +
-        '<div class="x-cambtns"><button class="x-shutter" aria-label="Release shutter"></button><button class="x-camx">LOWER</button></div><p class="x-camfilm">' + S.film + ' EXPOSURES LEFT</p></div>' +
+        '<label class="x-ring"><span>TUNING</span><input type="range" min="0" max="1000" value="500" aria-label="Tuning dial"><span class="x-signal"><i></i></span></label>' +
+        '<div class="x-cambtns"><button class="x-shutter x-scanbtn" aria-label="Scan">SCAN</button><button class="x-camx">CANCEL</button></div><p class="x-camfilm">ASTRANAV · TUNE UNTIL THE SIGNAL LOCKS</p></div>' +
       '</div>');
     ui.appendChild(o);
-    var spr = $('.x-enc-spr', o), msg = $('.x-enc-msg', o), camBox = $('.x-enc-cam', o);
+    var spr = $('.x-enc-spr', o), msg = $('.x-enc-msg', o), camBox = $('.x-enc-cam', o), sig = $('.x-signal i', o);
     if (s.temperament === 'flighty') spr.classList.add('flit');
     if (charged) o.classList.add('hit');
     sfx.meet();
+    setTimeout(function(){ if (padOn) focusFirst(); }, 40);
     var intro = { curious:'It sniffs the air and edges closer.', skittish:'It has not noticed you. Stay low.', flighty:'It hovers, darts, hovers again.', territorial:'It stands its ground, glowing hotter.' }[s.temperament];
-    typeInto(msg, charged ? 'It charges! You throw yourself aside. SUIT damaged. Photograph it, or retreat.' : intro, 14);
-    if (charged) { S.suit = Math.max(0, S.suit - 22); save(); hudRefresh(); sfx.warn(); vibrate(150); }
+    typeInto(msg, charged ? 'It charges! You throw yourself aside. SUIT damaged. No cards to battle with: scan it, or retreat.' :
+      intro + (team.length ? '' : ' (Card battles open once you have scanned a creature.)'), 14);
 
-    function blurOf(){ return Math.abs(focusE - needFor(dist)); }
+    function lockErr(){ return Math.abs(tune - needFor(dist)); }
     function wingOffset(){ var t = (performance.now() - t0) / 1000; return Math.sin(t * 2.6) * Math.sin(t * 1.3); }
-    var focusRaf = 0;
+    var raf3 = 0;
     (function tick(){
       if (!o.isConnected) return;
-      spr.style.filter = camBox.hidden ? '' : 'blur(' + clamp(blurOf() * 24, 0, 8).toFixed(1) + 'px)';
-      if (s.temperament === 'flighty' && !gone) spr.style.transform = 'translateX(' + (wingOffset() * 34).toFixed(1) + '%)';
-      focusRaf = requestAnimationFrame(tick);
+      var off = s.temperament === 'flighty' && !gone ? wingOffset() : 0;
+      if (s.temperament === 'flighty' && !gone) spr.style.transform = 'translateX(' + (off * 34).toFixed(1) + '%)';
+      var q = clamp(1 - (lockErr() * 5.5 + Math.abs(off) * .5), 0, 1);
+      if (sig) { sig.style.width = Math.round(q * 100) + '%'; sig.parentNode.classList.toggle('lock', q > .82); }
+      spr.style.filter = camBox.hidden ? '' : 'hue-rotate(' + Math.round((1 - q) * 90) + 'deg) saturate(' + (.4 + q * .8).toFixed(2) + ')';
+      raf3 = requestAnimationFrame(tick);
     })();
 
     function react(){
       acted++;
       if (s.temperament === 'territorial' && acted >= 2 && !gone) {
-        S.suit = Math.max(0, S.suit - 22); save(); hudRefresh(); sfx.warn(); vibrate(150);
+        S.suit = Math.max(0, S.suit - 18); save(); hudRefresh(); sfx.warn(); vibrate(180, 1);
         o.classList.remove('hit'); void o.offsetWidth; o.classList.add('hit');
-        typeInto(msg, 'It charges again! SUIT damaged. Time to go.', 14);
+        typeInto(msg, 'It charges again! SUIT damaged. Time to go, or fight.', 14);
         if (S.suit <= 0) { end(); recall('SUIT'); return true; }
       }
-      if (s.temperament === 'flighty' && acted >= 3 && Math.random() < .5) { leaveScene('It zips away over the grass.'); return true; }
+      if (s.temperament === 'flighty' && acted >= 3 && Math.random() < .5) { leaveScene('It zips away.'); return true; }
       if (s.temperament === 'skittish' && acted >= 3 && Math.random() < .35) { leaveScene('A twig snaps. It is gone.'); return true; }
       return false;
     }
@@ -1334,16 +1745,18 @@
       $$('.x-enc-acts button', o).forEach(function(b){ if (b.dataset.e !== 'leave') b.disabled = true; });
       camBox.hidden = true; $('.x-enc-acts', o).hidden = false; $('.x-enc-vf', o).hidden = true;
       if (s.temperament !== 'territorial') c.state = 'flee';
+      if (padOn) setTimeout(function(){ $('[data-e="leave"]', o).focus(); }, 30);
     }
     function end(){
-      cancelAnimationFrame(focusRaf);
+      cancelAnimationFrame(raf3);
       o.remove(); encounterOpen = false;
       if (s.temperament === 'territorial') { c.cool = 6; c.state = 'idle'; }
     }
-    o.addEventListener('click', async function(e){
-      var b = e.target.closest('[data-e]'); if (!b || b.disabled) return;
+    o.addEventListener('click', async function(ev){
+      var b = ev.target.closest('[data-e]'); if (!b || b.disabled) return;
       var act = b.dataset.e;
       if (act === 'leave') { end(); return; }
+      if (act === 'battle') { end(); battle(c, false); return; }
       if (act === 'observe') {
         b.disabled = true;
         await typeInto(msg, 'You keep still and watch . . .', 18);
@@ -1356,91 +1769,293 @@
       if (act === 'offer') {
         b.disabled = true;
         mark(c.id, 'observe'); S.notes[c.id] = 1; save();
-        typeInto(msg, 'It takes the ration from your glove and nuzzles your knee. INTERACTION RECORDED. It holds still now: a fine moment for a photograph.', 10);
+        typeInto(msg, 'It takes the ration from your glove and nuzzles your knee. INTERACTION RECORDED. It holds still now: an easy scan.', 10);
         spr.classList.add('calm');
         react();
       }
-      if (act === 'photo') {
-        if (S.film <= 0) { typeInto(msg, 'The roll is finished. Develop it aboard ship.', 14); return; }
+      if (act === 'scan') {
         $('.x-enc-acts', o).hidden = true; camBox.hidden = false; $('.x-enc-vf', o).hidden = false;
-        var ring = $('.x-ring input', o); ring.value = Math.round(focusE * 1000);
-        ring.oninput = function(){ focusE = ring.value / 1000; };
-        typeInto(msg, 'RANGE ' + dist + ' YD. Turn the focus ring until it is sharp.' + (s.temperament === 'flighty' ? ' Shoot when it hovers in the centre.' : ''), 10);
+        var ring = $('.x-ring input', o); ring.value = Math.round(tune * 1000);
+        ring.oninput = function(){ tune = ring.value / 1000; };
+        typeInto(msg, 'RANGE ' + dist + ' YD. Turn the tuning dial until the signal locks.' + (s.temperament === 'flighty' ? ' Scan while it hovers in the centre.' : ''), 10);
+        if (padOn) setTimeout(function(){ ring.focus(); }, 30);
       }
     });
     $('.x-camx', o).addEventListener('click', function(){
       camBox.hidden = true; $('.x-enc-acts', o).hidden = false; $('.x-enc-vf', o).hidden = true;
+      if (padOn) setTimeout(function(){ $('[data-e="scan"]', o).focus(); }, 30);
     });
-    $('.x-shutter', o).addEventListener('click', function(){
+    $('.x-shutter', o).addEventListener('click', async function(){
       if (gone) return;
-      if (S.film <= 0) { typeInto(msg, 'The roll is finished.', 14); return; }
       var off = s.temperament === 'flighty' ? wingOffset() : 0;
-      var err = blurOf() + Math.abs(off) * .12 + (spr.classList.contains('calm') ? -.01 : 0);
+      var err = lockErr() + Math.abs(off) * .12 + (spr.classList.contains('calm') ? -.01 : 0);
       var g = err < .035 ? 'excellent' : err < .085 ? 'good' : err < .17 ? 'fair' : 'poor';
-      S.film--; S.frames.push({ subj:c.id, grade:g, img:encounterPhoto(s, blurOf(), off), t:Date.now() });
-      save(); hudRefresh(); sfx.shutter(); vibrate(25);
+      sfx.shutter(); vibrate(160, .35);
       o.classList.remove('flash'); void o.offsetWidth; o.classList.add('flash');
-      $('.x-camfilm', o).textContent = S.film + ' EXPOSURES LEFT';
-      typeInto(msg, 'EXPOSED. Develop it in the Darkroom to see what you caught.', 10);
+      if (g === 'excellent' || g === 'good') {
+        var first = manifest(c.id, null, g === 'excellent', c.lv); S.notes[c.id] = 1; save();
+        await typeInto(msg, (g === 'excellent' ? 'PERFECT LOCK. ' : 'LOCKED. ') + 'Scanned into the AstraNav.', 10);
+        await wait(500); end(); hudRefresh();
+        c.calm = 60;
+        await cardReveal(c.id, first, (first ? 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED' : 'SCANNED AGAIN · QUANTITY +1') + (g === 'excellent' ? ' · FIRST EDITION' : ''));
+        if (first && aethrenCards().length === 1) toast('CARD BATTLES UNLOCKED · this card can now battle wild ' + (known('aethren') ? 'Aethren' : 'creatures'));
+        return;
+      }
+      mark(c.id, 'fair');
+      typeInto(msg, g === 'fair' ? 'PARTIAL SCAN. The signal was too weak for a card, but the AstraNav kept the data. Tune closer.' : 'NO LOCK. The dial is far off.', 10);
       react();
     });
   }
-  // the print: what the camera saw, as sharp or soft as it was
-  function encounterPhoto(s, blur, offset){
-    var out = doc.createElement('canvas'); out.width = 240; out.height = 180;
-    var o = out.getContext('2d'); o.imageSmoothingEnabled = false;
-    var gr = ART.canvas('grass'); for (var gy = 0; gy < 180; gy += 48) for (var gx = 0; gx < 240; gx += 48) o.drawImage(gr, gx, gy, 48, 48);
-    o.filter = 'blur(' + clamp(blur * 10, 0, 4).toFixed(1) + 'px)';
-    var sp = ART.canvas(s.art); if (sp) o.drawImage(sp, Math.round(56 + offset * 40), 14, 128, 128);
-    var data = ''; try { data = out.toDataURL('image/jpeg', .74); } catch(e){}
-    return data;
-  }
   function needFor(dist){ var yd = Math.max(1, dist); return clamp(Math.log(yd) / Math.log(10) * .84, 0, .84); }
-  function vibrate(ms){ try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){} }
 
-  // ── drawing the surface ──
+  // ═════════════════════════ CARD BATTLES ═════════════════════════
+  // Your Aethren cards fight a wild Aethren. Canon stats (tier × 333 pools), canon
+  // moves where the roster names them, and the canon 20-type chart. A1 and A2
+  // are free; A3 spends 2 gems (one gem builds each turn). Win and it calms:
+  // it lets you close enough for a perfect scan. Scan a weakened one mid-battle
+  // and it is written into the AstraNav, and slips away unharmed.
+  function battle(c, charged){
+    var team = teamReady(); if (!team.length) return;
+    encounterOpen = true; held = null; path = [];
+    var foe = { sp:c.id, lv:c.lv, max:hpOf(c.id, c.lv) }; foe.hp = foe.max; foe.gems = 1;
+    var me = null, gems = 1, busy = false, over = false;
+    function load(id){ var cd = S.cards[id]; me = { id:id, sp:subj(id).sp, lv:cd.lv, max:maxHp(id) }; me.hp = cd.hp == null ? me.max : cd.hp; }
+    load(team[0]);
+    var e = M.env(c.x, c.y);
+    var o = el('div', 'x-battle', '<div class="x-bt-field" style="--bg:url(' + ART.url(M.indoor ? 'den' : e.tiles.ground + '@' + e.id + '-ground', 4) + ')">' +
+        '<div class="x-bt-info foe riv"><b class="nm"></b><span class="lv"></span><i class="x-hpbar"><i></i></i></div>' +
+        '<div class="x-bt-mon foe"><img class="x-pix" alt=""></div>' +
+        '<div class="x-bt-mon me"><img class="x-pix" alt=""></div>' +
+        '<div class="x-bt-info me riv"><b class="nm"></b><span class="lv"></span><i class="x-hpbar"><i></i></i><em class="hp"></em><span class="x-gems"></span></div>' +
+      '</div>' +
+      '<div class="x-bt-low riv"><p class="x-bt-msg" aria-live="polite"></p>' +
+        '<div class="x-bt-menu"><button data-b="fight">FIGHT</button><button data-b="cards">CARDS</button><button data-b="photo">SCAN</button><button data-b="run">RUN</button></div>' +
+        '<div class="x-bt-sub" hidden></div></div>');
+    ui.appendChild(o); sfx.meet(); vibrate(160, .6);
+    var msg = $('.x-bt-msg', o), menu = $('.x-bt-menu', o), subm = $('.x-bt-sub', o);
+    function paint(){
+      $('.foe .nm', o).textContent = subjName(foe.sp); $('.foe .lv', o).textContent = 'LV ' + foe.lv;
+      $('.x-bt-info.foe .x-hpbar i', o).style.width = Math.max(0, foe.hp / foe.max * 100) + '%';
+      $('.x-bt-info.foe .x-hpbar', o).className = 'x-hpbar' + (foe.hp / foe.max < .25 ? ' red' : foe.hp / foe.max < .5 ? ' amber' : '');
+      $('.x-bt-mon.foe img', o).src = ART.url(critterSpec(foe.sp, 'left', 0), 6);
+      $('.me .nm', o).textContent = subjName(me.id); $('.me .lv', o).textContent = 'LV ' + me.lv;
+      $('.x-bt-info.me .x-hpbar i', o).style.width = Math.max(0, me.hp / me.max * 100) + '%';
+      $('.x-bt-info.me .x-hpbar', o).className = 'x-hpbar' + (me.hp / me.max < .25 ? ' red' : me.hp / me.max < .5 ? ' amber' : '');
+      $('.me .hp', o).textContent = Math.max(0, me.hp) + ' / ' + me.max;
+      $('.x-gems', o).textContent = '◆◆◆'.slice(0, gems) + '◇◇◇'.slice(0, 3 - gems);
+      $('.x-bt-mon.me img', o).src = ART.url(critterSpec(me.sp, 'right', 0), 6);
+    }
+    function say2(t){ return typeInto(msg, t, 12); }
+    function showMenu(){ subm.hidden = true; menu.hidden = false; busy = false; if (padOn) setTimeout(function(){ $('button', menu).focus(); }, 20); }
+    function hit(side){ var n = $('.x-bt-mon.' + side, o); n.classList.remove('hit'); void n.offsetWidth; n.classList.add('hit'); sfx.hit(); vibrate(side === 'me' ? 160 : 90, side === 'me' ? .9 : .5); }
+    function lunge(side){ var n = $('.x-bt-mon.' + side, o); n.classList.remove('lunge'); void n.offsetWidth; n.classList.add('lunge'); }
+    async function attack(att, def, mv, side){
+      lunge(side === 'me' ? 'foe' : 'me');
+      await say2(subjName(att.sp === me.sp && att === me ? me.id : foe.sp) + ' used ' + mv.n.toUpperCase() + '!');
+      var r = damage(att, def, mv); def.hp = Math.max(0, def.hp - r.dmg);
+      hit(side); paint(); await wait(380);
+      var lab = effLabel(r.mult); if (lab) await say2(lab);
+    }
+    async function foeTurn(){
+      var mvs = spMoves(foe.sp), mv = foe.gems >= 2 && Math.random() < .4 ? mvs[2] : mvs[Math.random() < .55 ? 0 : 1];
+      if (mv.s === 'A3') foe.gems -= 2;
+      await attack(foe, me, mv, 'me');
+      foe.gems = Math.min(3, foe.gems + 1);
+      S.cards[me.id].hp = me.hp; save();
+      if (me.hp <= 0) {
+        await say2(subjName(me.id) + ' is spent!');
+        var next = teamReady();
+        if (!next.length) return lose();
+        await say2('Choose another card.');
+        return pickCard(true);
+      }
+    }
+    async function turn(action){
+      busy = true; menu.hidden = true; subm.hidden = true;
+      var meFirst = stat(SP[me.sp].base.spd, me.lv) >= stat(SP[foe.sp].base.spd, foe.lv);
+      if (action.move) {
+        var mv = action.move;
+        if (mv.s === 'A3') gems -= 2;
+        if (meFirst) { await attack(me, foe, mv, 'foe'); if (foe.hp <= 0) return win(); await foeTurn(); }
+        else { await foeTurn(); if (over || !o.isConnected) return; if (me.hp <= 0) return; await attack(me, foe, mv, 'foe'); if (foe.hp <= 0) return win(); }
+      } else if (action.swap) {
+        load(action.swap); paint(); await say2('Go, ' + subjName(me.id) + '!');
+        if (!action.free) await foeTurn();
+      } else if (action.photo) {
+        var f = foe.hp / foe.max, g = f < .25 ? 'excellent' : f < .5 ? 'good' : Math.random() < .25 ? 'good' : 'fair';
+        sfx.shutter(); vibrate(160, .35); o.classList.remove('flash'); void o.offsetWidth; o.classList.add('flash');
+        await say2('The AstraNav sweeps it . . .');
+        if (g !== 'fair') {
+          over = true; mark(foe.sp, 'battled');
+          var first = manifest(foe.sp, null, g === 'excellent', foe.lv); S.notes[foe.sp] = 1; save();
+          await say2((g === 'excellent' ? 'PERFECT LOCK! ' : 'LOCKED! ') + subjName(foe.sp) + ' is in the AstraNav. It slips away, unharmed.');
+          c.calm = 120; c.state = 'idle'; await wait(400); close();
+          await cardReveal(foe.sp, first, first ? 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED' : 'SCANNED AGAIN · QUANTITY +1');
+          return;
+        }
+        await say2('Too much movement. Wear it down first.');
+        await foeTurn();
+      } else if (action.run) {
+        var ch = clamp(.5 + (stat(SP[me.sp].base.spd, me.lv) - stat(SP[foe.sp].base.spd, foe.lv)) / 120, .3, .95);
+        if (Math.random() < ch) { await say2('Got away safely!'); c.cool = 8; c.state = 'idle'; return close(); }
+        await say2('Couldn’t get away!'); await foeTurn();
+      }
+      if (over || !o.isConnected) return;
+      if (me.hp > 0) { gems = Math.min(3, gems + 1); paint(); await say2('What will ' + subjName(me.id) + ' do?'); showMenu(); }
+    }
+    async function win(){
+      over = true; mark(foe.sp, 'battled'); S.notes[foe.sp] = 1;
+      var tier = SP[foe.sp].tier || 1, gain = Math.round(8 + foe.lv * 5 * Math.sqrt(tier));
+      $('.x-bt-mon.foe', o).classList.add('calmed');
+      await say2(subjName(foe.sp) + ' is calmed! It stops, and watches you.');
+      var cd = S.cards[me.id]; cd.xp = (cd.xp || 0) + gain; cd.hp = me.hp;
+      await say2(subjName(me.id) + ' gained ' + gain + ' experience.');
+      while (cd.xp >= cd.lv * 12 + 20 && cd.lv < 100) {
+        cd.xp -= cd.lv * 12 + 20; var oldMax = maxHp(me.id); cd.lv++; cd.hp = Math.min(maxHp(me.id), cd.hp + maxHp(me.id) - oldMax);
+        load(me.id); paint(); sfx.reveal(); vibrate(80, .4);
+        await say2(subjName(me.id) + ' grew to level ' + cd.lv + '!');
+      }
+      save();
+      c.calm = 120; c.state = 'idle'; c.cool = 3;
+      menu.hidden = true;
+      subm.innerHTML = '<button data-w="photo">SCAN IT</button><button data-w="leave">LEAVE IT BE</button>'; subm.hidden = false;
+      if (padOn) setTimeout(function(){ $('button', subm).focus(); }, 20);
+      subm.onclick = async function(ev){
+        var b = ev.target.closest('[data-w]'); if (!b) return;
+        if (b.dataset.w === 'photo') {
+          var first = manifest(foe.sp, null, true, foe.lv); S.notes[foe.sp] = 1; save(); sfx.shutter(); vibrate(160, .35);
+          o.classList.remove('flash'); void o.offsetWidth; o.classList.add('flash');
+          subm.hidden = true;
+          await say2('It holds perfectly still. A perfect scan.');
+          await wait(400); close();
+          await cardReveal(foe.sp, first, first ? 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED · FIRST EDITION' : 'SCANNED AGAIN · QUANTITY +1');
+          return;
+        }
+        close();
+      };
+    }
+    async function lose(){
+      over = true;
+      await say2('Your cards are spent! You fall back, and it lets you go.');
+      S.suit = Math.max(1, S.suit - 15); save(); c.cool = 10; c.calm = 30;
+      await wait(500); close();
+    }
+    function close(){ o.remove(); encounterOpen = false; hudRefresh(); }
+    function pickCard(forced){
+      var list = teamReady();
+      subm.innerHTML = list.map(function(id){ return teamChip(id); }).join('') + (forced ? '' : '<button data-x="back" class="ghost">BACK</button>');
+      subm.hidden = false; menu.hidden = true; busy = false;
+      if (padOn) setTimeout(function(){ $('button', subm).focus(); }, 20);
+      subm.onclick = function(ev){
+        if (ev.target.closest('[data-x="back"]')) return showMenu();
+        var b = ev.target.closest('[data-card]'); if (!b || busy) return;
+        if (b.dataset.card === me.id && me.hp > 0) return;
+        turn({ swap:b.dataset.card, free:forced });
+      };
+    }
+    menu.addEventListener('click', function(ev){
+      var b = ev.target.closest('[data-b]'); if (!b || busy || over) return;
+      sfx.click();
+      if (b.dataset.b === 'fight') {
+        subm.innerHTML = spMoves(me.sp).map(function(m, i){
+          var cost = m.s === 'A3' ? 2 : 0;
+          return '<button data-m="' + i + '" style="--tc:' + typeCol(m.t) + '"' + (cost > gems ? ' disabled' : '') + '><b>' + esc(m.n.toUpperCase()) + '</b><span>' + esc(m.t.toUpperCase()) + (cost ? ' · ◆◆' : '') + '</span></button>';
+        }).join('') + '<button data-x="back" class="ghost">BACK</button>';
+        subm.hidden = false; menu.hidden = true;
+        if (padOn) setTimeout(function(){ $('button:not([disabled])', subm).focus(); }, 20);
+        subm.onclick = function(e2){
+          if (e2.target.closest('[data-x="back"]')) return showMenu();
+          var mb = e2.target.closest('[data-m]'); if (!mb || mb.disabled || busy) return;
+          turn({ move:spMoves(me.sp)[+mb.dataset.m] });
+        };
+      }
+      if (b.dataset.b === 'cards') pickCard(false);
+      if (b.dataset.b === 'photo') turn({ photo:true });
+      if (b.dataset.b === 'run') turn({ run:true });
+    });
+    paint();
+    busy = true; menu.hidden = true;
+    (async function(){
+      await say2((charged ? 'It charges! ' : '') + 'A wild ' + subjName(foe.sp) + ' (LV ' + foe.lv + ')!');
+      await say2('Go, ' + subjName(me.id) + '!');
+      showMenu();
+    })();
+  }
+
+  // ── drawing the surface: only the tiles on screen, every frame ──
+  var specCache = {};
+  function tileSpec(ri, ch, x, y, fr){
+    var key = ri + ch + ((x * 7 + y * 13) % 5 === 0 ? 'v' : '') + fr + (M.indoor ? 'i' : '');
+    var c = specCache[key]; if (c) return c;
+    var e = M.envs[ri] || M.envs[0], t = e.tiles, id = e.id, s;
+    if (M.indoor) s = ch === '#' ? 'rock' : 'den';
+    else if (ch === '~') s = (t.liquid === 'water' && fr ? 'water1' : t.liquid) + '@' + id + '-liquid';
+    else if (ch === 'd' || ch === 'x') s = t.path + '@' + id + '-path';
+    else if (ch === '#') s = t.wall + '@' + id + '-wall';
+    else if (ch === 'E') s = 'cave';
+    else if (ch === ',' && t.special) s = t.special + '@' + id + '-special';
+    else if (ch === ',' && t.ground === 'grass') s = 'flowers@' + id + '-ground';
+    else s = (t.ground === 'grass' && key.indexOf('v') > 0 ? 'grass2' : t.ground) + '@' + id + '-ground';
+    return (specCache[key] = s);
+  }
+  var OBJ = 'TbBAMXPLS';
+  function objSpec(ch, i, e, now){
+    var no = M.world;
+    if (ch === 'T') return 'tree';
+    if (ch === 'b') return no === 9 ? 'shrub' : 'shrub@pl-' + no;
+    if (ch === 'B') return 'boulder@' + e.id + '-wall';
+    if (ch === 'A') return no === 9 ? ART.frame('astralite', 'any', now / 500) : 'astralite@mn-' + no;
+    if (ch === 'M') return M.indoor || no === 9 ? 'markings' : 'markings@' + e.id + '-wall';
+    if (ch === 'X') return 'sign';
+    if (ch === 'L') return 'spire@lm-gold';
+    if (ch === 'P') { var p = M.props[i]; return p ? p[0] + (p[1] ? '@' + e.id + '-' + p[1] : '') : 'boulder'; }
+    return null;
+  }
   function drawSurface(now){
     var w = cv.width, h = cv.height, z = zoom(), TZ = T * z;
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = M.def.indoor ? '#0d0a08' : '#0b0912'; ctx.fillRect(0, 0, w, h);
-    // snap the camera to the pixel grid
+    ctx.fillStyle = M.indoor ? '#0d0a08' : '#0b0912'; ctx.fillRect(0, 0, w, h);
     var ox = Math.round((w / 2 - (P.fx + .5) * TZ) / z) * z, oy = Math.round((h / 2 - (P.fy + .5) * TZ) / z) * z;
-    ctx.drawImage(M.ground[Math.floor(now / 650) % 2], ox, oy, M.W * TZ, M.H * TZ);
-    if (M.ship) { ctx.fillStyle = 'rgba(40,24,12,.35)'; ctx.beginPath(); ctx.ellipse(ox + (M.ship.x + .5) * TZ, oy + (M.ship.y + .85) * TZ, 1.2 * TZ, .4 * TZ, 0, 0, 7); ctx.fill(); }
-    var list = [], x0 = Math.max(0, Math.floor(P.fx - w / (2 * TZ)) - 2), x1 = Math.min(M.W - 1, Math.ceil(P.fx + w / (2 * TZ)) + 2),
-        y0 = Math.max(0, Math.floor(P.fy - h / (2 * TZ)) - 2), y1 = Math.min(M.H - 1, Math.ceil(P.fy + h / (2 * TZ)) + 3);
-    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
-      var ch = at(x, y);
-      if ('TbBAMX'.indexOf(ch) >= 0) list.push({ k:ch, x:x, y:y, s:y });
+    var x0 = Math.max(0, Math.floor(-ox / TZ) - 1), x1 = Math.min(M.W - 1, Math.ceil((w - ox) / TZ) + 1),
+        y0 = Math.max(0, Math.floor(-oy / TZ) - 1), y1 = Math.min(M.H - 1, Math.ceil((h - oy) / TZ) + 2);
+    var fr = Math.floor(now / 650) % 2, list = [], x, y;
+    for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
+      var i = y * M.W + x, ch = M.grid[i], ri = M.region[i];
+      var under = OBJ.indexOf(ch) >= 0 || ch === '*' ? '.' : ch;
+      var cnv = ART.canvas(tileSpec(ri, under, x, y, fr));
+      if (cnv) ctx.drawImage(cnv, ox + x * TZ, oy + y * TZ, TZ, TZ);
+      if (OBJ.indexOf(ch) >= 0 && ch !== 'S') list.push({ k:ch, i:i, x:x, y:y, s:y, ri:ri });
     }
-    if (M.ship) list.push({ k:'ship', x:M.ship.x, y:M.ship.y, s:M.ship.y + .1 });
-    if (M.npc) list.push({ k:'npc', x:M.npc.x, y:M.npc.y, s:M.npc.y });
-    critters.forEach(function(c){ list.push({ k:'critter', c:c, s:c.fy + (c.flies ? .5 : 0) }); });
+    if (M.ship) { ctx.fillStyle = 'rgba(40,24,12,.35)'; ctx.beginPath(); ctx.ellipse(ox + (M.ship.x + .5) * TZ, oy + (M.ship.y + .85) * TZ, 1.2 * TZ, .4 * TZ, 0, 0, 7); ctx.fill(); list.push({ k:'ship', x:M.ship.x, y:M.ship.y, s:M.ship.y + .1 }); }
+    npcs.forEach(function(n){ if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1) list.push({ k:'npc', n:n, x:n.x, y:n.y, s:n.y }); });
+    critters.forEach(function(c){ if (c.x >= x0 - 1 && c.x <= x1 + 1 && c.y >= y0 - 1 && c.y <= y1 + 1) list.push({ k:'critter', c:c, s:c.fy + (c.flies ? .5 : 0) }); });
     list.push({ k:'player', s:P.fy + .01 });
     list.sort(function(a, b){ return a.s - b.s; });
-    var spr = { T:'tree', b:'shrub', B:'boulder', M:'markings', X:'sign' };
     list.forEach(function(o){
       var X = ox + ((o.c ? o.c.fx : o.k === 'player' ? P.fx : o.x) + .5) * TZ, Y = oy + ((o.c ? o.c.fy : o.k === 'player' ? P.fy : o.y) + 1) * TZ;
-      if (spr[o.k]) ART.draw(ctx, spr[o.k], X, Y, z);
-      else if (o.k === 'A') ART.draw(ctx, ART.frame('astralite', 'any', now / 500), X, Y, z);
-      else if (o.k === 'ship') ART.draw(ctx, 'ship', X, Y + 2 * z, z);
-      else if (o.k === 'npc') { shadow(X, Y, z, 10); ART.draw(ctx, ART.frame('haemen', M.npc.dir || 'down', 0), X, Y, z); }
+      if (o.k === 'ship') ART.draw(ctx, 'ship', X, Y + 2 * z, z);
+      else if (o.k === 'npc') { shadow(X, Y, z, 10); ART.draw(ctx, o.n.key === 'furtrader' ? ART.frame('haemen', o.n.dir, 0) : withRc(ART.frame('haemen', o.n.dir, 0), 'ppl-' + o.n.env), X, Y, z); }
       else if (o.k === 'critter') drawCritter(o.c, X, Y, z, now);
       else if (o.k === 'player') drawPlayer(X, Y, z);
+      else {
+        var spc = objSpec(o.k, o.i, M.envs[o.ri] || M.envs[0], now);
+        if (o.k === 'L') { ctx.fillStyle = 'rgba(255,220,140,' + (.18 + .1 * Math.sin(now / 300)) + ')'; ctx.beginPath(); ctx.ellipse(X, Y - 2 * z, 10 * z, 4 * z, 0, 0, 7); ctx.fill(); }
+        if (spc) ART.draw(ctx, spc, X, Y, z);
+      }
     });
     for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
       if (fogArr[y * M.W + x]) continue;
-      ctx.fillStyle = M.def.indoor ? 'rgba(6,4,3,.96)' : 'rgba(11,9,18,.92)';
+      ctx.fillStyle = M.indoor ? 'rgba(6,4,3,.96)' : 'rgba(11,9,18,.9)';
       ctx.fillRect(ox + x * TZ, oy + y * TZ, TZ, TZ);
     }
-    if (M.def.indoor) {
+    if (M.indoor) {
       var gr = ctx.createRadialGradient(w / 2, h / 2, TZ * 1.5, w / 2, h / 2, TZ * 5);
       gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.7)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
     }
     // facing marker: what A will examine (pocket-style corner brackets)
     if (!P.moving && !dialogOpen) {
       var f = facing(), fx = ox + f.x * TZ, fy = oy + f.y * TZ, fc = at(f.x, f.y);
-      var interesting = 'TbAMSXB'.indexOf(fc) >= 0 || critterAt(f.x, f.y) || (M.npc && M.npc.x === f.x && M.npc.y === f.y);
+      var interesting = 'TbAMSXBLP'.indexOf(fc) >= 0 || critterAt(f.x, f.y) || npcAt(f.x, f.y);
       if (interesting && Math.floor(now / 400) % 2) {
         ctx.fillStyle = '#ffe08a';
         [[0,0],[T-3,0],[0,T-3],[T-3,T-3]].forEach(function(c){ ctx.fillRect(fx + c[0] * z, fy + c[1] * z, 3 * z, z); ctx.fillRect(fx + c[0] * z + (c[0] ? 2 * z : 0), fy + c[1] * z, z, 3 * z); });
@@ -1452,8 +2067,8 @@
     var lift = c.flies ? Math.round(5 + Math.sin(now / 160 + c.x) * 2) * z : 0, inWater = c.swims && at(c.x, c.y) === '~';
     if (!inWater) shadow(X, Y, z, c.flies ? 8 : 12);
     var n = c.flies ? now / 90 : (c.t < 1 ? c.anim * .6 : 0), sx = c.state === 'warn' ? (Math.floor(now / 60) % 2 ? z : -z) : 0;
-    var spec = ART.frame(c.id, c.dir, n);
-    if (inWater) {          // only head and shoulders above the surface
+    var spec = critterSpec(c.id, c.dir, n);
+    if (inWater) {
       var cnv = ART.canvas(spec); if (cnv) { ctx.drawImage(cnv, 0, 0, cnv.width, cnv.height - 5, Math.round(X - cnv.width * z / 2), Math.round(Y - cnv.height * z), cnv.width * z, (cnv.height - 5) * z); }
     } else ART.draw(ctx, spec, X + sx, Y - lift, z);
     if (c.state === 'warn' || c.state === 'flee') {
@@ -1464,13 +2079,149 @@
   }
   function drawPlayer(X, Y, z){
     shadow(X, Y, z, 10);
-    var step = P.moving ? Math.floor(P.anim / 1.6) % 4 : 0;
-    ART.draw(ctx, ART.frame('carl', P.dir, step), X, Y, z, P.stalk ? .8 : null);
+    var stp = P.moving ? Math.floor(P.anim / 1.6) % 4 : 0;
+    ART.draw(ctx, heroSpec(P.dir, stp), X, Y, z, P.stalk ? .8 : null);
+  }
+
+  // ═════════════════════════ INPUT · keyboard, touch, DualSense ═════════════════════════
+  var padOn = false, padHeld = false;
+  function surfaceFree(){ return mode === 'surface' && !dlg && !encounterOpen && !doc.querySelector('.x-modal, .x-battle'); }
+  function visible(n){
+    if (!n || n.disabled || n.closest('[hidden]')) return false;
+    var r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+  }
+  function topLayer(){
+    var L = doc.querySelector('.x-battle') || doc.querySelector('.x-encounter') || doc.querySelector('.x-modal:last-of-type');
+    if (L) return L;
+    if (dlg && dlg.box && dlg.box.classList.contains('ask')) return dlg.box;
+    var sh = doc.querySelector('.x-sheet:not([hidden])'); if (sh && sh.contains(doc.activeElement)) return sh;
+    return ui.querySelector('.x-screen') || ui;
+  }
+  var FOCUSABLE = 'button, a[href], input[type=range], [data-nav]';
+  function cands(L){ return Array.prototype.slice.call(L.querySelectorAll(FOCUSABLE)).filter(visible); }
+  function focusFirst(){
+    var L = topLayer(), list = cands(L); if (!list.length) return;
+    var pick = list.filter(function(n){ return n.matches('[data-first]'); })[0] || list.filter(function(n){ return n.matches('[data-c], .x-btn:not(.ghost), .x-press, .x-station:not([disabled])'); })[0] || list[0];
+    pick.focus({ preventScroll:false });
+  }
+  function navFocus(dir){
+    var L = topLayer(), list = cands(L), cur = doc.activeElement;
+    if (!list.length) return;
+    if (!cur || list.indexOf(cur) < 0) { focusFirst(); return; }
+    if (cur.matches('input[type=range]') && (dir === 'left' || dir === 'right')) {
+      cur.value = clamp(+cur.value + (dir === 'right' ? 40 : -40), +cur.min, +cur.max); cur.dispatchEvent(new Event('input', { bubbles:true })); return;
+    }
+    var a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2, best = null, bs = 1e9;
+    list.forEach(function(n){
+      if (n === cur) return;
+      var r = n.getBoundingClientRect(), dx = r.left + r.width / 2 - ax, dy = r.top + r.height / 2 - ay, p, q;
+      if (dir === 'right') { p = dx; q = dy; } else if (dir === 'left') { p = -dx; q = dy; } else if (dir === 'down') { p = dy; q = dx; } else { p = -dy; q = dx; }
+      if (p <= 4) return;
+      var sc = p + Math.abs(q) * 2.2;
+      if (sc < bs) { bs = sc; best = n; }
+    });
+    if (best) { best.focus({ preventScroll:true }); try { best.scrollIntoView({ block:'nearest', inline:'nearest' }); } catch(e){} sfx.key(); }
+  }
+  function activate(){
+    var L = topLayer(), cur = doc.activeElement;
+    if (!cur || !L.contains(cur) || cur === doc.body) { focusFirst(); return; }
+    if (cur.tagName === 'BUTTON' || cur.tagName === 'A') cur.click();
+    else cur.dispatchEvent(new MouseEvent('click', { bubbles:true }));
+  }
+  function goBack(){
+    var L = topLayer();
+    var b = L.querySelector('.x-camx:not([hidden])');
+    if (b && visible(b)) { b.click(); return; }
+    b = ['[data-e="leave"]', '[data-x="back"]', '[data-t="close"]', '[data-a="close"]', '[data-a="back"]', '.x-back'].map(function(sel){ return L.querySelector(sel); }).filter(visible)[0];
+    if (b) { b.click(); return; }
+    if (L.classList.contains('x-modal')) { L.remove(); return; }
+    var sh = doc.querySelector('.x-sheet:not([hidden]) [data-a="close"]'); if (sh) { sh.click(); return; }
+    var bk = doc.querySelector('.x-back'); if (bk) bk.click();
+  }
+
+  var keys = {}, KEYDIR = { arrowup:'up', w:'up', arrowdown:'down', s:'down', arrowleft:'left', a:'left', arrowright:'right', d:'right' };
+  addEventListener('keydown', function(e){
+    if (e.target && /TEXTAREA/.test(e.target.tagName)) return;
+    var k = e.key.toLowerCase(), d = KEYDIR[k];
+    if (doc.querySelector('.x-name') && /^[a-z]$/.test(k)) return;      // the naming screen types letters
+    if (dlg && !(dlg.box.classList.contains('ask'))) {
+      if (k === 'z' || k === 'enter' || k === ' ') { e.preventDefault(); advanceDialog(); }
+      else if (k === 'x' || k === 'escape' || k === 'backspace') { e.preventDefault(); advanceDialog(true); }
+      return;
+    }
+    if (surfaceFree()) {
+      if (d) { e.preventDefault(); keys[d] = true; held = d; path = []; return; }
+      if (k === 'z' || k === 'enter' || k === ' ') { e.preventDefault(); btnA(); }
+      if (k === 'x' || k === 'escape' || k === 'backspace') { e.preventDefault(); btnB(); }
+      if (k === 'j' || k === 'm' || k === 'tab') { e.preventDefault(); openNav(); }
+      return;
+    }
+    if (e.target && e.target.matches && e.target.matches('input[type=range]') && (k === 'arrowleft' || k === 'arrowright')) return;
+    if (k.indexOf('arrow') === 0) { e.preventDefault(); navFocus(d); return; }
+    if (doc.querySelector('.x-nav-tabs') && !doc.querySelector('.x-modal') && (k === 'q' || k === 'e' || k === '[' || k === ']')) { navCycle(k === 'q' || k === '[' ? -1 : 1); return; }
+    if (k === 'escape' || (k === 'backspace' && !doc.querySelector('.x-name'))) { e.preventDefault(); goBack(); }
+  });
+  addEventListener('keyup', function(e){
+    var d = KEYDIR[e.key.toLowerCase()];
+    if (d) { keys[d] = false; if (held === d) held = ['up','down','left','right'].filter(function(x){ return keys[x]; })[0] || null; }
+  });
+
+  if (PAD) {
+    PAD.on('connect', function(gp, ds){
+      padOn = true; doc.body.classList.add('pad'); doc.body.classList.toggle('dualsense', !!ds);
+      toast(ds ? 'DUALSENSE CONNECTED' : 'CONTROLLER CONNECTED'); vibrate(120, .5);
+      if (!surfaceFree()) setTimeout(focusFirst, 30);
+    });
+    PAD.on('disconnect', function(){ padOn = false; doc.body.classList.remove('pad', 'dualsense'); toast('CONTROLLER DISCONNECTED'); });
+    PAD.on('dir', function(d){
+      if (surfaceFree()) { if (d) { held = d; padHeld = true; path = []; } else if (padHeld) { held = null; padHeld = false; } }
+      else if (padHeld) { held = null; padHeld = false; }
+    });
+    PAD.on('nav', function(d){ if (!surfaceFree()) navFocus(d); });
+    PAD.on('press', function(b){
+      if (titleStart && doc.querySelector('.x-title .x-press:not([hidden])')) { titleStart(); return; }
+      if (doc.querySelector('.x-name') && b === 'triangle') { var ok = $('[data-k="OK"]'); if (ok) ok.focus(); return; }
+      if (doc.querySelector('.x-name') && b === 'square') { var del = $('[data-k="DEL"]'); if (del) del.click(); return; }
+      var ask = dlg && dlg.box.classList.contains('ask');
+      if (b === 'cross') { if (dlg && !ask) advanceDialog(); else if (surfaceFree()) btnA(); else activate(); }
+      else if (b === 'circle') { if (dlg && !ask) advanceDialog(true); else if (ask) closeDialog(dlg.choices.length - 1); else if (surfaceFree()) btnB(); else goBack(); }
+      else if (b === 'square') {
+        var ph = doc.querySelector('.x-encounter .x-shutter'); if (ph && visible(ph)) { ph.click(); return; }
+        ph = doc.querySelector('.x-encounter [data-e="scan"]'); if (ph && visible(ph)) { ph.click(); return; }
+        ph = doc.querySelector('.x-battle [data-b="photo"]'); if (ph && visible(ph)) { ph.click(); return; }
+        if (surfaceFree()) btnB();
+      }
+      else if (b === 'triangle') { if (surfaceFree()) openNav(); else if (doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
+      else if (b === 'options') { if (surfaceFree()) openNav(); else goBack(); }
+      else if (b === 'touchpad') { if (surfaceFree()) openNav('system'); else if (doc.querySelector('.x-nav-tabs')) nav('system'); }
+      else if ((b === 'l1' || b === 'r1') && doc.querySelector('.x-nav-tabs') && !doc.querySelector('.x-modal') && !(doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.x-kit-row'))) navCycle(b === 'l1' ? -1 : 1);
+      else if (b === 'l1' || b === 'r1') {
+        var row = doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.x-kit-row');
+        if (row) { var bt = row.querySelector('[data-d="' + (b === 'l1' ? -1 : 1) + '"]'); if (bt) bt.click(); }
+      }
+    });
+    PAD.on('frame', function(st){
+      var sv = doc.querySelector('.x-spiral'), trig = st.r2 - st.l2;
+      if (sv && (st.rx || st.ry || Math.abs(trig) > .05)) {
+        VIEW.x = clamp(VIEW.x + st.rx * VIEW.w * .012, -600, 600); VIEW.y = clamp(VIEW.y + st.ry * VIEW.w * .012, -300, 300);
+        if (Math.abs(trig) > .05) VIEW.w = clamp(VIEW.w * (1 - trig * .02), 360, 1600);
+        setView(sv); return;
+      }
+      if (Math.abs(trig) > .05) {
+        var ring = Array.prototype.slice.call(doc.querySelectorAll('.x-ring input')).filter(visible)[0];
+        if (ring) { ring.value = clamp(+ring.value + trig * 14, 0, 1000); ring.dispatchEvent(new Event('input', { bubbles:true })); }
+      }
+    });
   }
 
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
-  if (/[?&]debug\b/.test(location.search)) window.__x = { S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; },
-    tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); } };
+  if (/[?&]debug\b/.test(location.search)) window.__x = { S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, npcs:function(){ return npcs; },
+    tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
+    battle:function(c){ battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
+    surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },
+    nav:navFocus, activate:activate, back:goBack, btnA:function(){ btnA(); } };
+  applyOpts();
+  if (S) applyLook();
   title();
 })();

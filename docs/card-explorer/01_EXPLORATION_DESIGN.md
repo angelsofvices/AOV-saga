@@ -52,7 +52,7 @@ Every world has three levels of map, each with a period look:
 | **Survey Zone** | One explorable area you land in, roughly 2–4 screens across **(tune)** | Your own field sketch map, drawn in pencil only where you've walked |
 | **Sub-site** | A cave, ruin, building interior or settlement, entered from a zone | Same sketch style, on a separate sheet |
 
-- **Zones follow canon geography.** On Zyraxis each district is at least one zone (Malezor, Zarvane, Andrannor, Veridan, Netharion, Vorashil, Xilnar, Baelgor, Thardun, Korathen), so planet and district classification (handoff §Classification) comes straight from where you found something.
+- **Zones follow canon geography.** On Zyraxis each district is at least one zone (Malezor, Zarvane, Andrannor, Veridan, Netharion, Vorashil, Xilnar, Baelgor, Thardin, Korathen), so planet and district classification (handoff §Classification) comes straight from where you found something.
 - **Fog of war:** the field sketch starts blank. Walking draws it in. A **Survey Instrument** reading (§9) from high ground sketches a wider area at once.
 - **Map completion feeds the Archive.** Every landmark, sub-site and zone you chart is an Archive entry, and some are Location or Structure cards.
 - **Zones stay put.** Layout is hand-designed per zone, not random. Which creatures are out, the weather and some item spawns change between visits, so return trips matter.
@@ -363,6 +363,8 @@ Recorded from the Creator's direction after the first playable build. These take
 6. **Exploration is classic, lightweight, top-down 2D**, in the readable spirit of classic Pokémon: grid movement, compact maps, buildings, caves, NPCs, interactable objects, hidden items, district transitions. A to examine. No heavy action combat. The appeal: *"I'm going somewhere new. What cards can I find here?"*
 7. **Aethren encounters** lead to observation, interaction or battle, depending on the Aethren. **Haemen cards** come from a relationship or discovery requirement, not from simply meeting someone.
 8. **Set 19 is URALYX** (Creator ruling, 2026-10-07). Ultharis is the Highest One only. The schematic SVG/PNG and the game data now read Uralyx. AEP-28 is not drawn on the map yet ("eventually").
+9. **District IX is THARDIN** (Creator ruling, 2026-10-07). *Thardun* is the corporation that manufactures Zyspheres, never the district. The explorer, the environments and the Zyraxis page now read Thardin.
+10. **AEP-28 is SEALED** (Creator ruling, 2026-10-07): not drawn, not landable, not described. The World Atlas shows it as SEALED and no notes about it ship in the game files.
 
 ### Implemented in survey build 2 (`/explorer/`)
 - The map board home screen with canon positions, unknown/named/visited states, drive range, the two goals and a progress bar for the first map.

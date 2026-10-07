@@ -304,7 +304,7 @@ QUANTITY:  1
 The original ship cannot jump. Its hyperspace entry was an accident. Reaching more of the Expanse takes two things:
 
 1. **Starcharts:** the astronaut's own paper star chart of the Expanse is redrawn as they learn it. Each new world needs a **route**, made from **Starchart fragments** earned through world milestones, Haemen knowledge and missions.
-2. **Drive refits:** Astralite modifications to the ship's drive extend how far it can travel. Each refit tier reaches the next ring of worlds outward from the starting world, following the 7 canon rings in `aethryx.html`.
+2. **Drive refits:** Astralite modifications to the ship's drive extend how far it can travel. The crippled 1936 drive only reaches the bodies nearest the **arrival point** (§16). Each refit tier pushes the range further across the Expanse, so the canon rings in `aethryx.html` open up by distance from where the astronaut came out of hyperspace.
 
 Locked worlds show on the star chart as **UNCHARTED BODY**, with their 1936 description until learned (for example *LARGE OCEANIC BODY, RING 2*). The canon name types in once a Haemen teaches it or the route is charted.
 
@@ -318,7 +318,11 @@ Locked worlds show on the star chart as **UNCHARTED BODY**, with their 1936 desc
 
 1. **Dossier:** a classified 1936 government briefing, typewritten and stamped. You're named and enlisted. It ends with launch.
 2. **Malfunction:** a cockpit sequence of gauges failing, the radio dying and a violent hyperspace entry. Short, mostly hands-on: flip the switches it tells you to.
-3. **Arrival:** you exit hyperspace. The star charts don't match. Navigation reads ERROR. A world below is the only option.
+3. **Arrival, adrift in open space:** you exit hyperspace into empty space, with no world beneath you. The star charts don't match, and Navigation reads ERROR. The first part of the game happens entirely aboard the drifting ship:
+   - **Damage control:** restore power, air and the radio by throwing switches and following the gauges. This teaches the ship stations.
+   - **First observations:** through the observation port and the ship's telescope you see a star that is not the Sun and a moon that is not the Moon. Photographing them is your first use of the camera, and they're logged as *PRIMARY RADIANT BODY* and *SATELLITE BODY, UNIDENTIFIED*. These are the first entries toward the **Aenor** and **Zoryth** sets. Their names type in later, once a Haemen teaches them.
+   - **First star chart:** you take instrument readings and plot the nearest bodies on a blank paper chart. The crippled drive can reach only a few of them, each shown in 1936 terms (*LARGE OCEANIC BODY*, *CRYSTALLINE BODY, VIOLET CAST*).
+   - **First choice:** you pick which body to try for. The game never tells you which world it is; you find out by landing.
 4. **First landing:** this teaches movement, the gauges and examining things.
 5. **First Aethren:** a docile creature near the ship teaches the camera: frame, focus, steady, shoot.
 6. **First specimen:** an *UNKNOWN CRYSTALLINE SPECIMEN* glinting in the rocks. You take a sample.
@@ -332,7 +336,7 @@ Locked worlds show on the star chart as **UNCHARTED BODY**, with their 1936 desc
 
 1. **Planet 19's name.** The handoff lists set 19 as **Ultharis**. `data/AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` says: *"Ultharis is reserved for the Highest One context and is not the current name of Planet 19. Planet 19 = Uralyx."* The website also uses **Uralyx**. Which is right for this game and the card set?
 2. **Planet 28's name.** The handoff uses **AEP-28**. The website uses **Ovauron**, and the canon file lists *"Ovauron / AEP-28"* as an open naming question. The same file mentions AEP-28 being destroyed above Earth in the Second Aurelleap, which may matter for a game about a 1936 Earth astronaut. Should the card set be called AEP-28, Ovauron, or both?
-3. **Arrival world.** Where does the astronaut first exit hyperspace? Zyraxis would let the game lead with the deepest existing content (districts, the 131 Zyrex roster, RP7), but the fiction may want another world.
+3. ~~**Arrival world.**~~ **Answered 2026-10-07: the astronaut arrives adrift in open space, not at a world** (see §16). Still open: **which worlds should be within reach of the crippled drive** at the start? Including Zyraxis among them would let the game lead with its deepest content (districts, the 131-Zyrex roster, RP7) without forcing it.
 4. **Zyrex and Aethren.** Are Zyrex the Aethren of Zyraxis, with a Zyrex's canon tier (I–X) becoming its rarity (1–10/10)? That would make the RP7 roster the first ready-to-use card pool.
 5. **Earth knowledge.** Does canon say anything about what the Expanse knows of Earth in 1936, which would shape what Haemen can tell the astronaut about getting home?
 6. **The astronaut.** A fixed named character, or player-named and player-customised (within 1936 US government astronaut fiction)?

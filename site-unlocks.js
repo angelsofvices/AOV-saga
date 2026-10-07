@@ -63,7 +63,7 @@ window.AOV_UNLOCKS = {
     { id:'game-rp7b', kind:'game', name:'RP7B', title:'Rizing Power · Beta V7.5.16', status:'unlocked',
       since:'2026-10-06', href:'/rp7b.html', color:'#FFC83D', cta:'PLAY NOW',
       blurb:'The mainline open-world beta of Rizing Power. Playable in your browser today.' },
-    { id:'game-project1936', kind:'game', name:'Project 1936', title:'First Playable Survey · Working Title', status:'unlocked',
+    { id:'game-project1936', kind:'game', name:'Project 1936', title:'Mainline · Survey Build 2 · Working Title', status:'unlocked',
       since:'2026-10-07', href:'/explorer/', color:'#E2C27D', cta:'BEGIN THE EXPEDITION',
       blurb:'1936. A classified American rocket is thrown off course into the Aethryx Expanse. Explore, photograph, collect. Find a way home.' },
     { id:'game-rp7d', kind:'game', name:'RP7D', title:'Rizing Power · Deluxe 3D', status:'soon',
@@ -83,6 +83,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-07', build:'PROJECT 1936 · SURVEY 2', title:'The First Map',
+      notes:[
+        'Project 1936 opens on a map board of the whole system: every world unidentified until you reach it',
+        'Classic top-down exploration of Malezor: examine plants and minerals, meet a local Haemen, enter The First Den',
+        'Two goals: collect cards to bring home to Earth, and draw the first map of a newly discovered star system'
+      ] },
     { date:'2026-10-07', build:'PROJECT 1936 · SURVEY 1', title:'A Rocket Off Course',
       notes:[
         'GAME UNLOCKED · Project 1936, the first playable survey of the new AOV card-explorer game',

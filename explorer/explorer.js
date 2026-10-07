@@ -13,7 +13,6 @@
   'use strict';
   var D = window.EXP_DATA, STORY = D.story;
   var doc = document, ui = doc.getElementById('ui'), cv = doc.getElementById('view'), ctx = cv.getContext('2d');
-  var A = '/explorer/assets/';
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // World names join the lexicon: unknown bodies are catalogued by number.
@@ -154,7 +153,7 @@
   }
   function artHtml(s, c){
     if (c && c.img) return '<img alt="" src="' + c.img + '">';
-    if (s.sprite) return '<span class="x-spr' + (s.sheet || s.kind === 'aethren' ? ' sheet' : '') + '" style="background-image:url(' + A + s.sprite + ')"></span>';
+    if (s.art) return '<img class="x-pix" alt="" src="' + window.AOV_ART.url(s.art, 8) + '">';
     return '<span class="x-noimg">NO PLATE</span>';
   }
   function cardHtml(id, big){
@@ -706,9 +705,6 @@
   }
 
   // ═════════════════════════ CANVAS LOOP ═════════════════════════
-  var IMG = {};
-  function img(name){ if (!IMG[name]) { IMG[name] = new Image(); IMG[name].src = A + name; } return IMG[name]; }
-  ['grass.png','den.png','water.png','tree.png','bush.png','boulder.png','crater.png','astralite.png','haemen.png','otterlin.png','verdanix.png','aetherwing.png','volcanut.png'].forEach(img);
 
   var raf = 0, mode = null, last = 0;
   var DPR = Math.min(2, window.devicePixelRatio || 1);
@@ -816,7 +812,7 @@
   }
 
   // ═════════════════════════ SURFACE · classic tile exploration ═════════════════════════
-  var T = 40, M = null, P = null, critters = [], fogArr = null, dialogOpen = false, encounterOpen = false, held = null, path = [];
+  var T = 16, M = null, P = null, critters = [], fogArr = null, dialogOpen = false, encounterOpen = false, held = null, path = [];
   var SOLID = { T:1, b:1, B:1, '~':1, A:1, S:1, H:1, M:1, X:1, '#':1 };
   var DIRS = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
 
@@ -846,71 +842,29 @@
     return false;
   }
 
+  // ── the ground, baked from native tiles (two frames so water ripples) ──
+  var ART = window.AOV_ART;
   function bakeGround(){
-    var gc = doc.createElement('canvas'); gc.width = M.W * T; gc.height = M.H * T;
-    var g = gc.getContext('2d'), grass = img('grass.png'), den = img('den.png'), water = img('water.png');
-    function tile(im, x, y, fallback){
-      var sx = (x * 40) % 88, sy = (y * 40) % 88;
-      if (im.complete && im.naturalWidth) g.drawImage(im, sx, sy, 40, 40, x * T, y * T, T, T);
-      else { g.fillStyle = fallback; g.fillRect(x * T, y * T, T, T); }
-    }
-    for (var y = 0; y < M.H; y++) for (var x = 0; x < M.W; x++) {
-      var ch = at(x, y);
-      if (M.def.indoor) {
-        if (ch === '#') { g.fillStyle = '#1a1410'; g.fillRect(x * T, y * T, T, T); g.fillStyle = '#2c2219'; g.fillRect(x * T + 2, y * T + 2, T - 4, T - 10); }
-        else tile(den, x, y, '#7a5a3a');
-        continue;
+    M.ground = [0, 1].map(function(frame){
+      var gc = doc.createElement('canvas'); gc.width = M.W * T; gc.height = M.H * T;
+      var g = gc.getContext('2d'); g.imageSmoothingEnabled = false;
+      for (var y = 0; y < M.H; y++) for (var x = 0; x < M.W; x++) {
+        var ch = at(x, y), tile;
+        if (M.def.indoor) tile = ch === '#' ? 'rock' : 'den';
+        else if (ch === '~') tile = frame ? 'water1' : 'water';
+        else if (ch === 'd') tile = 'path';
+        else if (ch === '#') tile = 'rock';
+        else if (ch === 'E') tile = 'cave';
+        else if (ch === ',') tile = 'flowers';
+        else tile = (x * 7 + y * 13) % 5 === 0 ? 'grass2' : 'grass';
+        var c = ART.canvas(tile); if (c) g.drawImage(c, x * T, y * T);
       }
-      if (ch === '~') tile(water, x, y, '#1e4a8c');
-      else if (ch === 'd' || ch === 'E' || ch === '#') tile(den, x, y, '#7a5a3a');
-      else tile(grass, x, y, '#3d6b2a');
-      if (ch === '#') { g.fillStyle = 'rgba(20,14,10,.75)'; g.fillRect(x * T, y * T, T, T); }
-      if (ch === 'E') { g.fillStyle = '#0d0a08'; g.beginPath(); g.ellipse(x * T + T / 2, y * T + T * .7, T * .42, T * .5, 0, Math.PI, 0); g.fill(); }
-      if (ch === ',') { g.fillStyle = 'rgba(255,214,230,.85)'; for (var k = 0; k < 4; k++) g.fillRect(x * T + 6 + (k * 9) % 28, y * T + 8 + (k * 13) % 24, 3, 3); }
-    }
-    g.strokeStyle = 'rgba(210,235,255,.35)'; g.lineWidth = 2;
-    for (y = 0; y < M.H; y++) for (x = 0; x < M.W; x++) if (at(x, y) === '~') {
-      [[-1,0,0,0,0,1],[1,0,1,0,1,1],[0,-1,0,0,1,0],[0,1,0,1,1,1]].forEach(function(e){
-        if (at(x + e[0], y + e[1]) !== '~') { g.beginPath(); g.moveTo((x + e[2]) * T, (y + e[3]) * T); g.lineTo((x + e[4]) * T, (y + e[5]) * T); g.stroke(); }
-      });
-    }
-    M.ground = gc;
+      return gc;
+    });
   }
-
-  // the 1936 astronaut and the rocket, drawn as pixel art in code (no art exists yet)
-  var SPR = {};
-  function pixelSprite(rows, pal, scale){
-    var c = doc.createElement('canvas'); c.width = rows[0].length * scale; c.height = rows.length * scale;
-    var g = c.getContext('2d');
-    rows.forEach(function(r, y){ for (var x = 0; x < r.length; x++) { var p = pal[r[x]]; if (p) { g.fillStyle = p; g.fillRect(x*scale, y*scale, scale, scale); } } });
-    return c;
-  }
-  function buildSprites(){
-    if (SPR.front) return;
-    var pal = { o:'#3a2a18', c:'#c8843c', C:'#e9a95a', g:'#9fd2e6', G:'#d8f1fa', s:'#8d8a74', S:'#b3b096', d:'#5d5b4b', b:'#2b2a22', t:'#b08d57', w:'#efe6d0' };
-    SPR.front = pixelSprite([
-      '....oooooo....','...occCCcco...','..occgGGgcco..','..ocgGGGGgco..','..ocgggggGco..','..occgggggco..','...occcccco...',
-      '....odSSdo....','..osSSwwSSso..','.osSSSwwSSSso.','.osdSSSSSSdso.','.ott.SSSS.tto.','.oS.sSSSSs.So.','...sSSddSSs...','...sSS..SSs...','...sSs..sSs...','...bbb..bbb...','..bbbb..bbbb..'
-    ], pal, 3);
-    SPR.back = pixelSprite([
-      '....oooooo....','...occCCcco...','..occcCCccco..','..occcccccco..','..occcccccco..','..occcccccco..','...occcccco...',
-      '....odttdo....','..osttttttso..','.osSttttttSso.','.osdttttttdso.','.oS.SSSSSS.So.','.oS.sSSSSs.So.','...sSSddSSs...','...sSS..SSs...','...sSs..sSs...','...bbb..bbb...','..bbbb..bbbb..'
-    ], pal, 3);
-    SPR.side = pixelSprite([
-      '....oooooo....','...occCCcco...','..occcCgGgo...','..occcgGGGo...','..occcggggo...','..occcccco....','...occcccco...',
-      '....odSSdo....','..ttSSSSSso...','.ttdSSSSSSo...','.ttdSSSSSdo...','.tt.SSSSSo....','...SSSSSSSo...','...sSSddSs....','....SS..SSs...','....Ss...sSs..','...bbb...bbb..','..bbbb...bbbb.'
-    ], pal, 3);
-    var sp = { m:'#cfd3d6', M:'#f2f4f5', k:'#6f767c', K:'#3e4448', R:'#a3261c', r:'#d24a36', p:'#7fc8e8', P:'#dff4fb', y:'#e8c46a', o:'#1d1f22' };
-    SPR.ship = pixelSprite([
-      '.........oo.........','........oMMo........','.......oMMmmo.......','......oMMmmmmo......','......oMmmmmko......','.....oMMmmmmmko.....','.....oMmmmmmmko.....',
-      '.....oMmoooomko.....','.....oMoPPpokko.....','.....oMoPpppokko....','.....oMooppookko....','.....oMmoooomko.....','.....oMmmmmmmko.....','.....oMmymmmmko.....',
-      '.....oMmmmmmmko.....','.....oMmmmymmko.....','....oRoMmmmmmkoRo...','...oRRoMmmmmmkoRRo..','..oRRroMmmmmmkorRRo.','..oRrroMmmmmmkorrRo.','..oRrrooKKKKKoorrRo.',
-      '..oooo.oKKKKKo.oooo.','.......oyyyyyo......','........oyyyo.......'
-    ], sp, 4);
-  }
+  function shadow(X, Y, z, w){ ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(Math.round(X - w * z / 2), Math.round(Y - 2 * z), w * z, 2 * z); }
 
   function surface(mapId){
-    buildSprites();
     M = parseMap(mapId); bakeGround();
     S.stage = 'surface'; S.map = mapId; save();
     var start = S.pos && S.pos.map === mapId ? S.pos : (M.ship ? { x:M.ship.x, y:M.ship.y + 1, dir:'down' } : { x:1, y:1, dir:'down' });
@@ -1000,7 +954,8 @@
     walkTo(t.x, t.y);
   });
 
-  function zoom(){ return clamp(Math.min(innerWidth, innerHeight * 1.1) / (T * 9), .8, 1.8) * DPR; }
+  // pocket style: whole-number pixel scaling only, so every pixel stays crisp
+  function zoom(){ return Math.max(2, Math.floor(Math.min(cv.width / (11 * T), cv.height / (10 * T)))); }
   function screenToTile(sx, sy){
     var z = zoom();
     return { x:Math.floor(P.fx + .5 + (sx * DPR - cv.width / 2) / (T * z)), y:Math.floor(P.fy + .5 + (sy * DPR - cv.height / 2) / (T * z)) };
@@ -1226,8 +1181,9 @@
   function shootStatic(id){
     if (S.film <= 0) { toast('ROLL FINISHED · develop it aboard ship', 'red'); return; }
     var out = doc.createElement('canvas'); out.width = 240; out.height = 180;
-    var o = out.getContext('2d'), im = img('den.png');
-    if (im.complete) o.drawImage(im, 0, 0, 128, 96, 0, 0, 240, 180);
+    var o = out.getContext('2d'); o.imageSmoothingEnabled = false;
+    var dn = ART.canvas('den'), rk = ART.canvas('cave');
+    for (var gy = 0; gy < 180; gy += 48) for (var gx = 0; gx < 240; gx += 48) o.drawImage(gy < 48 ? rk : dn, gx, gy, 48, 48);
     o.fillStyle = 'rgba(0,0,0,.35)'; o.fillRect(0, 0, 240, 180);
     var data = ''; try { data = out.toDataURL('image/jpeg', .75); } catch(e){}
     S.film--; S.frames.push({ subj:id, grade:'good', img:data, t:Date.now() }); save(); hudRefresh(); sfx.shutter();
@@ -1322,7 +1278,7 @@
     var dist = 2 + Math.round(Math.random() * 3), acted = 0, gone = false, focusE = .5, t0 = performance.now();
     var o = el('div', 'x-encounter', '<div class="x-enc-in riv">' +
       '<p class="x-enc-k">' + (charged ? 'IT CHARGES!' : 'ENCOUNTER') + '</p>' +
-      '<div class="x-enc-stage"><div class="x-enc-spr" style="background-image:url(' + A + s.sprite + ')"></div><div class="x-enc-vf" hidden><i></i></div></div>' +
+      '<div class="x-enc-stage" style="background-image:url(' + ART.url('grass', 4) + ')"><div class="x-enc-spr" style="background-image:url(' + ART.url(s.art, 8) + ')"></div><div class="x-enc-vf" hidden><i></i></div></div>' +
       '<p class="x-enc-nm">' + esc(subjName(c.id)) + '</p>' +
       '<p class="x-enc-sub">CLASS: ' + esc(term('aethren')) + ' · RARITY: ' + (S.cards[c.id] ? rarity(s) : 'UNKNOWN') + ' · ' + (S.cards[c.id] ? 'CLASSIFIED' : 'UNCLASSIFIED') + '</p>' +
       '<p class="x-enc-msg" aria-live="polite"></p>' +
@@ -1426,10 +1382,10 @@
   // the print: what the camera saw, as sharp or soft as it was
   function encounterPhoto(s, blur, offset){
     var out = doc.createElement('canvas'); out.width = 240; out.height = 180;
-    var o = out.getContext('2d'), grass = img('grass.png'), sp = img(s.sprite);
-    if (grass.complete) o.drawImage(grass, 0, 0, 128, 96, 0, 0, 240, 180);
+    var o = out.getContext('2d'); o.imageSmoothingEnabled = false;
+    var gr = ART.canvas('grass'); for (var gy = 0; gy < 180; gy += 48) for (var gx = 0; gx < 240; gx += 48) o.drawImage(gr, gx, gy, 48, 48);
     o.filter = 'blur(' + clamp(blur * 10, 0, 4).toFixed(1) + 'px)';
-    if (sp.complete) o.drawImage(sp, 0, 0, 72, 72, 50 + offset * 40, 14, 140, 140);
+    var sp = ART.canvas(s.art); if (sp) o.drawImage(sp, Math.round(56 + offset * 40), 14, 128, 128);
     var data = ''; try { data = out.toDataURL('image/jpeg', .74); } catch(e){}
     return data;
   }
@@ -1437,17 +1393,16 @@
   function vibrate(ms){ try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){} }
 
   // ── drawing the surface ──
-  var ROW = { down:0, left:1, right:2, up:3 };
   function drawSurface(now){
-    var w = cv.width, h = cv.height, z = zoom();
+    var w = cv.width, h = cv.height, z = zoom(), TZ = T * z;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = M.def.indoor ? '#0d0a08' : '#0b0912'; ctx.fillRect(0, 0, w, h);
-    var ox = Math.round(w / 2 - (P.fx + .5) * T * z), oy = Math.round(h / 2 - (P.fy + .5) * T * z);
-    ctx.drawImage(M.ground, ox, oy, M.W * T * z, M.H * T * z);
-    var cr = img('crater.png');
-    if (M.ship && cr.complete) ctx.drawImage(cr, ox + (M.ship.x - 1.4) * T * z, oy + (M.ship.y - 1) * T * z, 3.8 * T * z, 2.8 * T * z);
-    var list = [], x0 = Math.max(0, Math.floor(P.fx - w / (2 * T * z)) - 2), x1 = Math.min(M.W - 1, Math.ceil(P.fx + w / (2 * T * z)) + 2),
-        y0 = Math.max(0, Math.floor(P.fy - h / (2 * T * z)) - 2), y1 = Math.min(M.H - 1, Math.ceil(P.fy + h / (2 * T * z)) + 3);
+    // snap the camera to the pixel grid
+    var ox = Math.round((w / 2 - (P.fx + .5) * TZ) / z) * z, oy = Math.round((h / 2 - (P.fy + .5) * TZ) / z) * z;
+    ctx.drawImage(M.ground[Math.floor(now / 650) % 2], ox, oy, M.W * TZ, M.H * TZ);
+    if (M.ship) { ctx.fillStyle = 'rgba(40,24,12,.35)'; ctx.beginPath(); ctx.ellipse(ox + (M.ship.x + .5) * TZ, oy + (M.ship.y + .85) * TZ, 1.2 * TZ, .4 * TZ, 0, 0, 7); ctx.fill(); }
+    var list = [], x0 = Math.max(0, Math.floor(P.fx - w / (2 * TZ)) - 2), x1 = Math.min(M.W - 1, Math.ceil(P.fx + w / (2 * TZ)) + 2),
+        y0 = Math.max(0, Math.floor(P.fy - h / (2 * TZ)) - 2), y1 = Math.min(M.H - 1, Math.ceil(P.fy + h / (2 * TZ)) + 3);
     for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
       var ch = at(x, y);
       if ('TbBAMX'.indexOf(ch) >= 0) list.push({ k:ch, x:x, y:y, s:y });
@@ -1457,67 +1412,54 @@
     critters.forEach(function(c){ list.push({ k:'critter', c:c, s:c.fy + (c.flies ? .5 : 0) }); });
     list.push({ k:'player', s:P.fy + .01 });
     list.sort(function(a, b){ return a.s - b.s; });
+    var spr = { T:'tree', b:'shrub', B:'boulder', M:'markings', X:'sign' };
     list.forEach(function(o){
-      var X = ox + ((o.c ? o.c.fx : o.k === 'player' ? P.fx : o.x) + .5) * T * z, Y = oy + ((o.c ? o.c.fy : o.k === 'player' ? P.fy : o.y) + 1) * T * z;
-      if (o.k === 'T') drawImg('tree.png', X, Y, 1.9, 1.9, z);
-      else if (o.k === 'b') drawImg('bush.png', X, Y, 1.25, .85, z);
-      else if (o.k === 'B') drawImg('boulder.png', X, Y, 1.05, 1.05, z);
-      else if (o.k === 'A') drawSheet('astralite.png', 0, Math.floor(now / 220) % 4, X, Y, 1.15, z, 64);
-      else if (o.k === 'M') { ctx.fillStyle = '#3a2d22'; ctx.fillRect(X - 16*z, Y - 34*z, 32*z, 32*z); ctx.fillStyle = 'rgba(255,214,120,' + (.5 + .25 * Math.sin(now / 400)) + ')'; ctx.fillRect(X - 10*z, Y - 28*z, 4*z, 10*z); ctx.fillRect(X - 3*z, Y - 30*z, 4*z, 14*z); ctx.fillRect(X + 4*z, Y - 26*z, 4*z, 8*z); ctx.fillRect(X - 8*z, Y - 14*z, 14*z, 3*z); }
-      else if (o.k === 'X') { ctx.fillStyle = '#5a4128'; ctx.fillRect(X - 3*z, Y - 30*z, 6*z, 28*z); ctx.fillStyle = '#efe6d0'; ctx.fillRect(X - 14*z, Y - 34*z, 28*z, 14*z); ctx.fillStyle = '#9b2a1f'; ctx.fillRect(X - 10*z, Y - 29*z, 20*z, 3*z); }
-      else if (o.k === 'ship') { var sp = SPR.ship; ctx.drawImage(sp, X - sp.width / 2 * z, Y - sp.height * z + 6 * z, sp.width * z, sp.height * z); }
-      else if (o.k === 'npc') { var hm = img('haemen.png'); if (hm.complete) { ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(X, Y - 4*z, 12*z, 4*z, 0, 0, 7); ctx.fill(); ctx.imageSmoothingEnabled = true; ctx.drawImage(hm, X - 20*z, Y - 64*z, 40*z, 62*z); ctx.imageSmoothingEnabled = false; } }
+      var X = ox + ((o.c ? o.c.fx : o.k === 'player' ? P.fx : o.x) + .5) * TZ, Y = oy + ((o.c ? o.c.fy : o.k === 'player' ? P.fy : o.y) + 1) * TZ;
+      if (spr[o.k]) ART.draw(ctx, spr[o.k], X, Y, z);
+      else if (o.k === 'A') ART.draw(ctx, ART.frame('astralite', 'any', now / 500), X, Y, z);
+      else if (o.k === 'ship') ART.draw(ctx, 'ship', X, Y + 2 * z, z);
+      else if (o.k === 'npc') { shadow(X, Y, z, 10); ART.draw(ctx, ART.frame('haemen', M.npc.dir || 'down', 0), X, Y, z); }
       else if (o.k === 'critter') drawCritter(o.c, X, Y, z, now);
       else if (o.k === 'player') drawPlayer(X, Y, z);
     });
     for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
       if (fogArr[y * M.W + x]) continue;
-      ctx.fillStyle = M.def.indoor ? 'rgba(6,4,3,.96)' : 'rgba(11,9,18,.9)';
-      ctx.fillRect(Math.floor(ox + x * T * z), Math.floor(oy + y * T * z), Math.ceil(T * z) + 1, Math.ceil(T * z) + 1);
+      ctx.fillStyle = M.def.indoor ? 'rgba(6,4,3,.96)' : 'rgba(11,9,18,.92)';
+      ctx.fillRect(ox + x * TZ, oy + y * TZ, TZ, TZ);
     }
     if (M.def.indoor) {
-      var gr = ctx.createRadialGradient(w / 2, h / 2, T * z * 1.5, w / 2, h / 2, T * z * 5);
+      var gr = ctx.createRadialGradient(w / 2, h / 2, TZ * 1.5, w / 2, h / 2, TZ * 5);
       gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.7)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
     }
-    // facing marker: what A will examine
+    // facing marker: what A will examine (pocket-style corner brackets)
     if (!P.moving && !dialogOpen) {
-      var f = facing(), fx = ox + f.x * T * z, fy = oy + f.y * T * z, fc = at(f.x, f.y);
+      var f = facing(), fx = ox + f.x * TZ, fy = oy + f.y * TZ, fc = at(f.x, f.y);
       var interesting = 'TbAMSXB'.indexOf(fc) >= 0 || critterAt(f.x, f.y) || (M.npc && M.npc.x === f.x && M.npc.y === f.y);
-      if (interesting) { ctx.strokeStyle = 'rgba(255,224,150,' + (.4 + .3 * Math.sin(now / 250)) + ')'; ctx.lineWidth = 2 * DPR; ctx.strokeRect(fx + 3*z, fy + 3*z, T*z - 6*z, T*z - 6*z); }
+      if (interesting && Math.floor(now / 400) % 2) {
+        ctx.fillStyle = '#ffe08a';
+        [[0,0],[T-3,0],[0,T-3],[T-3,T-3]].forEach(function(c){ ctx.fillRect(fx + c[0] * z, fy + c[1] * z, 3 * z, z); ctx.fillRect(fx + c[0] * z + (c[0] ? 2 * z : 0), fy + c[1] * z, z, 3 * z); });
+      }
     }
-  }
-  function drawImg(name, X, Y, wT, hT, z){
-    var im = img(name); if (!im.complete || !im.naturalWidth) return;
-    var w = wT * T * z, h = hT * T * z;
-    ctx.drawImage(im, X - w / 2, Y - h, w, h);
-  }
-  function drawSheet(name, row, col, X, Y, sizeT, z, fr){
-    var im = img(name); if (!im.complete || !im.naturalWidth) return;
-    var s = sizeT * T * z;
-    ctx.drawImage(im, col * fr, row * fr, fr, fr, X - s / 2, Y - s + 2 * z, s, s);
   }
   function drawCritter(c, X, Y, z, now){
     if (!fogArr[c.y * M.W + c.x]) return;
-    var s = subj(c.id), size = c.id === 'volcanut' ? 1.45 : c.id === 'aetherwing' ? 1.05 : 1.2;
-    var lift = c.flies ? (12 + Math.sin(now / 160 + c.x) * 4) * z : 0, inWater = c.swims && at(c.x, c.y) === '~';
-    if (inWater) { ctx.save(); ctx.beginPath(); ctx.rect(X - 40*z, Y - 80*z, 80*z, 70*z); ctx.clip(); }
-    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(X, Y - 4*z, 12*z, 4*z, 0, 0, 7); ctx.fill();
-    var col = c.t < 1 || c.flies ? Math.floor(c.anim) % 4 : 0, sx = c.state === 'warn' ? Math.sin(now / 30) * 2 * z : 0;
-    drawSheet(s.sprite, ROW[c.dir], col, X + sx, Y - lift, size, z, 72);
-    if (inWater) ctx.restore();
+    var lift = c.flies ? Math.round(5 + Math.sin(now / 160 + c.x) * 2) * z : 0, inWater = c.swims && at(c.x, c.y) === '~';
+    if (!inWater) shadow(X, Y, z, c.flies ? 8 : 12);
+    var n = c.flies ? now / 90 : (c.t < 1 ? c.anim * .6 : 0), sx = c.state === 'warn' ? (Math.floor(now / 60) % 2 ? z : -z) : 0;
+    var spec = ART.frame(c.id, c.dir, n);
+    if (inWater) {          // only head and shoulders above the surface
+      var cnv = ART.canvas(spec); if (cnv) { ctx.drawImage(cnv, 0, 0, cnv.width, cnv.height - 5, Math.round(X - cnv.width * z / 2), Math.round(Y - cnv.height * z), cnv.width * z, (cnv.height - 5) * z); }
+    } else ART.draw(ctx, spec, X + sx, Y - lift, z);
     if (c.state === 'warn' || c.state === 'flee') {
-      ctx.fillStyle = c.state === 'warn' ? '#ffde59' : '#ffffff'; ctx.font = 'bold ' + (18 * z) + 'px Courier Prime, monospace'; ctx.textAlign = 'center';
-      ctx.fillText('!', X, Y - size * T * z - lift);
+      var bx = X - 3 * z, by = Y - 19 * z - lift;
+      ctx.fillStyle = '#1c1626'; ctx.fillRect(bx - z, by - z, 8 * z, 10 * z);
+      ctx.fillStyle = c.state === 'warn' ? '#ffde59' : '#ffffff'; ctx.fillRect(bx + 2 * z, by, 2 * z, 5 * z); ctx.fillRect(bx + 2 * z, by + 6 * z, 2 * z, 2 * z);
     }
   }
   function drawPlayer(X, Y, z){
-    var sp = P.dir === 'up' ? SPR.back : P.dir === 'down' ? SPR.front : SPR.side;
-    var bob = P.moving ? Math.abs(Math.sin(P.anim)) * 2 * z : 0, sc = z * (P.stalk ? .74 : .8);
-    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(X, Y - 4*z, 10 * z, 4 * z, 0, 0, 7); ctx.fill();
-    ctx.save(); ctx.translate(X, Y - 3*z - bob);
-    if (P.dir === 'left') ctx.scale(-1, 1);
-    ctx.drawImage(sp, -sp.width * sc / 2, -sp.height * sc, sp.width * sc, sp.height * sc);
-    ctx.restore();
+    shadow(X, Y, z, 10);
+    var step = P.moving ? Math.floor(P.anim / 1.6) % 4 : 0;
+    ART.draw(ctx, ART.frame('carl', P.dir, step), X, Y, z, P.stalk ? .8 : null);
   }
 
   // ───────────────────────── boot ─────────────────────────

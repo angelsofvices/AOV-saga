@@ -403,3 +403,19 @@ Source (locked): [02_CARL_NASARO_LIVING_MASTER_CODEX_CANON.md](02_CARL_NASARO_LI
 3. **Two Aurelleaps?** The older file lists a *first* Aurelleap through the Aetherstride and a *second* one that destroys AEP-28. This canon names the 1955 launch "THE AURELLEAP". Possibly the 1945 crossing is the first and 1955 the second.
 4. **Timeline warning resolved.** The older file flagged Auraxion's expedition (after 2031) against Earth contact (1945). The fixed chain and dates in this canon settle that.
 5. **Aurellyn's later life.** The older file says Aurellyn "spends decades as Earth's first hero" and later "dies heroically", with no natural children. This canon doesn't contradict it, and the coda stops at 1955.
+
+---
+
+## 21 · Native art · pocket edition · 2026-10-07
+
+Creator direction: *build all the assets of the game using native elements so they can be fully customized; a mobile version of the saga, pocket style but extremely deep.*
+
+- **`explorer/art.js`** holds every in-game picture as pixel data: one string per row, one letter per pixel, and a shared `PALETTE` (plus optional per-sprite colours). `sym:true` sprites store the left half and mirror it. `ANIM` lists each character's walk frames (`|flip` mirrors a frame).
+- **Pocket rendering:** 16×16 tiles, whole-number scaling only, camera snapped to the pixel grid, two-frame water and Astralite glow, pixel shadows, pixel "!" alerts and corner-bracket focus markers.
+- **Everything in play is native:** the tiles (grass, flowers, path, water, den floor, rock, cave mouth), the props (Malezor fruit tree, metallic-leafed shrub, boulder, Astralite, carved markings, sign), Carl Nasaro's rocket, Carl himself (4 directions, 2-step walk), the fur-clad Haemen, and the Zyrex Otterlin, Verdanix, Aetherwing and Volcanut. Cards and encounter screens draw from the same data.
+- **`explorer/studio.html`** is the Art Studio:
+  - **Tools:** pencil, eraser, fill, colour picker, mirror painting and undo.
+  - **Palette:** change a colour for one sprite or everywhere.
+  - **Preview:** each sprite on grass, with its walk animation.
+  - **APPLY TO GAME** tests an edit in this browser; **EXPORT CODE** gives the entry to paste into `art.js` so it ships for everyone.
+- The painted sprites in `assets/` and `explorer/assets/` remain in the repo, untouched, as reference art.

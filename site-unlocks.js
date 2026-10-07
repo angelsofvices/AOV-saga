@@ -83,6 +83,11 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-07', build:'LIVING MASTER CODEX · SURVEY 4', title:'Pocket Edition',
+      notes:[
+        'Every sprite in the Living Master Codex is now native pixel art, drawn crisp at true pocket resolution',
+        'Carl Nasaro, the Malezor Haemen, the four Zyrex, the rocket and every tile can be redrawn in the new Art Studio'
+      ] },
     { date:'2026-10-07', build:'LIVING MASTER CODEX · SURVEY 3', title:'Carl Nasaro',
       notes:[
         'Project 1936 is now THE LIVING MASTER CODEX: the playable, ever-expanding Master Codex of the saga',

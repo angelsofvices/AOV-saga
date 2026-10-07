@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#14110d" />
+  <meta name="robots" content="noindex" />
+  <title>Art Studio · The Living Master Codex</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Courier+Prime:wght@400;700&display=swap">
+  <style>
+    /* ★ 2026-10-07 · ART STUDIO · edits the native pixel art in /explorer/art.js */
+    :root{ --bg:#14110d; --panel:#221d17; --panel2:#2c261e; --line:#4a3e2c; --gold:#d9b46a; --gold-hi:#f3d28c; --paper:#efe6d0; --dim:#a99f86; --red:#d24a36;
+      --mono:'Courier Prime','Courier New',monospace; --serif:'Cinzel',serif; color-scheme:dark; }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--paper);font-family:var(--mono);font-size:14px}
+    button,input,select{font:inherit;color:inherit}
+    button{cursor:pointer;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:.45rem .7rem}
+    button:hover{border-color:var(--gold)}
+    button.on{background:var(--gold);color:#1a140c;border-color:var(--gold)}
+    button.primary{background:linear-gradient(180deg,var(--gold-hi),var(--gold));color:#1a140c;border-color:#3b2d18;font-weight:700}
+    button:focus-visible,input:focus-visible{outline:2px solid var(--gold-hi);outline-offset:2px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+    header h1{font-family:var(--serif);font-size:1.05rem;letter-spacing:.1em;margin:0;color:var(--gold-hi)}
+    header p{margin:2px 0 0;color:var(--dim);font-size:.78rem}
+    header a{color:var(--gold-hi)}
+    .wrap{display:grid;grid-template-columns:240px minmax(0,1fr) 300px;gap:0;min-height:calc(100vh - 62px)}
+    @media (max-width:1000px){ .wrap{grid-template-columns:1fr} #list{max-height:220px} }
+    aside,main{padding:12px;border-right:1px solid var(--line)}
+    #list{overflow:auto}
+    #list h3{font-family:var(--serif);font-size:.72rem;letter-spacing:.16em;color:var(--gold);margin:12px 0 6px}
+    #list .items{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+    #list button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;font-size:.62rem;word-break:break-all;position:relative}
+    #list button img{width:40px;height:40px;object-fit:contain;image-rendering:pixelated}
+    #list button.sel{border-color:var(--gold-hi);background:#3a301f}
+    #list button i{position:absolute;top:2px;right:4px;font-style:normal;color:var(--red);font-size:.8rem}
+    main{display:flex;flex-direction:column;gap:10px;align-items:center}
+    .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center}
+    .bar label{display:flex;align-items:center;gap:6px;color:var(--dim)}
+    #grid{touch-action:none;image-rendering:pixelated;background:repeating-conic-gradient(#2a2520 0 25%,#1e1a15 0 50%) 0 0/16px 16px;border:1px solid var(--line);max-width:100%}
+    #info{color:var(--dim);font-size:.8rem;text-align:center;max-width:60ch;margin:0}
+    .side{display:flex;flex-direction:column;gap:14px}
+    .side h3{font-family:var(--serif);font-size:.72rem;letter-spacing:.16em;color:var(--gold);margin:0 0 6px}
+    #pal{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+    #pal button{aspect-ratio:1;padding:0;border-radius:3px;position:relative;font-size:.62rem;font-weight:700;display:flex;align-items:flex-end;justify-content:flex-end}
+    #pal button span{background:rgba(0,0,0,.55);color:#fff;padding:0 3px;border-radius:2px}
+    #pal button.sel{outline:3px solid var(--gold-hi);outline-offset:1px}
+    #pal button.clear{background:repeating-conic-gradient(#555 0 25%,#333 0 50%) 0 0/8px 8px}
+    .colrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .colrow input[type=color]{width:44px;height:32px;border:1px solid var(--line);background:none;padding:0}
+    .colrow input[type=text]{width:90px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:.3rem .4rem}
+    #prev{width:100%;image-rendering:pixelated;border:1px solid var(--line);border-radius:4px}
+    textarea{width:100%;min-height:150px;background:#0c0a08;color:#cfe8b0;border:1px solid var(--line);border-radius:4px;font:12px/1.4 var(--mono);padding:8px}
+    .note{color:var(--dim);font-size:.78rem;line-height:1.5;margin:0}
+    .stack{display:flex;flex-direction:column;gap:6px}
+    .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--paper);color:#2a2118;padding:.5rem .9rem;border-radius:3px;box-shadow:0 6px 20px rgba(0,0,0,.6);display:none}
+  </style>
+</head>
+<body>
+<header>
+  <div><h1>ART STUDIO · THE LIVING MASTER CODEX</h1><p>Every sprite in the game is native pixel data. Paint here, apply to see it in the game, export to make it permanent.</p></div>
+  <a href="/explorer/" target="_blank" rel="noopener">OPEN THE GAME ↗</a>
+</header>
+<div class="wrap">
+  <aside id="list" aria-label="Sprites"></aside>
+  <main>
+    <div class="bar" role="toolbar" aria-label="Tools">
+      <button data-tool="pen" class="on" title="Pencil (P)">✎ PENCIL</button>
+      <button data-tool="erase" title="Eraser (E)">⌫ ERASER</button>
+      <button data-tool="fill" title="Fill (F)">▨ FILL</button>
+      <button data-tool="pick" title="Pick colour (I)">◉ PICK</button>
+      <label><input type="checkbox" id="mirror"> MIRROR</label>
+      <button id="undo" title="Undo (Ctrl+Z)">↶ UNDO</button>
+      <label>ZOOM <input type="range" id="zoom" min="8" max="32" value="22"></label>
+    </div>
+    <canvas id="grid" aria-label="Pixel editor"></canvas>
+    <p id="info"></p>
+    <div class="bar">
+      <button class="primary" id="apply">APPLY TO GAME</button>
+      <button id="revert">REVERT SPRITE</button>
+      <button id="export">EXPORT CODE</button>
+    </div>
+  </main>
+  <aside class="side">
+    <div><h3>PALETTE</h3><div id="pal"></div></div>
+    <div><h3>COLOUR OF <b id="selch">—</b></h3>
+      <div class="colrow"><input type="color" id="col"><input type="text" id="hex" maxlength="7" aria-label="Hex colour">
+        <button id="colSprite" title="Change this colour for this sprite only">THIS SPRITE</button><button id="colAll" title="Change this colour everywhere in the game">EVERYWHERE</button></div></div>
+    <div><h3>PREVIEW</h3><canvas id="prev" width="192" height="96"></canvas></div>
+    <div class="stack"><h3>EXPORT</h3>
+      <textarea id="out" readonly placeholder="Press EXPORT CODE, then paste the entry into explorer/art.js (replace the sprite with the same name)."></textarea>
+      <button id="copy">COPY</button>
+      <p class="note">APPLY TO GAME saves your edits in this browser only, so you can test them right away. To make them permanent for every player, EXPORT, paste the entry into <b>explorer/art.js</b>, then commit and push.</p>
+      <button id="resetAll">CLEAR ALL STUDIO EDITS</button></div>
+  </aside>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script src="/explorer/art.js"></script>
+<script>
+(function(){
+  'use strict';
+  var A = window.AOV_ART, $ = function(s){ return document.querySelector(s); };
+  var cur = null, rows = null, pal = {}, letter = 'k', tool = 'pen', zoom = 22, undo = [], dragging = false;
+  var grid = $('#grid'), g = grid.getContext('2d');
+  function toast(t){ var el = $('#toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function(){ el.style.display = 'none'; }, 1800); }
+  function colourOf(ch){ return pal[ch] || A.colour(cur, ch); }
+
+  // sprite list, grouped
+  function buildList(){
+    var groups = {}, edits = A.overrides();
+    A.names().forEach(function(n){ var d = A.SPRITES[n]; (groups[d.group] = groups[d.group] || []).push(n); });
+    $('#list').innerHTML = Object.keys(groups).map(function(gname){
+      return '<h3>' + gname.toUpperCase() + '</h3><div class="items">' + groups[gname].map(function(n){
+        return '<button data-n="' + n + '"' + (n === cur ? ' class="sel"' : '') + '><img alt="" src="' + A.url(n, 4) + '">' + n + (edits[n] ? '<i title="Edited in the studio">●</i>' : '') + '</button>';
+      }).join('') + '</div>';
+    }).join('');
+  }
+  $('#list').addEventListener('click', function(e){ var b = e.target.closest('[data-n]'); if (b) open(b.dataset.n); });
+
+  function open(name){
+    cur = name; rows = A.rows(name).map(function(r){ return r.split(''); });
+    var d = A.def(name); pal = Object.assign({}, d.pal || {}); undo = [];
+    buildList(); buildPalette(); draw(); preview();
+    $('#info').textContent = name + ' · ' + rows[0].length + '×' + rows.length + (d.note ? ' · ' + d.note : '') + (d.edited ? ' · (edited in studio)' : '');
+    $('#out').value = '';
+  }
+
+  function buildPalette(){
+    var keys = Object.keys(A.PALETTE);
+    $('#pal').innerHTML = '<button class="clear' + (letter === '.' ? ' sel' : '') + '" data-l="." title="Transparent"><span>.</span></button>' +
+      keys.map(function(k){ return '<button data-l="' + k + '" style="background:' + colourOf(k) + '"' + (k === letter ? ' class="sel"' : '') + ' title="' + k + ' ' + colourOf(k) + '"><span>' + k + '</span></button>'; }).join('');
+    $('#selch').textContent = letter === '.' ? 'TRANSPARENT' : letter;
+    var c = letter === '.' ? '#000000' : colourOf(letter); $('#col').value = c; $('#hex').value = c;
+  }
+  $('#pal').addEventListener('click', function(e){ var b = e.target.closest('[data-l]'); if (!b) return; letter = b.dataset.l; if (tool === 'erase') setTool('pen'); buildPalette(); });
+
+  function draw(){
+    var w = rows[0].length, h = rows.length;
+    grid.width = w * zoom; grid.height = h * zoom;
+    g.clearRect(0, 0, grid.width, grid.height);
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      var ch = rows[y][x]; if (ch === '.') continue;
+      g.fillStyle = colourOf(ch) || '#f0f'; g.fillRect(x * zoom, y * zoom, zoom, zoom);
+    }
+    g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1;
+    for (x = 0; x <= w; x++) { g.beginPath(); g.moveTo(x * zoom + .5, 0); g.lineTo(x * zoom + .5, h * zoom); g.stroke(); }
+    for (y = 0; y <= h; y++) { g.beginPath(); g.moveTo(0, y * zoom + .5); g.lineTo(w * zoom, y * zoom + .5); g.stroke(); }
+    if ($('#mirror').checked) { g.strokeStyle = 'rgba(243,210,140,.5)'; g.beginPath(); g.moveTo(w * zoom / 2, 0); g.lineTo(w * zoom / 2, h * zoom); g.stroke(); }
+  }
+  function snapshot(){ undo.push(rows.map(function(r){ return r.slice(); })); if (undo.length > 80) undo.shift(); }
+  function cellAt(e){ var r = grid.getBoundingClientRect(); return { x:Math.floor((e.clientX - r.left) / r.width * rows[0].length), y:Math.floor((e.clientY - r.top) / r.height * rows.length) }; }
+  function setPx(x, y, ch){
+    var w = rows[0].length;
+    if (y < 0 || y >= rows.length || x < 0 || x >= w) return;
+    rows[y][x] = ch;
+    if ($('#mirror').checked) rows[y][w - 1 - x] = ch;
+  }
+  function fill(x, y, ch){
+    var from = rows[y][x]; if (from === ch) return;
+    var q = [[x, y]], w = rows[0].length, h = rows.length;
+    while (q.length) { var p = q.pop(), px = p[0], py = p[1]; if (px < 0 || py < 0 || px >= w || py >= h || rows[py][px] !== from) continue; rows[py][px] = ch; q.push([px+1,py],[px-1,py],[px,py+1],[px,py-1]); }
+  }
+  function act(e, first){
+    var c = cellAt(e); if (c.y < 0 || c.y >= rows.length || c.x < 0 || c.x >= rows[0].length) return;
+    if (tool === 'pick') { letter = rows[c.y][c.x]; setTool('pen'); buildPalette(); return; }
+    if (first) snapshot();
+    if (tool === 'fill') { if (first) fill(c.x, c.y, letter); }
+    else setPx(c.x, c.y, tool === 'erase' ? '.' : letter);
+    draw(); preview();
+  }
+  grid.addEventListener('pointerdown', function(e){ e.preventDefault(); dragging = true; try { grid.setPointerCapture(e.pointerId); } catch(err){} act(e, true); });
+  grid.addEventListener('pointermove', function(e){ if (dragging && (tool === 'pen' || tool === 'erase')) act(e, false); });
+  grid.addEventListener('pointerup', function(){ dragging = false; });
+  grid.addEventListener('pointercancel', function(){ dragging = false; });
+
+  function setTool(t){ tool = t; document.querySelectorAll('[data-tool]').forEach(function(b){ b.classList.toggle('on', b.dataset.tool === t); }); }
+  document.querySelectorAll('[data-tool]').forEach(function(b){ b.addEventListener('click', function(){ setTool(b.dataset.tool); }); });
+  $('#undo').addEventListener('click', function(){ if (undo.length) { rows = undo.pop(); draw(); preview(); } });
+  $('#mirror').addEventListener('change', draw);
+  $('#zoom').addEventListener('input', function(){ zoom = +this.value; draw(); });
+  document.addEventListener('keydown', function(e){
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('#undo').click(); return; }
+    var k = { p:'pen', e:'erase', f:'fill', i:'pick' }[e.key.toLowerCase()]; if (k) setTool(k);
+  });
+
+  // colours
+  function setColour(hex, everywhere){
+    if (!/^#[0-9a-f]{6}$/i.test(hex) || letter === '.') return;
+    if (everywhere) {
+      var gp = Object.assign({}, A.overrides().__palette || {}); gp[letter] = hex; A.saveOverride('__palette', gp);
+      delete pal[letter]; toast('Colour ' + letter + ' changed everywhere (applied in this browser)');
+    } else { pal[letter] = hex; toast('Colour ' + letter + ' changed for ' + cur + ' · APPLY to keep it'); }
+    buildPalette(); draw(); preview(); buildList();
+  }
+  $('#col').addEventListener('input', function(){ $('#hex').value = this.value; });
+  $('#colSprite').addEventListener('click', function(){ setColour($('#hex').value || $('#col').value, false); });
+  $('#colAll').addEventListener('click', function(){ setColour($('#hex').value || $('#col').value, true); });
+
+  // live preview: on grass, at game scale, animating its walk set if it has one
+  var tick = 0;
+  function preview(){
+    var c = $('#prev'), pg = c.getContext('2d'); pg.imageSmoothingEnabled = false;
+    var grass = A.canvas('grass'); for (var y = 0; y < c.height; y += 16) for (var x = 0; x < c.width; x += 16) pg.drawImage(grass, x, y);
+    var w = rows[0].length, h = rows.length, s = Math.max(1, Math.min(3, Math.floor(80 / Math.max(w, h)) || 1));
+    var tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h; var tg = tmp.getContext('2d');
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) { var ch = rows[y][x]; if (ch !== '.') { tg.fillStyle = colourOf(ch); tg.fillRect(x, y, 1, 1); } }
+    pg.drawImage(tmp, Math.round(48 - w * s / 2), c.height - 8 - h * s, w * s, h * s);
+    // the animation set this sprite belongs to, using the game's current data
+    var set = null; Object.keys(A.ANIM).forEach(function(k){ Object.keys(A.ANIM[k]).forEach(function(d){ if (A.ANIM[k][d].some(function(f){ return f.split('|')[0] === cur; })) set = set || [k, d]; }); });
+    if (set) { var list = A.ANIM[set[0]][set[1]]; A.draw(pg, list[tick % list.length], 144, c.height - 8, 3); }
+  }
+  setInterval(function(){ tick++; if (cur) preview(); }, 260);
+
+  // apply / revert / export
+  $('#apply').addEventListener('click', function(){
+    A.saveOverride(cur, { rows:rows.map(function(r){ return r.join(''); }), pal:Object.keys(pal).length ? pal : undefined });
+    buildList(); toast('Applied. Reload the game to see it (this browser only).');
+  });
+  $('#revert').addEventListener('click', function(){ A.clearOverride(cur); open(cur); toast('Reverted to the version in art.js'); });
+  $('#resetAll').addEventListener('click', function(){ if (confirm('Clear every studio edit in this browser?')) { A.clearOverride(); open(cur); toast('All studio edits cleared'); } });
+  $('#export').addEventListener('click', function(){
+    var d = A.SPRITES[cur], body = rows.map(function(r){ return JSON.stringify(r.join('')); }).join(',\n      ');
+    var extra = (Object.keys(pal).length ? ', pal:' + JSON.stringify(pal) : '') + (d.note ? ', note:' + JSON.stringify(d.note) : '');
+    var gp = A.overrides().__palette;
+    $('#out').value = '    ' + cur + ': { group:' + JSON.stringify(d.group) + extra + ',\n      rows:[' + body + '] },' +
+      (gp && Object.keys(gp).length ? '\n\n// Palette changes made with EVERYWHERE (merge into PALETTE):\n// ' + JSON.stringify(gp) : '');
+    $('#out').select();
+  });
+  $('#copy').addEventListener('click', function(){
+    var t = $('#out'); if (!t.value) $('#export').click();
+    t.select(); try { navigator.clipboard.writeText(t.value).then(function(){ toast('Copied'); }); } catch(e){ document.execCommand('copy'); toast('Copied'); }
+  });
+
+  open(location.hash.slice(1) && A.SPRITES[location.hash.slice(1)] ? location.hash.slice(1) : 'carl_down');
+})();
+</script>
+</body>
+</html>

@@ -364,7 +364,13 @@ Recorded from the Creator's direction after the first playable build. These take
 7. **Aethren encounters** lead to observation, interaction or battle, depending on the Aethren. **Haemen cards** come from a relationship or discovery requirement, not from simply meeting someone.
 8. **Set 19 is URALYX** (Creator ruling, 2026-10-07). Ultharis is the Highest One only. The schematic SVG/PNG and the game data now read Uralyx. AEP-28 is not drawn on the map yet ("eventually").
 9. **District IX is THARDIN** (Creator ruling, 2026-10-07). *Thardun* is the corporation that manufactures Zyspheres, never the district. The explorer, the environments and the Zyraxis page now read Thardin.
-10. **AEP-28 is SEALED** (Creator ruling, 2026-10-07): not drawn, not landable, not described. The World Atlas shows it as SEALED and no notes about it ship in the game files.
+10. **AEP-28 is SEALED** (Creator ruling, 2026-10-07): not landable, not described. The AstraNav shows it only as a dim body marked *No. 28 · SEALED* (the Creator asked for all 28 bodies in view); the World Atlas shows it as SEALED, and no notes about it ship in the game files.
+11. **The player plays the role of Nasaro** (Creator ruling, 2026-10-07). The game opens like a classic handheld: PRESS START, a mentor (the program's Director), then the player picks a gender, names themselves (surname NASARO is fixed; CARL is offered as the recorded name) and fits their kit before the mission orders.
+12. **The AstraNav replaces the camera and every menu** (Creator ruling, 2026-10-07). Aethren are scanned into the AstraNav, not photographed; cards manifest on the scan. The AstraNav is early American tech issued on the first mission. After hyperspace it wakes with all 28 bodies in view, and the player chooses the first landing from there.
+13. **The map is a natural spiral, as seen through a telescope** (Creator ruling, 2026-10-07), not the top-down four-spire diagram. To be matched to RP7D's telescope view.
+14. **Open world** (Creator ruling, 2026-10-07): collect cards, battle Aethren, meet the peoples to learn the world, travel planet to planet. Full DualSense support; native landscape on phones. All customisation stays (Art Studio, World Atlas, kit, settings).
+
+Full design of builds 6–7: [04_OPEN_EXPANSE.md](04_OPEN_EXPANSE.md).
 
 ### Implemented in survey build 2 (`/explorer/`)
 - The map board home screen with canon positions, unknown/named/visited states, drive range, the two goals and a progress bar for the first map.

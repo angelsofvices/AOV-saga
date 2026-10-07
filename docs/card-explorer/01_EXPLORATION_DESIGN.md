@@ -348,3 +348,26 @@ Locked worlds show on the star chart as **UNCHARTED BODY**, with their 1936 desc
 1. **02 · Card battle system:** deck size, battlefield, resources, turn structure and how PvE encounters from §8 play out, designed to feel native to AOV.
 2. **03 · Data and accounts:** the card schema, the Lexicon, save files, and the path to the universal AOV account, physical-card redemption and RP7 integration.
 3. **First playable prototype:** one Zyraxis zone (Malezor is the best fit, since RP7D's Malezor handoff already exists), with movement, camera, film, the Darkroom reveal and one Lexicon reclassification. That's enough to feel whether the loop is fun.
+
+---
+
+## 19 · Creator rulings · 2026-10-07
+
+Recorded from the Creator's direction after the first playable build. These take precedence over earlier sections where they differ.
+
+1. **The two goals of the game:** (I) collect cards to bring back to Earth; (II) construct the first map of the newly discovered star system. Both are shown as the headline goals on the home screen and in the Expedition Log.
+2. **Mainline status:** this game is the culmination of RP1 through RP7, and of RP8 and RP9: the living game of all the others. Only this game, RP7B and RP7D survive as the mainline games.
+3. **The home screen is the map of the Expanse.** The whole system is visible at once, in the style of the Creator's map-board reference: a glowing cosmic chart on a board in a dark stone room, framed by gold-edged parchment panels. Flow: *Expanse map → select world → land → classic 2D exploration → discover/collect cards → return to ship/map → next expedition.*
+4. **Unknown bodies reveal nothing** until reached and named: *UNIDENTIFIED BODY No. 7 · DISTANCE (instrument reading) · SURVEY: NONE*. Once named, the map itself updates. Known bodies show *SET nn — NAME · STATUS · SURVEY % · CARDS n / ??? · LAST EXPEDITION · [EXPLORE]*.
+5. **Hierarchy:** Aethryx map → planet → district/region → 2D exploration map → discoveries → cards. Zyraxis's districts become explorable maps in canon order (Malezor → Zarvane → Andrannor → …), shown from a different historical perspective than RP7.
+6. **Exploration is classic, lightweight, top-down 2D**, in the readable spirit of classic Pokémon: grid movement, compact maps, buildings, caves, NPCs, interactable objects, hidden items, district transitions. A to examine. No heavy action combat. The appeal: *"I'm going somewhere new. What cards can I find here?"*
+7. **Aethren encounters** lead to observation, interaction or battle, depending on the Aethren. **Haemen cards** come from a relationship or discovery requirement, not from simply meeting someone.
+8. **Set 19's name follows the handoff and the schematic: ULTHARIS** (`AETHRYX_EXPANSE_SCHEMATIC.png` labels it so). `data/AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` still says Planet 19 = Uralyx and should be reconciled by the Creator. AEP-28 is not drawn on the map yet ("eventually").
+
+### Implemented in survey build 2 (`/explorer/`)
+- The map board home screen with canon positions, unknown/named/visited states, drive range, the two goals and a progress bar for the first map.
+- World panel → Zyraxis's ten districts (Malezor playable) → landing.
+- Grid exploration with D-pad, A/B, tap-to-walk, dialog boxes, a cave interior (The First Den) with a warp, hidden finds, a blocked route sign toward the next district.
+- Plants and minerals: examine → SPECIMEN DOCUMENTED → card acquired on the spot.
+- Encounter screens per temperament: observe, offer (curious), photograph with a focus ring (flighty ones must be caught mid-hover), and a CARD BATTLE slot for territorial Aethren, marked *soon* until the battle system is designed.
+- A Haemen whose card is earned by first contact, then returning with developed photographs, which also teaches the first true names.

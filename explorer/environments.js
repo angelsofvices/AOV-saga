@@ -734,7 +734,7 @@ window.AOV_ENV = [
   },
   "mechanic": {
    "name": "Ten districts",
-   "rule": "Malezor → Zarvane → Andrannor → Veridan → Netharion → Vorashil → Xilnar → Baelgor → Thardun → Korathen."
+   "rule": "Malezor → Zarvane → Andrannor → Veridan → Netharion → Vorashil → Xilnar → Baelgor → Thardin → Korathen."
   },
   "landmarks": [],
   "telescope": "CRYSTALLINE BODY, VIOLET CAST. TWO RINGS.",
@@ -2272,15 +2272,15 @@ window.AOV_ENV = [
   "kind": "world",
   "no": 28,
   "name": "AEP-28",
-  "title": "The Drift World",
+  "title": "SEALED",
   "spoiler": true,
   "canon": {
-   "trait": "The Drift Planet: the Fourth Question.",
-   "firstRace": "UNKNOWN.",
-   "notes": "Outside the ordered systems entirely; it wanders and crosses every ring. Three scholarly camps: Transition, Renewal, Forgotten. Canonically open. (In 1955 it comes to Earth: the Carl Nasaro canon.)",
-   "notable": "Primalut (contested)"
+   "trait": "SEALED.",
+   "firstRace": "",
+   "notes": "",
+   "notable": ""
   },
-  "concept": "Deliberately undesigned. AEP-28 is not drawn on the chart and is not landable in the 1936–1945 expedition. Its environment is the Creator's to reveal.",
+  "concept": "SEALED by Creator ruling. Not drawn on the chart, not landable, not described. Its environment is the Creator's to reveal.",
   "terrain": [
    "—"
   ],
@@ -2302,7 +2302,7 @@ window.AOV_ENV = [
    "rule": "—"
   },
   "landmarks": [],
-  "telescope": "A FAINT BODY ON AN ORBIT THAT MATCHES NOTHING ELSE.",
+  "telescope": "",
   "mood": "—"
  },
  {
@@ -3006,11 +3006,11 @@ window.AOV_ENV = [
   "spoiler": false
  },
  {
-  "id": "thardun",
+  "id": "thardin",
   "kind": "district",
   "no": 9,
   "world": 9,
-  "name": "THARDUN",
+  "name": "THARDIN",
   "title": "the Mechlands",
   "lord": "Oathane, the Anomaly (missing)",
   "gem": "Ninth formation",

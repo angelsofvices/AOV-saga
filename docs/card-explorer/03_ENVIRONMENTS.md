@@ -12,9 +12,9 @@
 
 ## Naming notes
 
-- District IX is **Thardun** in the game and on the Zyraxis page, **Thardin** in the macro book and the RP7 art folders. This document uses Thardun; the Creator should confirm one spelling.
+- District IX is **Thardin** (Creator ruling, 2026-10-07). *Thardun* is the corporation that manufactures Zyspheres, not the district.
 - World 26 is **Ferros** (handoff set list); the timeline also calls it **Ferralis**.
-- World 28 is listed as **AEP-28** (handoff set list) and left undesigned on purpose.
+- World 28, **AEP-28**, is **SEALED** (Creator ruling, 2026-10-07): no environment, no landing, no telescope reading in play. The Atlas shows it as SEALED.
 
 ## The worlds
 
@@ -127,7 +127,7 @@
 - **Environment:** The Mothergem World is explored district by district; each district is its own environment (below).
 - **Terrain:** see districts
 - **Hazard: By district.** Each district has its own hazard.
-- **Signature mechanic: Ten districts.** Malezor → Zarvane → Andrannor → Veridan → Netharion → Vorashil → Xilnar → Baelgor → Thardun → Korathen.
+- **Signature mechanic: Ten districts.** Malezor → Zarvane → Andrannor → Veridan → Netharion → Vorashil → Xilnar → Baelgor → Thardin → Korathen.
 - **Telescope, 1936:** *CRYSTALLINE BODY, VIOLET CAST. TWO RINGS.*
 - **Sound:** By district.
 
@@ -358,13 +358,10 @@
 - **Telescope, 1936:** *GREEN AND BLUE BODY WITH WHITE CLOUD. IT LOOKS LIKE HOME.*
 - **Sound:** Birdsong. It sounds like home.
 
-### Set 28 · AEP-28 — The Drift World
-**Canon:** The Drift Planet: the Fourth Question. **First race:** UNKNOWN.
+### Set 28 · AEP-28 — SEALED
+**Canon:** SEALED.
 
-> Outside the ordered systems entirely; it wanders and crosses every ring. Three scholarly camps: Transition, Renewal, Forgotten. Canonically open. (In 1955 it comes to Earth: the Carl Nasaro canon.)
-
-- **Environment:** Deliberately undesigned. AEP-28 is not drawn on the chart and is not landable in the 1936–1945 expedition. Its environment is the Creator's to reveal.
-- **Telescope, 1936:** *A FAINT BODY ON AN ORBIT THAT MATCHES NOTHING ELSE.*
+- **Environment:** SEALED by Creator ruling. Not drawn on the chart, not landable, not described. Its environment is the Creator's to reveal.
 
 ## Zyraxis · the ten districts
 
@@ -450,7 +447,7 @@ Malezor is built. The other nine follow the canon order. Landmark names come fro
 - **Canon landmarks:** The Hall of First Settlement · The Tenfold Forum · Baelgor University
 - **Sound:** Market noise and hearth-crackle.
 
-### District IX · THARDUN — the Mechlands
+### District IX · THARDIN — the Mechlands
 *Gemlord: Oathane, the Anomaly (missing) · Gem: Ninth formation · Mechlands*
 
 - **Environment:** Precision machinery that has run without its god: foundries, gears, measured streets. It grew strange because it grew alone.

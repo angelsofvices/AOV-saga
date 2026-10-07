@@ -84,7 +84,7 @@ window.EXP_DATA = {
     9: [
       { id:'malezor',   map:'malezor' },
       { id:'zarvane' }, { id:'andrannor' }, { id:'veridan' }, { id:'netharion' },
-      { id:'vorashil' }, { id:'xilnar' }, { id:'baelgor' }, { id:'thardun' }, { id:'korathen' }
+      { id:'vorashil' }, { id:'xilnar' }, { id:'baelgor' }, { id:'thardin' }, { id:'korathen' }
     ]
   },
 
@@ -107,7 +107,7 @@ window.EXP_DATA = {
     vorashil:   { unknown:'UNSURVEYED REGION',              canon:'VORASHIL' },
     xilnar:     { unknown:'UNSURVEYED REGION',              canon:'XILNAR' },
     baelgor:    { unknown:'UNSURVEYED REGION',              canon:'BAELGOR' },
-    thardun:    { unknown:'UNSURVEYED REGION',              canon:'THARDUN' },
+    thardin:    { unknown:'UNSURVEYED REGION',              canon:'THARDIN' },
     korathen:   { unknown:'UNSURVEYED REGION',              canon:'KORATHEN' },
     firstden:   { unknown:'STONE CAVE',                     canon:'THE FIRST DEN' },
     otterlin:   { unknown:'OTTER-LIKE QUADRUPED',           canon:'OTTERLIN' },
@@ -124,7 +124,7 @@ window.EXP_DATA = {
   teaches: {
     haemen:   ['zyraxis', 'malezor', 'haemen', 'aethren'],
     markings: ['expanse', 'aenor', 'zoryth', 'astralite', 'firstden', 'otterlin', 'verdanix', 'aetherwing', 'volcanut',
-               'zarvane', 'andrannor', 'veridan', 'netharion', 'vorashil', 'xilnar', 'baelgor', 'thardun', 'korathen']
+               'zarvane', 'andrannor', 'veridan', 'netharion', 'vorashil', 'xilnar', 'baelgor', 'thardin', 'korathen']
   },
 
   // ── SUBJECTS · everything that can become a card ────────────────────────

@@ -30,7 +30,7 @@ If any of these are outside your normal scope for the round, mark that section "
 
 - **You are a Rizer** — a trainer. It's your birthday. Your mom and dad give you your first **Zyrex** (creatures) as a birthday gift and you set out to earn the respect of all **10 Gemlords** who rule the Ten Districts of Zyraxis.
 - **You do not kill Gemlords.** You bind their frequency and gain their respect. The final Gemlord is **Oatheus the Ultralord**; besting him makes you **The Conqueror of Gemlords**.
-- **The 10 Districts** are hard canon (I → X): Malezor → Zarvane → Andrannor → Veridan → Netharion (center, unstable) → Vorashil → Xilnar → Baelgor → Thardun → Korathen.
+- **The 10 Districts** are hard canon (I → X): Malezor → Zarvane → Andrannor → Veridan → Netharion (center, unstable) → Vorashil → Xilnar → Baelgor → Thardin → Korathen.
 - **Every card in the codex is the maxed-out state of that Zyrex at Lv (tier × 10).** Tier I Basics cap at Lv 10. Tier VIII Immortals cap at Lv 80. Tier X Gods cap at Lv 100.
 
 **Tone:** cinematic saga (Cinzel display + Cormorant Garamond body) meeting retro-JRPG readability (VT323 pixel for HUD numbers). Look at the rest of the site (`/`, `/saga.html`, `/codex.html`, `/aethryx.html`) to feel the AOV world's visual grammar: dark void backgrounds, gold/mist accents, procedural starfield, glass panels, gemstone glows.

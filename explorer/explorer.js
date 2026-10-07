@@ -510,6 +510,11 @@
     if (selectId) { var b0 = bodies().filter(function(b){ return b.id === selectId; })[0]; if (b0) openSheet(b0); }
     else if (!S.visited[9]) setTimeout(function(){ toast('Every body is unidentified. One lies within range of the drive. Tap it.'); }, 400);
   }
+  // what Carl's 1936 telescope makes of a body (environments.js)
+  function scope(no){
+    var e = (window.AOV_ENV || []).filter(function(x){ return x.kind === 'world' && x.no === no; })[0];
+    return e && !e.spoiler ? e.telescope || '' : '';
+  }
   function openSheet(b){
     var sh = $('.x-sheet'); if (!sh) return;
     $$('.x-bd').forEach(function(g){ g.classList.toggle('sel', g.dataset.id === b.id); });
@@ -525,7 +530,8 @@
       var w = b.w, kn2 = known(w.term), vis = S.visited[w.no];
       if (!kn2 && !vis) {
         html = '<p class="x-sh-k">CATALOGUE ENTRY</p><h3>UNIDENTIFIED BODY No. ' + w.no + '</h3>' +
-          '<dl><dt>DISTANCE</dt><dd>' + au + ' A.U. (INSTRUMENT READING)</dd><dt>SURVEY</dt><dd>NONE</dd></dl>' +
+          '<dl><dt>DISTANCE</dt><dd>' + au + ' A.U. (INSTRUMENT READING)</dd><dt>SURVEY</dt><dd>NONE</dd>' +
+            (scope(w.no) ? '<dt>TELESCOPE</dt><dd>' + esc(scope(w.no)) + '</dd>' : '') + '</dl>' +
           '<p class="x-sh-note">' + (inR ? (w.playable ? 'Within range of the drive. A landing may be possible.' : 'Within range, but no safe landing site has been found. A future expedition.') :
             'Beyond the present range of the drive.') + '</p>' +
           '<div class="x-sh-btns">' + (inR && w.playable ? '<button class="x-btn" data-a="explore">ATTEMPT LANDING</button>' : '') + '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';

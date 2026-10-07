@@ -83,6 +83,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-07', build:'LIVING MASTER CODEX · SURVEY 5', title:'The World Atlas',
+      notes:[
+        'Every one of the 28 worlds and the ten Zyraxis districts now has a designed environment, drawn from the Codex',
+        'Each world has its own terrain, palette, hazard, signature mechanic and canon landmarks; preview them all in the new World Atlas',
+        'Carl\u2019s 1936 telescope now records what he can see of every unidentified body on the map board'
+      ] },
     { date:'2026-10-07', build:'LIVING MASTER CODEX · SURVEY 4', title:'Pocket Edition',
       notes:[
         'Every sprite in the Living Master Codex is now native pixel art, drawn crisp at true pocket resolution',

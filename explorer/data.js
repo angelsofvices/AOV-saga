@@ -131,56 +131,48 @@ window.EXP_DATA = {
   //   tier: canon tier → RARITY n/10. null = no canon tier yet (card shows UNRATED)
   subjects: {
     otterlin: {
-      kind:'aethren', set:9, term:'otterlin', district:'malezor', tier:1, types:'Beast / Aquatic',
-      sprite:'otterlin.png', temperament:'curious',
+      kind:'aethren', art:'otterlin_down', set:9, term:'otterlin', district:'malezor', tier:1, types:'Beast / Aquatic', temperament:'curious',
       canonNote:'Water pup. Common Eastern house pet.',
       journal:'Sleek, dark-furred, the size of a terrier. Swims well. Came close enough to sniff my boot. Not afraid of men, or has never seen one.'
     },
     verdanix: {
-      kind:'aethren', set:9, term:'verdanix', district:'malezor', tier:1, types:'Beast / Verdant',
-      sprite:'verdanix.png', temperament:'skittish',
+      kind:'aethren', art:'verdanix_down', set:9, term:'verdanix', district:'malezor', tier:1, types:'Beast / Verdant', temperament:'skittish',
       canonNote:'Common Eastern green frog.',
       journal:'Amphibian, upright, wearing what I can only call a cloak of leaves. Carries a stick. Flees at the first heavy footstep. Approach low and slow.'
     },
     aetherwing: {
-      kind:'aethren', set:9, term:'aetherwing', district:'malezor', tier:1, types:'Beast / Radiant',
-      sprite:'aetherwing.png', temperament:'flighty',
+      kind:'aethren', art:'aetherwing', set:9, term:'aetherwing', district:'malezor', tier:1, types:'Beast / Radiant', temperament:'flighty',
       canonNote:'Astral dragonfly.',
       journal:'An insect the length of my forearm. The wings give off their own light. Never holds still. Wait for it to hover, then shoot.'
     },
     volcanut: {
-      kind:'aethren', set:9, term:'volcanut', district:'malezor', tier:1, types:'Beast / Aura',
-      sprite:'volcanut.png', temperament:'territorial',
+      kind:'aethren', art:'volcanut_down', set:9, term:'volcanut', district:'malezor', tier:1, types:'Beast / Aura', temperament:'territorial',
       canonNote:'',
       journal:'Spined, heavy, glowing like a stove. The air shimmers above its back. It defends its ground. Photograph quickly and back away.'
     },
     furtrader: {
-      kind:'haemen', set:9, term:'furtrader', district:'malezor', tier:null, types:'Haemen',
-      species:null, sprite:'haemen.png',
+      kind:'haemen', art:'haemen_down', set:9, term:'furtrader', district:'malezor', tier:null, types:'Haemen',
+      species:null,
       canonNote:'',
       journal:'A man in furs and a heavy cap, bearded, broad. Carries a knife but never reached for it. Watched my camera more than he watched me.'
     },
     astralite: {
-      kind:'mineral', set:9, term:'astralite', district:'malezor', tier:null, types:'Mineral',
-      sprite:'astralite.png', sheet:true,
+      kind:'mineral', art:'astralite', set:9, term:'astralite', district:'malezor', tier:null, types:'Mineral',
       canonNote:'',
       journal:'Crystalline mass, blue-violet, warm to the glove. The wireless crackles when I hold it near. Not quartz. Not any mineral I know.'
     },
     shrub: {
-      kind:'plant', set:9, term:'shrub', district:'malezor', tier:null, types:'Botanical',
-      sprite:'bush.png',
+      kind:'plant', art:'shrub', set:9, term:'shrub', district:'malezor', tier:null, types:'Botanical',
       canonNote:'',
       journal:'The leaves appear metallic, yet bend easily beneath pressure. Blue seed-pods like glass beads.'
     },
     fruittree: {
-      kind:'plant', set:9, term:'fruittree', district:'malezor', tier:null, types:'Botanical',
-      sprite:'tree.png',
+      kind:'plant', art:'tree', set:9, term:'fruittree', district:'malezor', tier:null, types:'Botanical',
       canonNote:'',
       journal:'Broad-leafed hardwood heavy with violet fruit. The Otter-like creatures gather beneath it. I have not tasted the fruit. Yet.'
     },
     firstden: {
-      kind:'location', set:9, term:'firstden', district:'malezor', tier:null, types:'Location',
-      sprite:'den.png',
+      kind:'location', art:'markings', set:9, term:'firstden', district:'malezor', tier:null, types:'Location',
       canonNote:'',
       journal:'A cave of fitted stones, worn smooth, scattered with prints. Something has used this place for a very long time.'
     },

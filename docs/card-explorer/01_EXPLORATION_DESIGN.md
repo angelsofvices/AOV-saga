@@ -334,7 +334,7 @@ Locked worlds show on the star chart as **UNCHARTED BODY**, with their 1936 desc
 
 ## 17 · Decisions needed from the Creator
 
-1. **Planet 19's name.** The handoff lists set 19 as **Ultharis**. `data/AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` says: *"Ultharis is reserved for the Highest One context and is not the current name of Planet 19. Planet 19 = Uralyx."* The website also uses **Uralyx**. Which is right for this game and the card set?
+1. ~~**Planet 19's name.**~~ **Answered 2026-10-07: URALYX.** Ultharis is reserved for the Highest One.
 2. **Planet 28's name.** The handoff uses **AEP-28**. The website uses **Ovauron**, and the canon file lists *"Ovauron / AEP-28"* as an open naming question. The same file mentions AEP-28 being destroyed above Earth in the Second Aurelleap, which may matter for a game about a 1936 Earth astronaut. Should the card set be called AEP-28, Ovauron, or both?
 3. ~~**Arrival world.**~~ **Answered 2026-10-07: the astronaut arrives adrift in open space, not at a world** (see §16). Still open: **which worlds should be within reach of the crippled drive** at the start? Including Zyraxis among them would let the game lead with its deepest content (districts, the 131-Zyrex roster, RP7) without forcing it.
 4. **Zyrex and Aethren.** Are Zyrex the Aethren of Zyraxis, with a Zyrex's canon tier (I–X) becoming its rarity (1–10/10)? That would make the RP7 roster the first ready-to-use card pool.
@@ -362,7 +362,7 @@ Recorded from the Creator's direction after the first playable build. These take
 5. **Hierarchy:** Aethryx map → planet → district/region → 2D exploration map → discoveries → cards. Zyraxis's districts become explorable maps in canon order (Malezor → Zarvane → Andrannor → …), shown from a different historical perspective than RP7.
 6. **Exploration is classic, lightweight, top-down 2D**, in the readable spirit of classic Pokémon: grid movement, compact maps, buildings, caves, NPCs, interactable objects, hidden items, district transitions. A to examine. No heavy action combat. The appeal: *"I'm going somewhere new. What cards can I find here?"*
 7. **Aethren encounters** lead to observation, interaction or battle, depending on the Aethren. **Haemen cards** come from a relationship or discovery requirement, not from simply meeting someone.
-8. **Set 19's name follows the handoff and the schematic: ULTHARIS** (`AETHRYX_EXPANSE_SCHEMATIC.png` labels it so). `data/AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` still says Planet 19 = Uralyx and should be reconciled by the Creator. AEP-28 is not drawn on the map yet ("eventually").
+8. **Set 19 is URALYX** (Creator ruling, 2026-10-07). Ultharis is the Highest One only. The schematic SVG/PNG and the game data now read Uralyx. AEP-28 is not drawn on the map yet ("eventually").
 
 ### Implemented in survey build 2 (`/explorer/`)
 - The map board home screen with canon positions, unknown/named/visited states, drive range, the two goals and a progress bar for the first map.
@@ -393,13 +393,13 @@ Source (locked): [02_CARL_NASARO_LIVING_MASTER_CODEX_CANON.md](02_CARL_NASARO_LI
 - The chapter list shows I · 1936 · DISCOVERY. Later chapters read "A FUTURE CHAPTER" so the story isn't spoiled.
 
 **Not yet in the game (needs Creator-approved scenes)**
-- Meeting Aurellyn; his and Aurexion's cards; the Rizer connection.
+- Meeting Aurellyn; his and Auraxion's cards; the Rizer connection.
 - The 1945 ping and the journey to Earth (the moment *Bring it home* becomes possible).
 - The coda (1945–1955).
 
 **Reconciliation notes for the Creator**
-1. **Aurexion / Auraxion.** This canon spells it **Aurexion** (matching `cards_v2`). The website and `data/AOV_SAGA_DEFINITIVE_CANON_HANDOFF.md` spell it **Auraxion** (about 34 files). The game uses *Aurexion*.
+1. ~~**Aurexion / Auraxion.**~~ **Answered 2026-10-07: AURAXION.** The canon file, card data (`cards_v2` display names and text) and `training.html` now read Auraxion. Internal IDs and art filenames (`aurexion`, `card_aurexion.png`, the RP4 walk sheet) are unchanged so the games keep loading them.
 2. **Ovauron and AEP-28.** The older canon file says *AEP-28* is destroyed above Earth in the second Aurelleap; this canon says *Ovauron* is defeated above Earth in 1955. That reads as one body, which would close the "Ovauron / AEP-28" naming question in the older file.
 3. **Two Aurelleaps?** The older file lists a *first* Aurelleap through the Aetherstride and a *second* one that destroys AEP-28. This canon names the 1955 launch "THE AURELLEAP". Possibly the 1945 crossing is the first and 1955 the second.
-4. **Timeline warning resolved.** The older file flagged Aurexion's expedition (after 2031) against Earth contact (1945). The fixed chain and dates in this canon settle that.
+4. **Timeline warning resolved.** The older file flagged Auraxion's expedition (after 2031) against Earth contact (1945). The fixed chain and dates in this canon settle that.
 5. **Aurellyn's later life.** The older file says Aurellyn "spends decades as Earth's first hero" and later "dies heroically", with no natural children. This canon doesn't contradict it, and the coda stops at 1955.

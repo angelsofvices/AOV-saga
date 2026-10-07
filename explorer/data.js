@@ -63,7 +63,7 @@ window.EXP_DATA = {
     { no:16, name:'SYLVANIR',   title:'The Conscious World',      color:'#25613d' },
     { no:17, name:'VELKRYN',    title:'The Consumption World',    color:'#5e1c24' },
     { no:18, name:'IGNARA',     title:'The Instability World',    color:'#d8642a' },
-    { no:19, name:'ULTHARIS',   title:'',                         color:'#7a6aa8' },
+    { no:19, name:'URALYX',     title:'The Perception World',     color:'#7a6aa8' },
     { no:20, name:'HALCYRA',    title:'The Harmony World',        color:'#2a8a96' },
     { no:21, name:'WYVERA',     title:'The Ascension World',      color:'#4a8fd0' },
     { no:22, name:'RHYZOR',     title:'The Resonance World',      color:'#6c80a0' },

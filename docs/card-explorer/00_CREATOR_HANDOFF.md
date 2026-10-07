@@ -1,6 +1,6 @@
 # AOV™ SAGA — NEW WEB/MOBILE GAME HANDOFF
 
-*Source of truth from the Creator, received 2026-10-07. Recorded word for word below; only markdown formatting was added. Design documents in this folder build on it and must not contradict it.*
+*Source of truth from the Creator, received 2026-10-07. Recorded word for word below; only markdown formatting was added. Corrected by the Creator on 2026-10-07: set 19 is **Uralyx** (Ultharis is the Highest One only). Design documents in this folder build on it and must not contradict it.*
 
 ---
 
@@ -245,7 +245,7 @@ The master collection contains exactly 30 celestial/world sets.
 | 16 | Sylvanir |
 | 17 | Velkryn |
 | 18 | Ignara |
-| 19 | Ultharis |
+| 19 | Uralyx |
 | 20 | Halcyra |
 | 21 | Wyvera |
 | 22 | Rhyzor |

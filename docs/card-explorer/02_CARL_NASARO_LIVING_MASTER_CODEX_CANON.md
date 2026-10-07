@@ -1,4 +1,5 @@
-<!-- Received from the Creator 2026-10-07. Recorded word for word. STATUS: CANON — LOCKED. -->
+<!-- Received from the Creator 2026-10-07. Recorded word for word. STATUS: CANON — LOCKED.
+     Spelling corrected by the Creator 2026-10-07: AURAXION (the handoff as sent read "Aurexion"). -->
 
 # THE AOV™ SAGA
 ## Carl Nasaro / Living Master Codex / Mutagenesis Canon Handoff
@@ -13,17 +14,17 @@ This document defines the chronological bridge connecting the RP lineage, the ne
 
 The historical chain is linear:
 
-> **Viridia → Andre Hart → Aurexion → Zyraxis → Rizer → Aurellyn → Carl Nasaro → Earth → Mutagenesis**
+> **Viridia → Andre Hart → Auraxion → Zyraxis → Rizer → Aurellyn → Carl Nasaro → Earth → Mutagenesis**
 
-**Andre Hart and Aurexion are the same person.** Before coming to Zyraxis, Aurexion was **Andre Hart of Viridia**. This is pre-existing AOV canon and cannot be changed.
+**Andre Hart and Auraxion are the same person.** Before coming to Zyraxis, Auraxion was **Andre Hart of Viridia**. This is pre-existing AOV canon and cannot be changed.
 
-Aurexion later reaches Zyraxis and becomes an ally of **Rizer** during RP7. Aurexion assists Rizer's quest and gives him the **UFO**.
+Auraxion later reaches Zyraxis and becomes an ally of **Rizer** during RP7. Auraxion assists Rizer's quest and gives him the **UFO**.
 
-Aurexion's son is **Aurellyn**.
+Auraxion's son is **Aurellyn**.
 
 Aurellyn is later **trained by Rizer**, directly carrying the RP7 legacy forward into the later Saga chronology.
 
-Aurexion was also a great **Astralnaut**, creating a legacy that profoundly influences his son. Aurellyn wants to become a great Astralnaut and explorer in his own right.
+Auraxion was also a great **Astralnaut**, creating a legacy that profoundly influences his son. Aurellyn wants to become a great Astralnaut and explorer in his own right.
 
 This lineage eventually leads directly to Earth.
 
@@ -105,7 +106,7 @@ For Aurellyn:
 
 **Earth is an undiscovered frontier.**
 
-Aurellyn's desire to find it is deeply connected to Aurexion.
+Aurellyn's desire to find it is deeply connected to Auraxion.
 
 His father was a great Astralnaut.
 

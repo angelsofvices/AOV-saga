@@ -39234,6 +39234,31 @@ function drawInteriorFloor(){
       if (v.x < startCol - 1 || v.x > endCol || v.y < startRow - 1 || v.y > endRow) continue;
       ctx.fillRect(v.x * TILE - _cam.x, v.y * TILE - _cam.y, TILE, TILE);
     }
+    // ★★★ v0.99.57 · SEER HQ GETS ITS WALLS BACK · AS A BAND, NOT AS MASONRY.
+    //   Creator, 2026-10-08: "add seer hq walls" (with the seer-hq wall art).
+    //   The masonry layer stays OFF (SEER_HQ_WALLS_ON) · that one ate walkable
+    //   floor and was ruled wrong. This is the band every other room has: the
+    //   wall art drawn on the black void tile directly NORTH of the floor, so
+    //   the room's top edge reads as a wall. Paint only · the void it sits on
+    //   was already solid, so not one tile of collision changes.
+    if (!SEER_HQ_WALLS_ON && cfg.wallImg === 'seer-hq'){
+      const bImg = wallImageFor(cfg.wallImg);
+      if (bImg && bImg.complete && bImg.naturalWidth){
+        const band = (x, y) => ctx.drawImage(bImg, 0, 0, bImg.naturalWidth, bImg.naturalHeight,
+                                             x * TILE - _cam.x, y * TILE - _cam.y, TILE, TILE);
+        for (const v of _plan.voids){
+          if (v.x < startCol - 1 || v.x > endCol || v.y < startRow - 2 || v.y > endRow) continue;
+          if (v.y + 1 >= _plan.rows || _plan.blocked.has(v.x + ',' + (v.y + 1))) continue;   // floor below only
+          band(v.x, v.y);
+        }
+        // ★ the old masonry rows are floor now, so the hall runs to row 0 · its
+        //   wall sits just above the map, in the black the camera already shows
+        if (startRow <= 0){
+          for (let x = Math.max(0, startCol - 1); x <= Math.min(_plan.cols - 1, endCol); x++)
+            if (!_plan.blocked.has(x + ',0')) band(x, -1);
+        }
+      }
+    }
     const wImg = SEER_HQ_WALLS_ON ? wallImageFor(cfg.wallImg) : null;
     if (wImg && wImg.complete && wImg.naturalWidth){
       const SW = wImg.naturalWidth, SH = wImg.naturalHeight;
@@ -43080,7 +43105,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.56' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.99.57' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -70055,6 +70080,6 @@ console.log('[rp7b] skeleton v0.7 ready · map', MAP_COLS + 'x' + MAP_ROWS, '· 
      Off by default · Cmd+F (Ctrl+F) or ?hd=1 turns it on. It wraps this file's draw passes
      and renders them as 3D ground + 2DHD billboards · it owns no game logic.
      See docs/RP7B_HD_CONVERSION.md. -->
-<script type="module" src="rp7b-hd.js?v=0.99.56"></script>
+<script type="module" src="rp7b-hd.js?v=0.99.57"></script>
 </body>
 </html>

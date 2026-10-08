@@ -30,10 +30,11 @@
 //     UI       menus, dialogue, battle overlays, HUD: untouched, on the 2D
 //              canvas, which now sits transparent ON TOP of the 3D view.
 //
-// ★★ OFF BY DEFAULT. The classic build stays the authoritative game until the
-//   Malezor slice validates (handoff §16, Phase 4). Turn HD on with:
+// ★★ ON BY DEFAULT since v0.99.62 · the Creator made 2DHD the main RP7B.
+//   (It was opt-in until then, per handoff §16, pending the Phase 4 check.)
+//   The game logic underneath is unchanged either way, so classic stays one key away:
 //     · Cmd+F in game (Ctrl+F on Windows/Linux · persists), or
-//     · rp7b.html?hd=1   (rp7b.html?hd=0 forces it off)
+//     · rp7b.html?hd=0 forces classic
 //   Interiors are 3D too (v0.99.56). The title, Dreamland and the realms stay classic.
 //
 //   Tuning lives on window.RP7B_HD.cfg; window.RP7B_HD.stats shows the cost.
@@ -41,7 +42,11 @@
 import * as THREE from './vendor/three/three.module.min.js';
 
 const W = window;
-const LS_KEY = 'rp7b_hd_v1';
+// ★ v0.99.62 · 2DHD IS THE MAIN RP7B. Creator, 2026-10-08: "i want the website
+//   to point to the new game update. I want that to be the main rp7b."
+//   On by default for everyone. A fresh key, so a classic choice made while
+//   2DHD was an opt-in playtest (v1) does not keep anyone in classic now.
+const LS_KEY = 'rp7b_hd_v2';
 
 // ── config ───────────────────────────────────────────────────────────────
 const cfg = {
@@ -80,8 +85,8 @@ HD._flatProps = () => [...propRecs.entries()].filter(([p, r]) => r.mesh.visible 
 HD._fae = () => [...faeRecs.values()].filter(m => m.visible).map(m => m.position.y);
 
 (function readPref(){
-  let on = false;
-  try { on = localStorage.getItem(LS_KEY) === '1'; } catch(_){}
+  let on = true;                                    // ★ 2DHD unless the player chose classic
+  try { on = localStorage.getItem(LS_KEY) !== '0'; } catch(_){}
   try {
     const q = new URLSearchParams(location.search).get('hd');
     if (q === '1' || q === 'on') on = true;

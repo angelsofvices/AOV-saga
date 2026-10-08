@@ -1,0 +1,85 @@
+--- seers.js (before district patch)
++++ seers.js (after district patch)
+@@ -16,7 +16,7 @@
+ import { clamp, damp, dampAngle } from './util.js';
+ import { HitRig, touch, STRIKERS, HITBOX, segSeg } from './hitbox.js';
+ import { COMBAT, BLADES } from './rizer.js';
+-import { quarterAt, districtAt } from './world-data.js';
++import { quarterAt, districtAt, fromRP7B } from './world-data.js';
+ import { rng } from './util.js';
+ import { dressCorrupted } from './enemy-skins.js';
+ import { dressDaemon } from './daemon-skins.js';
+@@ -89,6 +89,28 @@
+ const pickCombo = (T = SEER) => { let r = Math.random(), n = 1; for (const w of T.comboLength) { if ((r -= w) <= 0) return n; n++; } return 4; };
+ const rand = ([a, b]) => a + Math.random() * (b - a);
+ 
++// Shared by runtime spawning and the district audit. Keep density tied to the
++// original patrol family, so changing a Mori's mode never rerolls its route.
++export function planPatrolSpawn(W, sourceKey, route, onLand = (x, z) => !W.containsLand || W.containsLand(x, z)) {
++  const pts = route.pts.filter(([x, z]) => onLand(x, z) && (!W.containsLand || W.containsLand(x, z)));
++  if (!pts.length) return null;
++  const home = W.enemyHomeTile ? fromRP7B(W.enemyHomeTile.x, W.enemyHomeTile.y) : W.playerStart;
++  const distance = Math.min(...pts.map(([x, z]) => Math.hypot(x - home.x, z - home.z)));
++  if (distance < 44) return null;
++  const minTiles = distance / (W.tileScale || 2);
++  const band = (W.enemyDensity || []).find(b => minTiles <= b.radius), chance = band?.chance ?? 1;
++  let seed = 2166136261; for (const ch of `${sourceKey}:${route.id}`) seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
++  if ((seed >>> 0) / 4294967296 >= chance) return null;
++  const key = sourceKey === 'mori' && route.mode === 'daemon' ? 'daemon-black' : sourceKey;
++  return { ...route, key, pts };
++}
++export function districtEnemyLevel(W, T, route = {}) {
++  const field = T.family === 'daemon' ? 'daemon' : T.key === 'mori' ? 'mori' : T.key === 'seer' ?
++    (route.commander || route.role === 'commander' || route.mode === 'commander' ? 'seerCommander' : 'seerGrunt') : null;
++  const level = field && W.levels?.[field];
++  return Number.isFinite(level) && level > 0 ? level : undefined;
++}
++
+ function textSprite(draw, w, h, scale) {
+   const c = document.createElement('canvas'); c.width = w; c.height = h;
+   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+@@ -132,6 +154,7 @@
+     token.position.set(0, 0.15, 0); if (coinDrop) token.rotation.x = Math.PI / 2; lootBag.add(token);
+     const g = {
+       id: route.id, T, pts: route.pts, loop: !!route.loop, root, actor, bang, bar, lootBag, walk: T.walk,
++      mode: route.mode || 'wander', level: districtEnemyLevel(W, T, route),
+       pos: new THREE.Vector3(), heading: 0, speed: 0, knock: new THREE.Vector3(), rig: new HitRig(actor), side: grunts.length % 2 ? 1 : -1, frame: grunts.length, animAcc: 0, ...extra
+     };
+     const drop = {
+@@ -142,21 +165,14 @@
+     g.drop = drop; world.interactables.push(drop);
+     reset(g); grunts.push(g); return g;
+   }
+-  const onLand = (x, z) => (!world.containsLand || world.containsLand(x, z)) && world.waterAt(x, z) < world.heightAt(x, z) - 0.1;
++  const onLand = (x, z) => (!W.containsLand || W.containsLand(x, z)) && (!world.containsLand || world.containsLand(x, z)) && world.waterAt(x, z) < world.heightAt(x, z) - 0.1;
+   // Hand-placed road patrols (world-data.js).
+   const handRoutes = [];
+   for (const { T, gltf } of kinds) for (const route of (gltf && W[T.patrols]) || []) {
+-    const pts = route.pts.map(([x, z]) => new THREE.Vector2(x, z)).filter(v => onLand(v.x, v.y));
+-    if (!pts.length) continue;
+-    // The home sanctuary stays empty. Beyond it, density rises by the
+-    // handoff's RP7B-tile bands. A stable route hash keeps each visit alike.
+-    const home = W.playerStart, minTiles = Math.min(...pts.map(v => Math.hypot(v.x - home.x, v.y - home.z))) / (W.tileScale || 2);
+-    if (minTiles < 22) continue;
+-    const band = (W.enemyDensity || []).find(b => minTiles <= b.radius), chance = band?.chance ?? 1;
+-    let seed = 2166136261; for (const ch of `${T.key}:${route.id}`) seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
+-    const roll = (seed >>> 0) / 4294967296;
+-    if (roll >= chance) continue;
+-    spawn(T, gltf, { ...route, pts }); handRoutes.push(pts);
++    const plan = planPatrolSpawn(W, T.key, route, onLand);
++    const kind = plan && byKey[plan.key]; if (!kind?.gltf) continue;
++    const pts = plan.pts.map(([x, z]) => new THREE.Vector2(x, z));
++    spawn(kind.T, kind.gltf, { ...plan, pts }); handRoutes.push(pts);
+   }
+   // The wild packs: a Seer handler and its Mori, seeded so every visit is the same.
+   const seerKind = byKey.seer, moriKind = byKey.mori;
+@@ -201,6 +217,9 @@
+   // Solitary species use the same terrain-aware patrol routing and sanctuary
+   // as Crept and Skellor. Daemons join this roster in a stable 12:9 mix.
+   for (const T of [CREPT, SKELLOR, DAEMON_BLACK, DAEMON_RED]) {
++    // District data owns the Daemon population. Legacy worlds without levels
++    // retain their old scatter; Malezor's null level means no ambient Daemons.
++    if (T.family === 'daemon' && W.levels) continue;
+     const kind = byKey[T.key]; if (!kind?.gltf) continue;
+     const r = rng((W.seed || 7) + (T.seed || (T.key === 'crept' ? 5151 : 6161))), B = (world.bound || 300) - 12, home = W.playerStart;
+     const taken = grunts.map(g => ({ x: g.pos.x, y: g.pos.z }));

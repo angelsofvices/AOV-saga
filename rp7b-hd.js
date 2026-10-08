@@ -32,7 +32,7 @@
 //
 // ★★ OFF BY DEFAULT. The classic build stays the authoritative game until the
 //   Malezor slice validates (handoff §16, Phase 4). Turn HD on with:
-//     · F7 in game (persists), or
+//     · Cmd+F in game (Ctrl+F on Windows/Linux · persists), or
 //     · rp7b.html?hd=1   (rp7b.html?hd=0 forces it off)
 //   Interiors, the title and Dreamland render classic 2D for now.
 //
@@ -751,8 +751,14 @@ HD.set = function(on){
   HD.on = !!on;
   try { localStorage.setItem(LS_KEY, HD.on ? '1' : '0'); } catch(_){}
   if (!HD.on) setLayered(false);
-  try { showToast(HD.on ? '◈ RP7B 2DHD · 3D world on (F7 for classic)' : '◈ Classic 2D view (F7 for 2DHD)', 2400); } catch(_){}
+  try { showToast(HD.on ? '◈ RP7B 2DHD · 3D world on (\u2318F for classic)' : '◈ Classic 2D view (\u2318F for 2DHD)', 2400); } catch(_){}
 };
+// ★ Cmd+F (Ctrl+F off the Mac) · Creator's binding. Captured on window in the
+//   capture phase so it beats the game's own keydown listeners and the
+//   browser's Find bar: the game never sees a stray 'f', and Find never opens.
 W.addEventListener('keydown', (ev) => {
-  if (ev.code === 'F7' && !ev.repeat){ ev.preventDefault(); HD.set(!HD.on); }
-});
+  if (ev.code !== 'KeyF' || !(ev.metaKey || ev.ctrlKey) || ev.altKey || ev.shiftKey) return;
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+  if (!ev.repeat) HD.set(!HD.on);
+}, true);

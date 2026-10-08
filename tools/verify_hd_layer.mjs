@@ -9,7 +9,7 @@
 //     · the 3D view comes up on the overworld, and the 2D canvas goes transparent
 //     · ground chunks, prop billboards and captured actors all exist
 //     · Rizer's own draw call is the thing being captured (player actor present)
-//     · F7 turns it off and the classic view comes straight back
+//     · Cmd+F turns it off and the classic view comes straight back
 //     · an interior renders classic (HD steps aside)
 //     · HD never threw
 //
@@ -73,16 +73,21 @@ try {
   ok(st.s.sprites > 1, `actors captured (${st.s.sprites})`);
   if (shots) await page.screenshot({ path: path.join(shots, 'hd_overworld.png') });
 
-  console.log('\n★ F7 · back to classic');
-  await page.keyboard.press('F7');
+  console.log('\n★ Cmd+F · back to classic');
+  await page.keyboard.press('Meta+KeyF');
   await page.waitForTimeout(1500);
   st = await page.evaluate(`({ on: RP7B_HD.on, gl: document.getElementById('hd3d').style.display,
                                bg: document.getElementById('game').style.background })`);
-  ok(!st.on, 'F7 turns HD off');
+  ok(!st.on, 'Cmd+F turns HD off');
   ok(st.gl === 'none' && st.bg === '', 'classic view restored (3D hidden, canvas opaque again)');
-  await page.keyboard.press('F7');
+  await page.keyboard.press('Meta+KeyF');
   await page.waitForTimeout(1500);
-  ok(await page.evaluate('RP7B_HD.on'), 'F7 turns HD back on');
+  ok(await page.evaluate('RP7B_HD.on'), 'Cmd+F turns HD back on');
+  await page.keyboard.press('Control+KeyF');
+  await page.waitForTimeout(800);
+  ok(!(await page.evaluate('RP7B_HD.on')), 'Ctrl+F toggles too (Windows/Linux)');
+  await page.keyboard.press('Control+KeyF');
+  await page.waitForTimeout(800);
 
   console.log('\n★ interior · HD steps aside');
   await page.evaluate("game.scene='interior_home_2f'; player.x=10; player.y=7; snapCameraToPlayer();");

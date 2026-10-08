@@ -34,7 +34,7 @@
 
 ## 2 · How to play it
 
-- **In game:** press **F7** to switch between 2DHD and classic. The choice persists (`localStorage rp7b_hd_v1`).
+- **In game:** press **Cmd+F** (Ctrl+F on Windows/Linux) to switch between 2DHD and classic. The choice persists (`localStorage rp7b_hd_v1`).
 - **By URL:** `rp7b.html?hd=1` forces it on, `rp7b.html?hd=0` forces it off.
 - **Default:** classic 2D. That stays the default until Phase 4 signs off.
 - The overworld renders in 2DHD. Interiors, the title screen and Dreamland still render classic 2D (Phase 3 and 5 work).

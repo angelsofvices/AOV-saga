@@ -34,9 +34,9 @@
 
 ## 2 · How to play it
 
-- **In game:** press **Cmd+F** (Ctrl+F on Windows/Linux) to switch between 2DHD and classic. The choice persists (`localStorage rp7b_hd_v1`).
+- **In game:** press **Cmd+F** (Ctrl+F on Windows/Linux) to switch between 2DHD and classic. The choice persists (`localStorage rp7b_hd_v2`).
 - **By URL:** `rp7b.html?hd=1` forces it on, `rp7b.html?hd=0` forces it off.
-- **Default:** classic 2D. That stays the default until Phase 4 signs off.
+- **Default: 2DHD.** Creator ruling, 2026-10-08: *"I want the website to point to the new game update. I want that to be the main rp7b."* Every site link to `/rp7b.html` now opens 2DHD. Cmd+F switches to classic and remembers the choice per player (`localStorage rp7b_hd_v2`), and `?hd=0` forces classic.
 - The overworld **and building interiors** render in 2DHD (interiors since v0.99.56). The title screen, Dreamland and the Dracolord realms still render classic 2D.
 - If the device has no WebGL, HD reports itself unavailable and the game stays classic.
 - **2DHD cannot run from a `file://` page** (rp7b.html double-clicked in Finder). Chrome blocks module scripts there and keeps game art out of WebGL. To play from a local copy, double-click **`PLAY_RP7B_LOCAL.command`** in the repo root: it serves the folder on `http://localhost:8765` and opens `rp7b.html?hd=1`. On a `file://` page, Cmd+F explains this instead of opening the browser's Find bar.

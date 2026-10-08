@@ -144,6 +144,17 @@ try {
   await page.keyboard.press('Meta+KeyF');
   await page.waitForTimeout(800);
 
+  console.log('\n★ the main RP7B · plain /rp7b.html opens in 2DHD');
+  const fresh = await browser.newPage({ viewport: { width: 1280, height: 760 } });
+  await fresh.route(u => !String(u).startsWith(base), r => r.abort());
+  await fresh.goto(base + '/rp7b.html', { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await fresh.waitForFunction('window.RP7B_HD', null, { timeout: 90000 });
+  ok(await fresh.evaluate('RP7B_HD.on === true'), 'a first-time visitor to /rp7b.html gets 2DHD with no flag');
+  await fresh.goto(base + '/rp7b.html?hd=0', { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await fresh.waitForFunction('window.RP7B_HD', null, { timeout: 90000 });
+  ok(await fresh.evaluate('RP7B_HD.on === false'), '?hd=0 still forces classic');
+  await fresh.close();
+
   console.log('\n★ errors');
   ok(hdErrors.length === 0, 'the HD layer threw nothing' + (hdErrors.length ? ' · ' + hdErrors[0] : ''));
 } finally {

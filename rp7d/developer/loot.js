@@ -457,23 +457,23 @@ export function createLoot(scene, world, fx, W) {
   }
   const rface = Math.atan2(x - rx, z - rz);
   const rubypaw = itemChest(scene, world, fx, { id: 'rubypaw-chest', item: 'rubypaw', x: rx, z: rz, face: rface, isOpen: () => !!inventory.chests?.['rubypaw-chest'], setOpen: () => { (inventory.chests ||= {})['rubypaw-chest'] = 1; } });
-  // Psychosyd's guitar waits in a silver chest in Malezor Square, on the west side of the fountain, lid to the fountain.
+  // The spot on the west side of Malezor Square's fountain anchors the Astralboard and Telescope chests. (Psychosyd's guitar
+  // used to wait in a chest here; it now lies on the floor of Rizer's room, home-interior.js.)
   const P = W.plaza; let gx = P.x - (P.r - 3), gz = P.z, gFace = Math.PI / 2;
   guitarSpot: for (const r of [P.r - 3, P.r - 5, P.r - 1.5]) for (const a of [-Math.PI / 2, -Math.PI / 2 + 0.35, -Math.PI / 2 - 0.35, -Math.PI / 2 + 0.7, -Math.PI / 2 - 0.7, Math.PI, 0]) {
     const tx = P.x + Math.sin(a) * r, tz = P.z + Math.cos(a) * r;
     if (clear(tx, tz, 1.8)) { gx = tx; gz = tz; gFace = Math.atan2(P.x - tx, P.z - tz); break guitarSpot; }
   }
-  const guitar = itemChest(scene, world, fx, { id: 'psychosyd-chest', item: 'guitar', x: gx, z: gz, face: gFace, isOpen: () => !!inventory.chests?.['psychosyd-chest'], setOpen: () => { (inventory.chests ||= {})['psychosyd-chest'] = 1; } });
-  // Astralboard chest sits beside the guitar chest in Malezor Square.
+  // Astralboard chest sits beside that spot in Malezor Square.
   let qx = gx + Math.cos(gFace) * 3.6, qz = gz - Math.sin(gFace) * 3.6;
   if (!clear(qx, qz, 1.6)) { qx = gx - Math.cos(gFace) * 3.6; qz = gz + Math.sin(gFace) * 3.6; }
   const astralboard = itemChest(scene, world, fx, { id: 'astralboard-chest', item: 'astralboard', ride: true, x: qx, z: qz, face: gFace, isOpen: () => !!inventory.chests?.['astralboard-chest'], setOpen: () => { (inventory.chests ||= {})['astralboard-chest'] = 1; } });
-  // Stargazer Telescope chest: on the guitar's other side from the Astralboard, so the three line up in the Square.
+  // Stargazer Telescope chest: on the spot's other side from the Astralboard, so the two face each other across it.
   let sx = 2 * gx - qx, sz = 2 * gz - qz;
   if (!clear(sx, sz, 1.6)) { sx = qx + (qx - gx); sz = qz + (qz - gz); }
   const telescope = itemChest(scene, world, fx, { id: 'stargazer-chest', item: 'telescope', x: sx, z: sz, face: gFace, isOpen: () => !!inventory.chests?.['stargazer-chest'], setOpen: () => { (inventory.chests ||= {})['stargazer-chest'] = 1; } });
-  const all = [sword, axe, bow, rubypaw, guitar, astralboard, telescope];
-  return { all, sword, axe, bow, rubypaw, guitar, astralboard, telescope, update: (dt, t) => all.forEach(c => c.update(dt, t)), get spot() { return sword.spot; } };
+  const all = [sword, axe, bow, rubypaw, astralboard, telescope];
+  return { all, sword, axe, bow, rubypaw, astralboard, telescope, update: (dt, t) => all.forEach(c => c.update(dt, t)), get spot() { return sword.spot; } };
 }
 
 // One silver chest holding one weapon. States: closed → opening → launch → waiting → empty.

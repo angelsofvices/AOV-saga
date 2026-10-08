@@ -797,6 +797,7 @@ function build() {
   shared.groundAt = world.groundAt;
   sky = createSky(scene, shared);
   homeInterior = createHomeInterior(scene); homeMode = true; world.setExteriorVisible(false);
+  homeInterior.setGuitarTaken(hasWeapon('guitar'));
   const s = W.playerStart;
   rizer = new Rizer(scene, { x: s.x, y: world.groundAt(s.x, s.z), z: s.z, facing: s.facing });
   seating = createSeating({ interior: homeInterior, rizer, toast: showToast, onType: () => pcCamIn() });
@@ -1034,6 +1035,15 @@ function cycleWeapon(dir) { const list = wheelList(); if (!list.length) return; 
 // The soundtrack ducks under the solo. seers.setMusic() carries where the music is; npcs join in when they return.
 const GUITAR = { radius: 24, duck: 0.12, astralRate: COMBAT.prayer.stamina };
 let jam = null; // { t, dur, song }
+// A new game starts with Psychosyd's guitar on the floor of Rizer's room (home-interior.js); ○ / E there takes it.
+function takeFloorGuitar() {
+  if (hasWeapon('guitar')) return homeInterior.setGuitarTaken(true);
+  inventory.owned.push('guitar'); saveInv(); syncWheel(); wheel.render();
+  const g = homeInterior.floorGuitar, p = g.getWorldPosition(new THREE.Vector3());
+  homeInterior.setGuitarTaken(true);
+  fx.emit(p.x, p.y + 0.3, p.z, 18, { color: '#ff3b3b', speed: 2.2, up: 1.2, size: 0.35, life: 0.5, g: 0 });
+  showToast("Psychosyd's Signed Red Guitar · R1 to equip, □ to play", 3600);
+}
 function toggleGuitar() { if (jam) stopJam(); else startJam(); }
 function startJam() {
   const A = rizer.actor;
@@ -1505,7 +1515,7 @@ function menuAction(act) {
     const g = seers.spawnAt(act, x, z);
     showToast(g ? `${g.T.name} spawned ahead` : 'Move to open ground to spawn a Daemon');
   }
-  if (act === 'guitar' && !hasWeapon('guitar')) { inventory.owned.push('guitar'); (inventory.chests ||= {})['psychosyd-chest'] = 1; saveInv(); syncWheel(); wheel.render(); showToast("Psychosyd's Signed Red Guitar added · R1 to equip, □ to play"); }
+  if (act === 'guitar' && !hasWeapon('guitar')) { inventory.owned.push('guitar'); saveInv(); syncWheel(); wheel.render(); homeInterior?.setGuitarTaken(true); showToast("Psychosyd's Signed Red Guitar added · R1 to equip, □ to play"); }
   if (act === 'chest') { inventory.owned = inventory.owned.filter(k => !BLADES[k]); if (inventory.home?.weapons) inventory.home.weapons = inventory.home.weapons.filter(k => !BLADES[k]); inventory.equipped = 'fists'; inventory.chestOpen = false; if (inventory.chests) { delete inventory.chests['emeralix-chest']; delete inventory.chests['ivirium-chest']; delete inventory.chests['psychosyd-chest']; } saveInv(); location.reload(); return; }
   if (act === 'seers') { seers?.respawnAll(); showToast('Seers respawned'); }
   if (act === 'gatesopen') { gatelocks?.openAll(); showToast('Portal Gatelocks open'); }
@@ -1743,7 +1753,7 @@ function update(dt, t, realDt = dt) {
   const menu = zy.isOpen || wasOpen || !!stationUI?.isOpen || stWas || pcLock, ko = koT > 0;
   if ((zy.isOpen || stationUI?.isOpen) && dep?.placing) dep.cancel(true); // opening a menu abandons a placement
   dep?.showPrompt(null); // re-shown below when something usable is in reach
-  if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : undefined); } } }
+  if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'floor-guitar' ? 'PICK UP · ○ / E' : undefined); } } }
   if (!menu) dep?.update(); // the placement ghost
   const kx = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
   const kz = (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0);
@@ -1826,7 +1836,7 @@ function update(dt, t, realDt = dt) {
     } else if (homeMode) {
       if ((pressed.has('KeyE') || padAct?.interact) && !furnMover?.busy && !pcUse && !seating?.active) {
         const st = homeInterior.stationAt(rizer), line = st ? null : homeInterior.interact(rizer);
-        if (st) { if (st.id === 'homepc') seating.begin(); else openStation(st.id); }
+        if (st) { if (st.id === 'homepc') seating.begin(); else if (st.id === 'floor-guitar') takeFloorGuitar(); else openStation(st.id); }
         else if (line) showToast(line, 3600);
         else showToast(homeInterior.level === 1 ? 'Front door · ✕ / Space to leave' : 'Use the stairs in the northwest corner to go downstairs');
       }

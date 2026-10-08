@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { createN3000Prop } from './n3000-prop.js';
+import { buildGuitar } from './loot.js';
 import { Actor, loadGLB } from './actor.js';
 
 // RP7B's 15x10 room grid and furniture anchors, rebuilt with RP7D low-poly props.
 const COLS = 15, ROWS = 10, TILE = 1.5, HALF_W = COLS * TILE / 2, HALF_D = ROWS * TILE / 2;
 const cell = (x, row, floorY) => new THREE.Vector3((x - 7) * TILE, floorY, (row - 4.5) * TILE);
 const STAIR_COL = 0.5, STAIR_ROW = 1.8;
+const CONSOLE_SCALE = 0.45; // the N3000 and its pad at real console size beside the furniture
 
 export function createHomeInterior(scene) {
   const root = new THREE.Group(); root.name = 'RizerHomeInterior'; scene.add(root);
@@ -15,7 +17,7 @@ export function createHomeInterior(scene) {
   const cyl = (parent, rt, rb, h, material, x, y, z, seg = 8) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), material); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
   const orb = (parent, r, material, x, y, z) => { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), material); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
   const blockers = { 1: [], 2: [] };
-  let consoleRoot = null, n3000Screen = null;
+  let consoleRoot = null, n3000Screen = null, floorGuitar = null;
   let frontDoor = null; // the front door's hinge group (inside view)
   const residents = [];
   const NPCS_ON_HOLD = true;
@@ -307,9 +309,11 @@ export function createHomeInterior(scene) {
     const science = get(13, 1); box(second.room, 4.2, 0.3, 1.35, darkWood, science.x, second.floorY + 0.95, science.z);
     for (const dx of [-1.6, 1.6]) box(second.room, 0.2, 0.9, 0.2, trim, science.x + dx, second.floorY + 0.45, science.z);
     for (const x of [-0.95, 0, 0.95]) { const vial = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 0.68, 6), x ? glass : mat('#87aa66', 0.4, { emissive: '#3b7733', emissiveIntensity: 0.35 })); vial.position.set(science.x + x, second.floorY + 1.42, science.z); second.room.add(vial); }
-    const guitar = get(10, 1); const body = orb(second.room, 0.58, mat('#b4773f'), guitar.x, second.floorY + 0.86, guitar.z + 0.35); body.scale.set(0.72, 1.15, 0.24); box(second.room, 0.14, 1.9, 0.16, darkWood, guitar.x, second.floorY + 1.7, guitar.z);
-    const console = get(8, 3); consoleRoot = createN3000Prop(); consoleRoot.position.set(console.x, second.floorY, console.z); second.room.add(consoleRoot);
-    (root.userData.stations ||= []).push({ id: 'n3000', name: 'N3000', x: console.x, z: console.z + 1.2, level: 2, r: 1.65 });
+    // Psychosyd's guitar lies on the floor where a new game starts; ○ / E picks it up (game.js · takeFloorGuitar).
+    const guitarAt = get(10, 1); floorGuitar = buildGuitar(); floorGuitar.rotation.set(-Math.PI / 2, 0, 0.6); floorGuitar.position.set(guitarAt.x, second.floorY + 0.06, guitarAt.z + 0.6); floorGuitar.userData.structure = true; second.room.add(floorGuitar);
+    (root.userData.stations ||= []).push({ id: 'floor-guitar', name: "Psychosyd's Signed Red Guitar", x: guitarAt.x, z: guitarAt.z + 0.6, level: 2, r: 1.6 });
+    const console = get(8, 3); consoleRoot = createN3000Prop(); consoleRoot.scale.setScalar(CONSOLE_SCALE); consoleRoot.position.set(console.x, second.floorY, console.z); second.room.add(consoleRoot); // console-sized: about 0.8 wide, a hand-sized pad
+    (root.userData.stations ||= []).push({ id: 'n3000', name: 'N3000', x: console.x, z: console.z + 0.9, level: 2, r: 1.5 });
     const punching = get(1, 8); cyl(second.room, 0.48, 0.55, 2.1, mat('#7a292b'), punching.x, second.floorY + 1.2, punching.z); cyl(second.room, 0.75, 0.75, 0.24, darkWood, punching.x, second.floorY + 0.12, punching.z);
     const board = get(3, 1); box(second.room, 2.2, 0.15, 0.62, mat('#a75542'), board.x, second.floorY + 0.16, board.z, -0.38);
     const ball = get(11, 9); orb(second.room, 0.42, mat('#df873f'), ball.x, second.floorY + 0.43, ball.z);
@@ -330,7 +334,7 @@ export function createHomeInterior(scene) {
     blockers[2].push(
       { x: bed.x, z: bed.z, hw: 2.3, hd: 1.55 }, { x: desk.x + 0.75, z: desk.z, hw: 3.05, hd: 0.85 },
       { x: tv.x, z: tv.z, hw: 1.3, hd: 0.36 }, { x: science.x, z: science.z, hw: 2.25, hd: 0.8 },
-      { x: console.x, z: console.z, hw: 0.95, hd: 0.48 }, { x: punching.x, z: punching.z, hw: 0.65, hd: 0.65 }, { x: 4.7, z: 5.0, hw: 0.42, hd: 0.42, top: second.floorY + 2.4 }
+      { x: console.x, z: console.z + 0.1, hw: 0.45, hd: 0.3 }, { x: punching.x, z: punching.z, hw: 0.65, hd: 0.65 }, { x: 4.7, z: 5.0, hw: 0.42, hd: 0.42, top: second.floorY + 2.4 }
     );
   }
 
@@ -358,8 +362,7 @@ export function createHomeInterior(scene) {
       { id: 'desk', name: 'Desk, chair & Nebuladock 3000', level: 2, x: 0.75, z: 4.35, gw: 3.5, gd: 1.55, fx: 0.75, fz: 4.5, hw: 3.05, hd: 1.75, stations: ['homepc'] },
       { id: 'tv2', name: 'Television', level: 2, x: -1.5, z: -5.25, gw: 1.4, gd: 0.55, fx: -1.5, fz: -5.25, hw: 1.3, hd: 0.36 },
       { id: 'science', name: 'Experiment Table', level: 2, x: 9, z: -4.5, gw: 2.3, gd: 1.5, fx: 9, fz: -5.25, hw: 2.25, hd: 0.8, stations: ['experiment'] },
-      { id: 'guitar', name: 'Guitar', level: 2, x: 4.5, z: -5.25, gw: 0.9, gd: 0.9, fx: 4.5, fz: -5.25, hw: 0.6, hd: 0.5 },
-      { id: 'console', name: 'N3000 game system', stations: ['n3000'], level: 2, x: 1.5, z: -2.25, gw: 1.0, gd: 0.6, fx: 1.5, fz: -2.25, hw: 0.95, hd: 0.48 },
+      { id: 'console', name: 'N3000 game system', stations: ['n3000'], level: 2, x: 1.5, z: -2.25, gw: 0.6, gd: 0.5, fx: 1.5, fz: -2.15, hw: 0.45, hd: 0.3 },
       { id: 'punching', name: 'Punching bag', level: 2, x: -9, z: 5.25, gw: 0.85, gd: 0.85, fx: -9, fz: 5.25, hw: 0.65, hd: 0.65 },
       { id: 'skate', name: 'Skateboard', level: 2, x: -6, z: -5.25, gw: 1.25, gd: 0.8, fx: -6, fz: -5.25, hw: 0.9, hd: 0.5 },
       { id: 'ball', name: 'Basketball', level: 2, x: 6, z: 6.75, gw: 0.55, gd: 0.55, fx: 6, fz: 6.75, hw: 0.45, hd: 0.45 },
@@ -588,7 +591,10 @@ export function createHomeInterior(scene) {
     },
     // Standing at the front door (ground floor): X / Space opens it and walks him out, the same way entering works.
     nearDoor(p) { p = p.position || p; return level === 1 && p.z > HALF_D - 2.6 && Math.abs(p.x - (frontDoor ? frontDoor.position.x + 0.8 : 0)) < 1.7; },
-    stationAt(p) { p = p.position || p; let best = null; for (const s of root.userData.stations || []) { if (s.level !== level) continue; const d = Math.hypot(p.x - s.x, p.z - s.z); if (d <= s.r && (!best || d < best.d)) best = { ...s, d }; } return best; },
+    // The floor guitar is there until Rizer owns the guitar (taken here, or carried over from an older save).
+    setGuitarTaken(taken) { if (floorGuitar) floorGuitar.visible = !taken; },
+    get floorGuitar() { return floorGuitar; },
+    stationAt(p) { p = p.position || p; let best = null; for (const s of root.userData.stations || []) { if (s.level !== level || (s.id === 'floor-guitar' && !floorGuitar?.visible)) continue; const d = Math.hypot(p.x - s.x, p.z - s.z); if (d <= s.r && (!best || d < best.d)) best = { ...s, d }; } return best; },
     get entry() { return entryDoor.clone(); },
     get frontDoor() { return frontDoor; },
     interact(rizer) {

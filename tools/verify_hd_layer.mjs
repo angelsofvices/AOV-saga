@@ -99,6 +99,21 @@ try {
     ok(await page.evaluate(`RP7B_HD._fae().some(y => y > 0.5)`), 'fae float above the ground');
   } else ok(true, 'no fae near spawn · float check skipped');
 
+  console.log('\n★ standing things · gems, an Astralstrike shot · ground art lies flat');
+  await page.evaluate(`(() => {
+    const now = performance.now();
+    GEM_ENTITIES.push({ x: player.x - 2, y: player.y - 1, color: Object.keys(GEM_IMG)[0], scene: 'overworld', collected: false, phase: 0, born: now });
+    PROJECTILES.push({ tileX: player.x - 4, tileY: player.y, dir: 'left', dist: 5, state: 'flight', t0: now - 400,
+                       lastStep: now + 99999, scene: 'overworld' });
+  })()`);
+  await page.waitForTimeout(2500);
+  const fx = await page.evaluate('RP7B_HD._fx()');
+  ok(fx.length >= 2, `gems and the Astralstrike shot stand in 3D (${fx.length})`);
+  ok(fx.some(y => y > 0.5), 'the Astralstrike shot flies at hand height');
+  await page.evaluate("PROJECTILES.length = 0; player.x = 7; player.y = 199; snapCameraToPlayer();");
+  await page.waitForTimeout(3500);
+  ok((await page.evaluate('RP7B_HD._flatProps()')).includes('meteor_crash_wildarm'), 'the meteor crater lies flat on the ground');
+
   console.log("\n★ interior · Rizer's room in 3D");
   await page.evaluate("game.scene='interior_home_2f'; player.x=10; player.y=7; snapCameraToPlayer();");
   await page.waitForTimeout(3000);

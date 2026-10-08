@@ -55,6 +55,7 @@
     const p = profiles[selected];
     const fields = {counter:`GEMLORD ${String(selected + 1).padStart(2,'0')} / 10`,title:p.name,district:p.district,rank:p.rank,gem:p.gem,principle:p.principle,lore:p.lore,presence:p.presence,fieldnote:p.note};
     Object.entries(fields).forEach(([key,value]) => { document.getElementById(`gemlord-${key}`).textContent = value; });
+    dialog.dataset.gemlord = p.id; // the record takes its Gemlord's gem colour (site-theme.css)
     triggers.forEach(trigger => trigger.setAttribute('aria-expanded',String(trigger.dataset.gemlord === p.id)));
     dialog.scrollTop = 0;
   }

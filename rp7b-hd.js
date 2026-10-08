@@ -34,7 +34,7 @@
 //   Malezor slice validates (handoff §16, Phase 4). Turn HD on with:
 //     · Cmd+F in game (Ctrl+F on Windows/Linux · persists), or
 //     · rp7b.html?hd=1   (rp7b.html?hd=0 forces it off)
-//   Interiors, the title and Dreamland render classic 2D for now.
+//   Interiors are 3D too (v0.99.56). The title, Dreamland and the realms stay classic.
 //
 //   Tuning lives on window.RP7B_HD.cfg; window.RP7B_HD.stats shows the cost.
 // ══════════════════════════════════════════════════════════════════════════
@@ -59,6 +59,8 @@ const cfg = {
   viewAhead: 34,         // tiles drawn north of the player (the far side of the view)
   viewBehind: 12,        // tiles drawn south of the player
   viewSide: 30,          // tiles drawn east and west
+  roomPitchDeg: 46,      // indoors · higher, so the far wall and the whole floor read
+  roomDistance: 15,
 };
 
 // ── state ────────────────────────────────────────────────────────────────
@@ -66,11 +68,13 @@ const HD = {
   on: false,
   cfg,
   stats: { worldMs: 0, renderMs: 0, chunks: 0, chunkBakes: 0, sprites: 0, props: 0, captures: 0, decal: false, frames: 0 },
-  frameActive: false,    // this frame is an overworld frame drawn by HD
-  capturing: false,      // inside the wrapped drawWorldLayer
+  frameActive: false,    // this frame is drawn by HD (overworld or interior)
+  mode: 'overworld',     // 'overworld' | 'interior'
+  capturing: false,      // actors are being captured (world layer / room pass)
 };
 W.RP7B_HD = HD;
 HD._actors = () => [...actors.values()].map(r => r.kind + ':' + r.win.w + 'x' + r.win.h);
+HD._fae = () => [...faeRecs.values()].filter(m => m.visible).map(m => m.position.y);
 
 (function readPref(){
   let on = false;
@@ -94,6 +98,7 @@ const NAMES = [
   'drawFootprints','drawWorldLayer','_propCullBounds','drawProp','drawTreeCanopy','drawPropShadow',
   'drawNPC','drawZyrexOrb','drawSkellorHurtFrame','drawBoulder','drawRizerSoulShell','drawPlayer',
   'applyDepthCamera','drawLevelUpBanner','drawHpFlash','drawLightMode','drawNpcInfoOverlay',
+  'drawInteriorFloor','drawAoeImpactBursts','drawFae',
 ];
 const O = {};
 for (const n of NAMES){
@@ -103,6 +108,7 @@ for (const n of NAMES){
 
 // ── renderer, scene, camera ───────────────────────────────────────────────
 let renderer = null, scene, camera, hemi, sun, lantern, seaMesh, seaTex, seaCanvas, decal;
+let worldGroup, roomGroup;   // overworld-only things · the current interior
 const glCanvas = document.createElement('canvas');
 glCanvas.id = 'hd3d';
 glCanvas.style.cssText = 'position:absolute; pointer-events:none; z-index:0; display:none;';
@@ -124,6 +130,9 @@ function initRenderer(){
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0b0820);
   scene.fog = new THREE.Fog(0x0b0820, cfg.fogNear, cfg.fogFar);
+
+  worldGroup = new THREE.Group(); roomGroup = new THREE.Group();
+  scene.add(worldGroup, roomGroup);
 
   camera = new THREE.PerspectiveCamera(cfg.fov, gameCanvas.width / gameCanvas.height, 0.5, 220);
 
@@ -152,7 +161,7 @@ function initRenderer(){
   seaMesh = new THREE.Mesh(new THREE.PlaneGeometry(320, 320).rotateX(-Math.PI / 2),
                            new THREE.MeshBasicMaterial({ map: seaTex, color: 0xb8b0ff }));
   seaMesh.position.y = cfg.seaY;
-  scene.add(seaMesh);
+  worldGroup.add(seaMesh);
 
   // World-space effects decal (fae, gems, hit rings, projectiles ...).
   const dc = document.createElement('canvas');
@@ -235,10 +244,18 @@ function spriteDepth(tex){
 }
 
 // Count paint calls on the 2D context so an empty effects layer costs nothing.
+// ★ The same seam carries _drawHook: while an interior is being read, every
+//   paint call goes to the hook first, which can record it (furniture) or
+//   swallow it (wall art that is rebuilt as real walls) instead of painting.
 let _paintOps = 0;
+let _drawHook = null;
 for (const m of ['drawImage','fillRect','fill','stroke','fillText','strokeText','strokeRect','putImageData']){
   const f = g2d[m];
-  if (typeof f === 'function') g2d[m] = function(){ _paintOps++; return f.apply(this, arguments); };
+  if (typeof f === 'function') g2d[m] = function(){
+    if (_drawHook && _drawHook(m, this, arguments)) return;
+    _paintOps++;
+    return f.apply(this, arguments);
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -318,8 +335,8 @@ function getChunk(cx, cy){
     rec.mesh.receiveShadow = true;
     rec.mesh.visible = false;
     rec.skirt = buildSkirt(cx, cy);
-    scene.add(rec.mesh);
-    if (rec.skirt) scene.add(rec.skirt);
+    worldGroup.add(rec.mesh);
+    if (rec.skirt) worldGroup.add(rec.skirt);
   }
   chunks.set(key, rec);
   return rec;
@@ -354,8 +371,8 @@ function updateGround(fx, fz){
     if (rec.mesh){ rec.mesh.visible = false; if (rec.skirt) rec.skirt.visible = false; }
     if (frame - rec.seen > 900){
       if (rec.mesh){
-        scene.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh.material.dispose(); rec.tex.dispose();
-        if (rec.skirt){ scene.remove(rec.skirt); rec.skirt.geometry.dispose(); }
+        worldGroup.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh.material.dispose(); rec.tex.dispose();
+        if (rec.skirt){ worldGroup.remove(rec.skirt); rec.skirt.geometry.dispose(); }
       }
       chunks.delete(rec.key);
     }
@@ -427,6 +444,12 @@ function touchesEdge(wpx, hpx){
 // (tx, ty) is the actor's tile in the game's own coordinates · the 2D build
 // anchors feet to the bottom edge of that tile, so that is the pixel we align.
 function captureActor(key, kind, tx, ty, draw){
+  // an actor is painted for real even while a room is being recorded
+  const hook = _drawHook;
+  _drawHook = null;
+  try { _captureActor(key, kind, tx, ty, draw); } finally { _drawHook = hook; }
+}
+function _captureActor(key, kind, tx, ty, draw){
   let rec = actorRecord(key, kind);
   const frame = HD.stats.frames;
   HD.kinds[kind] = (HD.kinds[kind] || 0) + 1;
@@ -497,7 +520,7 @@ function showProp(p){
   let rec = propRecs.get(p);
   const sig = (p.img && p.img.src || '') + '|' + p.bbox.join(',') + '|' + p.tileW + '|' + (p.mirrorX ? 1 : 0);
   if (rec && rec.sig !== sig){
-    scene.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh.material.dispose();
+    worldGroup.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh.material.dispose();
     rec.mesh.customDepthMaterial.dispose();
     propRecs.delete(p); rec = null;
   }
@@ -508,7 +531,7 @@ function showProp(p){
     mesh.customDepthMaterial = spriteDepth(tex);
     mesh.castShadow = true;
     rec = { mesh, geo, sig, seen: 0, lastSrcX: -1 };
-    scene.add(mesh);
+    worldGroup.add(mesh);
     propRecs.set(p, rec);
   }
   let srcX = rec.geo.bx;
@@ -523,6 +546,295 @@ function showProp(p){
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// SHARED · one material pair per source image, UVs from a source rect
+// ══════════════════════════════════════════════════════════════════════════
+const imgMats = new Map();      // image → { mat, depth }
+function matsFor(img){
+  let m = imgMats.get(img);
+  if (!m){ const t = texForImage(img); m = { mat: spriteMaterial(t), depth: spriteDepth(t) }; imgMats.set(img, m); }
+  return m;
+}
+function quadUV(geo, img, sx, sy, sw, sh, mirror){
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  let u0 = sx / iw, u1 = (sx + sw) / iw;
+  if (mirror){ const t = u0; u0 = u1; u1 = t; }
+  const v1 = 1 - sy / ih, v0 = 1 - (sy + sh) / ih;
+  const uv = geo.attributes.uv;
+  uv.setXY(0, u0, v1); uv.setXY(1, u1, v1); uv.setXY(2, u0, v0); uv.setXY(3, u1, v0);
+  uv.needsUpdate = true;
+}
+function quadUpright(geo, w, h){         // feet at y=0, centred on x
+  const pos = geo.attributes.position;
+  pos.setXYZ(0, -w/2, h, 0); pos.setXYZ(1, w/2, h, 0); pos.setXYZ(2, -w/2, 0, 0); pos.setXYZ(3, w/2, 0, 0);
+  pos.needsUpdate = true; geo.computeBoundingSphere();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// FAE · they float. Same sheet, same frame clock, same bob as the 2D build,
+// now a hand's height off the grass with a real shadow under them.
+// ══════════════════════════════════════════════════════════════════════════
+const faeRecs = new Map();      // fae object → mesh
+let _faeMat = null, _faeDepth = null;
+function drawFaeHD(){
+  if (!FAE_IMG.complete || !FAE_IMG.naturalWidth) return;
+  if (!_faeMat){
+    const t = texForImage(FAE_IMG);
+    // unlit · a fae is a light source, it should not go dark in a shadow
+    _faeMat = new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide });
+    _faeDepth = spriteDepth(t);
+  }
+  const fw = FAE_IMG.naturalWidth / FAE_FRAMES, fh = FAE_IMG.naturalHeight;
+  const now = performance.now(), frame = HD.stats.frames;
+  for (const f of _fae){
+    if (f.collected) continue;
+    const dx = f.x - player.x, dy = f.y - player.y;
+    if (dx < -cfg.viewSide || dx > cfg.viewSide || dy < -cfg.viewAhead || dy > cfg.viewBehind) continue;
+    let m = faeRecs.get(f);
+    if (!m){
+      const g = new THREE.PlaneGeometry(1, 1);
+      quadUpright(g, 1, 1);
+      m = new THREE.Mesh(g, _faeMat);
+      m.customDepthMaterial = _faeDepth;
+      m.castShadow = true;
+      m.userData.frame = -1;
+      worldGroup.add(m);
+      faeRecs.set(f, m);
+    }
+    const fi = Math.floor(now / FAE_FRAME_MS + f.phase * 4) % FAE_FRAMES;
+    if (fi !== m.userData.frame){ quadUV(m.geometry, FAE_IMG, fi * fw, 0, fw, fh, false); m.userData.frame = fi; }
+    // the 2D bob is ±3px on a 48px tile · here it is a slow drift in the air
+    const bob = Math.sin(now / 400 + f.phase) * 0.14;
+    m.position.set(f.x + 0.5, 0.85 + bob, f.y + 0.5);
+    m.rotation.set(-cfg.lean, 0, 0);
+    m.visible = true;
+    m.userData.seen = frame;
+  }
+  for (const [f, m] of faeRecs){
+    if (m.userData.seen === frame) continue;
+    m.visible = false;
+    if (f.collected){ worldGroup.remove(m); m.geometry.dispose(); faeRecs.delete(f); }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INTERIORS · the room the game draws, read and rebuilt in 3D
+//
+//   drawInteriorFloor() paints the floor, the walls AND every piece of
+//   furniture, room by room, in ~500 lines of hand-placed draws. None of that
+//   is re-implemented. While it runs, _drawHook reads its paint calls:
+//     · the floor tile        → baked onto a 3D floor (once per room)
+//     · the wall art          → swallowed · the room gets REAL walls built
+//                               from that same art (back + sides, or every
+//                               '#' of a floor plan as a block of masonry)
+//     · everything else       → stood up as a billboard at the exact
+//                               rectangle the game drew it, feet on its row
+//     · rugs and doormats     → laid flat on the floor where the game put them
+//   Collision, doors, chests, NPCs: all still the game's, untouched.
+// ══════════════════════════════════════════════════════════════════════════
+const ROOM_WALL_H = 2.6;        // tiles · a room taller than its people
+let room = null;
+const roomObjs = new Map();     // key → { mesh, flat }
+let _roomRecord = null;         // objects recorded this frame
+let _imgIds = new WeakMap(), _imgSeq = 0;
+const imgId = img => { let i = _imgIds.get(img); if (!i){ i = ++_imgSeq; _imgIds.set(img, i); } return i; };
+
+function hdInteriorOk(cfg){
+  if (!cfg || cfg.cloudFloor) return false;
+  const sc = String(game.scene || '');
+  if (sc.startsWith('dreamland')) return false;
+  try { if (typeof DREAMLAND_SCENE !== 'undefined' && sc === DREAMLAND_SCENE) return false; } catch(_){}
+  try { if (currentDracolordRealm()) return false; } catch(_){}
+  return true;
+}
+function flatImages(){
+  const set = new Set();
+  try { set.add(RUG_IMG); } catch(_){}
+  try { set.add(RIZER_RUG_IMG); } catch(_){}
+  try { for (const k in DOORMAT_IMGS) set.add(DOORMAT_IMGS[k]); } catch(_){}
+  return set;
+}
+// Wall art is authored as ONE tile-tall band: crown, field, skirting. A real
+// wall is taller, so the band is stretched through its FIELD only and the crown
+// and skirting keep their drawn proportions.
+function composeWall(img, tilesTall){
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const c = document.createElement('canvas');
+  const pxPerTile = 128;
+  c.width = pxPerTile; c.height = Math.round(pxPerTile * tilesTall);
+  const x = c.getContext('2d');
+  const band = Math.round(pxPerTile * 0.24), sb = Math.round(ih * 0.24);
+  x.drawImage(img, 0, 0, iw, sb, 0, 0, c.width, band);                                   // crown
+  x.drawImage(img, 0, sb, iw, ih - 2 * sb, 0, band, c.width, c.height - 2 * band);        // field
+  x.drawImage(img, 0, ih - sb, iw, sb, 0, c.height - band, c.width, band);                // skirting
+  const t = makeTex(c);
+  t.wrapS = THREE.RepeatWrapping;
+  return t;
+}
+function disposeRoom(){
+  if (!room) return;
+  for (const o of room.owned){ roomGroup.remove(o); o.geometry && o.geometry.dispose(); }
+  for (const t of room.textures) t.dispose();
+  for (const [, r] of roomObjs){ roomGroup.remove(r.mesh); r.mesh.geometry.dispose(); }
+  roomObjs.clear();
+  room = null;
+}
+function ensureRoom(cfg){
+  if (room && room.cfg === cfg && room.scene === game.scene) return room;
+  disposeRoom();
+  const plan = floorPlan(cfg);
+  const C = plan ? plan.cols : cfg.cols, R = plan ? plan.rows : cfg.rows;
+  const c = document.createElement('canvas');
+  c.width = C * T; c.height = R * T;
+  const tex = makeTex(c);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(C, R).rotateX(-Math.PI / 2),
+                               new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5 }));
+  floor.position.set(C / 2, 0, R / 2);
+  floor.receiveShadow = true;
+  roomGroup.add(floor);
+  room = { cfg, scene: game.scene, plan, C, R, canvas: c, ctx: c.getContext('2d'), tex, floor,
+           owned: [floor], textures: [tex], bakes: 0, bakedAt: 0, wallsBuilt: false,
+           wallImg: wallImageFor(cfg.wallImg), flat: flatImages() };
+  return room;
+}
+function buildWalls(){
+  const r = room, img = r.wallImg;
+  if (r.wallsBuilt) return;
+  if (img && !(img.complete && img.naturalWidth)) return;      // wait for the art
+  r.wallsBuilt = true;
+  const H = ROOM_WALL_H;
+  const tex = img ? composeWall(img, H) : null;
+  if (tex) r.textures.push(tex);
+  const mat = tex ? new THREE.MeshLambertMaterial({ map: tex })
+                  : new THREE.MeshLambertMaterial({ color: 0x3a2c22 });
+  if (r.plan){
+    // every masonry tile of the floor plan is a block of real wall
+    const walls = r.plan.walls.filter(w => w.ch !== 'D');
+    if (!walls.length) return;
+    const box = new THREE.BoxGeometry(1, H, 1);
+    const inst = new THREE.InstancedMesh(box, mat, walls.length);
+    const m4 = new THREE.Matrix4();
+    walls.forEach((w, i) => { m4.makeTranslation(w.x + 0.5, H / 2, w.y + 0.5); inst.setMatrixAt(i, m4); });
+    inst.castShadow = inst.receiveShadow = true;
+    roomGroup.add(inst); r.owned.push(inst);
+    return;
+  }
+  // classic rooms: the row-0 band becomes a back wall, with side walls framing the floor
+  const add = (w, x, z, rotY, repeat) => {
+    const t = tex ? tex.clone() : null;
+    if (t){ t.needsUpdate = true; t.repeat.set(repeat, 1); r.textures.push(t); }
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, H),
+      t ? new THREE.MeshLambertMaterial({ map: t }) : mat);
+    m.position.set(x, H / 2, z); m.rotation.y = rotY;
+    m.receiveShadow = true;
+    roomGroup.add(m); r.owned.push(m);
+  };
+  add(r.C, r.C / 2, 1.0, 0, r.C);                                  // back wall, on row 0's edge
+  add(r.R - 1, 0, (r.R + 1) / 2, Math.PI / 2, r.R - 1);           // west
+  add(r.R - 1, r.C, (r.R + 1) / 2, -Math.PI / 2, r.R - 1);        // east
+}
+// The floor · the game's own floor pass, every paint but the floor tile swallowed.
+function bakeRoomFloor(){
+  const r = room, cw = Math.floor(gameCanvas.width / T), ch = Math.floor(gameCanvas.height / T);
+  const tileImg = r.cfg.tileImg;
+  const hook = (m, c, a) => {
+    if (m === 'drawImage') return a[0] !== tileImg;
+    if (m === 'fillRect'){ const fs = c.fillStyle; return !(typeof fs === 'string' && !/^#0{3}(0{3})?$/i.test(fs)); }
+    return true;
+  };
+  r.ctx.clearRect(0, 0, r.canvas.width, r.canvas.height);
+  for (let wy = 0; wy < r.R; wy += ch)
+    for (let wx = 0; wx < r.C; wx += cw){
+      withCam(wx * T, wy * T, () => {
+        clear2d();
+        _drawHook = hook;
+        try { O.drawInteriorFloor(); } catch(e){ console.warn('[hd] room bake', e); }
+        finally { _drawHook = null; }
+      });
+      const w = Math.min(cw, r.C - wx) * T, h = Math.min(ch, r.R - wy) * T;
+      r.ctx.drawImage(gameCanvas, 0, 0, w, h, wx * T, wy * T, w, h);
+    }
+  clear2d();
+  r.tex.needsUpdate = true;
+  r.bakes++; r.bakedAt = performance.now();
+  r.provisional = !(tileImg && tileImg.complete && tileImg.naturalWidth);
+}
+// Record one drawImage of the room pass as a world-space rectangle, in tiles.
+function recordRoomDraw(c, a){
+  const img = a[0];
+  const r = room;
+  if (!img || img === r.cfg.tileImg || img === r.wallImg) return;
+  if (!(img.naturalWidth || img.width)) return;
+  let sx = 0, sy = 0, sw = img.naturalWidth || img.width, sh = img.naturalHeight || img.height, dx, dy, dw, dh;
+  if (a.length >= 9){ [, sx, sy, sw, sh, dx, dy, dw, dh] = a; }
+  else if (a.length >= 5){ [, dx, dy, dw, dh] = a; }
+  else { [, dx, dy] = a; dw = sw; dh = sh; }
+  const m = c.getTransform();
+  let x0 = m.a * dx + m.c * dy + m.e, x1 = m.a * (dx + dw) + m.c * (dy + dh) + m.e;
+  let y0 = m.b * dx + m.d * dy + m.f, y1 = m.b * (dx + dw) + m.d * (dy + dh) + m.f;
+  const mirror = x1 < x0;
+  if (mirror){ const t = x0; x0 = x1; x1 = t; }
+  if (y1 < y0){ const t = y0; y0 = y1; y1 = t; }
+  if (x1 - x0 < 2 || y1 - y0 < 2) return;
+  const L = (x0 + _cam.x) / T, Rr = (x1 + _cam.x) / T, Tp = (y0 + _cam.y) / T, B = (y1 + _cam.y) / T;
+  // ★ the 2D build re-draws the top slice of a desk/bag over Rizer when he
+  //   stands behind it · fake depth. Same image, same top-left = that overlay.
+  const key = imgId(img) + '|' + Math.round(L * 8) + '|' + Math.round(Tp * 8);
+  if (_roomRecord.has(key)) return;
+  _roomRecord.set(key, { img, sx, sy, sw, sh, L, R: Rr, T: Tp, B, mirror, flat: r.flat.has(img) });
+}
+function applyRoomObjects(){
+  const frame = HD.stats.frames, r = room;
+  for (const [key, o] of _roomRecord){
+    let rec = roomObjs.get(key);
+    if (!rec || rec.img !== o.img){
+      if (rec){ roomGroup.remove(rec.mesh); rec.mesh.geometry.dispose(); }
+      const { mat, depth } = matsFor(o.img);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+      mesh.customDepthMaterial = depth;
+      mesh.castShadow = !o.flat;
+      mesh.receiveShadow = o.flat;
+      roomGroup.add(mesh);
+      rec = { mesh, img: o.img, uvSig: '' };
+      roomObjs.set(key, rec);
+    }
+    const g = rec.mesh.geometry, w = o.R - o.L, h = o.B - o.T;
+    const uvSig = o.sx + ',' + o.sy + ',' + o.sw + ',' + o.sh + ',' + (o.mirror ? 1 : 0);
+    if (uvSig !== rec.uvSig){ quadUV(g, o.img, o.sx, o.sy, o.sw, o.sh, o.mirror); rec.uvSig = uvSig; }
+    if (o.flat){
+      // lie it on the floor over exactly the tiles it covered
+      const pos = g.attributes.position;
+      pos.setXYZ(0, o.L, 0, o.T); pos.setXYZ(1, o.R, 0, o.T); pos.setXYZ(2, o.L, 0, o.B); pos.setXYZ(3, o.R, 0, o.B);
+      pos.needsUpdate = true; g.computeBoundingSphere();
+      rec.mesh.position.set(0, 0.012, 0); rec.mesh.rotation.set(0, 0, 0);
+    } else {
+      quadUpright(g, w, h);
+      // feet on the row the game anchored it to · in a classic room, anything
+      // whose foot sits in the row-0 band hangs on the back wall instead
+      const onWall = !r.plan && o.B <= 1.1;
+      rec.mesh.position.set((o.L + o.R) / 2, onWall ? 0.95 : 0, onWall ? 1.04 : o.B - 0.5 + 0.03);
+      rec.mesh.rotation.set(onWall ? 0 : -cfg.lean, 0, 0);
+    }
+    rec.mesh.visible = true;
+    rec.seen = frame;
+  }
+  for (const [key, rec] of roomObjs){
+    if (rec.seen === frame) continue;
+    rec.mesh.visible = false;
+    if (frame - rec.seen > 600){ roomGroup.remove(rec.mesh); rec.mesh.geometry.dispose(); roomObjs.delete(key); }
+  }
+  HD.stats.roomObjects = _roomRecord.size;
+}
+function endRoomPass(){
+  if (!_roomRecord) return;
+  _drawHook = null;
+  HD.capturing = false;
+  try { applyRoomObjects(); } catch(e){ console.warn('[hd] room objects', e); }
+  _roomRecord = null;
+  clear2d();
+  _paintOps = 0;            // what paints from here to the cut is world-space effects
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // THE WRAPS · every one is a pass-through unless this is an HD overworld frame
 // ══════════════════════════════════════════════════════════════════════════
 function wrap(name, hd){
@@ -534,9 +846,18 @@ function wrap(name, hd){
 
 if (!HD.broken){
   // ── ground passes ──
+  // ★ a frame that threw mid-room must not leave the recorder swallowing paint
+  if (typeof W.frame === 'function'){
+    const origFrame = W.frame;
+    W.frame = function(){
+      if (_drawHook || _roomRecord){ _drawHook = null; _roomRecord = null; HD.capturing = false; }
+      return origFrame.apply(this, arguments);
+    };
+  }
   wrap('drawOceanUnderlayer', (orig, args) => {
     HD.frameActive = HD.on && game.scene === 'overworld' && initRenderer();
     if (!HD.frameActive) return orig.apply(null, args);
+    HD.mode = 'overworld';
     clear2d();        // ★ the 2D canvas becomes transparent · the 3D sea shows through
   });
   for (const n of ['drawGrass','drawVeridanFreshwaterRiver','drawDistrictWorldBorders','drawFootprints']){
@@ -558,6 +879,44 @@ if (!HD.broken){
       _paintOps = 0;                       // what paints from here to the cut is world-space effects
     }
   });
+  // ── fae float ──
+  wrap('drawFae', (orig, args) => {
+    if (!(HD.frameActive && HD.mode === 'overworld')) return orig.apply(null, args);
+    try { drawFaeHD(); } catch(e){ console.warn('[hd] fae', e); }
+  });
+
+  // ── interiors ──
+  wrap('drawInteriorFloor', (orig, args) => {
+    let cfgI = null;
+    try { cfgI = interiorConfig(game.scene); } catch(_){}
+    if (!(HD.on && hdInteriorOk(cfgI) && initRenderer())){
+      HD.frameActive = false;
+      return orig.apply(null, args);
+    }
+    HD.frameActive = true;
+    HD.mode = 'interior';
+    HD.stats.frames++;
+    HD.kinds = {};
+    clear2d();
+    ensureRoom(cfgI);
+    try { buildWalls(); } catch(e){ console.warn('[hd] walls', e); }
+    const age = performance.now() - room.bakedAt;
+    if (!room.bakes || (room.provisional && age > 400) || (room.bakes < 4 && age > 1500) || age > 10000)
+      bakeRoomFloor();
+    _roomRecord = new Map();
+    _drawHook = (m, c, a) => { if (m === 'drawImage') recordRoomDraw(c, a); return true; };
+    HD.capturing = true;
+    try { orig.apply(null, args); }
+    catch(e){ endRoomPass(); throw e; }
+    // ★ still recording on purpose · the room pass then sorts its chests, desks
+    //   and gates in with the NPCs, and those are furniture too. The pass ends
+    //   at drawAoeImpactBursts, the first thing the frame draws after the room.
+  });
+  wrap('drawAoeImpactBursts', (orig, args) => {
+    if (_roomRecord) endRoomPass();
+    return orig.apply(null, args);
+  });
+
   // The 3D view sees much further than the 2D 20x11 window · widen the cull
   // while (and only while) the world layer is being captured.
   wrap('_propCullBounds', (orig, args) => {
@@ -623,6 +982,7 @@ if (!HD.broken){
       deferred.length = 0;
       return orig.apply(null, args);
     }
+    if (_roomRecord) endRoomPass();
     try { captureDecal(); } catch(e){ console.warn('[hd] decal', e); }
     clear2d();
     const t0 = performance.now();
@@ -673,14 +1033,29 @@ function renderFrame(){
   const dt = Math.min(0.1, (now - (_lastT || now)) / 1000);
   _lastT = now;
 
-  // camera · follow the Rizer's feet
-  const fx = player.x + 0.5, fz = player.y + 0.5;
+  const inRoom = HD.mode === 'interior' && room;
+  worldGroup.visible = !inRoom;
+  roomGroup.visible = !!inRoom;
+
+  // camera · follow the Rizer's feet (inside, held so the room stays framed)
+  let fx = player.x + 0.5, fz = player.y + 0.5;
+  if (inRoom){
+    // hold the room's front edge at the bottom of the screen · how far below the
+    // focus the frame reaches follows from the camera's own pitch, distance and lens
+    const cl = (v, lo, hi) => lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v));
+    const pr = THREE.MathUtils.degToRad(cfg.roomPitchDeg), half = THREE.MathUtils.degToRad(cfg.fov / 2);
+    const reach = cfg.roomDistance * Math.cos(pr) - cfg.roomDistance * Math.sin(pr) / Math.tan(pr + half);
+    fx = cl(fx, 5, room.C - 5);
+    fz = cl(fz, 3, room.R - reach + 1.3);   // + a margin so Rizer on the last row keeps his feet in frame
+  }
+  const camPitch = inRoom ? cfg.roomPitchDeg : cfg.pitchDeg;
+  const camDist  = inRoom ? cfg.roomDistance : cfg.distance;
   if (!_focusInit || Math.hypot(_focus.x - fx, _focus.z - fz) > 12){ _focus.set(fx, 0, fz); _focusInit = true; }
   const k = 1 - Math.exp(-cfg.followRate * dt);
   _focus.x += (fx - _focus.x) * k; _focus.z += (fz - _focus.z) * k;
-  const p = THREE.MathUtils.degToRad(cfg.pitchDeg);
+  const p = THREE.MathUtils.degToRad(camPitch);
   camera.fov = cfg.fov;
-  camera.position.set(_focus.x, cfg.distance * Math.sin(p), _focus.z + cfg.distance * Math.cos(p));
+  camera.position.set(_focus.x, camDist * Math.sin(p), _focus.z + camDist * Math.cos(p));
   camera.lookAt(_focus.x, 0.8, _focus.z);
   camera.updateProjectionMatrix();
 
@@ -688,6 +1063,19 @@ function renderFrame(){
   sun.position.set(_focus.x + 11, 24, _focus.z + 13);   // front-right · faces lit, shadows fall back
   sun.target.position.set(_focus.x, 0, _focus.z - 4);
   sun.target.updateMatrixWorld();
+
+  if (inRoom){
+    // indoors · warm room light from the front, soft shadows, darkness past the walls
+    scene.background.setHex(0x07060c);
+    scene.fog.near = 400; scene.fog.far = 500;
+    hemi.intensity = 0.86; hemi.color.setHex(0xfff2df); hemi.groundColor.setHex(0x3a2a1c);
+    sun.intensity = 0.4; sun.color.setHex(0xffe6c4);
+    sun.position.set(_focus.x + 4, 14, _focus.z + 10);
+    lantern.intensity = 0;
+    finishFrame();
+    return;
+  }
+  hemi.groundColor.setHex(0x55603f);
 
   // district air and night
   let dist = 'malezor';
@@ -723,7 +1111,9 @@ function renderFrame(){
   } catch(_){}
 
   updateGround(fx, fz);
-
+  finishFrame();
+}
+function finishFrame(){
   // sprites and props not drawn this frame go dark · long-gone ones are freed
   const frame = HD.stats.frames;
   let nA = 0, nP = 0;
@@ -735,7 +1125,7 @@ function renderFrame(){
     if (rec.seen !== frame){
       rec.mesh.visible = false;
       if (frame - rec.seen > 1800){
-        scene.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh.material.dispose();
+        worldGroup.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh.material.dispose();
         rec.mesh.customDepthMaterial.dispose(); propRecs.delete(p);
       }
     } else nP++;

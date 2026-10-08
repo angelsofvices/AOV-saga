@@ -71,9 +71,9 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
   }
   // The character's own hair: its R_hair primitives (not an asset worn on top).
   const ownHair = actor => { const out = []; actor.model.traverse(o => { if (o.isSkinnedMesh && !o.name.startsWith('asset:') && [].concat(o.material).some(m => m?.name === 'R_hair')) out.push(o); }); return out; };
-  async function applyHair(actor, parts) {
+  async function applyHair(actor, parts, want = hairStyles[getCharKey()] || 'own') {
     const own = ownHair(actor); if (!own.length) return;
-    const want = hairStyles[getCharKey()] || 'own', st = hairState.get(actor) || {};
+    const st = hairState.get(actor) || {};
     if (st.want === want) { if (st.mesh && parts.get('R_hair')) st.mesh.material = parts.get('R_hair').material; return; }
     if (st.mesh) dropHair(st.mesh);
     hairState.set(actor, { want, mesh:null });
@@ -94,16 +94,30 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
   }
   function apply(actor = getActor()) {
     if (!actor) return;
-    const parts = prepare(actor), colors = presets[getCharKey()] || {};
+    paint(actor, presets[getCharKey()] || {}, hairStyles[getCharKey()] || 'own');
+    currentActor = actor;
+  }
+  // A look = { colors, hair }: paint it on any actor (the player, or a Labs clone that keeps its own snapshot).
+  function paint(actor, colors, hair) {
+    const parts = prepare(actor);
     for (const [name, part] of parts) {
       const value = hex(colors[name]) || part.original;
       part.material.color.set(value);
       if ((name === 'R_gem' || name === 'M_eye') && part.material.emissive) part.material.emissive.set(hex(colors[name]) || part.emission || value);
       else if (part.emission && part.material.emissive) part.material.emissive.copy(part.emission);
     }
-    currentActor = actor;
-    applyHair(actor, parts);
+    applyHair(actor, parts, hair);
   }
+  const persist = () => { save(); try { localStorage.setItem(HAIR_STORAGE, JSON.stringify(hairStyles)); } catch {} };
+  const lookOf = key => ({ colors: { ...(presets[key] || {}) }, hair: hairStyles[key] || 'own' });
+  function setLook(key, look) { // what Labs saves, wears and swaps: it becomes that character's preset
+    const colors = {};
+    for (const [part, value] of Object.entries(look?.colors || {})) { const c = hex(value); if (editable(part) && c) colors[part] = c; }
+    if (Object.keys(colors).length) presets[key] = colors; else delete presets[key];
+    if (look?.hair && look.hair !== 'own' && HAIRSTYLES().some(h => h.id === look.hair)) hairStyles[key] = look.hair; else delete hairStyles[key];
+    persist(); apply(); if (isOpen) render();
+  }
+  function resetLook(key) { delete presets[key]; delete hairStyles[key]; persist(); apply(); if (isOpen) render(); }
   function paintFocus(scroll = true) {
     const list = items(); focus = Math.max(0, Math.min(focus, list.length - 1));
     list.forEach((el, i) => el.classList.toggle('focus', i === focus));
@@ -237,5 +251,5 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
   function tick() { if (getActor() !== currentActor) { apply(); if (isOpen) render(); } }
   function open() { if (isOpen) return; isOpen = true; root.hidden = false; apply(); render(); onOpen?.(); }
   function close() { if (!isOpen) return; isOpen = false; root.hidden = true; onClose?.(); }
-  return { open, close, key, pad, tick, apply, load, setHair, get hair() { return hairStyles[getCharKey()] || 'own'; }, get isOpen() { return isOpen; } };
+  return { open, close, key, pad, tick, apply, load, setHair, lookOf, setLook, resetLook, swatches: () => { const parts = prepare(getActor()) || new Map(), colors = presets[getCharKey()] || {}; return [...parts].map(([n, p]) => ({ part: n, label: LABELS[n] || n, hex: hex(colors[n]) || p.original, custom: !!hex(colors[n]) })); }, paintLook: (actor, look) => paint(actor, look?.colors || {}, look?.hair || 'own'), hairName: id => HAIRSTYLES().find(h => h.id === id)?.name || 'Character default', get hair() { return hairStyles[getCharKey()] || 'own'; }, get isOpen() { return isOpen; } };
 }

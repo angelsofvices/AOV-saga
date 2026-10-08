@@ -34,6 +34,7 @@ import { createLoot, createCommonChests, createChestLight, createHeldWeapons, bu
 import { storage } from './storage.js';
 import { createTVSystem, buildDvdPickup } from './tv-system.js';
 import { DVDS } from './dvd-registry.js';
+import { createLabs } from './labs.js';
 import { crafting } from './crafting.js';
 import { createDeployables } from './deployables.js';
 import { pushOut, sweepOut } from './body-collision.js';
@@ -95,7 +96,7 @@ let locked = false, toastTimer;
 addEventListener('keydown', e => {
   if (n3000?.isOpen) { n3000.key(e); e.preventDefault(); e.stopImmediatePropagation(); return; }
   if (tv?.isOpen) { tv.key(e); e.preventDefault(); e.stopImmediatePropagation(); return; }
-  if (!e.target?.matches?.('[data-skin-hex], [data-build-name]') && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
+  if (!e.target?.matches?.('[data-skin-hex], [data-build-name], [data-labs-name]') && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
   if (bondGame?.active) { if (!e.repeat) bondGame.key(e.code); e.preventDefault(); return; }
   if (stationUI?.isOpen) { if (!e.repeat) stationUI.key(e.code); e.preventDefault(); return; } // Home PC / Experiment Table / Field Workstation screens
   if (dep?.placing && (e.code === 'Escape' || e.code === 'Backspace')) { if (!e.repeat) dep.cancel(); e.preventDefault(); return; }
@@ -231,6 +232,7 @@ addEventListener('drop', e => {
 async function loadSkinFile(file) {
   const label = file.name.replace(/\.json$/i, '');
   let data; try { data = JSON.parse(await file.text()); } catch { return showToast(`${label} · not a skin file`); }
+  if (labs?.isTemplate(data)) { const r = await labs.applyTemplate(data); if (!r.ok) showToast(`${label} · ${r.reason}`); return; } // a LABS template: wear it
   if (!skinLab || !rizer) return showToast('The game is still loading · drop the skin again in a moment');
   const key = typeof data?.character === 'string' && data.character ? data.character : rizer.charKey;
   if (!CHARACTERS[key]) return showToast(`${label} · it is for an unknown character (${key})`);
@@ -752,6 +754,7 @@ let partner = null; // the bonded, active Zyrex walking with Rizer (zyrex2d.js �
 let world, sky, rizer, cam, zyrex, fx, hud, zy, lab, skinLab, buildLab, bondGame, anciuxor = null, astral, seers = null, started = false, usingPad = false;
 let seating = null; // INTERACTIVE_SEAT controller (the Nebuladock chair)
 let pcUse = null; // Nebuladock 3000 session: {phase 'walk'|'in'|'on'|'out', k 0..1 camera blend, n:{screen}}
+let labs = null, labsView = null; // LABS › Rizer (labs.js): clones, templates, reset · labsView: the camera held on him while the page is up
 let n3000 = null, n3000Camera = null, tv = null, tvCamera = null; // tv: the living-room TV & DVD system (tv-system.js)
 let dep = null, stationUI = null; // storage foundation: deployed Field Equipment · Home PC / Experiment Table screens
 let furnMover = null, homeInterior = null, homeMode = false, homeReturn = null, npcs = null, commonChests = null, zycube = null;
@@ -937,6 +940,7 @@ function build() {
     W, hud, characters: CHARACTERS, itemCatalog: ITEMS, onUseItem: k => useItem(k),
     getState: () => ({ hour, dev: settings.dev, hp: rizer.hp, maxHp: rizer.maxHp, charKey: rizer.charKey, defeated: seers?.defeated || 0, seers: seers?.total || W.seerPatrols.length, region: hud.regionOf(rizer.position.x, rizer.position.z), x: rizer.position.x, y: rizer.position.y, z: rizer.position.z, contacts: npcs?.npcs.filter(n => n.met).map(n => ({ name:n.name, note:n.recruited ? 'Companion · following Rizer' : n.downed ? 'Downed · lock on and press D-pad ↓ to revive' : 'Contact · Malezor' })) || [] }),
     onPartner: id => { const ok = setPartner(id); if (ok) showToast(`${partner.record.name} walks with you`); return ok; },
+    labsHub: makeLabsHub(), onLabsView: on => setLabsView(on),
     onTime: h => { if (settings.dev) hourTarget = h > hour + 0.05 ? h : h + 24; },
     onCharacter: async k => { settings.char = k; saveSettings(); await rizer.setCharacter(k); skinLab?.apply(); }, // skins and characters stick between sessions
     onAnimLab: () => { zy.close(); skinLab?.close(); buildLab?.close(); lab.open(); },
@@ -981,7 +985,7 @@ function build() {
   addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
   // Debug/test hook for playtests and automated checks.
-  window.__rp7d = { get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
+  window.__rp7d = { get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
   frame();
   // title screen: ready once the world exists · a NEW GAME reload skips straight into play
   $('#new-sub').textContent = 'Wake up in Rizer’s room';
@@ -1039,6 +1043,50 @@ function cycleWeapon(dir) { const list = wheelList(); if (!list.length) return; 
 // The soundtrack ducks under the solo. seers.setMusic() carries where the music is; npcs join in when they return.
 const GUITAR = { radius: 24, duck: 0.12, astralRate: COMBAT.prayer.stamina };
 let jam = null; // { t, dur, song }
+// ── LABS › RIZER (labs.js · zyphone.js renderLabs) ──
+// The Zyphone page reads view() and calls act(); everything edits the player's own body. While the page is up the
+// camera stands in front of him, so the real Rizer fills the open middle of the screen.
+// Body changes run one after another, so a slow load (Elzoran, a build) can't land after a later change (Reset).
+let labsCharQ = Promise.resolve();
+function setCharFromLabs(k) { settings.char = k; saveSettings(); return (labsCharQ = labsCharQ.then(() => rizer.setCharacter(k)).then(() => skinLab?.apply()).catch(e => console.warn('[rp7d] Labs body change failed', e))); }
+function ensureLabs() {
+  return labs ||= createLabs({ scene, getRizer: () => rizer, characters: CHARACTERS, skinLab, setCharacter: setCharFromLabs, savePlayable, toast: showToast, fx });
+}
+function makeLabsHub() {
+  const hasHair = () => { let on = false; rizer?.actor?.model.traverse(o => { if (o.isSkinnedMesh && !o.name.startsWith('asset:') && [].concat(o.material).some(m => m?.name === 'R_hair')) on = true; }); return on; };
+  return {
+    view() {
+      const L = ensureLabs(), key = rizer.charKey, C = CHARACTERS[key] || {}, base = C.skinOf || key;
+      return {
+        charName: C.name || key, bodyName: CHARACTERS[base]?.name || base,
+        skins: [base, ...Object.keys(CHARACTERS).filter(k => CHARACTERS[k].skinOf === base)].map(k => ({ key: k, name: CHARACTERS[k].name, current: k === key })),
+        hair: { can: hasHair(), name: skinLab?.hairName(skinLab.hair) || 'Character default' },
+        colors: skinLab?.swatches() || [], templates: L.templates, clones: L.clones.length, resetArmed: L.resetArmed
+      };
+    },
+    async act(action, arg, name) {
+      const L = ensureLabs(), i = +arg, t = L.templates[i];
+      if (action === 'body') { const bodies = Object.keys(CHARACTERS).filter(k => !CHARACTERS[k].skinOf), cur = CHARACTERS[rizer.charKey]?.skinOf || rizer.charKey; return setCharFromLabs(bodies[(bodies.indexOf(cur) + 1) % bodies.length]); }
+      if (action === 'hair') return skinLab.setHair(i || 1);
+      if (action === 'resetColors') return skinLab.setLook(rizer.charKey, { colors: {}, hair: skinLab.hair });
+      if (action === 'save') return L.saveTemplate(name);
+      if (action === 'clone') return L.spawnClone();
+      if (action === 'swap') return L.playAsClone();
+      if (action === 'clear') return L.clearClones();
+      if (action === 'reset') return L.resetRizer();
+      if (!t) return;
+      if (action === 'wear') return L.applyTemplate(t, { keep: false });
+      if (action === 'cloneT') return L.spawnClone(t, null, t.name);
+      if (action === 'dl') { L.download(t); return showToast(`${t.name} · JSON downloaded`); }
+      if (action === 'del') return L.deleteTemplate(i);
+    }
+  };
+}
+function setLabsView(on) {
+  $('#game').classList.toggle('labs-view', !!on);
+  if (on && !labsView) labsView = { yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist };
+  else if (!on && labsView) { cam.yaw = labsView.yaw; cam.pitch = labsView.pitch; cam.targetDist = labsView.dist; labsView = null; }
+}
 // ── the TV & DVD system (tv-system.js · dvd-registry.js) ──
 // While the TV is up the world waits: frame() renders the room (the movie plays on the 3D screen) but skips update().
 function initTV() {
@@ -2073,7 +2121,8 @@ function update(dt, t, realDt = dt) {
   if (!menu && !homeMode) npcs?.update(dt, rizer, seers);
   const movementWorld = homeMode ? homeInterior.roomWorld : world;
   if (westLakeBus?.driving) westLakeBus.cameraUpdate(dt, camera, cam, busInput);
-  else cam.update(dt, rizer, movementWorld, { autoRecenter: usingPad && !menu });
+  else { if (labsView) { cam.yaw = rizer.facing; cam.pitch = 0.1; cam.targetDist = 3.4; } cam.update(dt, rizer, movementWorld, { autoRecenter: usingPad && !menu }); }
+  labs?.update(dt);
   if (homeMode) homeInterior.nebulaTick?.(dt);
   if (pcUse) tickPcUse(dt);
   if (scopeView) scopeCamera(dt);

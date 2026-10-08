@@ -11,7 +11,7 @@ const HOME_KEY = 'rp7d.zyphone.home.v1';
 const GROUPS = [
   { id: 'home', name: 'Home', pages: ['home'] },
   { id: 'world', name: 'World', pages: ['map', 'portal', 'notes', 'time'] },        // where things are, how to get there, what's been found, when
-  { id: 'rizer', name: 'Rizer', pages: ['rizer', 'astral', 'zyrex'] },              // him, his techniques, his partners
+  { id: 'rizer', name: 'Labs', pages: ['rizer', 'astral', 'zyrex'] },               // LABS: Rizer (builds · skins · animations), Astral, Zyrex
   { id: 'gear', name: 'Gear', pages: ['weapons', 'items', 'experiment'] },          // what he carries and what he makes from it
   { id: 'journal', name: 'Journal', pages: ['missions', 'contacts', 'zydex', 'camera'] }, // what to do, who he knows, what he's recorded
   { id: 'system', name: 'System', pages: ['controls', 'options', 'dev'] }
@@ -20,7 +20,7 @@ const ORDER = GROUPS.flatMap(g => g.pages), groupOf = key => GROUPS.findIndex(g 
 const PAGE_NAME = { home: 'Home', map: 'Map', portal: 'Portal', notes: 'Field Notes', time: 'Time', rizer: 'Rizer', astral: 'Astral', zyrex: 'Zyrex', weapons: 'Armory', items: 'Items', experiment: 'Experiment', missions: 'Missions', contacts: 'Contacts', zydex: 'Zydex', camera: 'Camera', controls: 'Controls', options: 'Options', dev: 'Dev' };
 const APPS = Object.freeze([
   ['map','✦','Map','Locations & Navigation'], ['time','☀','Time','Day / Night & Weather'], ['notes','▤','Field Notes','Discoveries & Progress'],
-  ['rizer','♟','Rizer','Stats, Forms & Abilities'], ['zyrex','❧','Zyrex','Partners & Bonding'], ['weapons','⚔','Armory','Weapons & Equipment'],
+  ['rizer','♟','Labs','Rizer · Builds, Skins & Animations'], ['zyrex','❧','Zyrex','Partners & Bonding'], ['weapons','⚔','Armory','Weapons & Equipment'],
   ['items','◆','Items','Inventory & Materials'], ['missions','!','Missions','Main Story & Side Quests'], ['contacts','●','Contacts','People & Messages'],
   ['zydex','▱','Zydex','Creatures, Places & Lore'], ['astral','◈','Astral','Techniques & Aura'], ['portal','◉','Portal','Gatelocks & Fast Travel'],
   ['experiment','⚗','Experiment','Compounds & Research'], ['camera','▣','Camera','Photos, Scans & Evidence'], ['controls','⚙','Controls','Game & HUD Settings'], ['options','⌁','Options','Audio, Display & More']
@@ -30,7 +30,7 @@ export const TIME_PRESETS = [
   { h: 18.7, name: 'Golden hour' }, { h: 20.3, name: 'Dusk' }, { h: 23.5, name: 'Night' }
 ];
 
-export function createZyphone({ W, hud, characters, getState, onTime, onCharacter, onAnimLab, onSkinLab, onBuildLab, weapons, inventory, storage = null, crafting = null, onDeploy, onPackDeployed, itemCatalog = {}, onUseItem, onPartner, onWeapon, onWheel, icons = {}, menus, onAction, onOpen, onClose }) {
+export function createZyphone({ W, hud, characters, getState, onTime, onCharacter, onAnimLab, onSkinLab, onBuildLab, weapons, inventory, storage = null, crafting = null, onDeploy, onPackDeployed, itemCatalog = {}, onUseItem, onPartner, onWeapon, onWheel, icons = {}, menus, onAction, onOpen, onClose, labsHub = null, onLabsView }) {
   const root = $('#zyphone');
   let isOpen = false, tab = 0, focus = 0;
   let carry = null; // Armory: what's being moved — { from: 'slot', i, k } or { from: 'bag', k }
@@ -85,7 +85,10 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
         ? st.contacts.map(c => `<div class="zy-note"><small>MALEZOR · HERO</small><b>${esc(c.name)}</b><p>${esc(c.note)}</p></div>`).join('')
         : '<p>People, messages and lore connections will appear here as Rizer meets Malezor\'s residents.</p>'}`;
     }
-    if (key === 'rizer') {
+    root.classList.toggle('labs', key === 'rizer' && !!labsHub); onLabsView?.(isOpen && key === 'rizer' && !!labsHub);
+    heroEl.hidden ||= key === 'rizer' && !!labsHub;
+    if (key === 'rizer' && labsHub) renderLabs();
+    else if (key === 'rizer') {
       $('#zy-stats').innerHTML = [
         ['Health', `${Math.ceil(st.hp)} / ${st.maxHp}`], ['Enemies defeated', `${st.defeated} / ${st.seers}`],
         ['Places found', `${hud.found.size} / ${hud.places.length}`], ['Location', st.region], ['Weapon', weapons[inventory.equipped]?.name || 'Fists']
@@ -115,6 +118,44 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     paintFocus();
   }
 
+  // ── LABS › RIZER: builds, skins and animations on the player's real body (game.js · labsHub, labs.js) ──
+  // Three bins on the left, Rizer himself in the open middle, the subject readout, templates and clones on the right.
+  function renderLabs() {
+    const page = root.querySelector('.zy-page[data-page="rizer"]'); if (!page) return;
+    const v = labsHub.view(), keepName = page.querySelector('[data-labs-name]')?.value ?? '';
+    const row = (attrs, label, value = '', cls = '') => `<button class="zy-item rz-row${cls}" data-item ${attrs}><span>${esc(label)}</span><small>${esc(value)}</small></button>`;
+    const bin = (code, title, sub, body) => `<section class="rz-bin"><header><i>${code}</i><b>${title}</b><small>${sub}</small></header>${body}</section>`;
+    page.innerHTML = `<div class="rz-labs">
+      <div class="rz-col rz-left">
+        ${bin('01', 'BUILD', 'BODY · FORM · HAIR', `
+          ${row('data-labs="body" data-arg="1"', 'Body', `‹ ${v.bodyName} ›`, ' rz-cycle')}
+          ${v.hair.can ? row('data-labs="hair" data-arg="1"', 'Hairstyle', `‹ ${v.hair.name} ›`, ' rz-cycle') : ''}
+          ${row('data-build-lab', 'Open Build Lab', 'CONSTRUCT ›', ' rz-open')}`)}
+        ${bin('02', 'SKINS', 'COLOUR · LOOK', `
+          ${v.skins.map(k => row(`data-char="${esc(k.key)}"`, k.name, k.current ? 'WEARING' : 'WEAR', k.current ? ' current' : '')).join('')}
+          <div class="rz-chips">${v.colors.map(c => `<i title="${esc(c.label)} ${c.hex}" style="--c:${c.hex}"></i>`).join('')}</div>
+          ${row('data-skin-lab', 'Open Skin Lab', 'PAINT ›', ' rz-open')}
+          ${row('data-labs="resetColors"', 'Reset colours', v.charName.toUpperCase())}`)}
+        ${bin('03', 'ANIMATIONS', 'CLIPS · STATES', `
+          <p class="rz-note">Clips play on the body you are wearing. Assign, preview and import them in the Anim Lab.</p>
+          ${row('data-lab', 'Open Anim Lab', 'ASSIGN ›', ' rz-open')}`)}
+      </div>
+      <div class="rz-stage" aria-hidden="true"><span class="rz-tl"></span><span class="rz-tr"></span><span class="rz-bl"></span><span class="rz-br"></span>
+        <div class="rz-tag"><small>SUBJECT · LIVE</small><b>${esc(v.charName)}</b><em>${esc(v.hair.can ? v.hair.name : '')}</em></div>
+        <div class="rz-scan"></div></div>
+      <div class="rz-col rz-right">
+        ${bin('ID', 'SUBJECT', 'WHAT THE PLAYER WEARS', `
+          <dl class="rz-dl"><dt>BODY</dt><dd>${esc(v.bodyName)}</dd><dt>SKIN</dt><dd>${esc(v.charName)}</dd><dt>HAIR</dt><dd>${esc(v.hair.can ? v.hair.name : '—')}</dd><dt>COLOURS</dt><dd>${v.colors.filter(c => c.custom).length} custom</dd><dt>CLONES</dt><dd>${v.clones} live</dd></dl>`)}
+        ${bin('TPL', 'TEMPLATE', 'SAVE · CLONE · PLAY AS', `
+          <label class="rz-name"><small>NAME</small><input data-labs-name type="text" maxlength="40" placeholder="e.g. Kelthor (blue)" value="${esc(keepName)}" spellcheck="false" autocomplete="off"></label>
+          ${row('data-labs="save"', 'Save template', 'JSON ↓')}
+          ${row('data-labs="clone"', 'Spawn live clone', 'IN WORLD')}
+          ${row('data-labs="swap"', 'Play as clone', v.clones ? 'SWAP BODIES' : 'SPAWN ONE FIRST')}
+          ${v.clones ? row('data-labs="clear"', 'Clear clones', `${v.clones} LIVE`) : ''}
+          ${v.templates.length ? `<small class="rz-sub">SAVED · ${v.templates.length}</small>` + v.templates.map((t, i) => `<div class="rz-tpl"><button class="zy-item rz-row" data-item data-labs="wear" data-arg="${i}"><span>${esc(t.name)}</span><small>WEAR</small></button><button class="zy-item rz-mini" data-item data-labs="cloneT" data-arg="${i}">CLONE</button><button class="zy-item rz-mini" data-item data-labs="dl" data-arg="${i}">JSON</button><button class="zy-item rz-mini" data-item data-labs="del" data-arg="${i}">✕</button></div>`).join('') : '<p class="rz-note">Saved templates appear here. A downloaded template JSON can be dropped onto the game to wear it.</p>'}`)}
+        ${row('data-labs="reset"', v.resetArmed ? 'Press again to reset' : 'Reset Rizer', 'DEFAULT LOOK', ' rz-danger')}
+      </div></div>`;
+  }
   function renderHome(st) {
     const grid = $('#zy-app-grid'); if (!grid) return;
     grid.classList.toggle('editing', homeEdit);
@@ -267,6 +308,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (el.dataset.hour) { onTime(+el.dataset.hour); setTimeout(render, 50); }
     if (el.dataset.char) Promise.resolve(onCharacter(el.dataset.char)).then(render);
     if (el.dataset.partner) { onPartner?.(el.dataset.partner); render(); return; } // call that bonded Zyrex to walk with him
+    if (el.dataset.labs) { const keep = focus, name = root.querySelector('[data-labs-name]')?.value || ''; Promise.resolve(labsHub?.act(el.dataset.labs, el.dataset.arg, name)).then(() => { if (isOpen && TABS[tab] === 'rizer') { render(); focus = keep; paintFocus(); } }); return; }
     if ('lab' in el.dataset) onAnimLab?.();
     if ('skinLab' in el.dataset) onSkinLab?.();
     if ('buildLab' in el.dataset) onBuildLab?.();
@@ -280,7 +322,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (isOpen) { if (which) setTab(TABS.indexOf(which)); return; }
     isOpen = true; root.hidden = false; if (which) tab = TABS.indexOf(which); focus = 0; render(); status(); onOpen?.();
   }
-  function close() { if (!isOpen) return; isOpen = false; carry = null; root.hidden = true; onClose?.(); }
+  function close() { if (!isOpen) return; isOpen = false; carry = null; root.hidden = true; root.classList.remove('labs'); onLabsView?.(false); onClose?.(); }
 
   tabsEl.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const g = GROUPS.findIndex(x => x.id === b.dataset.group); setPage(lastIn[g] || GROUPS[g].pages[0]); });
   subEl.addEventListener('click', e => { const b = e.target.closest('button'); if (b) setPage(b.dataset.pageTab); });
@@ -290,6 +332,8 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   // Keyboard while open. Returns true when the key was used.
   function key(code) {
     if (!isOpen) return false;
+    const typing = document.activeElement?.matches?.('[data-labs-name]');
+    if (typing) { if (code === 'Escape' || code === 'Enter') document.activeElement.blur(); if (code === 'Enter') { focus = items().findIndex(el => el.dataset.labs === 'save'); paintFocus(); } return true; }
     if (carry && (code === 'Escape' || code === 'Backspace')) { carry = null; render(); }
     else if (TABS[tab] === 'home' && homeEdit && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(code)) {
       const cols = 5, delta = code === 'ArrowLeft' ? -1 : code === 'ArrowRight' ? 1 : code === 'ArrowUp' ? -cols : cols;

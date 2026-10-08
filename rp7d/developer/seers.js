@@ -21,6 +21,7 @@ import { rng } from './util.js';
 import { dressCorrupted } from './enemy-skins.js';
 import { dressDaemon } from './daemon-skins.js';
 import { DAEMON_BLACK_SPEC } from './daemons-black.js';
+import { rollEnemyBag } from './coin-piles.js';
 import { DAEMON_RED_SPEC } from './daemons-red.js';
 
 export const SEER = {
@@ -148,7 +149,7 @@ export async function createSeers(scene, world, W) {
     const bang = alertTex(); bang.position.y = 3.25; bang.visible = false; root.add(bang); bang.redraw();
     const bar = barTex(); bar.position.y = 2.95; bar.visible = false; root.add(bar);
     const lootBag = new THREE.Group(); lootBag.visible = false; scene.add(lootBag);
-    const coinDrop = T.key === 'mori' || T.key === 'skellor';
+    const coinDrop = true; // every bag holds coins (coin-piles.js · ENEMY_BAG); no enemy drops gems any more
     const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), lootMat); pouch.scale.set(1, 0.72, 0.8); lootBag.add(pouch);
     const token = new THREE.Mesh(coinDrop ? new THREE.CylinderGeometry(0.11, 0.11, 0.045, 12) : new THREE.OctahedronGeometry(0.13), coinDrop ? goldMat : gemMat);
     token.position.set(0, 0.15, 0); if (coinDrop) token.rotation.x = Math.PI / 2; lootBag.add(token);
@@ -923,7 +924,7 @@ export async function createSeers(scene, world, W) {
       const eater = feedClaims.get(g); if (eater) { releaseFeed(eater); eater.state = 'return'; eater.wp = nearestWp(eater); }
       g.looted = true; g.lootBag.visible = false; g.state = 'sinking'; g.sink = 0; g.timer = g.T.respawn;
       const index = world.interactables.indexOf(g.drop); if (index >= 0) world.interactables.splice(index, 1);
-      return { currency: (g.T.key === 'mori' || g.T.key === 'skellor') ? 'coins' : 'gems', amount: 1, enemy: g.T.name };
+      return { currency: 'coins', amount: rollEnemyBag(g.T), enemy: g.T.name };
     },
     inCombat: pos => grunts.some(g => alive(g) && ['alert', 'chase', 'windup', 'attack', 'evade', 'stagger', 'dazed', 'surprised', 'astraliftDown', 'gettingUp'].includes(g.state) && Math.hypot(g.pos.x - pos.x, g.pos.z - pos.z) < 18),
     respawnAll: () => grunts.forEach(reset),

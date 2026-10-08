@@ -17,11 +17,12 @@
   function reduced(){ return motionQ.matches; }
 
   // ───────────────────────── page identity ─────────────────────────
-  var PAGES = { home:'The Saga', worlds:'The Worlds', zyraxis:'Zyraxis', games:'The Games', books:'The Books', legal:'Legal' };
+  var PAGES = { home:'The Saga', worlds:'The Worlds', zyraxis:'Zyraxis', games:'The Games', books:'The Books', 'zyrex-codex':'The Codex', legal:'Legal' };
   var path = location.pathname.replace(/\/+$/, '/');
   var PAGE = (function(){
-    if (path === '/' || /\/index\.html$/.test(path)) return 'home';
-    var m = path.match(/\/([a-z0-9-]+)\.html$/);
+    if (path === '/' || /\/index(?:\.html)?$/.test(path)) return 'home';
+    // Netlify serves pretty URLs (/books, not /books.html) · accept both
+    var m = path.match(/\/([a-z0-9-]+)(?:\.html)?$/);
     return m && PAGES[m[1]] ? m[1] : 'other';
   })();
   body.classList.add('gm', 'gm-page-' + PAGE);

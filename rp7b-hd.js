@@ -119,12 +119,16 @@ glCanvas.style.cssText = 'position:absolute; pointer-events:none; z-index:0; dis
 
 function initRenderer(){
   if (renderer) return true;
+  if (HD.broken) return false;       // tried once and the browser said no · do not retry every frame
   try {
     renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, alpha: false,
                                          powerPreference: 'high-performance' });
   } catch(err){
     console.error('[hd] WebGL unavailable · staying classic 2D', err);
-    HD.broken = true; return false;
+    HD.broken = true;
+    // ★ v0.99.60 · never fail silently · the player asked for 2DHD and must hear why it is not there
+    try { showToast('\u26a0 2DHD needs WebGL and the browser refused it \u00b7 relaunch Chrome (pending update?) \u00b7 classic view for now', 9000); } catch(_){}
+    return false;
   }
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;      // ★ the art's own colours, not a filmic regrade
@@ -181,8 +185,25 @@ function initRenderer(){
   decal.visible = false;
   scene.add(decal);
 
+  // ★ v0.99.60 · a GPU reset (driver hiccup, a browser update waiting to
+  //   relaunch) LOSES the WebGL context. Without this the 3D view would freeze
+  //   on its last frame under a transparent game canvas. Step aside to classic
+  //   while it is gone, say so, and come back when the browser restores it.
+  glCanvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    HD.contextLost = true;
+    setLayered(false);
+    console.error('[hd] WebGL context lost · classic view until it is restored');
+    try { showToast('\u26a0 2DHD lost the GPU \u00b7 classic view until it comes back', 6000); } catch(_){}
+  });
+  glCanvas.addEventListener('webglcontextrestored', () => {
+    HD.contextLost = false;
+    try { showToast('\u25c8 2DHD restored', 2400); } catch(_){}
+  });
+
   const stage = gameCanvas.parentElement;
   stage.insertBefore(glCanvas, gameCanvas);
+  try { showToast('\u25c8 RP7B 2DHD on \u00b7 \u2318F for classic', 2600); } catch(_){}
   return true;
 }
 
@@ -1166,7 +1187,7 @@ if (!HD.broken){
     };
   }
   wrap('drawOceanUnderlayer', (orig, args) => {
-    HD.frameActive = HD.on && game.scene === 'overworld' && initRenderer();
+    HD.frameActive = HD.on && !HD.contextLost && game.scene === 'overworld' && initRenderer();
     if (!HD.frameActive) return orig.apply(null, args);
     HD.mode = 'overworld';
     resetDecal();
@@ -1252,7 +1273,7 @@ if (!HD.broken){
   wrap('drawInteriorFloor', (orig, args) => {
     let cfgI = null;
     try { cfgI = interiorConfig(game.scene); } catch(_){}
-    if (!(HD.on && hdInteriorOk(cfgI) && initRenderer())){
+    if (!(HD.on && !HD.contextLost && hdInteriorOk(cfgI) && initRenderer())){
       HD.frameActive = false;
       return orig.apply(null, args);
     }

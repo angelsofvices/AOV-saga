@@ -107,6 +107,17 @@ try {
   ok(st.mode === 'interior' && st.gl === 'block', 'the room renders in 3D');
   ok(st.objs >= 8, `the room's own furniture stands up in 3D (${st.objs} pieces)`);
   ok(st.actors.some(a => a.startsWith('player:')), 'Rizer is captured indoors too');
+  ok(await page.evaluate('(RP7B_HD.stats.glows || 0) >= 1'), "the backpack's glow is real light (halo + point light)");
+
+  console.log('\n★ Seer HQ · walls and the radio tower · painted light');
+  await page.evaluate("game.scene='interior_seer_hq_1f'; player.x=10; player.y=8; snapCameraToPlayer();");
+  await page.waitForTimeout(3000);
+  ok(await page.evaluate('RP7B_HD._roomWalls() > 0'), 'Seer HQ stands its wall band up as real walls');
+  await page.evaluate("game.scene='interior_radio_tower_malezor'; player.x=10; player.y=13; snapCameraToPlayer();");
+  await page.waitForTimeout(3000);
+  ok(await page.evaluate('(RP7B_HD.stats.roomPaint || 0) > 0'), "the radio tower's painted glows carry into 3D");
+  await page.evaluate("game.scene='interior_home_2f'; player.x=10; player.y=7; snapCameraToPlayer();");
+  await page.waitForTimeout(2000);
   if (shots) await page.screenshot({ path: path.join(shots, 'hd_room.png') });
   await page.keyboard.press('Meta+KeyF');
   await page.waitForTimeout(1200);

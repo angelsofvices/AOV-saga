@@ -74,6 +74,7 @@ const HD = {
 };
 W.RP7B_HD = HD;
 HD._actors = () => [...actors.values()].map(r => r.kind + ':' + r.win.w + 'x' + r.win.h);
+HD._roomWalls = () => room ? room.owned.length - 1 : 0;
 HD._fae = () => [...faeRecs.values()].filter(m => m.visible).map(m => m.position.y);
 
 (function readPref(){
@@ -672,7 +673,7 @@ function composeWall(img, tilesTall){
 }
 function disposeRoom(){
   if (!room) return;
-  for (const o of room.owned){ roomGroup.remove(o); o.geometry && o.geometry.dispose(); }
+  for (const o of room.owned){ roomGroup.remove(o); o.geometry && o.geometry.dispose(); o.material && o.material.dispose && o.material.dispose(); }
   for (const t of room.textures) t.dispose();
   for (const [, r] of roomObjs){ roomGroup.remove(r.mesh); r.mesh.geometry.dispose(); }
   roomObjs.clear();
@@ -707,6 +708,35 @@ function buildWalls(){
   const mat = tex ? new THREE.MeshLambertMaterial({ map: tex })
                   : new THREE.MeshLambertMaterial({ color: 0x3a2c22 });
   if (r.plan){
+    // ★ v0.99.57 · Seer HQ · the band the 2D build now paints on the void north
+    //   of the floor stands up here as a real wall, and the room's west and east
+    //   edges get the same wall. The south edge stays open: that is the camera's side.
+    if (r.cfg.wallImg === 'seer-hq' && !SEER_HQ_WALLS_ON){
+      const P = r.plan, voids = new Set(P.voids.map(v => v.x + ',' + v.y));
+      const isVoid = (x, y) => x < 0 || y < 0 || x >= P.cols || y >= P.rows || voids.has(x + ',' + y);
+      const pos = [], uv = [], nrm = [];
+      const quad = (ax, az, bx, bz, nx, nz) => {
+        pos.push(ax,H,az, bx,H,bz, ax,0,az,  bx,H,bz, bx,0,bz, ax,0,az);
+        uv.push(0,1, 1,1, 0,0,  1,1, 1,0, 0,0);
+        for (let i = 0; i < 6; i++) nrm.push(nx, 0, nz);
+      };
+      for (let y = 0; y < P.rows; y++) for (let x = 0; x < P.cols; x++){
+        if (P.blocked.has(x + ',' + y)) continue;                 // floor tiles only
+        if (isVoid(x, y - 1)) quad(x, y, x + 1, y, 0, 1);          // north · faces into the room
+        if (isVoid(x - 1, y)) quad(x, y + 1, x, y, 1, 0);          // west
+        if (isVoid(x + 1, y)) quad(x + 1, y, x + 1, y + 1, -1, 0); // east
+      }
+      if (pos.length){
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+        const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+        m.receiveShadow = true;
+        roomGroup.add(m); r.owned.push(m);
+      }
+      return;
+    }
     // every masonry tile of the floor plan is a block of real wall
     const walls = r.plan.walls.filter(w => w.ch !== 'D');
     if (!walls.length) return;
@@ -738,7 +768,8 @@ function bakeRoomFloor(){
   const tileImg = r.cfg.tileImg;
   const hook = (m, c, a) => {
     if (m === 'drawImage') return a[0] !== tileImg;
-    if (m === 'fillRect'){ const fs = c.fillStyle; return !(typeof fs === 'string' && !/^#0{3}(0{3})?$/i.test(fs)); }
+    // only the "floor art still loading" fallback fill · painted light is live, never baked
+    if (m === 'fillRect'){ const fs = c.fillStyle; return !(typeof fs === 'string' && /^#7a4a1e$/i.test(fs)); }
     return true;
   };
   r.ctx.clearRect(0, 0, r.canvas.width, r.canvas.height);
@@ -780,7 +811,10 @@ function recordRoomDraw(c, a){
   //   stands behind it · fake depth. Same image, same top-left = that overlay.
   const key = imgId(img) + '|' + Math.round(L * 8) + '|' + Math.round(Tp * 8);
   if (_roomRecord.has(key)) return;
-  _roomRecord.set(key, { img, sx, sy, sw, sh, L, R: Rr, T: Tp, B, mirror, flat: r.flat.has(img) });
+  // ★ an image drawn with a shadowBlur glow keeps its glow · as real light
+  const glow = c.shadowBlur > 0 && c.shadowColor && !/rgba\([^)]*,\s*0(\.0+)?\)$/.test(c.shadowColor)
+    ? { color: c.shadowColor, blur: c.shadowBlur } : null;
+  _roomRecord.set(key, { img, sx, sy, sw, sh, L, R: Rr, T: Tp, B, mirror, flat: r.flat.has(img), glow });
 }
 function applyRoomObjects(){
   const frame = HD.stats.frames, r = room;
@@ -824,11 +858,117 @@ function applyRoomObjects(){
   }
   HD.stats.roomObjects = _roomRecord.size;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// INDOOR GLOWS · v0.99.57
+//   Two kinds, both the game's own:
+//   · PAINTED light · shapes the room pass draws instead of images (the radio
+//     tower's consoles, pulsing lamps and hologram pad). They paint for real
+//     onto the game canvas, which is then laid on the floor as an UNLIT layer,
+//     so their light and their shadowBlur halo keep full brightness in 3D.
+//   · IMAGE glows · an image drawn with shadowBlur (Rizer's backpack) gets a
+//     soft additive halo and a coloured point light that lights the room.
+// ══════════════════════════════════════════════════════════════════════════
+let roomPaint = null;           // the painted-light floor layer
+let _roomPaintOps = 0;
+const glowRecs = new Map();     // object key → halo mesh
+const GLOW_LIGHTS = [];         // fixed pool · a stable light count never recompiles shaders
+let _haloTex = null;
+function haloTexture(){
+  if (_haloTex) return _haloTex;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.35, 'rgba(255,255,255,0.45)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  _haloTex = new THREE.CanvasTexture(c);
+  return _haloTex;
+}
+function parseCss(col){
+  const m = String(col).match(/rgba?\(([^)]+)\)/);
+  if (m){
+    const p = m[1].split(',').map(v => parseFloat(v));
+    return { c: new THREE.Color(p[0] / 255, p[1] / 255, p[2] / 255), a: p.length > 3 ? p[3] : 1 };
+  }
+  try { return { c: new THREE.Color(col), a: 1 }; } catch(_){ return { c: new THREE.Color(1, 1, 1), a: 1 }; }
+}
+function ensureGlowLights(){
+  if (GLOW_LIGHTS.length) return;
+  for (let i = 0; i < 4; i++){
+    const l = new THREE.PointLight(0xffffff, 0, 5, 1.8);
+    roomGroup.add(l);       // lives in the room group · off on the overworld
+    GLOW_LIGHTS.push(l);
+  }
+}
+function captureRoomPaint(){
+  if (!roomPaint){
+    const c = document.createElement('canvas');
+    c.width = gameCanvas.width; c.height = gameCanvas.height;
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(c.width / T, c.height / T).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false,
+                                    polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    m.renderOrder = 4;
+    roomPaint = { canvas: c, ctx: c.getContext('2d'), tex: t, mesh: m };
+    roomGroup.add(m);
+  }
+  const had = _roomPaintOps > 0;
+  roomPaint.mesh.visible = had;
+  HD.stats.roomPaint = _roomPaintOps;
+  if (!had) return;
+  roomPaint.ctx.clearRect(0, 0, roomPaint.canvas.width, roomPaint.canvas.height);
+  roomPaint.ctx.drawImage(gameCanvas, 0, 0);
+  roomPaint.tex.needsUpdate = true;
+  roomPaint.mesh.position.set(_cam.x / T + roomPaint.canvas.width / T / 2, 0.02,
+                              _cam.y / T + roomPaint.canvas.height / T / 2);
+}
+function applyGlows(){
+  ensureGlowLights();
+  const frame = HD.stats.frames, found = [];
+  for (const [key, o] of _roomRecord){
+    if (!o.glow) continue;
+    const { c, a } = parseCss(o.glow.color);
+    const strength = Math.min(1.4, (o.glow.blur / 14) * a * 1.4);
+    let h = glowRecs.get(key);
+    if (!h){
+      h = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({ map: haloTexture(), transparent: true, depthWrite: false,
+                                      blending: THREE.AdditiveBlending }));
+      h.renderOrder = 6;
+      roomGroup.add(h); glowRecs.set(key, h);
+    }
+    const w = (o.R - o.L) + 1.1, ht = (o.B - o.T) + 1.1;
+    const onWall = !room.plan && o.B <= 1.1;
+    const cx = (o.L + o.R) / 2, cy = (onWall ? 0.95 : 0) + (o.B - o.T) / 2, cz = onWall ? 1.1 : o.B - 0.5 + 0.12;
+    h.scale.set(w, ht, 1);
+    h.position.set(cx, cy, cz);
+    h.rotation.set(-cfg.lean, 0, 0);
+    h.material.color.copy(c);
+    h.material.opacity = Math.min(1, strength);
+    h.visible = true; h.userData.seen = frame;
+    found.push({ x: cx, y: cy + 0.3, z: cz + 0.4, c, s: strength });
+  }
+  for (const [key, h] of glowRecs){
+    if (h.userData.seen === frame) continue;
+    h.visible = false;
+    if (frame - h.userData.seen > 600){ roomGroup.remove(h); h.geometry.dispose(); h.material.dispose(); glowRecs.delete(key); }
+  }
+  // the strongest glows near Rizer get the lights
+  found.sort((p, q) => q.s - p.s);
+  GLOW_LIGHTS.forEach((l, i) => {
+    const g = found[i];
+    if (!g){ l.intensity = 0; return; }
+    l.color.copy(g.c); l.intensity = 2.2 * g.s; l.position.set(g.x, g.y, g.z);
+  });
+  HD.stats.glows = found.length;
+}
+
 function endRoomPass(){
   if (!_roomRecord) return;
   _drawHook = null;
   HD.capturing = false;
   try { applyRoomObjects(); } catch(e){ console.warn('[hd] room objects', e); }
+  try { applyGlows(); } catch(e){ console.warn('[hd] glows', e); }
   _roomRecord = null;
   clear2d();
   _paintOps = 0;            // what paints from here to the cut is world-space effects
@@ -904,10 +1044,25 @@ if (!HD.broken){
     if (!room.bakes || (room.provisional && age > 400) || (room.bakes < 4 && age > 1500) || age > 10000)
       bakeRoomFloor();
     _roomRecord = new Map();
-    _drawHook = (m, c, a) => { if (m === 'drawImage') recordRoomDraw(c, a); return true; };
+    _roomPaintOps = 0;
+    // floor pass · images are recorded, painted light (shapes) paints for real
+    _drawHook = (m, c, a) => {
+      if (m === 'drawImage'){ recordRoomDraw(c, a); return true; }
+      if (m === 'fillRect'){
+        const fs = c.fillStyle;
+        if (typeof fs === 'string' && /^#0{3}(0{3})?$/i.test(fs)) return true;   // void · stays black, stays out
+      }
+      if (m === 'putImageData') return true;
+      _roomPaintOps++;
+      return false;
+    };
     HD.capturing = true;
     try { orig.apply(null, args); }
     catch(e){ endRoomPass(); throw e; }
+    try { captureRoomPaint(); } catch(e){ console.warn('[hd] room paint', e); }
+    clear2d();
+    // rest of the room pass (chests, desks, gates sorted with the NPCs) · images only
+    _drawHook = (m, c, a) => { if (m === 'drawImage') recordRoomDraw(c, a); return true; };
     // ★ still recording on purpose · the room pass then sorts its chests, desks
     //   and gates in with the NPCs, and those are furniture too. The pass ends
     //   at drawAoeImpactBursts, the first thing the frame draws after the room.

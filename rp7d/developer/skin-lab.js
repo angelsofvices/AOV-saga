@@ -2,8 +2,11 @@
 // Each actor gets private material clones so a preview cannot recolor NPCs or
 // another character that happens to share the same source GLB.
 import * as THREE from 'three';
+import { assetsFor, wearHair, dropHair } from './build-library.js';
 
 const STORAGE = 'rp7d.skinLab.v1';
+const HAIR_STORAGE = 'rp7d.skinLab.hair.v1'; // { characterKey: hair asset id } · kept apart from the colour presets (and their exports)
+const HAIRSTYLES = () => [{ id:'own', name:'Character default' }, ...assetsFor('hair')];
 // Sampled from the centre of each cell in the supplied canonical AOV 6×6 palette.
 export const AOV_PALETTE = [
   '#8EA701','#3C365C','#D70024','#F81142','#87C4DA','#FFD402',
@@ -39,7 +42,9 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
   document.querySelector('#game').appendChild(root);
   const body = root.querySelector('[data-skin-body]');
   const actorMaterials = new WeakMap();
-  let presets = {}, selected = 'R_hair', isOpen = false, focus = 0, currentActor = null;
+  let presets = {}, selected = 'R_hair', isOpen = false, focus = 0, currentActor = null, hairStyles = {};
+  try { hairStyles = JSON.parse(localStorage.getItem(HAIR_STORAGE) || '{}') || {}; } catch {}
+  const hairState = new WeakMap(); // actor → { want, mesh } · the hairstyle worn in place of its own R_hair
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE) || '{}');
     if (saved && typeof saved === 'object' && !Array.isArray(saved)) presets = saved;
@@ -64,6 +69,29 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
     actorMaterials.set(actor, parts);
     return parts;
   }
+  // The character's own hair: its R_hair primitives (not an asset worn on top).
+  const ownHair = actor => { const out = []; actor.model.traverse(o => { if (o.isSkinnedMesh && !o.name.startsWith('asset:') && [].concat(o.material).some(m => m?.name === 'R_hair')) out.push(o); }); return out; };
+  async function applyHair(actor, parts) {
+    const own = ownHair(actor); if (!own.length) return;
+    const want = hairStyles[getCharKey()] || 'own', st = hairState.get(actor) || {};
+    if (st.want === want) { if (st.mesh && parts.get('R_hair')) st.mesh.material = parts.get('R_hair').material; return; }
+    if (st.mesh) dropHair(st.mesh);
+    hairState.set(actor, { want, mesh:null });
+    own.forEach(o => { o.visible = want === 'own'; });
+    if (want === 'own') return;
+    const mesh = await wearHair(actor, want);
+    if (hairState.get(actor)?.want !== want) { if (mesh && !mesh.issue) dropHair(mesh); return; } // changed again while loading
+    if (mesh.issue) { own.forEach(o => { o.visible = true; }); toast?.(mesh.issue); return; }
+    if (parts.get('R_hair')) mesh.material = parts.get('R_hair').material; // Skin Lab colours reach the new hair
+    hairState.get(actor).mesh = mesh;
+  }
+  function setHair(dir) {
+    const list = HAIRSTYLES(), key = getCharKey(), i = Math.max(0, list.findIndex(h => h.id === (hairStyles[key] || 'own')));
+    const next = list[(i + dir + list.length) % list.length].id;
+    if (next === 'own') delete hairStyles[key]; else hairStyles[key] = next;
+    try { localStorage.setItem(HAIR_STORAGE, JSON.stringify(hairStyles)); } catch {}
+    apply(); render();
+  }
   function apply(actor = getActor()) {
     if (!actor) return;
     const parts = prepare(actor), colors = presets[getCharKey()] || {};
@@ -74,6 +102,7 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
       else if (part.emission && part.material.emissive) part.material.emissive.copy(part.emission);
     }
     currentActor = actor;
+    applyHair(actor, parts);
   }
   function paintFocus(scroll = true) {
     const list = items(); focus = Math.max(0, Math.min(focus, list.length - 1));
@@ -88,6 +117,9 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
     body.innerHTML = `<section><small class="lab-h">PREVIEW ON</small>
       <button class="lab-row skin-character" data-skin-focus data-skin-character><span>Character</span><b>‹ ${esc(characters[key]?.name || key)} ›</b></button>
       <p class="lab-note">Choose Mori or a named Build Lab character here. Save a build to playable characters to give each enemy variant its own color set.</p></section>
+      ${actor && ownHair(actor).length ? `<section><small class="lab-h">HAIRSTYLE</small>
+      <button class="lab-row skin-character" data-skin-focus data-skin-hair><span>Hair</span><b>‹ ${esc(HAIRSTYLES().find(h => h.id === (hairStyles[key] || 'own'))?.name || 'Character default')} ›</b></button>
+      <p class="lab-note">Messy, Spiked or Mohawk on this character. The Hair color below paints whichever style is on.</p></section>` : ''}
       <section><small class="lab-h">MESH PARTS</small><div class="skin-parts">${[...parts].map(([name, part]) => {
         const color = hex(colors[name]) || part.original;
         return `<button class="lab-row skin-part${name === selected ? ' selected' : ''}" data-skin-focus data-skin-part="${esc(name)}"><span><i style="background:${color}"></i>${esc(LABELS[name] || name)}</span><b>${color}</b></button>`;
@@ -142,6 +174,7 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
   function activate(el) {
     if (!el) return;
     if (el.dataset.skinCharacter != null) return changeCharacter(1);
+    if (el.dataset.skinHair != null) return setHair(1);
     if (el.dataset.skinPart) { selected = el.dataset.skinPart; render(); return; }
     if (el.dataset.skinColor) return setColor(el.dataset.skinColor);
     if (el.dataset.skinResetPart != null) return reset(true);
@@ -157,6 +190,7 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
     const el = e.target.closest('[data-skin-focus]'); if (!el) return;
     focus = items().indexOf(el);
     if (el.dataset.skinCharacter != null) return changeCharacter(e.clientX < el.getBoundingClientRect().left + el.clientWidth * 0.5 ? -1 : 1);
+    if (el.dataset.skinHair != null) return setHair(e.clientX < el.getBoundingClientRect().left + el.clientWidth * 0.5 ? -1 : 1);
     activate(el);
   });
   body.addEventListener('input', e => {
@@ -182,6 +216,7 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
     else if (code === 'ArrowDown') move(items()[focus]?.dataset.skinColor ? 6 : 1);
     else if (code === 'ArrowLeft' || code === 'ArrowRight') {
       if (items()[focus]?.dataset.skinCharacter != null) changeCharacter(code === 'ArrowLeft' ? -1 : 1);
+      else if (items()[focus]?.dataset.skinHair != null) setHair(code === 'ArrowLeft' ? -1 : 1);
       else move(code === 'ArrowLeft' ? -1 : 1);
     } else if (code === 'Enter' || code === 'Space') activate(items()[focus]);
     else return false;
@@ -194,6 +229,7 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
     if (p.edge(13)) move(items()[focus]?.dataset.skinColor ? 6 : 1);
     if (p.edge(14) || p.edge(15)) {
       if (items()[focus]?.dataset.skinCharacter != null) changeCharacter(p.edge(14) ? -1 : 1);
+      else if (items()[focus]?.dataset.skinHair != null) setHair(p.edge(14) ? -1 : 1);
       else move(p.edge(14) ? -1 : 1);
     }
     if (p.edge(0)) activate(items()[focus]);
@@ -201,5 +237,5 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
   function tick() { if (getActor() !== currentActor) { apply(); if (isOpen) render(); } }
   function open() { if (isOpen) return; isOpen = true; root.hidden = false; apply(); render(); onOpen?.(); }
   function close() { if (!isOpen) return; isOpen = false; root.hidden = true; onClose?.(); }
-  return { open, close, key, pad, tick, apply, load, get isOpen() { return isOpen; } };
+  return { open, close, key, pad, tick, apply, load, setHair, get hair() { return hairStyles[getCharKey()] || 'own'; }, get isOpen() { return isOpen; } };
 }

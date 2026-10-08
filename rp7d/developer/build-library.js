@@ -84,8 +84,11 @@ const SLOT = Object.fromEntries(BUILD_SLOTS.map(s => [s.key, s]));
 export const BUILD_ASSETS = Object.freeze({
   head_round: { name:'Rounded', slot:'headShape', source:{ url:'./assets/npc/npc_heads.glb', node:'HeadRound' }, note:'smooth dome' },
   head_pointed: { name:'Pointed', slot:'headShape', source:{ url:'./assets/npc/npc_heads.glb', node:'HeadPointed' }, note:'faceted, peaked crown (Rizer\'s skull)' },
-  hair_spiked: { name:'Spiked', slot:'hair', source:{ url:'./assets/rizer/rizer.glb', material:'R_hair' }, note:'Rizer\'s hair' },
-  hair_mohawk: { name:'Mohawk', slot:'hair', source:{ url:'./assets/rizer/rizer_psychosyd.glb', material:'R_hair' }, note:'from the Psychosyd look' }
+  // Hair lives in assets/hair/ as standalone GLBs (tools/hair_assets.py), so a style survives changes to the model
+  // it came from. Spiked is the hair Rizer shipped with; Messy is his canonical cut from the character sheet.
+  hair_messy: { name:'Messy', slot:'hair', source:{ url:'./assets/hair/hair_messy.glb', material:'R_hair' }, note:'Rizer\'s canonical cut' },
+  hair_spiked: { name:'Spiked', slot:'hair', source:{ url:'./assets/hair/hair_spiked.glb', material:'R_hair' }, note:'Rizer\'s original spikes' },
+  hair_mohawk: { name:'Mohawk', slot:'hair', source:{ url:'./assets/hair/hair_mohawk.glb', material:'R_hair' }, note:'from the Psychosyd look' }
 });
 export const assetsFor = slot => Object.entries(BUILD_ASSETS).filter(([, a]) => a.slot === slot).map(([id, a]) => ({ id, ...a }));
 
@@ -230,6 +233,15 @@ function wearAsset(actor, id, a) {
   mesh.userData.ownMaterials = mats;
   return mesh;
 }
+// The Skin Lab's hairstyle: any hair asset worn on a live character (Rizer, his skins, the Malezor NPCs) in place
+// of its own R_hair. Returns the mesh, or { issue } if the asset can't be fitted. Remove it with dropHair.
+export async function wearHair(actor, id) {
+  if (BUILD_ASSETS[id]?.slot !== 'hair') return { issue:`${id} is not a hairstyle` };
+  const a = await loadAsset(id);
+  if (!a.ok) return { issue:a.issue };
+  return wearAsset(actor, id, a) || { issue:`${BUILD_ASSETS[id].name}: this character isn't on the Rizer skeleton` };
+}
+export const dropHair = mesh => dropAsset(mesh);
 function dropAsset(mesh) { mesh.removeFromParent(); for (const m of mesh.userData.ownMaterials || []) m.dispose(); mesh.skeleton?.dispose?.(); } // never the shared geometry
 function attachAssets(actor, build) {
   const st = actor.buildAssets ||= new Map(), want = new Set(equippedAssets(build)), issues = [];

@@ -51,6 +51,7 @@ const assets = ['./assets/rizer/rizer.glb', './assets/rizer/rizer_psychosyd.glb'
   './assets/anciuxor/anciuxor.png', './assets/anciuxor/anciuxor-fly.png', './assets/items/zysphere-drop.png',
   ...library.map(it => './assets/anims/' + it.file),
   ...fs.readdirSync(path.join(root, 'assets/zyrex2d')).filter(f => f.endsWith('.webp')).map(f => './assets/zyrex2d/' + f), // 2DHD Zyrex sheets (zyrex2d.js)
+  ...fs.readdirSync(path.join(root, 'assets/hair')).filter(f => f.endsWith('.glb')).map(f => './assets/hair/' + f), // hairstyles (build-library.js)
   ...fs.readdirSync(path.join(root, 'assets/audio/sfx')).filter(f => f.endsWith('.mp3')).map(f => './assets/audio/sfx/' + f)]; // sound effects ride inline (sfx.js)
 const b64 = rel => { // gzip then base64 ("gz:" prefix); the page inflates with DecompressionStream
   const file = path.join(root, rel);

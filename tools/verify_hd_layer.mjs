@@ -10,7 +10,7 @@
 //     · ground chunks, prop billboards and captured actors all exist
 //     · Rizer's own draw call is the thing being captured (player actor present)
 //     · Cmd+F turns it off and the classic view comes straight back
-//     · an interior renders classic (HD steps aside)
+//     · fae float · interiors render in 3D with the room's own furniture
 //     · HD never threw
 //
 //   Run:  node tools/verify_hd_layer.mjs        (from the repo root)
@@ -89,11 +89,30 @@ try {
   await page.keyboard.press('Control+KeyF');
   await page.waitForTimeout(800);
 
-  console.log('\n★ interior · HD steps aside');
+  console.log('\n★ fae float');
+  st = await page.evaluate(`(() => {
+    const f = _fae.find(f => !f.collected && Math.abs(f.x - player.x) < 25 && Math.abs(f.y - player.y) < 25);
+    return { near: !!f };
+  })()`);
+  if (st.near){
+    await page.waitForTimeout(1500);
+    ok(await page.evaluate(`RP7B_HD._fae().some(y => y > 0.5)`), 'fae float above the ground');
+  } else ok(true, 'no fae near spawn · float check skipped');
+
+  console.log("\n★ interior · Rizer's room in 3D");
   await page.evaluate("game.scene='interior_home_2f'; player.x=10; player.y=7; snapCameraToPlayer();");
-  await page.waitForTimeout(2000);
-  st = await page.evaluate(`document.getElementById('hd3d').style.display`);
-  ok(st === 'none', 'interior renders classic 2D');
+  await page.waitForTimeout(3000);
+  st = await page.evaluate(`({ mode: RP7B_HD.mode, gl: document.getElementById('hd3d').style.display,
+                               objs: RP7B_HD.stats.roomObjects || 0, actors: RP7B_HD._actors() })`);
+  ok(st.mode === 'interior' && st.gl === 'block', 'the room renders in 3D');
+  ok(st.objs >= 8, `the room's own furniture stands up in 3D (${st.objs} pieces)`);
+  ok(st.actors.some(a => a.startsWith('player:')), 'Rizer is captured indoors too');
+  if (shots) await page.screenshot({ path: path.join(shots, 'hd_room.png') });
+  await page.keyboard.press('Meta+KeyF');
+  await page.waitForTimeout(1200);
+  ok(await page.evaluate(`document.getElementById('hd3d').style.display`) === 'none', 'Cmd+F indoors · classic room');
+  await page.keyboard.press('Meta+KeyF');
+  await page.waitForTimeout(800);
 
   console.log('\n★ errors');
   ok(hdErrors.length === 0, 'the HD layer threw nothing' + (hdErrors.length ? ' · ' + hdErrors[0] : ''));

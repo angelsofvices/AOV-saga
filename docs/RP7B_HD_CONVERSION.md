@@ -24,7 +24,7 @@
 |---|---|---|
 | 1 · Preserve | Freeze the source build, document what exists | **Done.** Frozen at `fe88163` / v0.99.54. Inventory in §5 |
 | 2 · Hybrid rendering foundation | 2DHD sprites, 3D environment, elevated third-person camera, sprite orientation, lighting, shadows | **Done, behind a toggle.** `rp7b-hd.js`, shipped in v0.99.55 |
-| 3 · Malezor vertical slice | Malezor fully converted: modelled buildings, elevation, effects in 3D | **Next.** Work list in §4 |
+| 3 · Malezor vertical slice | Malezor fully converted: modelled buildings, elevation, effects in 3D | **In progress.** 3D interiors and floating fae shipped in v0.99.56. Work list in §4 |
 | 4 · Validate | Old vs. HD, side by side | After Phase 3 · checklist in §6 |
 | 5 · District conversion | The proven pipeline, district by district | — |
 | 6 · HD polish | VFX, post-processing, wind, water shaders, transitions | — |
@@ -37,7 +37,7 @@
 - **In game:** press **Cmd+F** (Ctrl+F on Windows/Linux) to switch between 2DHD and classic. The choice persists (`localStorage rp7b_hd_v1`).
 - **By URL:** `rp7b.html?hd=1` forces it on, `rp7b.html?hd=0` forces it off.
 - **Default:** classic 2D. That stays the default until Phase 4 signs off.
-- The overworld renders in 2DHD. Interiors, the title screen and Dreamland still render classic 2D (Phase 3 and 5 work).
+- The overworld **and building interiors** render in 2DHD (interiors since v0.99.56). The title screen, Dreamland and the Dracolord realms still render classic 2D.
 - If the device has no WebGL, HD reports itself unavailable and the game stays classic.
 
 Tuning without editing code: `RP7B_HD.cfg` (camera `pitchDeg` / `distance` / `fov`, sprite `lean`, fog, view distance). Cost per frame: `RP7B_HD.stats` (`worldMs`, `renderMs`, chunk / sprite / prop counts).
@@ -54,7 +54,9 @@ Tuning without editing code: `RP7B_HD.cfg` (camera `pitchDeg` / `distance` / `fo
 | **Void Sea** | `VOID_OCEAN_FLOW` (the game's own 16-frame sheet) | Animated plane below the land |
 | **Actors** (Rizer, NPCs, Zyrex, Skellors, boulders, the soul shell) | `drawPlayer`, `drawNPC`, `drawZyrexOrb`, `drawSkellorHurtFrame`, `drawBoulder`, `drawRizerSoulShell` | Each actor's **own draw call** is captured into a window and stood up as a camera-facing billboard at its foot tile. Every direction, walk/run/attack frame, hurt flash and jump arc is the game's own: nothing is re-implemented |
 | **Props** (trees, houses, landmarks) | `WORLD_PROPS` (`img`, `bbox`, `tileW`, `subY`, `mirrorX`, `_animCells`) | Their own image as upright billboards with real depth and real shadows. The tower broken/fixed swap and the fountain's animation cells carry over |
-| **World effects** (fae, gems, hit rings, projectiles, AOE, arrows) | Everything the game paints in world space after the world layer | Laid on the ground as a decal at the same tiles the game used |
+| **Fae** | `_fae`, `FAE_IMG` (the game's frame clock and bob) | Float about head height above the grass with a real shadow under them; unlit, so they glow (v0.99.56) |
+| **Interiors** | `drawInteriorFloor()` and the room pass | Every paint call of the room is read, none is re-implemented. The floor tile is baked onto a 3D floor. The wall art becomes real walls: a back wall plus side walls in classic rooms, or one block of masonry per `#` in a floor-plan room. Every other image (beds, desks, TVs, chests, doors) stands up at the exact rectangle the game drew it. Rugs and doormats lie flat, and row-0 items hang on the back wall. The 2D "desk top re-drawn over Rizer" fake-depth overlays are dropped because real depth does it (v0.99.56) |
+| **World effects** (gems, hit rings, projectiles, AOE, arrows) | Everything the game paints in world space after the world layer | Laid on the ground as a decal at the same tiles the game used |
 | **UI** (menus, dialogue, battle overlays, HUD, minimap) | Unchanged | Stays on the 2D canvas, which now sits **transparent on top** of the 3D view |
 | **Night** | `game.lightMode === 'night'` | 3D night lighting plus a lantern light on Rizer, in place of the 2D tint |
 | **District air** | `districtAt()` | Sky and fog colour per district (Malezor blue, Zarvane sand, …) |
@@ -75,9 +77,9 @@ The foundation proves the pipeline. The slice turns Malezor from "billboards in 
 
 1. **Modelled buildings, Malezor first.** Replace the billboard for each Malezor building with geometry built from its existing sprite: same footprint tiles (from the ground-storey collision), same facade art as the front texture, a real roof volume. Order: the player's home → Malezor School → Town Hall → Hospital → Potion Shop → Zyrex Farm → The Fanghall → red-roof houses. Door tiles and entry triggers stay on the same tiles.
 2. **Elevation.** The tile map has no height channel today. Add a per-tile height for Malezor only (highland/cave quarter, riverbanks), authored from the existing layout, and feed it into ground chunks, actor placement and the camera. Collision stays the tile grid.
-3. **Effects in 3D.** Promote fae, gems and projectiles from the ground decal to billboards at their real height (fae float, gems pulse), and hit rings to ground rings under the target.
+3. **Effects in 3D.** ~~Fae float~~ (done, v0.99.56). Next, promote gems and projectiles from the ground decal to billboards at their real height, and hit rings to ground rings under the target.
 4. **Footprints** (Zarvane sand trail) as a ground decal layer. They are skipped in HD today.
-5. **Interiors** in Malezor (home 1F/2F, school, lab) as 3D rooms built from the existing interior floor plans (`INTERIOR_SCALE` rungs). Interiors render classic until this lands.
+5. ~~**Interiors** as 3D rooms~~ (done, v0.99.56, every interior except Dreamland and the realms). Still to do: room-specific polish, such as Nebulaport screen glow and other non-image paints, which are dropped in 3D for now.
 6. **2DHD sprite pass, Malezor cast.** Higher-resolution redraws of Rizer, Mom, Dad, Zoryn, the Malezor NPCs and the Malezor wild pool. Same proportions, outfit, colours, silhouette and directional banks; the sheets drop into the same slots, so the capture pipeline picks them up with no code change.
 7. **Transitions:** building entry/exit and district borders, with a short camera move in place of the 2D fade, landing on the same tiles.
 8. **Save/load:** confirm a save made in HD loads in classic and vice versa. Nothing HD-specific is saved, so this should hold by construction. Verify it anyway.

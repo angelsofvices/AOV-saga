@@ -75,6 +75,8 @@ const HD = {
 W.RP7B_HD = HD;
 HD._actors = () => [...actors.values()].map(r => r.kind + ':' + r.win.w + 'x' + r.win.h);
 HD._roomWalls = () => room ? room.owned.length - 1 : 0;
+HD._fx = () => [...fxRecs.values()].filter(m => m.visible).map(m => +m.position.y.toFixed(2));
+HD._flatProps = () => [...propRecs.entries()].filter(([p, r]) => r.mesh.visible && r.geo.flat).map(([p]) => p.id);
 HD._fae = () => [...faeRecs.values()].filter(m => m.visible).map(m => m.position.y);
 
 (function readPref(){
@@ -100,6 +102,7 @@ const NAMES = [
   'drawNPC','drawZyrexOrb','drawSkellorHurtFrame','drawBoulder','drawRizerSoulShell','drawPlayer',
   'applyDepthCamera','drawLevelUpBanner','drawHpFlash','drawLightMode','drawNpcInfoOverlay',
   'drawInteriorFloor','drawAoeImpactBursts','drawFae',
+  'drawGems','drawElzebubEgg','drawProjectiles','drawArrows','drawAuraxionUfoFlight','drawAnciuxorFlight',
 ];
 const O = {};
 for (const n of NAMES){
@@ -388,6 +391,8 @@ function updateGround(fx, fz){
 // bottom edge so feet, hems and stomp dust are never clipped.
 const FOOT = 0.75;
 const WIN = {
+  ufo:     { w: 9, h: 10 },      // Rizer in the Auraxion UFO · the flight draw, captured whole
+  god:     { w: 16, h: 11 },     // Anciuxor's departure
   player:  { w: 5, h: 6 },
   npc:     { w: 7, h: 9 },
   orb:     { w: 7, h: 9 },
@@ -445,6 +450,8 @@ function touchesEdge(wpx, hpx){
 // (tx, ty) is the actor's tile in the game's own coordinates · the 2D build
 // anchors feet to the bottom edge of that tile, so that is the pixel we align.
 function captureActor(key, kind, tx, ty, draw){
+  // after the world layer the canvas holds this frame's ground effects · bank them first
+  if (!HD.capturing && decal) flushToDecal();
   // an actor is painted for real even while a room is being recorded
   const hook = _drawHook;
   _drawHook = null;
@@ -494,9 +501,26 @@ function texForImage(img){
   if (!t){ t = makeTex(img); imgTex.set(img, t); }
   return t;
 }
+// ★ v0.99.58 · GROUND ART LIES DOWN. Creator: "the meteor crash is an aoe on
+//   the ground surface near the ufo." A prop with NO footprint (you walk on it)
+//   that the 2D build sorts BEHIND its own row (negative depthOffset) is a
+//   picture of the ground, not a thing standing on it · the meteor crater the
+//   Astralcore chest sits in. It lies flat over exactly the tiles 2D paints.
+//   p._hdFlat can force either way for any future prop.
+const propIsFlat = p => p._hdFlat != null ? !!p._hdFlat
+  : (!p.footprint || p.footprint.length === 0) && (p.depthOffset || 0) < 0;
 function propGeometry(p, rec){
   const [bx, by, bw, bh] = p.bbox;
   const w = p.tileW, h = w * (bh / bw);
+  if (propIsFlat(p)){
+    const g = rec && rec.mesh ? rec.mesh.geometry : new THREE.PlaneGeometry(1, 1);
+    const pos = g.attributes.position;
+    // TL, TR, BL, BR · the picture's top edge is north (−z)
+    pos.setXYZ(0, -w/2, 0, -h/2); pos.setXYZ(1, w/2, 0, -h/2); pos.setXYZ(2, -w/2, 0, h/2); pos.setXYZ(3, w/2, 0, h/2);
+    pos.needsUpdate = true; g.computeBoundingSphere();
+    return { g, iw: p.img.naturalWidth || p.img.width, ih: p.img.naturalHeight || p.img.height,
+             bx, by, bw, bh, flat: true, h };
+  }
   const iw = p.img.naturalWidth || p.img.width, ih = p.img.naturalHeight || p.img.height;
   const g = rec && rec.mesh ? rec.mesh.geometry : new THREE.PlaneGeometry(1, 1);
   const pos = g.attributes.position;
@@ -519,7 +543,7 @@ function propUV(rec, p, srcX){
 function showProp(p){
   // the tower swap and any other img/bbox change rebuilds the record
   let rec = propRecs.get(p);
-  const sig = (p.img && p.img.src || '') + '|' + p.bbox.join(',') + '|' + p.tileW + '|' + (p.mirrorX ? 1 : 0);
+  const sig = (p.img && p.img.src || '') + '|' + p.bbox.join(',') + '|' + p.tileW + '|' + (p.mirrorX ? 1 : 0) + '|' + (propIsFlat(p) ? 'f' : 's');
   if (rec && rec.sig !== sig){
     worldGroup.remove(rec.mesh); rec.mesh.geometry.dispose(); rec.mesh.material.dispose();
     rec.mesh.customDepthMaterial.dispose();
@@ -530,7 +554,8 @@ function showProp(p){
     const geo = propGeometry(p, null);
     const mesh = new THREE.Mesh(geo.g, spriteMaterial(tex));
     mesh.customDepthMaterial = spriteDepth(tex);
-    mesh.castShadow = true;
+    mesh.castShadow = !geo.flat;
+    mesh.receiveShadow = !!geo.flat;
     rec = { mesh, geo, sig, seen: 0, lastSrcX: -1 };
     worldGroup.add(mesh);
     propRecs.set(p, rec);
@@ -540,8 +565,14 @@ function showProp(p){
     srcX = rec.geo.bx + (Math.floor(performance.now() / 220) % p._animCells) * p._animCellW;
   if (srcX !== rec.lastSrcX){ propUV(rec, p, srcX); rec.lastSrcX = srcX; }
   const lev = p._levitate ? Math.sin(performance.now() / 500) * 4 / T : 0;
-  rec.mesh.position.set(p.tileX + 0.5, lev, p.tileY + 0.5 + (p.subY || 0));
-  rec.mesh.rotation.x = -cfg.lean;
+  if (rec.geo.flat){
+    // bottom edge on the same row line the 2D build anchors to
+    rec.mesh.position.set(p.tileX + 0.5, 0.015, p.tileY + 1 + (p.subY || 0) - rec.geo.h / 2);
+    rec.mesh.rotation.x = 0;
+  } else {
+    rec.mesh.position.set(p.tileX + 0.5, lev, p.tileY + 0.5 + (p.subY || 0));
+    rec.mesh.rotation.x = -cfg.lean;
+  }
   rec.mesh.visible = true;
   rec.seen = HD.stats.frames;
 }
@@ -975,6 +1006,132 @@ function endRoomPass(){
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// STANDING THINGS · v0.99.58 · "if I say make an object stand I mean put its
+// 2D pic in 3D space (2DHD)." Gems from chests, the Elzebub egg, Astralstrike
+// shots flying from Rizer's hand, Pearlbow arrows in flight. Each is the
+// game's own image and frame, read from the game's own entity, stood up at its
+// tile. Area effects (rings, blasts, debris) stay on the ground as the decal.
+// ══════════════════════════════════════════════════════════════════════════
+const HAND_Y = 1.0;             // Rizer's hand height, tiles · where shots fly
+const fxRecs = new Map();       // key → mesh
+function fxSprite(key, img, sx, sy, sw, sh, w, h, x, y, z, o = {}){
+  let m = fxRecs.get(key);
+  if (!m || m.userData.img !== img || m.userData.additive !== !!o.additive){
+    if (m){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
+    const tex = texForImage(img);
+    const mat = o.additive
+      ? new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false,
+                                      blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
+      : new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.35, transparent: true, side: THREE.DoubleSide });
+    m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+    if (!o.additive){ m.customDepthMaterial = spriteDepth(tex); m.castShadow = true; }
+    m.userData = { img, additive: !!o.additive, uv: '' };
+    scene.add(m); fxRecs.set(key, m);
+  }
+  const uv = sx + ',' + sy + ',' + sw + ',' + sh + ',' + (o.mirror ? 1 : 0);
+  if (uv !== m.userData.uv){ quadUV(m.geometry, img, sx, sy, sw, sh, !!o.mirror); m.userData.uv = uv; }
+  if (o.flat){
+    // lying in the air (an arrow in flight) · centred, pointing along its path
+    const pos = m.geometry.attributes.position;
+    pos.setXYZ(0, -w/2, h/2, 0); pos.setXYZ(1, w/2, h/2, 0); pos.setXYZ(2, -w/2, -h/2, 0); pos.setXYZ(3, w/2, -h/2, 0);
+    pos.needsUpdate = true; m.geometry.computeBoundingSphere();
+    m.rotation.set(-Math.PI / 2, -(o.angle || 0), 0, 'YXZ');
+  } else {
+    quadUpright(m.geometry, w, h);
+    m.rotation.set(-cfg.lean, 0, 0);
+  }
+  m.position.set(x, y, z);
+  m.material.opacity = o.opacity == null ? 1 : o.opacity;
+  m.visible = true;
+  m.userData.seen = HD.stats.frames;
+  return m;
+}
+function sweepFx(){
+  const frame = HD.stats.frames;
+  for (const [key, m] of fxRecs){
+    if (m.userData.seen === frame) continue;
+    m.visible = false;
+    if (frame - m.userData.seen > 300){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); fxRecs.delete(key); }
+  }
+}
+// ── gems from chests ──
+function standGems(){
+  const now = performance.now();
+  for (const g of GEM_ENTITIES){
+    if (g.collected || g.scene !== game.scene) continue;
+    const img = GEM_IMG[g.color];
+    if (!img || !img.complete || !img.naturalWidth) continue;
+    const w = VOLTSHARD_TILE_W * 0.5, h = w * img.naturalHeight / Math.max(1, img.naturalWidth);
+    const bob = Math.sin(now / 500 + g.phase) * 0.06;
+    const pulse = 0.75 + 0.25 * (0.5 + 0.5 * Math.sin(now / 320 + g.phase));
+    fxSprite(g, img, 0, 0, img.naturalWidth, img.naturalHeight, w, h,
+             g.x + 0.5, 0.12 + bob, g.y + 0.55, { opacity: pulse });
+  }
+}
+// ── the Elzebub egg ──
+function standEgg(){
+  if (!_elzebubEgg || !ELZEBUB_EGG_IMG.complete || !ELZEBUB_EGG_IMG.naturalWidth) return;
+  const [bx, by, bw, bh] = ELZEBUB_EGG_BBOX;
+  const w = 0.7, h = w * bh / bw;
+  const bob = Math.sin(performance.now() / 700 + _elzebubEgg.phase) * 0.03;
+  fxSprite(_elzebubEgg, ELZEBUB_EGG_IMG, bx, by, bw, bh, w, h,
+           _elzebubEgg.x + 0.5, 0.02 + bob, _elzebubEgg.y + 0.55);
+  // its warm glow, as a halo behind it
+  const halo = haloTexture();
+  fxSprite('egg-halo', halo.image, 0, 0, 128, 128, w * 2.2, h * 1.8,
+           _elzebubEgg.x + 0.5, 0, _elzebubEgg.y + 0.5, { additive: true, opacity: 0.55 })
+    .material.color.setRGB(1, 0.62, 0.25);
+}
+// ── Astralstrike · flies from Rizer's hand at hand height ──
+function standProjectiles(){
+  if (!PROJECTILES.length) return;
+  const dirRow = { down: 0, left: 1, right: 2, up: 3 };
+  const now = performance.now();
+  for (const p of PROJECTILES){
+    if (p.scene !== game.scene) continue;
+    const bundle = rizerBundleForSkin('astralProj', p.skin || 'normal');
+    if (!bundle || !bundle.loaded) continue;
+    if (p.state === 'flight' && now - p.t0 < 250) continue;     // same wind-up gap as 2D
+    if (p.state === 'kickboom') continue;
+    if (p.state === 'explode'){
+      const boom = rizerBundleForSkin('astralBoom', p.skin || 'normal');
+      if (!boom || !boom.loaded) continue;
+      const t = Math.min(1, (now - p.explodeT0) / ASTRAL_STRIKE.EXPLODE_MS);
+      const sc = 1.1 + t * 1.4, alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+      const [bx, by, bw, bh] = boom.bbox;
+      const w = Math.max(1, sc), h = Math.max(1, sc * bh / bw);
+      fxSprite(p, boom.img, bx, by, bw, bh, w, h,
+               p.tileX + 0.5, Math.max(0, HAND_Y - h / 2), p.tileY + 0.55, { opacity: Math.max(0, alpha) });
+      continue;
+    }
+    let row = dirRow[p.dir] || 0, mirror = false;
+    if (p.dir === 'right' && bundle === RIZER.astralProj){ row = dirRow.left; mirror = true; }
+    const col = Math.min(2, Math.floor((now - p.t0) / 80) % 3);
+    const [bx, by, bw, bh] = bundle.bboxes[row][col];
+    const w = Math.max(24, Math.round(bw * 0.35)) / T, h = Math.max(24, Math.round(bh * 0.35)) / T;
+    fxSprite(p, bundle.img, bx, by, bw, bh, w, h,
+             p.tileX + 0.5, HAND_Y - h / 2, p.tileY + 0.55, { mirror });
+  }
+}
+// ── Pearlbow arrows · in flight they ride at hand height along their path ──
+function standArrows(){
+  if (!PEARLBOW_ARROW.loaded || !ARROWS.length) return [];
+  const now = performance.now(), S = PEARLBOW_ARROW, blown = [];
+  for (const a of ARROWS){
+    if (a.blown){ blown.push(a); continue; }                    // the blast is AOE · it stays on the ground
+    const pr = Math.min(1, (now - a.t0) / a.flyMs);
+    const frame = Math.min(PEARLBOW_FLY_FRAMES - 1, Math.floor(pr * PEARLBOW_FLY_FRAMES));
+    const px = a.x + a.dv[0] * a.tiles * pr, py = a.y + a.dv[1] * a.tiles * pr;
+    const r = Math.floor(frame / S.cols), c = frame % S.cols, bb = S.bboxes[r][c];
+    const scale = 1.6 / Math.max(bb[2], bb[3]);
+    const ang = a.dv[0] === 1 ? 0 : a.dv[0] === -1 ? Math.PI : a.dv[1] === 1 ? Math.PI / 2 : -Math.PI / 2;
+    fxSprite(a, S.img, c * S.cellW + bb[0], r * S.cellH + bb[1], bb[2], bb[3], bb[2] * scale, bb[3] * scale,
+             px + 0.5, HAND_Y, py + 0.5, { additive: true, flat: true, angle: ang });
+  }
+  return blown;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // THE WRAPS · every one is a pass-through unless this is an HD overworld frame
 // ══════════════════════════════════════════════════════════════════════════
 function wrap(name, hd){
@@ -998,6 +1155,7 @@ if (!HD.broken){
     HD.frameActive = HD.on && game.scene === 'overworld' && initRenderer();
     if (!HD.frameActive) return orig.apply(null, args);
     HD.mode = 'overworld';
+    resetDecal();
     clear2d();        // ★ the 2D canvas becomes transparent · the 3D sea shows through
   });
   for (const n of ['drawGrass','drawVeridanFreshwaterRiver','drawDistrictWorldBorders','drawFootprints']){
@@ -1025,6 +1183,36 @@ if (!HD.broken){
     try { drawFaeHD(); } catch(e){ console.warn('[hd] fae', e); }
   });
 
+  // ── standing things ──
+  const standWrap = (name, fn) => wrap(name, (orig, args) => {
+    if (!HD.frameActive) return orig.apply(null, args);
+    try { fn(); } catch(e){ console.warn('[hd] ' + name, e); }
+  });
+  standWrap('drawGems', standGems);
+  standWrap('drawElzebubEgg', standEgg);
+  standWrap('drawProjectiles', standProjectiles);
+  // arrows · in flight they stand · their blast is AOE and stays a ground decal
+  wrap('drawArrows', (orig, args) => {
+    if (!HD.frameActive) return orig.apply(null, args);
+    let blown = [];
+    try { blown = standArrows(); } catch(e){ console.warn('[hd] arrows', e); }
+    if (!blown.length) return;
+    const all = ARROWS.slice();
+    ARROWS.length = 0; ARROWS.push(...blown);
+    try { orig.apply(null, args); } finally { ARROWS.length = 0; ARROWS.push(...all); }
+  });
+  // Rizer flying the UFO, and the God's departure · captured whole, lifted into the air
+  wrap('drawAuraxionUfoFlight', (orig, args) => {
+    if (!(HD.frameActive && HD.mode === 'overworld' && player.ufoFlying)) return orig.apply(null, args);
+    captureActor('ufo', 'ufo', player.x, player.y, () => orig.apply(null, args));
+    const r = actors.get('ufo'); if (r) r.mesh.position.y = 1.4;
+  });
+  wrap('drawAnciuxorFlight', (orig, args) => {
+    if (!(HD.frameActive && HD.mode === 'overworld' && _anciuxorFlight)) return orig.apply(null, args);
+    captureActor('anciuxor', 'god', _anciuxorFlight.x, _anciuxorFlight.y + 3, () => orig.apply(null, args));
+    const r = actors.get('anciuxor'); if (r) r.mesh.position.y = 4;
+  });
+
   // ── interiors ──
   wrap('drawInteriorFloor', (orig, args) => {
     let cfgI = null;
@@ -1035,6 +1223,7 @@ if (!HD.broken){
     }
     HD.frameActive = true;
     HD.mode = 'interior';
+    resetDecal();
     HD.stats.frames++;
     HD.kinds = {};
     clear2d();
@@ -1157,14 +1346,28 @@ function rizerScreenCam(){
   const sx = (_proj.x + 1) / 2 * gameCanvas.width, sy = (1 - _proj.y) / 2 * gameCanvas.height;
   return { x: Math.round(player.x * T + T / 2 - sx), y: Math.round(player.y * T + T / 2 - sy) };
 }
+// The ground decal ACCUMULATES through the frame: anything that has to use the
+// game canvas as scratch after the world layer (a mid-frame capture) first
+// flushes what is already painted, so no AOE ring is ever wiped by it.
+let _decalDirty = false;
+function resetDecal(){
+  _decalDirty = false;
+  if (decal) decal.userData.ctx.clearRect(0, 0, decal.userData.canvas.width, decal.userData.canvas.height);
+}
+function flushToDecal(){
+  if (_paintOps > 0){
+    decal.userData.ctx.drawImage(gameCanvas, 0, 0);
+    _decalDirty = true;
+  }
+  clear2d();
+  _paintOps = 0;
+}
 function captureDecal(){
-  const had = _paintOps > 0;
-  HD.stats.decal = had;
-  decal.visible = had;
-  if (!had) return;
+  flushToDecal();
+  HD.stats.decal = _decalDirty;
+  decal.visible = _decalDirty;
+  if (!_decalDirty) return;
   const dc = decal.userData.ctx;
-  dc.clearRect(0, 0, dc.canvas.width, dc.canvas.height);
-  dc.drawImage(gameCanvas, 0, 0);
   decal.material.map.needsUpdate = true;
   decal.position.set(_cam.x / T + dc.canvas.width / T / 2, 0.04, _cam.y / T + dc.canvas.height / T / 2);
 }
@@ -1269,6 +1472,7 @@ function renderFrame(){
   finishFrame();
 }
 function finishFrame(){
+  sweepFx();
   // sprites and props not drawn this frame go dark · long-gone ones are freed
   const frame = HD.stats.frames;
   let nA = 0, nP = 0;

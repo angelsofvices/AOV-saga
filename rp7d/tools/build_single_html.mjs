@@ -148,8 +148,21 @@ async function buildWeb() {
     };
     next(0);
   };
+  // The movie downloads first; the game's ~55 MB waits until it can play through (or is skipped, or ends),
+  // so the two don't fight over the connection and leave the movie black. After 15 s the game loads anyway.
+  const video = document.getElementById('intro-video');
+  const afterMovie = () => {
+    if (!video || !document.getElementById('intro-movie')) return launch();
+    video.addEventListener('canplaythrough', launch, { once: true });
+    const gone = setInterval(() => { if (!document.getElementById('intro-movie') || document.getElementById('intro-movie').classList.contains('out')) { clearInterval(gone); launch(); } }, 250);
+    video.addEventListener('play', () => setTimeout(launch, 15000), { once: true });
+  };
   let saved = null; try { saved = localStorage.getItem(KEY); } catch (e) {}
-  if (saved === HASH) { document.getElementById('dev-gate').remove(); launch(); return; }
+  if (saved === HASH) { // known browser: buffer the movie behind PRESS ANY KEY
+    document.getElementById('dev-gate').remove();
+    if (video) { video.preload = 'auto'; video.load(); }
+    afterMovie(); return;
+  }
   root.classList.add('dev-locked');
   const form = document.getElementById('dg-form'), input = document.getElementById('dg-pass');
   input.focus();
@@ -159,7 +172,7 @@ async function buildWeb() {
     try { localStorage.setItem(KEY, HASH); } catch (e) {}
     root.classList.remove('dev-locked'); document.getElementById('dev-gate').remove();
     window.__rp7dIntro?.play(); // the submit is the gesture, so the movie starts with sound
-    launch();
+    afterMovie();
   });
 })();
 </script>`;

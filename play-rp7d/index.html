@@ -555,7 +555,7 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
       let fresh = false; try { fresh = sessionStorage.getItem('rp7d.boot') === 'new'; } catch (e) {}
       if (fresh) { root.remove(); return; }
       game.classList.add('intro-on');
-      let phase = 'gate', holdFrom = 0, keyX = false, padPrev = [];
+      let phase = 'gate', holdFrom = 0, noSrcFrom = 0, keyX = false, padPrev = [];
       const finish = () => {
         if (phase === 'done') return; phase = 'done';
         video.pause(); root.classList.add('out'); game.classList.remove('intro-on');
@@ -570,7 +570,8 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
         video.play().catch(() => { video.muted = true; video.play().catch(finish); }); // a gamepad press doesn't count as a gesture for sound
       };
       // A missing or unplayable file goes straight to the title instead of a black screen (checked in tick too,
-      // since the sources can fail before this script runs).
+      // since the sources can fail before this script runs; 'no source' also flashes up while a load starts,
+      // so only a lasting one counts).
       video.addEventListener('error', finish);
       video.addEventListener('ended', finish);
       // Keys stop here while the movie is up, so nothing reaches the title menu underneath.
@@ -585,13 +586,16 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
       window.__rp7dIntro = { play }; // the password submit is a real gesture, so the movie can start with sound
       (function tick() {
         if (phase === 'done') return;
-        if (video.error || video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) return finish();
+        if (video.error) return finish();
+        if (video.networkState !== HTMLMediaElement.NETWORK_NO_SOURCE) noSrcFrom = 0;
+        else if (!noSrcFrom) noSrcFrom = performance.now();
+        else if (performance.now() - noSrcFrom > 1500) return finish();
         const gp = [...(navigator.getGamepads?.() || [])].find(g => g && g.connected);
         const pad = gp ? gp.buttons.map(b => b.pressed) : [];
         if (pad.some((p, i) => p && !padPrev[i])) play();
         padPrev = pad;
         // Timed by the clock, not frames: the world builds behind the movie and can drop the frame rate.
-        const holding = (keyX || pad[0]) && phase === 'movie', t = performance.now();
+        const holding = !!(keyX || pad[0]) && phase === 'movie', t = performance.now();
         if (!holding) holdFrom = 0; else if (!holdFrom) holdFrom = t;
         const k = holdFrom ? Math.min(1, (t - holdFrom) / HOLD) : 0;
         fill.style.strokeDashoffset = String(94.25 * (1 - k));
@@ -752,8 +756,21 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
     };
     next(0);
   };
+  // The movie downloads first; the game's ~55 MB waits until it can play through (or is skipped, or ends),
+  // so the two don't fight over the connection and leave the movie black. After 15 s the game loads anyway.
+  const video = document.getElementById('intro-video');
+  const afterMovie = () => {
+    if (!video || !document.getElementById('intro-movie')) return launch();
+    video.addEventListener('canplaythrough', launch, { once: true });
+    const gone = setInterval(() => { if (!document.getElementById('intro-movie') || document.getElementById('intro-movie').classList.contains('out')) { clearInterval(gone); launch(); } }, 250);
+    video.addEventListener('play', () => setTimeout(launch, 15000), { once: true });
+  };
   let saved = null; try { saved = localStorage.getItem(KEY); } catch (e) {}
-  if (saved === HASH) { document.getElementById('dev-gate').remove(); launch(); return; }
+  if (saved === HASH) { // known browser: buffer the movie behind PRESS ANY KEY
+    document.getElementById('dev-gate').remove();
+    if (video) { video.preload = 'auto'; video.load(); }
+    afterMovie(); return;
+  }
   root.classList.add('dev-locked');
   const form = document.getElementById('dg-form'), input = document.getElementById('dg-pass');
   input.focus();
@@ -763,7 +780,7 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
     try { localStorage.setItem(KEY, HASH); } catch (e) {}
     root.classList.remove('dev-locked'); document.getElementById('dev-gate').remove();
     window.__rp7dIntro?.play(); // the submit is the gesture, so the movie starts with sound
-    launch();
+    afterMovie();
   });
 })();
 </script>

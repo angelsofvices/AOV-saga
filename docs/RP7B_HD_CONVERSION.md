@@ -39,6 +39,7 @@
 - **Default:** classic 2D. That stays the default until Phase 4 signs off.
 - The overworld **and building interiors** render in 2DHD (interiors since v0.99.56). The title screen, Dreamland and the Dracolord realms still render classic 2D.
 - If the device has no WebGL, HD reports itself unavailable and the game stays classic.
+- **2DHD cannot run from a `file://` page** (rp7b.html double-clicked in Finder). Chrome blocks module scripts there and keeps game art out of WebGL. To play from a local copy, double-click **`PLAY_RP7B_LOCAL.command`** in the repo root: it serves the folder on `http://localhost:8765` and opens `rp7b.html?hd=1`. On a `file://` page, Cmd+F explains this instead of opening the browser's Find bar.
 
 Tuning without editing code: `RP7B_HD.cfg` (camera `pitchDeg` / `distance` / `fov`, sprite `lean`, fog, view distance). Cost per frame: `RP7B_HD.stats` (`worldMs`, `renderMs`, chunk / sprite / prop counts).
 

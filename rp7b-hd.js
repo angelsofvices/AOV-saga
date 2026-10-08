@@ -479,6 +479,10 @@ function _captureActor(key, kind, tx, ty, draw){
       }
       rec.ctx.clearRect(0, 0, wpx, hpx);
       rec.ctx.drawImage(gameCanvas, 0, 0, wpx, hpx, 0, 0, wpx, hpx);
+      // ★ v0.99.59 · leave nothing behind. A capture made AFTER the world layer
+      //   (the UFO flight) used to stay on the canvas and get banked into the
+      //   ground decal · a second, flattened UFO lying on the grass.
+      clear2d();
       rec.tex.needsUpdate = true;
       rec.captured = frame;
       HD.stats.captures++;
@@ -1082,6 +1086,16 @@ function standEgg(){
            _elzebubEgg.x + 0.5, 0, _elzebubEgg.y + 0.5, { additive: true, opacity: 0.55 })
     .material.color.setRGB(1, 0.62, 0.25);
 }
+// ★ v0.99.59 · Creator: "make the ufo fly over all props including building.
+//   no phase through. should fly over all layers." In 2D the flight is the
+//   absolute top of the world; here it is drawn after everything and never
+//   depth-tested, so no roof or canopy can slice through it. Lifted, so its
+//   real shadow still lands on the ground under it.
+function flyOverEverything(mesh, lift){
+  mesh.position.y = lift;
+  mesh.renderOrder = 20;
+  if (mesh.material.depthTest){ mesh.material.depthTest = false; mesh.material.needsUpdate = true; }
+}
 // ── Astralstrike · flies from Rizer's hand at hand height ──
 function standProjectiles(){
   if (!PROJECTILES.length) return;
@@ -1202,15 +1216,36 @@ if (!HD.broken){
     try { orig.apply(null, args); } finally { ARROWS.length = 0; ARROWS.push(...all); }
   });
   // Rizer flying the UFO, and the God's departure · captured whole, lifted into the air
+  // ★ v0.99.59 · ONE call, at the real camera. Everything the flight paints on
+  //   the ground (the C.O.R.S.U.N. field, the laser, the high-altitude shadow)
+  //   paints for real and lands in the ground decal where the game put it;
+  //   only the HULL is lifted out and flown above every layer.
   wrap('drawAuraxionUfoFlight', (orig, args) => {
     if (!(HD.frameActive && HD.mode === 'overworld' && player.ufoFlying)) return orig.apply(null, args);
-    captureActor('ufo', 'ufo', player.x, player.y, () => orig.apply(null, args));
-    const r = actors.get('ufo'); if (r) r.mesh.position.y = 1.4;
+    let hull = null;
+    const prev = _drawHook;
+    _drawHook = (m, c, a) => {
+      if (m !== 'drawImage' || (a[0] !== AURAXION_UFO_FLIGHT && a[0] !== AURAXION_UFO_DASH)) return false;
+      const mt = c.getTransform();
+      hull = { img: a[0], sx: a[1], sy: a[2], sw: a[3], sh: a[4],
+               dx: mt.a * a[5] + mt.e, dy: mt.d * a[6] + mt.f, dw: a[7] * Math.abs(mt.a), dh: a[8] * Math.abs(mt.d) };
+      return true;
+    };
+    try { orig.apply(null, args); } finally { _drawHook = prev; }
+    if (!hull) return;
+    const w = hull.dw / T, h = hull.dh / T;
+    const cx = (hull.dx + hull.dw / 2 + _cam.x) / T;
+    // the 2D build floats the hull 0.45 tiles up plus its bob · keep both, on top of real altitude
+    const rise = (player.y + 0.5) - (hull.dy + hull.dh / 2 + _cam.y) / T;
+    const m = fxSprite('ufo-hull', hull.img, hull.sx, hull.sy, hull.sw, hull.sh, w, h,
+                       cx, 2.2 + rise, player.y + 0.5);
+    m.rotation.set(0, 0, 0);
+    flyOverEverything(m, m.position.y);
   });
   wrap('drawAnciuxorFlight', (orig, args) => {
     if (!(HD.frameActive && HD.mode === 'overworld' && _anciuxorFlight)) return orig.apply(null, args);
     captureActor('anciuxor', 'god', _anciuxorFlight.x, _anciuxorFlight.y + 3, () => orig.apply(null, args));
-    const r = actors.get('anciuxor'); if (r) r.mesh.position.y = 4;
+    const r = actors.get('anciuxor'); if (r) flyOverEverything(r.mesh, 4);
   });
 
   // ── interiors ──

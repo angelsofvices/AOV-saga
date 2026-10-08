@@ -110,7 +110,11 @@ try {
   const fx = await page.evaluate('RP7B_HD._fx()');
   ok(fx.length >= 2, `gems and the Astralstrike shot stand in 3D (${fx.length})`);
   ok(fx.some(y => y > 0.5), 'the Astralstrike shot flies at hand height');
-  await page.evaluate("PROJECTILES.length = 0; player.x = 7; player.y = 199; snapCameraToPlayer();");
+  await page.evaluate("PROJECTILES.length = 0; player.ufoFlying = true;");
+  await page.waitForTimeout(2500);
+  st = await page.evaluate(`({ fx: RP7B_HD._fx(), ufoActor: RP7B_HD._actors().some(a => a.startsWith('ufo')) })`);
+  ok(st.fx.some(y => y > 2) && !st.ufoActor, 'the UFO hull flies high, one hull only (no captured duplicate)');
+  await page.evaluate("player.ufoFlying = false; PROJECTILES.length = 0; player.x = 7; player.y = 199; snapCameraToPlayer();");
   await page.waitForTimeout(3500);
   ok((await page.evaluate('RP7B_HD._flatProps()')).includes('meteor_crash_wildarm'), 'the meteor crater lies flat on the ground');
 

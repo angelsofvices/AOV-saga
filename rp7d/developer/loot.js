@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { THARDIN_BLASTER_RIFLE, buildBlasterRifle } from './thardin-rifle.js';
 import { rollChestPiles } from './coin-piles.js';
+import { DVDS } from './dvd-registry.js';
 
 // ── inventory (kept per browser; fine to lose) ───────────────────────
 const KEY = 'rp7d.inventory.v1';
@@ -102,6 +103,8 @@ export const ITEMS = {
   // Gold Coins: currency and collectible, found in wooden chests throughout Malezor
   'coins': { name: 'Gold Coins', kind: 'currency', color: '#ffd700', blurb: 'Golden coins of Malezor. Valuable for trade and treasure.' }
 };
+// Every DVD in dvd-registry.js is an item: collectible, stored in one place at a time (storage.js), never consumed.
+for (const [id, d] of Object.entries(DVDS)) ITEMS[id] = { name: d.title, kind: 'dvd', color: d.cover?.color || '#1743AA', blurb: d.blurb || '' };
 // Canonical RP7B ASTRALITE_FAMILIES table and order. Keep the family/tier
 // identity as the inventory key because several canon symbols intentionally repeat.
 export const ASTRALITE_FAMILIES = Object.freeze([

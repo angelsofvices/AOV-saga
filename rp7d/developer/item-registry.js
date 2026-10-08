@@ -5,11 +5,11 @@
 import { ITEMS, WEAPONS, RIDES } from './loot.js';
 
 export const CATEGORY = Object.freeze({
-  WEAPON: 'WEAPON', RESOURCE: 'RESOURCE', ITEM: 'ITEM', FIELD_EQUIPMENT: 'FIELD_EQUIPMENT', SPECIAL: 'SPECIAL'
+  WEAPON: 'WEAPON', RESOURCE: 'RESOURCE', ITEM: 'ITEM', FIELD_EQUIPMENT: 'FIELD_EQUIPMENT', SPECIAL: 'SPECIAL', MEDIA: 'MEDIA'
 });
-export const CATEGORY_ORDER = [CATEGORY.WEAPON, CATEGORY.FIELD_EQUIPMENT, CATEGORY.RESOURCE, CATEGORY.ITEM, CATEGORY.SPECIAL];
+export const CATEGORY_ORDER = [CATEGORY.WEAPON, CATEGORY.FIELD_EQUIPMENT, CATEGORY.RESOURCE, CATEGORY.ITEM, CATEGORY.MEDIA, CATEGORY.SPECIAL];
 export const CATEGORY_LABEL = {
-  WEAPON: 'WEAPONS', FIELD_EQUIPMENT: 'FIELD EQUIPMENT', RESOURCE: 'RESOURCES', ITEM: 'ITEMS', SPECIAL: 'KEY ITEMS'
+  WEAPON: 'WEAPONS', FIELD_EQUIPMENT: 'FIELD EQUIPMENT', RESOURCE: 'RESOURCES', ITEM: 'ITEMS', MEDIA: 'DVDS', SPECIAL: 'KEY ITEMS'
 };
 
 // Field Equipment: physical utility assets Rizer crafts, stores, carries, deploys, uses and packs up again.
@@ -49,6 +49,9 @@ export function defOf(id) {
   } else if (WEAPONS[id]) {
     const w = WEAPONS[id];
     d = { id, name: w.name, category: CATEGORY.WEAPON, unique: true, stackable: false, slots: id === 'fists' ? 0 : 1, transferable: id !== 'fists', deployable: false, color: '#c9d6e6', blurb: w.blurb || '' };
+  } else if (ITEMS[id]?.kind === 'dvd') { // a collectible movie (dvd-registry.js): one of each, played in the TV (tv-system.js)
+    const it = ITEMS[id];
+    d = { id, name: it.name, category: CATEGORY.MEDIA, unique: false, stackable: true, stackMax: 1, slots: 1, transferable: true, deployable: false, color: it.color, blurb: it.blurb };
   } else if (ITEMS[id] && ITEMS[id].kind !== 'currency') {
     const it = ITEMS[id], key = it.kind === 'key';
     d = { id, name: it.name, category: key ? CATEGORY.SPECIAL : it.kind === 'consumable' ? CATEGORY.ITEM : CATEGORY.RESOURCE,

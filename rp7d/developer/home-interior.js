@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createN3000Prop } from './n3000-prop.js';
 import { buildGuitar } from './loot.js';
+import { buildTVSet } from './tv-system.js';
 import { Actor, loadGLB } from './actor.js';
 
 // RP7B's 15x10 room grid and furniture anchors, rebuilt with RP7D low-poly props.
@@ -17,7 +18,7 @@ export function createHomeInterior(scene) {
   const cyl = (parent, rt, rb, h, material, x, y, z, seg = 8) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), material); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
   const orb = (parent, r, material, x, y, z) => { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), material); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
   const blockers = { 1: [], 2: [] };
-  let consoleRoot = null, n3000Screen = null, floorGuitar = null;
+  let consoleRoot = null, n3000Screen = null, floorGuitar = null, tvSet = null;
   let frontDoor = null; // the front door's hinge group (inside view)
   const residents = [];
   const NPCS_ON_HOLD = true;
@@ -128,16 +129,17 @@ export function createHomeInterior(scene) {
     box(first.room, 5.1, 1.35, 0.48, mat('#725447'), p.x, first.floorY + 1.0, p.z - 0.62);
     for (const dx of [-2.2, 2.2]) box(first.room, 0.55, 1.1, 1.7, mat('#806052'), p.x + dx, first.floorY + 0.75, p.z + 0.08);
     for (const dx of [-1.3, 0, 1.3]) box(first.room, 1.18, 0.2, 1.0, mat('#9a7560'), p.x + dx, first.floorY + 1.02, p.z + 0.06);
-    const tv = cell(14, 5, first.floorY); box(first.room, 0.55, 2.2, 0.65, darkWood, tv.x, first.floorY + 1.1, tv.z);
-    box(first.room, 0.12, 1.45, 0.82, glass, tv.x - 0.34, first.floorY + 1.55, tv.z);
-    box(first.room, 0.8, 0.18, 0.92, trim, tv.x - 0.28, first.floorY + 0.2, tv.z);
+    // The TV & DVD system (tv-system.js): cabinet, flat screen, player, remote and cases against the east wall, facing the room.
+    const tv = cell(14, 5, first.floorY); tv.x = HALF_W - 0.32;
+    tvSet = buildTVSet(); tvSet.root.position.set(tv.x, first.floorY, tv.z); tvSet.root.rotation.y = -Math.PI / 2; first.room.add(tvSet.root);
+    (root.userData.stations ||= []).push({ id: 'tv', name: 'TV', x: tv.x - 1.5, z: tv.z, level: 1, r: 1.7 });
     const plant = cell(4, 1, first.floorY); cyl(first.room, 0.48, 0.62, 0.8, mat('#865e42'), plant.x, first.floorY + 0.4, plant.z);
     for (let i = 0; i < 5; i++) { const leaf = orb(first.room, 0.4, mat('#527746'), plant.x + Math.sin(i * 1.25) * 0.45, first.floorY + 1.15 + (i % 2) * 0.25, plant.z + Math.cos(i * 1.25) * 0.45); leaf.scale.set(0.7, 1.8, 0.6); }
     const coffee = cell(8, 7, first.floorY);
     box(first.room, 2.25, 0.16, 1.15, darkWood, coffee.x, first.floorY + 0.52, coffee.z);
     for (const dx of [-0.92, 0.92]) for (const dz of [-0.4, 0.4]) box(first.room, 0.12, 0.48, 0.12, trim, coffee.x + dx, first.floorY + 0.24, coffee.z + dz);
     standingLamp(first.room, first.floorY, -4.8, 2.7);
-    blockers[1].push({ x: p.x, z: p.z, hw: 2.7, hd: 1.05 }, { x: tv.x, z: tv.z, hw: 0.75, hd: 0.65, top: first.floorY + 2.25 }, { x: plant.x, z: plant.z, hw: 0.65, hd: 0.65, top: first.floorY + 2 }, { x: coffee.x, z: coffee.z, hw: 1.2, hd: 0.65, top: first.floorY + 0.65 }, { x: -4.8, z: 2.7, hw: 0.42, hd: 0.42, top: first.floorY + 2.4 });
+    blockers[1].push({ x: p.x, z: p.z, hw: 2.7, hd: 1.05 }, { x: tv.x, z: tv.z, hw: 0.32, hd: 1.08, top: first.floorY + 1.65 }, { x: plant.x, z: plant.z, hw: 0.65, hd: 0.65, top: first.floorY + 2 }, { x: coffee.x, z: coffee.z, hw: 1.2, hd: 0.65, top: first.floorY + 0.65 }, { x: -4.8, z: 2.7, hw: 0.42, hd: 0.42, top: first.floorY + 2.4 });
   }
 
   // RP7B household anchors. Mom and Yara use the same detailed rigged character
@@ -353,7 +355,7 @@ export function createHomeInterior(scene) {
     const defs = [
       // level 1 · living room                          gather rect (center, half extents)   footprint (center, half extents)
       { id: 'sofa', name: 'Sofa & rug', level: 1, x: 1.5, z: 0.75, gw: 3.7, gd: 1.35, fx: 1.5, fz: 0.75, hw: 2.7, hd: 1.05 },
-      { id: 'tv1', name: 'Television', level: 1, x: 10.5, z: 0.75, gw: 1.0, gd: 1.0, fx: 10.5, fz: 0.75, hw: 0.75, hd: 0.65 },
+      { id: 'tv1', name: 'TV & DVD player', stations: ['tv'], level: 1, x: 10.93, z: 0.75, gw: 0.6, gd: 1.3, fx: 10.93, fz: 0.75, hw: 0.32, hd: 1.08 },
       { id: 'plant', name: 'Plant', level: 1, x: -4.5, z: -5.25, gw: 0.95, gd: 0.95, fx: -4.5, fz: -5.25, hw: 0.65, hd: 0.65 },
       { id: 'coffee', name: 'Coffee table', level: 1, x: 1.5, z: 3.75, gw: 1.4, gd: 0.85, fx: 1.5, fz: 3.75, hw: 1.2, hd: 0.65 },
       { id: 'lamp1', name: 'Standing lamp', level: 1, x: -4.8, z: 2.7, gw: 0.6, gd: 0.6, fx: -4.8, fz: 2.7, hw: 0.42, hd: 0.42 },
@@ -374,6 +376,7 @@ export function createHomeInterior(scene) {
       const kids = room.children.filter(o => (o.isMesh || o.isLight) && !o.userData.piece && !o.userData.structure && Math.abs(o.position.x - d.x) <= d.gw && Math.abs(o.position.z - d.z) <= d.gd && o.position.y >= fy - 0.05 && o.position.y <= fy + 2.55);
       const group = new THREE.Group(); group.name = 'Piece-' + d.id; room.add(group);
       if (d.id === 'console') group.add(consoleRoot);
+      if (d.id === 'tv1') group.add(tvSet.root);
       if (d.id === 'desk') group.add(chairRoot); // the chair is its own object but travels with the desk it belongs to
       for (const k of kids) { k.userData.piece = d.id; group.add(k); }
       const own = blockers[d.level].filter(b => !b.piece && Math.abs(b.x - d.x) <= d.gw && Math.abs(b.z - d.z) <= d.gd).map(b => { b.piece = d.id; return { b, ox: b.x, oz: b.z }; });
@@ -594,7 +597,14 @@ export function createHomeInterior(scene) {
     // The floor guitar is there until Rizer owns the guitar (taken here, or carried over from an older save).
     setGuitarTaken(taken) { if (floorGuitar) floorGuitar.visible = !taken; },
     get floorGuitar() { return floorGuitar; },
-    stationAt(p) { p = p.position || p; let best = null; for (const s of root.userData.stations || []) { if (s.level !== level || (s.id === 'floor-guitar' && !floorGuitar?.visible)) continue; const d = Math.hypot(p.x - s.x, p.z - s.z); if (d <= s.r && (!best || d < best.d)) best = { ...s, d }; } return best; },
+    get tvSet() { return tvSet; },
+    // A collectible lying in the house (a DVD, …): its mesh on that floor, and a station ○ / E answers while hidden() is false.
+    addPickup({ id, name, level: lv, x, z, mesh, hidden }) {
+      const r = lv === 1 ? first : second; mesh.position.set(x, r.floorY + mesh.position.y, z); r.room.add(mesh);
+      (root.userData.stations ||= []).push({ id, name, x, z, level: lv, r: 1.5, pickup: true, hidden: () => { const h = hidden(); mesh.visible = !h; return h; } });
+      mesh.visible = !hidden();
+    },
+    stationAt(p) { p = p.position || p; let best = null; for (const s of root.userData.stations || []) { if (s.level !== level || s.hidden?.() || (s.id === 'floor-guitar' && !floorGuitar?.visible)) continue; const d = Math.hypot(p.x - s.x, p.z - s.z); if (d <= s.r && (!best || d < best.d)) best = { ...s, d }; } return best; },
     get entry() { return entryDoor.clone(); },
     get frontDoor() { return frontDoor; },
     interact(rizer) {

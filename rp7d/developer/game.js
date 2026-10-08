@@ -32,6 +32,8 @@ import { createAstral, ASTRAL } from './astral.js';
 import { createAstralvision } from './astralvision.js';
 import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
 import { storage } from './storage.js';
+import { createTVSystem, buildDvdPickup } from './tv-system.js';
+import { DVDS } from './dvd-registry.js';
 import { crafting } from './crafting.js';
 import { createDeployables } from './deployables.js';
 import { pushOut, sweepOut } from './body-collision.js';
@@ -92,6 +94,7 @@ let mousePunchHeld = false;
 let locked = false, toastTimer;
 addEventListener('keydown', e => {
   if (n3000?.isOpen) { n3000.key(e); e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (tv?.isOpen) { tv.key(e); e.preventDefault(); e.stopImmediatePropagation(); return; }
   if (!e.target?.matches?.('[data-skin-hex], [data-build-name]') && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
   if (bondGame?.active) { if (!e.repeat) bondGame.key(e.code); e.preventDefault(); return; }
   if (stationUI?.isOpen) { if (!e.repeat) stationUI.key(e.code); e.preventDefault(); return; } // Home PC / Experiment Table / Field Workstation screens
@@ -749,7 +752,7 @@ let partner = null; // the bonded, active Zyrex walking with Rizer (zyrex2d.js �
 let world, sky, rizer, cam, zyrex, fx, hud, zy, lab, skinLab, buildLab, bondGame, anciuxor = null, astral, seers = null, started = false, usingPad = false;
 let seating = null; // INTERACTIVE_SEAT controller (the Nebuladock chair)
 let pcUse = null; // Nebuladock 3000 session: {phase 'walk'|'in'|'on'|'out', k 0..1 camera blend, n:{screen}}
-let n3000 = null, n3000Camera = null;
+let n3000 = null, n3000Camera = null, tv = null, tvCamera = null; // tv: the living-room TV & DVD system (tv-system.js)
 let dep = null, stationUI = null; // storage foundation: deployed Field Equipment · Home PC / Experiment Table screens
 let furnMover = null, homeInterior = null, homeMode = false, homeReturn = null, npcs = null, commonChests = null, zycube = null;
 let astralboard = null;
@@ -798,6 +801,7 @@ function build() {
   sky = createSky(scene, shared);
   homeInterior = createHomeInterior(scene); homeMode = true; world.setExteriorVisible(false);
   homeInterior.setGuitarTaken(hasWeapon('guitar'));
+  initTV();
   const s = W.playerStart;
   rizer = new Rizer(scene, { x: s.x, y: world.groundAt(s.x, s.z), z: s.z, facing: s.facing });
   seating = createSeating({ interior: homeInterior, rizer, toast: showToast, onType: () => pcCamIn() });
@@ -971,13 +975,13 @@ function build() {
   });
   const uiLayout = createUILayout($('#game'), $('#layout-toggle'));
   $('#layout-toggle').addEventListener('click', () => uiLayout.toggle());
-  document.addEventListener('mousemove', e => { if ((locked || dragging) && !zy.isOpen && !n3000?.isOpen) { cam.look(e.movementX * 0.0022 * settings.sens, e.movementY * 0.0018 * settings.sens * (settings.invertY ? -1 : 1)); setPad(false); } });
+  document.addEventListener('mousemove', e => { if ((locked || dragging) && !zy.isOpen && !n3000?.isOpen && !tv?.isOpen) { cam.look(e.movementX * 0.0022 * settings.sens, e.movementY * 0.0018 * settings.sens * (settings.invertY ? -1 : 1)); setPad(false); } });
   $('#map-canvas').addEventListener('click', e => devMapJump(hud.mapToWorld(e.clientX, e.clientY)));
   $('#map-canvas').addEventListener('mousemove', e => { if (devMapOn()) hud.mapCursor = hud.mapToWorld(e.clientX, e.clientY); });
-  addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
+  addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
   // Debug/test hook for playtests and automated checks.
-  window.__rp7d = { get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
+  window.__rp7d = { get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
   frame();
   // title screen: ready once the world exists · a NEW GAME reload skips straight into play
   $('#new-sub').textContent = 'Wake up in Rizer’s room';
@@ -1035,6 +1039,39 @@ function cycleWeapon(dir) { const list = wheelList(); if (!list.length) return; 
 // The soundtrack ducks under the solo. seers.setMusic() carries where the music is; npcs join in when they return.
 const GUITAR = { radius: 24, duck: 0.12, astralRate: COMBAT.prayer.stamina };
 let jam = null; // { t, dur, song }
+// ── the TV & DVD system (tv-system.js · dvd-registry.js) ──
+// While the TV is up the world waits: frame() renders the room (the movie plays on the 3D screen) but skips update().
+function initTV() {
+  tv = createTVSystem({ set: homeInterior.tvSet, storage, inventory, saveInv, toast: showToast,
+    onOpen: () => {
+      saveGame(); keys.clear(); pressed.clear(); mousePunchHeld = dragging = false;
+      if (document.pointerLockElement) document.exitPointerLock();
+      tvCamera = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), k: 0 };
+      music.setHostPaused(true); sfx.setHostPaused(true); dep?.showPrompt(null); $('#game').classList.add('tv-watching');
+    },
+    onClose: () => {
+      if (tvCamera) { camera.position.copy(tvCamera.position); camera.quaternion.copy(tvCamera.quaternion); } tvCamera = null;
+      keys.clear(); pressed.clear(); mousePunchHeld = dragging = false; $('#game').classList.remove('tv-watching');
+      const pad = [...(navigator.getGamepads?.() || [])].find(Boolean); padPrev = pad?.buttons.map(b => b.pressed) || [];
+      music.setHostPaused(false); sfx.setHostPaused(false); canvas.focus?.();
+    } });
+  // each disc waits where the registry says until it is found: its case, lying on the floor
+  for (const [id, d] of Object.entries(DVDS)) {
+    if (!d.find) continue;
+    const mesh = buildDvdPickup(id); mesh.rotation.y = 0.5; mesh.position.y = 0.005;
+    homeInterior.addPickup({ id: 'dvd:' + id, name: `DVD · ${d.title}`, level: d.find.level, x: d.find.x, z: d.find.z, mesh, hidden: () => tv.owned(id) });
+  }
+}
+function tvFrame(realDt) { // camera glide to the screen, then the room renders with the movie on it
+  tv.update(Math.min(realDt, 0.05));
+  const v = tv.view(camera.fov), u = tvCamera;
+  if (u) {
+    u.k = Math.min(1, u.k + realDt / 0.6); const e = u.k * u.k * (3 - 2 * u.k);
+    const look = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(v.eye, v.screen, new THREE.Vector3(0, 1, 0)));
+    camera.position.copy(u.position).lerp(v.eye, e); camera.quaternion.slerpQuaternions(u.quaternion, look, e);
+  }
+  renderer.info.reset(); composer.render(); pressed.clear();
+}
 // A new game starts with Psychosyd's guitar on the floor of Rizer's room (home-interior.js); ○ / E there takes it.
 function takeFloorGuitar() {
   if (hasWeapon('guitar')) return homeInterior.setGuitarTaken(true);
@@ -1753,7 +1790,7 @@ function update(dt, t, realDt = dt) {
   const menu = zy.isOpen || wasOpen || !!stationUI?.isOpen || stWas || pcLock, ko = koT > 0;
   if ((zy.isOpen || stationUI?.isOpen) && dep?.placing) dep.cancel(true); // opening a menu abandons a placement
   dep?.showPrompt(null); // re-shown below when something usable is in reach
-  if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'floor-guitar' ? 'PICK UP · ○ / E' : undefined); } } }
+  if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'tv' ? 'WATCH TV · ○ / E' : st.id === 'floor-guitar' || st.pickup ? 'PICK UP · ○ / E' : undefined); } } }
   if (!menu) dep?.update(); // the placement ghost
   const kx = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
   const kz = (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0);
@@ -1836,7 +1873,7 @@ function update(dt, t, realDt = dt) {
     } else if (homeMode) {
       if ((pressed.has('KeyE') || padAct?.interact) && !furnMover?.busy && !pcUse && !seating?.active) {
         const st = homeInterior.stationAt(rizer), line = st ? null : homeInterior.interact(rizer);
-        if (st) { if (st.id === 'homepc') seating.begin(); else if (st.id === 'floor-guitar') takeFloorGuitar(); else openStation(st.id); }
+        if (st) { if (st.id === 'homepc') seating.begin(); else if (st.id === 'floor-guitar') takeFloorGuitar(); else if (st.id === 'tv') tv.open(); else if (st.id.startsWith('dvd:')) tv.collect(st.id.slice(4)); else openStation(st.id); }
         else if (line) showToast(line, 3600);
         else showToast(homeInterior.level === 1 ? 'Front door · ✕ / Space to leave' : 'Use the stairs in the northwest corner to go downstairs');
       }
@@ -2181,6 +2218,7 @@ function reportFrameError(e) {
 }
 function frame() {
   const now = performance.now(), realDt = Math.max(0, (now - last) / 1000); let dt = Math.min(realDt, 1 / 20); last = now;
+  if (tv?.isOpen) { tvFrame(realDt); requestAnimationFrame(frame); return; }
   if (n3000?.isOpen) {
     n3000.update(Math.min(realDt, 0.05));
     let drawConsole = false;

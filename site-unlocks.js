@@ -66,8 +66,9 @@ window.AOV_UNLOCKS = {
     { id:'game-project1936', kind:'game', name:'The Living Master Codex', title:'Mainline · 1936 · The Expedition of Carl Nasaro', status:'unlocked',
       since:'2026-10-07', href:'/explorer/', color:'#E2C27D', cta:'BEGIN THE EXPEDITION',
       blurb:'1936. You are Nasaro, the first person from Earth in the Aethryx Expanse. Scan its creatures into the AstraNav, battle them with your cards, meet its peoples. Collect the Expanse. Map the Expanse. Bring it home.' },
-    { id:'game-rp7d', kind:'game', name:'RP7D', title:'Rizing Power · Deluxe 3D', status:'soon',
-      blurb:'The Deluxe 3D build of Rizing Power. In development.' },
+    { id:'game-rp7d', kind:'game', name:'RP7D', title:'Rizing Power · Deluxe 3D', status:'unlocked',
+      since:'2026-10-08', href:'/play-rp7d/', color:'#3FA0FF', cta:'DEV PLAYTEST · PASSWORD',
+      blurb:'The Deluxe 3D build of Rizing Power. A live dev playtest of Malezor, behind the dev password.' },
 
     // ── THE GUIDEBOOK ─────────────────────────────────────────────────────
     { id:'guide-macrobook', kind:'guide', name:'The Macro Book', title:'Official Guidebook · Volume 1', status:'unlocked',
@@ -83,6 +84,11 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-08', build:'RP7D · FIELD TEST 02', title:'RP7D Opens for Dev Playtest',
+      notes:[
+        'The Deluxe 3D build of Rizing Power is live on the site behind the dev password: Malezor, District I',
+        'A new intro movie plays while Malezor loads; hold X or \u2715 to skip to the title'
+      ] },
     { date:'2026-10-07', build:'LIVING MASTER CODEX · SURVEY 7', title:'The AstraNav and the Open Expanse',
       notes:[
         'A classic handheld opening: name yourself, choose a man or a woman, fit your kit, and play the role of Nasaro',

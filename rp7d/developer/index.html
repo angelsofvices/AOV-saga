@@ -58,8 +58,10 @@
         removeEventListener('keydown', onKey, true); removeEventListener('keyup', onKey, true);
         setTimeout(() => root.remove(), 700);
       };
+      // The website build puts a password box in front (html.dev-locked); the movie waits behind it.
+      const locked = () => document.documentElement.classList.contains('dev-locked');
       const play = () => {
-        if (phase !== 'gate') return; phase = 'movie'; root.classList.add('playing');
+        if (phase !== 'gate' || locked()) return; phase = 'movie'; root.classList.add('playing');
         video.muted = false;
         video.play().catch(() => { video.muted = true; video.play().catch(finish); }); // a gamepad press doesn't count as a gesture for sound
       };
@@ -69,13 +71,14 @@
       video.addEventListener('ended', finish);
       // Keys stop here while the movie is up, so nothing reaches the title menu underneath.
       function onKey(e) {
-        if (phase === 'done') return;
+        if (phase === 'done' || locked()) return;
         e.stopImmediatePropagation(); e.preventDefault();
         if (e.code === 'KeyX') keyX = e.type === 'keydown';
         if (e.type === 'keydown' && !e.repeat) play();
       }
       addEventListener('keydown', onKey, true); addEventListener('keyup', onKey, true);
       root.addEventListener('pointerdown', play);
+      window.__rp7dIntro = { play }; // the password submit is a real gesture, so the movie can start with sound
       (function tick() {
         if (phase === 'done') return;
         if (video.error || video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) return finish();

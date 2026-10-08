@@ -33,6 +33,67 @@
       <div class="title-foot"><span><kbd class="k">↑↓</kbd><kbd class="p">D-PAD</kbd> MOVE</span><span><kbd class="k">ENTER</kbd><kbd class="p">✕</kbd> SELECT</span><span class="title-ver">RP7D · FIELD TEST 02</span></div>
     </section>
 
+    <!-- ══ Intro movie · plays over the title while Malezor loads behind it · hold X / ✕ to skip ══ -->
+    <section class="intro-movie" id="intro-movie" aria-label="Intro movie">
+      <video id="intro-video" playsinline preload="auto">
+        <source src="./assets/video/intro.mp4"/>
+        <source src="../assets/video/intro.mp4"/>
+      </video>
+      <button class="im-gate" id="im-gate" type="button"><b>PRESS ANY KEY</b><small>RIZING POWER 7 · DELUXE</small></button>
+      <div class="im-skip" id="im-skip"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="im-track" cx="18" cy="18" r="15"/><circle class="im-fill" id="im-fill" cx="18" cy="18" r="15"/></svg><span>HOLD <kbd class="k">X</kbd><kbd class="p">✕</kbd> TO SKIP</span></div>
+    </section>
+    <script>
+    // Runs as the page parses, ahead of the game bundle: the movie covers the load, then reveals the title.
+    // A NEW GAME reload goes straight into play, so it never shows the movie.
+    (function () {
+      const root = document.getElementById('intro-movie'), video = document.getElementById('intro-video'), game = document.getElementById('game');
+      const fill = document.getElementById('im-fill'), HOLD = 1000; // ms of X to skip
+      let fresh = false; try { fresh = sessionStorage.getItem('rp7d.boot') === 'new'; } catch (e) {}
+      if (fresh) { root.remove(); return; }
+      game.classList.add('intro-on');
+      let phase = 'gate', holdFrom = 0, keyX = false, padPrev = [];
+      const finish = () => {
+        if (phase === 'done') return; phase = 'done';
+        video.pause(); root.classList.add('out'); game.classList.remove('intro-on');
+        removeEventListener('keydown', onKey, true); removeEventListener('keyup', onKey, true);
+        setTimeout(() => root.remove(), 700);
+      };
+      const play = () => {
+        if (phase !== 'gate') return; phase = 'movie'; root.classList.add('playing');
+        video.muted = false;
+        video.play().catch(() => { video.muted = true; video.play().catch(finish); }); // a gamepad press doesn't count as a gesture for sound
+      };
+      // A missing or unplayable file goes straight to the title instead of a black screen (checked in tick too,
+      // since the sources can fail before this script runs).
+      video.addEventListener('error', finish);
+      video.addEventListener('ended', finish);
+      // Keys stop here while the movie is up, so nothing reaches the title menu underneath.
+      function onKey(e) {
+        if (phase === 'done') return;
+        e.stopImmediatePropagation(); e.preventDefault();
+        if (e.code === 'KeyX') keyX = e.type === 'keydown';
+        if (e.type === 'keydown' && !e.repeat) play();
+      }
+      addEventListener('keydown', onKey, true); addEventListener('keyup', onKey, true);
+      root.addEventListener('pointerdown', play);
+      (function tick() {
+        if (phase === 'done') return;
+        if (video.error || video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) return finish();
+        const gp = [...(navigator.getGamepads?.() || [])].find(g => g && g.connected);
+        const pad = gp ? gp.buttons.map(b => b.pressed) : [];
+        if (pad.some((p, i) => p && !padPrev[i])) play();
+        padPrev = pad;
+        // Timed by the clock, not frames: the world builds behind the movie and can drop the frame rate.
+        const holding = (keyX || pad[0]) && phase === 'movie', t = performance.now();
+        if (!holding) holdFrom = 0; else if (!holdFrom) holdFrom = t;
+        const k = holdFrom ? Math.min(1, (t - holdFrom) / HOLD) : 0;
+        fill.style.strokeDashoffset = String(94.25 * (1 - k));
+        root.classList.toggle('holding', holding);
+        if (k >= 1) finish(); else requestAnimationFrame(tick);
+      })();
+    })();
+    </script>
+
     <!-- ══ HUD · one system, four panels, all wired to the Zyphone (click a panel to open its page) ══ -->
     <div class="hud-left">
       <section class="zhud hud-panel" aria-label="Zyrex partner" data-zy="rizer">

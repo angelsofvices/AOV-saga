@@ -693,7 +693,8 @@ addEventListener('keydown', e => {
   const tick = () => {
     if (started) return;
     const gp = [...(navigator.getGamepads?.() || [])].find(g => g && g.connected);
-    if (gp) {
+    if (gp && $('#game').classList.contains('intro-on')) prev = Object.fromEntries(gp.buttons.map((x, i) => [i, x.pressed])); // the intro movie owns the pad
+    else if (gp) {
       setPad(true);
       const b = i => !!gp.buttons[i]?.pressed, edge = i => b(i) && !prev[i];
       const y = gp.axes[1] || 0, stick = Math.abs(y) > 0.6 ? Math.sign(y) : 0;

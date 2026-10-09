@@ -79,3 +79,7 @@ Save key `aov.explorer.v1`, version 3. It adds `hq` (name, built, drive, ruins, 
 ## Files
 
 `explorer/nasarus.js` (data) · `explorer/worldgen.js` (`buildNasarus`, which rebuilds the map from saved state) · `explorer/explorer.js` (the HQ block) · `tools/explorer/build_hq_art.py` (the 27 HQ and ruin sprites, written into `art.js`).
+
+## The Aethren
+
+The wild Aethren of Zyraxis follow the Creator's official roster: [07_OFFICIAL_AETHREN_ROSTER.md](07_OFFICIAL_AETHREN_ROSTER.md).

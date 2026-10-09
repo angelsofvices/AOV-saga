@@ -7,8 +7,9 @@ Sources (canon, do not hand-edit the output):
   explorer/environments.js  the other worlds (for provisional fauna and their peoples)
 
 Rules:
-  * Zyraxis Aethren are canon roster species. Tier 9-10 beings, easter eggs and
-    entries marked "(invented)" are left out of the wild.
+  * Zyraxis Aethren are exactly the official roster (game_roster/aethren_official.json).
+    Tier 9-10 beings, easter eggs and hidden names are never wild. Older roster
+    species not on the official list are kept as retired (cards held still work).
   * Every other world gets PROVISIONAL fauna: 1936 descriptions only, no canon
     name (canon:null), recoloured from the four native body plans. They are
     placeholders for the Creator's species and are flagged provisional.
@@ -78,26 +79,93 @@ def moves(v, types):
 DISTRICTS = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen']
 species, lex = {}, {}
 seen_unknown = {}
-for v in sorted(R.values(), key=lambda v: (v['tier'], v['id'])):
-    d = v.get('primaryDistrict')
-    if d not in DISTRICTS: continue
-    if v['tier'] >= 9 or v.get('easterEgg') or 'invented' in (v.get('archetype') or ''): continue
-    types = [t for t in (ct(v.get('type')), ct(v.get('type2')), ct(v.get('type3'))) if t in STRONG]
-    if not types: continue
+def norm(n): return re.sub(r'[^a-z0-9]', '', n.lower())
+
+# ── THE OFFICIAL ROSTER (game_roster/aethren_official.json) decides who is wild on Zyraxis ──
+# Data for each name comes from the newest source that has it: rp7b.html's live dex index (tier, types),
+# then roster.json (tier, types, stats, moves, district), then roster_v7 and the v8 evolution lines.
+# A name no source knows yet is filed provisionally (flagged) until the Creator gives its tier and types.
+OFF = json.load(open(os.path.join(ROOT, 'game_roster/aethren_official.json'), encoding='utf-8'))
+IDX = {norm(m.group(1)): (int(m.group(2)), m.group(3)) for m in re.finditer(r"\{n:'([^']+)',t:(\d+),ty:'([^']+)'\}", src)}
+RJ = {norm(v['name']): v for v in R.values()}
+v7src = open(os.path.join(ROOT, 'assets/2D sprites/battle/roster_v7.js'), encoding='utf-8').read()
+V7 = {}
+for m in re.finditer(r"name: '([^']+)', type: '([^']+)', type2: (null|'[^']+'), type3: (null|'[^']+'), region: '([^']+)',\s*tier: (\d+)", v7src):
+    V7[norm(m.group(1))] = {'types': [m.group(2)] + [x.strip("'") for x in (m.group(3), m.group(4)) if x != 'null'], 'district': m.group(5).lower(), 'tier': int(m.group(6))}
+EV = {}
+for c in json.load(open(os.path.join(ROOT, 'data/rp7_evolution_lines_v8.json')))['chains']:
+    for st in c['stages']:
+        if st.get('name') and st.get('tier'): EV[norm(st['name'])] = st['tier']
+TIER_HOME = {1:'malezor', 2:'zarvane', 3:'andrannor', 4:'veridan', 5:'netharion', 6:'vorashil', 7:'xilnar', 8:'baelgor', 9:'thardin', 10:'korathen'}
+NAME_TYPE = [('frost|glaci|fros|frez|snow','Crystal'), ('cinder|ember|flare|blaz|volca|torch|ign|pyr|solar|sol','Elemental'), ('volt|bolt|spark|buzz|jet','Tech'),
+  ('gear|cog|byte|mech|nano|rust|ferr|g-','Tech'), ('tide|reef|abyss|otter|dredg|luxquid|nytop|pyranh|barrac|celeseal','Aquatic'),
+  ('moss|thorn|sprout|bramb|flor|verd|bog|gloom|seed|bark|sweed|foong|terra|stag','Verdant'), ('grave|bone|skull|mort|dusk|umbra|nyx|noct|void|obsid|obsy','Corrupted'),
+  ('chrono','Chrono'), ('astra|astro|celest|luna|star|stel','Astral'), ('aur|halo|lumin|radi|sun','Radiant'), ('drak|drac|wyrm|wyn','Draconic'),
+  ('rift|aeth|cryp|sigil|sygil|invis|invish|cereb|phren','Unknown'), ('wing|crow|hawk|strix|sky','Spirit')]
+def guess_types(name):
+    n = name.lower()
+    for keys, t in NAME_TYPE:
+        if any(k in n for k in keys.split('|')): return [t, 'Beast'] if t != 'Beast' else ['Beast']
+    return ['Beast', 'Creature']
+def pool(sid, tier, types):
+    w = {'hp':1, 'atk':1, 'def':1, 'spd':1, 'spc':1}
+    if types[0] in ('Tech','Crystal','Corrupted'): w['def'] += .25
+    if types[0] in ('Spirit','Radiant','Astral','Aura','Chrono','Unknown'): w['spc'] += .25
+    if types[0] in ('Beast','Elemental','Draconic'): w['atk'] += .25
+    t = sum(w.values()); return {k: int(tier * 333 * w[k] / t) + (h(sid + k) % 9) - 4 for k in w}
+
+def add_species(sid, name, tier, types, d, base, mv, note, flags):
     b = body(types)
-    if v['id'] in ('otterlin','volcanut'): b = 'quad' if v['id'] == 'otterlin' else 'spine'
-    if v['id'] == 'verdanix': b = 'amph'
-    if v['id'] == 'aetherwing': b = 'wing'
-    tm = temperament(v['id'], types, v['tier'], b)
+    if sid in ('otterlin','volcanut'): b = 'quad' if sid == 'otterlin' else 'spine'
+    if sid == 'verdanix': b = 'amph'
+    if sid == 'aetherwing': b = 'wing'
+    tm = temperament(sid, types, tier, b)
     unk = HUE.get(types[0], 'STRANGE') + ' ' + NOUN[b]
     k = (d, unk); seen_unknown[k] = seen_unknown.get(k, 0) + 1
     if seen_unknown[k] > 1: unk += ' · VARIANT ' + str(seen_unknown[k])
-    first = (v.get('flavor') or '').split('\n')[0]
-    note = first.split('·')[-1].strip() if v.get('source') == 'hand' else ''
-    species[v['id']] = {'name': v['name'].upper(), 'tier': v['tier'], 'types': types, 'base': v['base'], 'moves': moves(v, types),
+    sp = {'name': name.upper(), 'tier': tier, 'types': types, 'base': base, 'moves': mv,
       'body': b, 'col': COLORS.get(types[0]), 'col2': COLORS.get(types[1] if len(types) > 1 else types[0]),
       'world': 9, 'district': d, 'temperament': tm, 'canon': True, 'note': note,
       'journal': JOURNAL[b] + TEMPER[tm], 'unknown': unk}
+    sp.update(flags); species[sid] = sp
+
+hidden = {norm(n) for n in OFF.get('hidden', [])}
+official_ids, report = set(), {'provisional': [], 'aliased': []}
+for line in OFF['roster']:
+    shown = line.split(' / ')[0].strip()
+    keys = [norm(x) for x in line.split(' / ')] + [norm(a) for a in OFF['aliases'].get(line, [])]
+    rj = next((RJ[k] for k in keys if k in RJ), None)
+    ix = next((IDX[k] for k in keys if k in IDX), None)
+    v7 = next((V7[k] for k in keys if k in V7), None)
+    ev = next((EV[k] for k in keys if k in EV), None)
+    sid = rj['id'] if rj else norm(shown)
+    if norm(shown) != sid and sid not in keys[:1]: report['aliased'].append(shown + ' ← ' + (rj['name'] if rj else sid))
+    flags = {}
+    tier = (ix and ix[0]) or (rj and rj['tier']) or ev or (v7 and v7['tier'])
+    types = [ct(t) for t in ix[1].split('/')] if ix else [t for t in (ct(rj.get('type')), ct(rj.get('type2')), ct(rj.get('type3'))) if t] if rj else [ct(t) for t in v7['types']] if v7 else None
+    types = [t for t in (types or []) if t in STRONG]
+    if not tier or not types:
+        flags['provisionalData'] = True; report['provisional'].append(shown)
+        tier = tier or 1; types = types or guess_types(shown)
+    d = (rj and rj.get('primaryDistrict')) or (v7 and v7['district'])
+    if d not in DISTRICTS: d = TIER_HOME[min(10, tier)] if tier > 1 else ('malezor' if h(sid) % 2 else 'zarvane')
+    if norm(shown) in hidden: flags['hidden'] = True
+    if tier >= 9: flags['hidden'] = True
+    if rj and rj.get('easterEgg'): flags['hidden'] = True
+    base = rj['base'] if rj else pool(sid, tier, types)
+    mv = moves(rj, types) if rj else moves({}, types)
+    note = ''
+    if rj and rj.get('source') == 'hand': note = (rj.get('flavor') or '').split('\n')[0].split('·')[-1].strip()
+    add_species(sid, shown, tier, types, d, base, mv, note, flags)
+    official_ids.add(sid)
+
+# species from older rosters that are NOT on the official list stay defined (cards already held keep
+# working) but are retired: never spawned, never counted toward a set.
+for v in sorted(R.values(), key=lambda v: (v['tier'], v['id'])):
+    if v['id'] in official_ids or v.get('primaryDistrict') not in DISTRICTS: continue
+    types = [t for t in (ct(v.get('type')), ct(v.get('type2')), ct(v.get('type3'))) if t in STRONG]
+    if not types: continue
+    add_species(v['id'], v['name'], v['tier'], types, v['primaryDistrict'], v['base'], moves(v, types), '', {'retired': True})
 
 # ── provisional fauna for the other worlds ──
 ENVS = {}
@@ -169,4 +237,6 @@ open(p, 'w', encoding='utf-8').write(
   '// Canon: game_roster/roster.json (Zyraxis Zyrex) and the 20-type chart in rp7b.html.\n'
   '// Species with provisional:true are placeholders until the Creator supplies that world’s Aethren.\n'
   'window.AOV_FAUNA = ' + json.dumps(out, ensure_ascii=False, separators=(',', ':')) + ';\n')
-print(len(species), 'species ·', sum(1 for s in species.values() if s['canon']), 'canon ·', len(STRONG), 'types')
+print(len(species), 'species ·', len(official_ids), 'official ·', sum(1 for s in species.values() if s.get('retired')), 'retired ·', len(STRONG), 'types')
+print('PROVISIONAL DATA:', ', '.join(report['provisional']))
+print('READ FROM OLDER SPELLINGS:', ', '.join(report['aliased']))

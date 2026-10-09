@@ -72,7 +72,7 @@ Creator ruling (2026-10-09): the AstraNav is restructured into seven sections, i
 
 | # | Section | What it holds |
 |---|---|---|
-| 1 | **SYSTEM** | The home panel. STATUS (location, SUIT and AIR meters, flares, pack, return / flare / disembark), the **LIVE SCANNER**, and a widget for every other section. Tap a widget to open that section. The live scanner shows the world you're on in real time: the ground you've explored, the ship, creatures, peoples, wardens and guardians, the vault, landmarks, and you, blinking. On NASARUS it also shows facilities and settled Aethren. In orbit or deep space it reads NO SIGNAL. |
+| 1 | **SYSTEM** | The home panel. STATUS (location, SUIT and AIR meters, flares, pack, return / flare / disembark), the **LIVE SCANNER**, and a widget for every other section. Tap a widget to open that section. The live scanner shows the world you're on (or orbiting) in real time: terrain, the ship, creatures and guardians, peoples and wardens, the vault, and you, blinking. On NASARUS it also shows facilities, ruins, residents and settled Aethren. |
 | 2 | **HEADQUARTERS** | The base: stages, the way home, the people, materials, facilities, research, workshop, restoration and records. *(The live map moved to the SYSTEM home panel as the live scanner, Creator 2026-10-09.)* |
 | 3 | **NAVIGATION** | The star map, laid out as in RP7D's telescope. Boarding the ship, arriving in orbit and booting the Navigation Center open here. |
 | 4 | **COMPANIONS** | Every Aethren card you've cloned, plus the battle team and the lead perk. |

@@ -171,7 +171,16 @@ export const RECIPES = {
     box(p, w, wh, d, wall, 0, 0.6 + wh / 2, 0);
     const roofY = 0.6 + wh + 0.05, roofH = 2.8;
     gable(p, w, d, roofH, M('#6c4a36'), roofY);
-    door(p, 1.6, 2.5, d / 2 + 0.05);
+    if (s.id === 'malezor-gear-shop') { // the Malezor Town Store: a front door that swings, for the door walk (store-interior.js)
+      box(p, 1.72, 2.5, 0.06, M('#1c1510'), 0, 0.6 + 1.25, d / 2 - 0.02);
+      // the building is scaled non-uniformly (world.js · BUILDING_SCALE): the hinge undoes it so the leaf swings rigid,
+      // and the leaf is cut to the scaled doorway's real width
+      const [bx, bz] = s.buildingScale || [1, 1], leafW = 1.6 * bx;
+      const hinge = new THREE.Group(); hinge.name = 'storeDoor'; hinge.userData.keep = true; hinge.userData.reach = leafW - 0.15; hinge.position.set(-0.8, 0.6, d / 2 + 0.05); hinge.scale.set(1 / bx, 1, 1 / bz); p.add(hinge);
+      const leaf = box(hinge, leafW, 2.5, 0.16, M('#4a3524'), leafW / 2, 1.25, 0); leaf.userData.door = true;
+      box(hinge, 0.08, 0.08, 0.3, M('#c9a34d', 0.4, { metalness: 0.5 }), leafW - 0.15, 1.0, 0);
+      hinge.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    } else door(p, 1.6, 2.5, d / 2 + 0.05);
     box(p, 2.2, 1.3, 0.12, glow.window, -2.5, 2.3, d / 2 + 0.06); box(p, 2.2, 1.3, 0.12, glow.window, 2.5, 2.3, d / 2 + 0.06);
     const aw = new THREE.Group(); aw.position.set(0, 3.9, d / 2 + 1.1); aw.rotation.x = 0.42; p.add(aw);
     for (let i = 0; i < 8; i++) box(aw, w / 8, 0.1, 2.3, i % 2 ? M('#efe6d0') : M(s.accent || '#b8584b'), -w / 2 + (i + 0.5) * w / 8, 0, 0);

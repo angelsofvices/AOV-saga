@@ -69,7 +69,7 @@ export const MALEZOR = {
   structures: [
     site('rakoron-cave', 'rubyCave', 22, 10, { name: "Rakoron's Ruby Cave", kind: 'gemlord', note: "Rakoron's sanctum. The north road ends at the foot of the ridge." }),
     site('research-facility', 'research', 22, 38, { name: "Dad's Research Facility", kind: 'civic', note: "Dad's Beastology lab." }),
-    site('malezor-gear-shop', 'gearShop', 16, 56, { name: 'Gear Shop', kind: 'shop', note: 'Equipment and repairs.' }),
+    site('malezor-gear-shop', 'gearShop', 16, 56, { name: 'Malezor Town Store', kind: 'shop', note: 'Two floors: the Rizer Department downstairs, the Zyrex Department upstairs.' }),
     site('town-hall', 'townHall', 22, 78, { name: 'Malezor Town Hall', kind: 'civic', note: 'Warden Kelthor keeps his hall here.' }),
     site('player-home', 'house', 22, 105, { variant: 'red', name: "Rizer's Home", kind: 'home', note: 'Rizer’s home on the civic spine.' }),
     site('academy', 'academy', 25, 126, { name: 'Rizer Academy', kind: 'civic', note: 'Malezor’s school.' }),

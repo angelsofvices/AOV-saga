@@ -65,7 +65,7 @@ window.AOV_UNLOCKS = {
       blurb:'The mainline open-world beta of Rizing Power. Playable in your browser today.' },
     { id:'game-project1936', kind:'game', name:'Aethryx Adventures: 1936', title:'Mainline · 1936 · The Expedition of Carl Nasaro', status:'unlocked',
       since:'2026-10-07', href:'/explorer/', color:'#E2C27D', cta:'BEGIN THE EXPEDITION',
-      blurb:'1936. You are Carl Nasaro, crash-landed on NASARUS, an ancient drifting world of ruins. Build your headquarters, then set out across the Aethryx Expanse: scan its creatures into the AstraNav, battle them with your cards, meet its peoples. Collect the Expanse. Map the Expanse. Bring it home.' },
+      blurb:'1936. You are Carl Nasaro, crash-landed on NASARUS with a ship too broken to reach home. Lead your Aethren through the worlds, beat the wardens, bring back every part, and make NASARUS home: scan its creatures into the AstraNav, battle them with your cards, meet its peoples. Collect the Expanse. Map the Expanse. Bring it home.' },
     { id:'game-rp7d', kind:'game', name:'RP7D', title:'Rizing Power · Deluxe 3D', status:'unlocked',
       since:'2026-10-08', href:'/play-rp7d/', color:'#3FA0FF', cta:'DEV PLAYTEST · PASSWORD',
       blurb:'The Deluxe 3D build of Rizing Power. A live dev playtest of Malezor, behind the dev password.' },
@@ -84,6 +84,15 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 9', title:'The Way Home',
+      notes:[
+        'Your ship is too damaged to reach hyperspace. Every world holds a sealed vault with one of its 27 parts: rebuild it to perfection, and the way home opens',
+        'Find each world\u2019s clue from its people or its records, beat the warden or guardian at the vault, and get the part home to NASARUS alive',
+        'Haemen wardens hunt you as the alien. Their Aethren come in a chain of three, and your team is your only weapon',
+        'Allied peoples patch your suit and rest your team. Your lead card gives a field perk: build the right team',
+        'Rescue refugees from war regions and settle Aethren species at a new Sanctuary. NASARUS becomes home',
+        'Die out there and the suit\u2019s AI flies you home to the base, but the pack stays where you fell'
+      ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 8.3', title:'Only NASARUS Holds Oxygen',
       notes:[
         'AIR now refills only at NASARUS: rest at camp, land at the base, or board the ship there. The ship carries no oxygen of its own',

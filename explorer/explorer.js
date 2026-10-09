@@ -37,6 +37,7 @@
   // ───────────────────────── the Codex's content, registered from the data files ─────────────────────────
   // Canon Aethren (fauna.js) and every world's plants, minerals, landmarks and peoples
   // become subjects that can be recorded and turned into cards.
+  var EXP = window.AOV_EXP || { ship:{ systems:[] }, perks:[], warden:{}, guardian:{}, refugees:{}, ally:{} };
   var SP = FAUNA.species, BODY = { quad:'otterlin', amph:'verdanix', wing:'aetherwing', spine:'volcanut' };
   function shade(hex, k){
     var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
@@ -116,10 +117,11 @@
   var LOOK = { skin:0, hair:0, style:0, hc:0, suit:0, helmet:0, visor:0 };
   function blank(){
     return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{}, archive:{}, cards:{}, lex:{},
-             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{},
+             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(),
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
-  function newHQ(){ return { id:'nasarus', name:HQ.canonicalName, built:{}, drive:false, ruins:{}, regions:[], store:{}, research:{}, records:[], stage:1, equip:{} }; }
+  function newHQ(){ return { id:'nasarus', name:HQ.canonicalName, built:{}, drive:false, ruins:{}, regions:[], store:{}, research:{}, records:[], stage:1, equip:{}, parts:{}, installed:{}, residents:{}, settled:{} }; }
+  function newExp(){ return { beaten:{}, vault:{}, aid:{} }; }
   var S = null, fresh = /[?&]newgame\b/.test(location.search);
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch(e){}
   if (S && S.v === 1) {          // carry an early-build save forward
@@ -146,6 +148,7 @@
   }
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
   // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
+  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); }
   if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.flags.charted = true; S.flags.hqNew = true; }
   if (fresh || !S || S.v !== 3) S = null;
   function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ /* storage full or blocked: keep playing */ } }
@@ -408,6 +411,11 @@
       { t:'Depart on your first expedition', done: worlds > 0 },
       { t:'Return to ' + hqName() + ' and deposit what you extracted', done: !!S.flags.returned },
       { t:'Reach STAGE 2 · EXPEDITION CAMP', done: hqStage() >= 2 },
+      { t:'Find a world’s clue: learn from its people, or read its records', done: D.worlds.some(function(w){ return hasClue(w.no); }) },
+      { t:'Face a warden or a vault’s guardian, and win', done: Object.keys(S.exp.beaten).length > 0 },
+      { t:'Bring a ship part home to ' + hqName() + ' and install it (ship ' + shipPct() + '%)', done: Object.keys(S.hq.installed).length > 0 },
+      { t:'Rescue refugees from a war region', done: Object.keys(S.hq.residents).length > 0 },
+      { t:'Settle an Aethren species on ' + hqName(), done: Object.keys(S.hq.settled).length > 0 },
       { t:'Make contact with an inhabitant', done: !!(S.archive.furtrader && S.archive.furtrader.talk) || peoplesMet() > 0 },
       { t:'Scan ' + (known('aethren') ? 'Aethren' : 'creatures') + ' into the AstraNav (' + Math.min(fauna, 3) + '/3)', done: fauna >= 3 },
       { t:'Win a card battle with one of your ' + (known('aethren') ? 'Aethren' : 'animal') + ' cards (' + Math.min(battlesWon(), 1) + '/1)', done: battlesWon() >= 1 },
@@ -418,7 +426,7 @@
       { t:'Set course for another world and land there (' + Math.min(worlds, 2) + '/2 worlds)', done: worlds >= 2 },
       { t:'Learn the ways of three peoples (' + Math.min(peoplesMet(), 3) + '/3)', done: peoplesMet() >= 3 },
       { t: known('aenor') ? 'Scan Aenor and Zoryth (AstraNav · SYSTEM)' : 'Scan the radiant body and its satellite (AstraNav · SYSTEM)', done: F.shotAenor && F.shotZoryth, side:true },
-      { t:'BRING IT HOME', done:false, main:true }
+      { t:'REBUILD THE SHIP FOR HYPERSPACE · THE WAY HOME (' + shipPct() + '%)', done: shipPct() >= 100, main:true }
     ];
   }
   function objList(){
@@ -929,6 +937,7 @@
         '<dl><dt>' + (here ? 'POSITION' : 'COURSE') + '</dt><dd>' + (here ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : au(no) + ' A.U.') + '</dd>' +
           '<dt>STATUS</dt><dd>' + (vis ? 'VISITED' : kn2 ? 'NAMED' : 'UNVISITED') + '</dd><dt>SURVEY</dt><dd>' + setPct(no) + '%</dd><dt>CARDS</dt><dd>' + setCards(no) + ' / ???</dd>' +
           '<dt>FAUNA SIGNALS</dt><dd>' + fauna(no) + '</dd>' +
+          (vis && no <= WORLDS_ALL ? '<dt>VAULT</dt><dd>' + esc(sysOf(no).part) + ' · ' + vaultState(no) + '</dd>' : '') +
           (scope(no) && !vis ? '<dt>TELESCOPE</dt><dd>' + esc(scope(no)) + '</dd>' : '') + '</dl>' +
         '<div class="x-sh-btns">' + act + '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     }
@@ -995,7 +1004,8 @@
     if (no === 'nasarus') { S.pos = { map:'nasarus', x:m.ship.x + 2, y:m.ship.y + 1, dir:'down' }; S.stage = 'surface';
       if (S.hq.built.camp && S.air < airMax()) { refillAir(); setTimeout(function(){ toast('OXYGEN · the tank refilled from the base · AIR ' + airMax()); }, 300); }
       save();
-      if (S.hq.built.depot && packTotal()) setTimeout(function(){ deposit(); }, 600);
+      if (S.hq.built.depot && (packTotal() || packParts())) setTimeout(function(){ deposit(); }, 600);
+      else if (packParts() && S.hq.built.stores) setTimeout(function(){ deposit(); }, 600);
       else if (packTotal()) setTimeout(function(){ toast('PACK · ' + packTotal() + ' materials · deposit them at the camp stores'); }, 600);
       surface('nasarus'); return; }
     S.pos = { map:m.id, x:m.ship.x, y:m.ship.y + 1, dir:'down' }; save();
@@ -1044,7 +1054,9 @@
     autoTeam();
     var ids = Object.keys(S.cards).filter(subj).sort(function(a, b){ return subj(a).set - subj(b).set || (subj(a).kind > subj(b).kind ? 1 : -1); });
     body.innerHTML = '<p class="x-crt">COLLECT THE EXPANSE · ' + ids.length + ' card' + (ids.length === 1 ? '' : 's') + ' · ' + totalCopies() + ' copies, sealed for the voyage home</p>' +
-      '<section class="x-team riv"><h3>BATTLE TEAM <small>up to 3 · the first leads</small></h3><div class="x-teamrow">' +
+      '<section class="x-team riv"><h3>BATTLE TEAM <small>up to ' + teamMax() + ' · the first leads</small></h3>' +
+        (leadPerk() ? '<p class="x-perk"><b>LEAD PERK · ' + esc(leadPerk().name) + '</b> ' + esc(leadPerk().text) + '</p>' : '<p class="x-perk dim">The lead card’s first type gives a field perk.</p>') +
+        '<div class="x-teamrow">' +
         (S.team.length ? S.team.map(teamChip).join('') : '<p class="x-mono light">No ' + (known('aethren') ? 'Aethren' : 'creature') + ' cards yet. Scan one in the field.</p>') + '</div></section>' +
       (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>'
       : '<p class="x-empty">No cards yet. Scan creatures, plants, minerals and places with the AstraNav.</p>');
@@ -1205,6 +1217,40 @@
   function airMax(){ var cap = 100; (HQ.airTanks || []).forEach(function(t){ if (S.hq.equip && S.hq.equip[t.id]) cap = Math.max(cap, t.cap); }); return cap; }
   function airPct(){ return S.air / airMax() * 100; }
   function refillAir(){ S.air = airMax(); }
+  // ── THE WAY HOME · vaults, ship parts, wardens, refugees, settled Aethren, the lead card's perk ──
+  var WORLDS_ALL = 27;
+  function sysOf(no){ return EXP.ship.systems[(no - 1) % EXP.ship.systems.length]; }
+  function sysNeed(id){ var n = 0; for (var w = 1; w <= WORLDS_ALL; w++) if (sysOf(w).id === id) n++; return n; }
+  function sysDone(id){ return Object.keys(S.hq.installed).filter(function(w){ return sysOf(+w).id === id; }).length; }
+  function shipPct(){ return Math.round(Object.keys(S.hq.installed).length / WORLDS_ALL * 100); }
+  function hasClue(no){ return no === 9 ? !!S.lore.z_korathen : !!S.lore['w' + no]; }
+  function worldPeople(no){ return no === 9 ? null : (FAUNA.peoples[no] || null); }
+  function hasWarden(no){ var pe = worldPeople(no); return !!(pe && pe.race); }
+  function wardenName(no){ var pe = worldPeople(no); return 'WARDEN OF THE ' + (pe && pe.race ? pe.race.replace(/^THE /, '') : 'PEOPLE'); }
+  function leadPerk(){
+    var id = (S.team || []).filter(function(k){ return S.cards[k]; })[0], s = id && subj(id), t = s && s.sp && SP[s.sp].types[0];
+    return EXP.perks.filter(function(p){ return p.types.indexOf(t) >= 0; })[0] || null;
+  }
+  function perk(id){ var p = leadPerk(); return !!(p && p.id === id); }
+  function vaultState(no){ return S.hq.installed[no] ? 'INSTALLED' : S.hq.parts[no] ? 'AT ' + hqName() : S.exp.vault[no] ? 'IN YOUR PACK' : S.exp.beaten[no] && hasClue(no) ? 'OPEN TO YOU' : hasClue(no) ? 'CLUE FOUND' : 'SEALED'; }
+  function packParts(){ return (S.pack.parts || []).length; }
+  function installPart(no){
+    var sy = sysOf(no);
+    if (!S.hq.parts[no] || S.hq.installed[no] || !S.hq.built.workshop || !canAfford(sy.cost)) return false;
+    pay(sy.cost); delete S.hq.parts[no]; S.hq.installed[no] = Date.now();
+    hqRecord('Installed the ' + sy.part + ' from ' + placeName(no) + ' in the ' + sy.name + '. The ship is ' + shipPct() + '% restored.'); save();
+    toast(sy.part + ' INSTALLED · SHIP ' + shipPct() + '%');
+    if (shipPct() >= 100) setTimeout(function(){ toast(EXP.ship.done); }, 600);
+    return true;
+  }
+  function settleAethren(id){
+    var c = S.cards[id], s = subj(id);
+    if (!S.hq.built.sanctuary || !c || !s || !s.sp || c.qty < 2 || S.hq.settled[id]) return false;
+    c.qty--; S.hq.settled[id] = Date.now();
+    hqChanged(subjName(id) + ' settled at the Aethren Sanctuary. A new species lives on ' + hqName() + '.');
+    toast('SETTLED · ' + subjName(id)); return true;
+  }
+  function residentsList(){ return Object.keys(S.hq.residents).map(function(no){ return { no:+no, env:(envOf(+no) || {}).id }; }); }
   function buildTank(id){
     var t = (HQ.airTanks || []).filter(function(x){ return x.id === id; })[0];
     if (!t || !S.hq.built.workshop || (S.hq.equip || {})[id] || !(t.requires || []).every(hqHas) || !canAfford(t.cost)) return false;
@@ -1213,15 +1259,16 @@
   }
   function reqText(reqs){ return (reqs || []).filter(function(k){ return !hqHas(k); }).map(nameOf).join(' · '); }
   function hqRestored(){ return Object.keys(S.hq.ruins).filter(function(k){ return S.hq.ruins[k].restored; }).length; }
-  function stageNeedMet(k){ var m = /^restored:(\d+)$/.exec(k); return m ? hqRestored() >= +m[1] : hqHas(k); }
+  function stageNeedMet(k){ var m = /^(restored|residents|settled):(\d+)$/.exec(k); if (!m) return hqHas(k); var n = m[1] === 'restored' ? hqRestored() : Object.keys(S.hq[m[1]] || {}).length; return n >= +m[2]; }
   function hqStage(){
     var n = 1;
     for (var i = 1; i < HQ.stages.length; i++) { var st = HQ.stages[i]; if (st.future || !st.needs.every(stageNeedMet)) break; n = i + 1; }
     return n;
   }
   function stageName(n){ return HQ.stages[n - 1].name; }
-  function needLabel(k){ var m = /^restored:(\d+)$/.exec(k); return (stageNeedMet(k) ? '✓ ' : '') + (m ? m[1] + ' RUINS RESTORED (' + hqRestored() + ')' : nameOf(k)); }
-  function hqState(){ return { built:S.hq.built, ruins:S.hq.ruins, regions:S.hq.regions, found:S.found, stage:hqStage(), drive:S.hq.drive, research:S.hq.research }; }
+  function needLabel(k){ var m = /^(restored|residents|settled):(\d+)$/.exec(k), L = { restored:'RUINS RESTORED', residents:'REFUGEE GROUPS HOME', settled:'AETHREN SPECIES SETTLED' };
+    return (stageNeedMet(k) ? '✓ ' : '') + (m ? m[2] + ' ' + L[m[1]] + ' (' + (m[1] === 'restored' ? hqRestored() : Object.keys(S.hq[m[1]] || {}).length) + ')' : nameOf(k)); }
+  function hqState(){ return { built:S.hq.built, ruins:S.hq.ruins, regions:S.hq.regions, found:S.found, stage:hqStage(), drive:S.hq.drive, research:S.hq.research, residents:residentsList(), settled:Object.keys(S.hq.settled) }; }
   function buildMap(id){ return id === 'nasarus' ? GEN.build('nasarus', hqState()) : GEN.build(id); }
   function hqRecord(text){ S.hq.records.push({ t:Date.now(), text:text }); if (S.hq.records.length > 200) S.hq.records.shift(); }
   function matName(k){ return (MATS.filter(function(m){ return m[0] === k; })[0] || [k, k.toUpperCase()])[1]; }
@@ -1237,6 +1284,10 @@
   // take a tile's material once: the same spot never pays twice
   function takeOnce(x, y, obj){ var key = M.id + ':' + x + ',' + y; if (S.found[key]) return ''; S.found[key] = 1; return gainAll(obj, true); }
   function deposit(quiet){
+    if ((S.pack.parts || []).length && S.hq.built.stores) {
+      S.pack.parts.forEach(function(no){ S.hq.parts[no] = Date.now(); delete S.exp.vault[no]; hqRecord('Brought the ' + sysOf(no).part + ' home from ' + placeName(no) + '.'); });
+      if (!quiet) toast('SHIP PARTS HOME · ' + S.pack.parts.length + ' · install them at the Workshop'); S.pack.parts = []; save();
+    }
     var n = packTotal(); if (!n || !S.hq.built.stores) return 0;
     MATS.forEach(function(m){ var k = m[0]; if (S.pack[k]) { S.hq.store[k] = (S.hq.store[k] || 0) + S.pack[k]; S.pack[k] = 0; } });
     S.flags.deposited = true; if (D.worlds.some(function(w){ return S.visited[w.no]; })) S.flags.returned = true;
@@ -1433,9 +1484,27 @@
     var html = '<section class="x-arc riv x-hqhead" id="hq-top"><h3>' + esc(hqName()) + ' <b>STAGE ' + stg + ' · ' + esc(stageName(stg)) + '</b></h3>' +
       '<div class="x-stages">' + HQ.stages.map(function(s2){ return '<span class="' + (s2.n <= stg ? 'on' : '') + (s2.future ? ' fut' : '') + '"><b>' + s2.n + '</b><i>' + esc(s2.name) + '</i></span>'; }).join('') + '</div>' +
       (next && !next.future ? '<p class="x-mono light">NEXT · STAGE ' + next.n + (next.longTerm ? ' (LONG-TERM)' : '') + ' · ' + esc(next.needs.map(needLabel).join(' · ')) + '</p>' :
-        next ? '<p class="x-mono light">STAGE 5 · EMERGING WORLD is a future expansion.</p>' : '') +
+        '') +
       (h.name !== HQ.canonicalName ? '<p class="x-mono dim">Canon name: ' + HQ.canonicalName + '. Your name for it: ' + esc(h.name) + '.</p>' : '') +
       (at ? '' : '<p class="x-crt">AWAY FROM ' + esc(hqName()) + ' · return to deposit, build and restore</p>') + '</section>';
+    html += '<section class="x-arc riv" id="hq-ship"><h3>THE WAY HOME <b>SHIP ' + shipPct() + '%</b></h3>' +
+      '<p class="x-mono light">The ship is too damaged to reach hyperspace. Every world holds one sealed vault with one part. Find the world’s clue, beat its warden or guardian, and bring the part home. A perfect ship needs every world.</p>' +
+      '<i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i><ul class="x-hqlist">' +
+      EXP.ship.systems.map(function(sy){
+        var need = sysNeed(sy.id), done = sysDone(sy.id), ready = Object.keys(h.parts).filter(function(w){ return sysOf(+w).id === sy.id; });
+        var act = done >= need ? '<em class="ok">RESTORED</em>' : '<em>' + done + ' / ' + need + '</em>' +
+          ready.map(function(w){ return at && h.built.workshop ? '<button class="x-btn small" data-i="' + w + '"' + (canAfford(sy.cost) ? '' : ' disabled') + '>INSTALL · ' + esc(placeName(+w)) + '</button>' : '<em class="dim">' + esc(sy.part) + ' READY</em>'; }).join('');
+        return '<li class="' + (done >= need ? 'done' : '') + '"><b>' + esc(sy.name) + '</b><span>' + esc(sy.part) + ' × ' + need + ' · each installs for ' + costText(sy.cost) + (h.built.workshop ? '' : ' · needs the WORKSHOP') + '</span><div>' + act + '</div></li>';
+      }).join('') + '</ul>' + (shipPct() >= 100 ? '<p class="x-crt">' + esc(EXP.ship.done) + '</p>' : '') + '</section>';
+    var resN = Object.keys(h.residents).length, setN = Object.keys(h.settled).length;
+    html += '<section class="x-arc riv" id="hq-pop"><h3>THE PEOPLE OF ' + esc(hqName()) + ' <b>' + resN + ' GROUPS · ' + setN + ' SPECIES</b></h3>' +
+      '<p class="x-mono light">' + (h.built.habitation ? 'Refugees you rescue from war regions live at the Habitation Zone.' : 'Build the HABITATION ZONE to take in refugees from war regions on other worlds.') + '</p>' +
+      (resN ? '<ul class="x-hqlist">' + Object.keys(h.residents).map(function(no){ var pe = FAUNA.peoples[+no] || {}; return '<li class="done"><b>' + esc(known(WORLD[+no].term) && pe.race ? pe.race : 'REFUGEES') + '</b><span>From ' + esc(placeName(+no)) + '. They live on ' + esc(hqName()) + ' now.</span><div></div></li>'; }).join('') + '</ul>' : '') +
+      (h.built.sanctuary ? '<p class="x-mono light">AETHREN SANCTUARY · settle a species from a spare copy (2 or more of the card).</p><ul class="x-hqlist">' +
+        aethrenCards().filter(function(id){ return h.settled[id] || (S.cards[id].qty >= 2); }).map(function(id){
+          return '<li class="' + (h.settled[id] ? 'done' : '') + '"><b>' + esc(subjName(id)) + '</b><span>' + (h.settled[id] ? 'Lives on ' + esc(hqName()) + '.' : 'You hold ' + S.cards[id].qty + ' copies.') + '</span><div>' +
+            (h.settled[id] ? '<em class="ok">SETTLED</em>' : at ? '<button class="x-btn small" data-settle="' + id + '">SETTLE</button>' : '<em class="dim">AT ' + esc(hqName()) + '</em>') + '</div></li>';
+        }).join('') + '</ul>' : '<p class="x-mono light">Build the AETHREN SANCTUARY to settle Aethren on ' + esc(hqName()) + '.</p>') + '</section>';
     html += '<section class="x-arc riv" id="hq-mats"><h3>MATERIALS <b>PACK ' + packTotal() + '</b></h3><table class="x-mats"><tr><th></th><th>PACK</th><th>STORES</th></tr>' +
       MATS.map(function(m){ return '<tr><td><b>' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (S.pack[m[0]] || 0) + '</td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
       '<div class="x-sh-btns">' + (at && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>DEPOSIT PACK</button>' : '') +
@@ -1497,6 +1566,8 @@
       else if (d.w === 'flare') { ok = craftFlare(); keep = 'workshop'; }
       else if (d.w === 'clear') { ok = clearRegion('basin'); keep = 'workshop'; }
       else if (/^tank/.test(d.w)) { ok = buildTank(d.w); keep = 'workshop'; }
+      else if (d.i) { ok = installPart(+d.i); keep = 'ship'; }
+      else if (d.settle) { ok = settleAethren(d.settle); keep = 'pop'; }
       else return;
       if (!ok) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); }
       else sfx.click();
@@ -1574,9 +1645,16 @@
     critters = M.spawns.map(function(sp){
       var s = SP[sp.id] || {};
       return { id:sp.id, lv:sp.lv, x:sp.x, y:sp.y, fx:sp.x, fy:sp.y, fromX:sp.x, fromY:sp.y, t:1, home:{ x:sp.x, y:sp.y }, dir:'down', cool:Math.random() * 2,
-               swims:sp.id === 'otterlin' || s.body === 'amph', flies:s.body === 'wing', state:'idle', anim:0, calm:0 };
+               swims:sp.id === 'otterlin' || s.body === 'amph', flies:s.body === 'wing', state:'idle', anim:0, calm:sp.resident ? 1e9 : 0,
+               guardian:!!sp.guardian, resident:!!sp.resident };
     });
-    npcs = M.npcs.map(function(n){ return Object.assign({}, n); });
+    npcs = M.npcs.filter(function(n){
+      var no = M.world;
+      if (n.warden && S.exp.beaten[no]) return false;               // a beaten warden does not come back
+      if (n.refugee && S.hq.residents[no]) return false;             // rescued: they live on NASARUS now
+      return true;
+    }).map(function(n){ return Object.assign({}, n); });
+    critters = critters.filter(function(c){ return !(c.guardian && S.exp.beaten[M.world]); });
     fogArr = fogDec(S.fog[mapId], M.W * M.H);
     if (M.hq && S.hq.research['r-survey']) fogArr.fill(1);
     dialogOpen = false; encounterOpen = false; path = []; held = null; dlg = null; zoneId = null;
@@ -1597,6 +1675,8 @@
     checkZone(true);
     save();
     if (M.hq && !S.flags.crashIntro) { setTimeout(crashIntro, 300); return; }
+    if (M.vault && !M.hq && (hasClue(M.world) || perk('sense')) && !S.hq.installed[M.world] && !S.hq.parts[M.world] && !S.exp.vault[M.world])
+      setTimeout(function(){ toast((hasClue(M.world) ? 'THE CLUE' : 'VAULT SENSE') + ' · the sealed vault lies ' + compass(M.vault.x - P.x, M.vault.y - P.y)); }, 1600);
     if (S.flags.hqNew) { S.flags.hqNew = false; save(); setTimeout(function(){ toast('A new body on the AstraNav: a drifting world with ruins. Set course for ' + hqName() + ' to make your headquarters.'); }, 800); }
     if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Walk with the arrows (or the stick), or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B changes your gait: STALK (slow and quiet), STEADY or SPRINT (fast and loud).', 'NAV opens the AstraNav: the star map, your cards, the Codex and everything else.']); }
   }
@@ -1695,7 +1775,7 @@
   var saveTimer = 0, airTimer = 0;
   function hazardDrain(){
     var e = M.env(P.x, P.y), r = e && e.hazard && e.hazard.rule || '';
-    var k = S.hq.research['r-air'] ? .65 : 1;
+    var k = (S.hq.research['r-air'] ? .65 : 1) * (perk('breath') ? .8 : 1);
     var run = P && P.gait === 'sprint' && (P.moving || held || path.length) ? 2.2 : 1;   // sprinting burns air
     return { air:(M.indoor ? 0 : (M.hq ? .08 : .16 * (/AIR/.test(r) ? 1.8 : 1)) * k) * run, suit:/SUIT/.test(r) ? .06 * (S.hq.research['r-suit'] ? .65 : 1) : 0 };
   }
@@ -1753,9 +1833,11 @@
       var to = warp.to; stopWorld(); fade(function(){ surface(to); }); return;
     }
     if (M.location && mark(M.location, 'reached')) { S.notes[M.location] = 1; toast('NEW FIELD RECORD · ' + term(subj(M.location).term)); }
+    var wd = npcs.filter(function(n){ return n.warden; })[0];
+    if (wd && !S.exp.beaten[M.world] && Math.abs(wd.x - P.x) + Math.abs(wd.y - P.y) <= 3 && !(wd.cool > performance.now())) { held = null; path = []; wardenMeet(wd); }
   }
   function revealFog(){
-    var R = M.indoor ? 4 : 5;
+    var R = M.indoor ? 4 : perk('sight') ? 7 : 5;
     for (var y = P.y - R; y <= P.y + R; y++) for (var x = P.x - R; x <= P.x + R; x++) {
       if (x < 0 || y < 0 || x >= M.W || y >= M.H) continue;
       if (Math.hypot(x - P.x, y - P.y) <= R + .3) fogArr[y * M.W + x] = 1;
@@ -1779,11 +1861,12 @@
     if (dist > 22) return;                      // far away: asleep until you come near
     var s = subj(c.id) || {};
     c.cool -= dt; if (c.calm > 0) c.calm -= dt;
-    if (s.temperament === 'skittish' && !stalking() && dist <= (P.gait === 'sprint' && P.moving ? 4 : 2)) {
+    if (c.resident) { if (c.cool > 0) return; }
+    else if (s.temperament === 'skittish' && !stalking() && dist <= (P.gait === 'sprint' && P.moving && !perk('quiet') ? 4 : 2)) {
       if (c.state !== 'flee') { c.state = 'flee'; c.cool = 0; }
     } else if (c.state === 'flee' && dist > 4) c.state = 'idle';
-    if (s.temperament === 'territorial' && c.calm <= 0) {
-      if (dist <= 2 && c.state !== 'warn' && c.cool <= 0) { c.state = 'warn'; c.warnT = 1.3; sfx.warn(); vibrate(120, .4); toast('It bristles and glows. It will charge.', 'red'); }
+    if ((s.temperament === 'territorial' || c.guardian) && c.calm <= 0 && (c.guardian || !perk('calm'))) {
+      if (dist <= 2 && c.state !== 'warn' && c.cool <= 0) { c.state = 'warn'; c.warnT = 1.3; sfx.warn(); vibrate(120, .4); toast(c.guardian ? 'THE VAULT’S GUARDIAN rises. It will not let you pass.' : 'It bristles and glows. It will charge.', 'red'); }
       if (c.state === 'warn') {
         c.warnT -= dt; c.dir = c.x === P.x ? (P.y < c.y ? 'up' : 'down') : (P.x < c.x ? 'left' : 'right');
         if (dist > 3) { c.state = 'idle'; c.cool = 2; }
@@ -1815,8 +1898,16 @@
     if (dialogOpen) { advanceDialog(); return; }
     if (P.moving) return;
     var f = facing(), ch = at(f.x, f.y), c = critterAt(f.x, f.y), n = npcAt(f.x, f.y), i = f.y * M.W + f.x;
+    if (c && c.resident) { return say([subjName(c.id) + ' lives on ' + hqName() + ' now. It watches you without fear.']); }
     if (c) { encounter(c, false); return; }
-    if (n) { n.dir = { up:'down', down:'up', left:'right', right:'left' }[P.dir]; talkPeople(n); return; }
+    if (n) {
+      n.dir = { up:'down', down:'up', left:'right', right:'left' }[P.dir];
+      if (n.warden) return wardenMeet(n);
+      if (n.refugee) return talkRefugee(n);
+      if (n.resident) return talkResident(n);
+      talkPeople(n); return;
+    }
+    if (ch === 'K' && M.vault) return openVault();
     if (M.hq) {
       if (ch === 'F' && M.sidx[i] != null) return hqUse(M.structs[M.sidx[i]]);
       if (ch === 'S') return hqShip();
@@ -1967,6 +2058,13 @@
       if (ch === 'L') { g.fillStyle = '#b8862a'; g.fillRect(X - 1, Y - 1, s + 2, s + 2); }
       if (ch === 'A') { g.fillStyle = '#3b5bd6'; g.fillRect(X + 1, Y + 1, s - 2, s - 2); }
     }
+    if (M.vault && !M.hq && (hasClue(M.world) || perk('sense') || fogArr[M.vault.y * M.W + M.vault.x])) {
+      var vX = ox + (M.vault.x - vx) * s, vY = oy + (M.vault.y - vy) * s;
+      if (M.vault.x >= vx && M.vault.y >= vy && M.vault.x < vx + VW && M.vault.y < vy + VH) {
+        g.fillStyle = '#c8402c'; g.fillRect(vX - 2, vY - 2, s + 4, s + 4); g.fillStyle = '#ffe08a'; g.fillRect(vX, vY, s, s);
+        g.fillStyle = '#5a1a12'; g.font = 'bold 10px Courier Prime, monospace'; g.fillText('VAULT', vX - 8, vY - 4);
+      }
+    }
     npcs.forEach(function(n){ if (fogArr[n.y * M.W + n.x] && n.x >= vx && n.y >= vy && n.x < vx + VW && n.y < vy + VH) { g.fillStyle = '#7a3a8a'; g.beginPath(); g.arc(ox + (n.x - vx + .5) * s, oy + (n.y - vy + .5) * s, 3, 0, 7); g.fill(); } });
     if (M.structs) M.structs.forEach(function(st){
       var seen = fogArr[st.y * M.W + st.x] || S.hq.research['r-survey']; if (!seen) return;
@@ -1991,20 +2089,90 @@
     $('.x-btn', s).addEventListener('click', function(){ aboard(); nav('system'); });
   }
 
+  // ── the vault, the warden, the refugees, the residents, the allies ──
+  async function openVault(){
+    var no = M.world, sy = sysOf(no);
+    if (S.hq.installed[no] || S.hq.parts[no] || S.exp.vault[no]) return say(['The vault stands open and empty. Its ' + sy.part + ' is ' + (S.exp.vault[no] ? 'in your pack.' : 'already home.')]);
+    if (!hasClue(no)) return say(['A sealed vault, older than anything around it. Its lock is a puzzle of marks you cannot read.',
+      no === 9 ? '(The clue is with the people of the far end of the Z. Learn their words.)' : hasWarden(no) ? '(The clue is with this world’s people. Show them your scans and learn their words.)' : '(The clue is in this world’s records. Find and read them.)']);
+    if (!S.exp.beaten[no]) return say([hasWarden(no) ? 'The ' + wardenName(no) + ' guards this vault. Beat the warden first.' : 'Something guards this vault. It will not let you open it.']);
+    var a = await say(['You know the marks now. The lock turns. Inside, packed in something like wax: a ' + sy.part + '.', 'It is exactly what the ' + sy.name + ' needs. Take it home to ' + hqName() + '?'], ['TAKE IT', 'LEAVE IT']);
+    if (a !== 0) return;
+    S.pack.parts = S.pack.parts || []; S.pack.parts.push(no); S.exp.vault[no] = Date.now(); gain('relic', 1, true); save(); sfx.reveal(); vibrate(200, .6); hudRefresh();
+    await say(['The ' + sy.part + ' is in your pack (+1 RELIC). It only counts once it is home: get back to ' + hqName() + ' alive.']);
+  }
+  function wardenTeam(no){
+    var ids = Object.keys(SP).filter(function(id){ var x = SP[id]; return x.world === no && !x.retired && !x.hidden; })
+      .sort(function(a, b){ return SP[b].tier - SP[a].tier || (a < b ? -1 : 1); }).slice(0, EXP.warden.team || 3).reverse();
+    var lv = GEN.levelFor(no) + (EXP.warden.levelUp || 6);
+    return ids.map(function(id, i){ return { sp:id, lv:lv + i * 2 }; });
+  }
+  async function wardenMeet(n){
+    var no = M.world; if (S.exp.beaten[no] || dialogOpen || encounterOpen) return;
+    n.cool = performance.now() + 9000; n.dir = n.x === P.x ? (P.y < n.y ? 'up' : 'down') : (P.x < n.x ? 'left' : 'right');
+    sfx.warn(); vibrate(400, .8);
+    var team = teamReady();
+    await say(['The ' + wardenName(no) + ' sees you. To them you are the alien, the thing from outside, and they raise the call to kill.',
+      team.length ? 'They loose their Aethren on you. Your team stands between you and them.' : 'You have no cards ready to stand between you. Run.']);
+    if (!team.length) { S.suit = Math.max(0, S.suit - suitDmg(EXP.warden.suitHit || 35)); save(); hudRefresh(); knockBack(n); if (S.suit <= 0) recall('SUIT'); return; }
+    var foes = wardenTeam(no); if (!foes.length) return;
+    battle({ id:foes[0].sp, lv:foes[0].lv, x:n.x, y:n.y, cool:0, calm:0, state:'idle' }, true, {
+      name:wardenName(no), foes:foes,
+      winLine:'The ' + wardenName(no).toLowerCase() + ' has nothing left to send. They fall back, and do not return.',
+      loseLine:'Your cards are spent. The warden’s Aethren come for you.',
+      onWin:function(){ S.exp.beaten[no] = Date.now(); gainAll(EXP.warden.reward, true); save(); npcs = npcs.filter(function(x){ return !x.warden; });
+        toast('WARDEN DEFEATED · +' + costText(EXP.warden.reward) + (hasClue(no) ? ' · the vault is open to you' : ' · now find the clue to its vault')); hudRefresh(); },
+      onLose:function(){ S.suit = Math.max(0, S.suit - suitDmg(EXP.warden.suitHit || 35)); save(); hudRefresh(); knockBack(n); if (S.suit <= 0) recall('SUIT'); },
+      onRun:function(){ S.suit = Math.max(0, S.suit - suitDmg(10)); save(); hudRefresh(); knockBack(n); }
+    });
+  }
+  function knockBack(n){
+    var dx = Math.sign(P.x - n.x) || 1, dy = Math.sign(P.y - n.y);
+    for (var k = 6; k > 0; k--) { var tx = P.x + dx * k, ty = P.y + dy * k; if (!blocked(tx, ty, P)) { P.x = P.fx = tx; P.y = P.fy = ty; P.moving = false; revealFog(); break; } }
+    toast('You fall back, hurt. SUIT ' + Math.round(S.suit) + '%', 'red');
+  }
+  async function talkRefugee(n){
+    var no = M.world, pe = worldPeople(no) || {}, race = known(WORLD[no].term) && pe.race ? pe.race : 'these people';
+    if (S.hq.residents[no]) return;
+    if (!S.lore['w' + no]) return say(['A camp at the edge of the fighting. Tired faces, few belongings. They speak fast and low, and you cannot follow it yet.', '(Learn this world’s words from its people first.)']);
+    if (!S.exp.beaten[no]) return say(['Refugees from the war region. They point toward the vault, and the warden who holds it, and shake their heads. Not while the warden hunts here.']);
+    if (!S.hq.built.habitation) return say(['They ask, as far as you can follow, whether there is anywhere else. There is: ' + hqName() + '. But you have nowhere to put them yet.', '(Build the HABITATION ZONE at ' + hqName() + '.)']);
+    var a = await say(['They ask whether there is anywhere else, anywhere the war does not reach. There is: ' + hqName() + '. A drifting world, quiet, with room.', 'Take ' + race.toLowerCase() + ' home to ' + hqName() + '?'], ['TAKE THEM', 'NOT NOW']);
+    if (a !== 0) return;
+    S.hq.residents[no] = Date.now(); gainAll(EXP.refugees.reward, true);
+    npcs = npcs.filter(function(x){ return !x.refugee; });
+    hqChanged('Rescued refugees from the war region on ' + placeName(no) + '. They live at the Habitation Zone now.');
+    sfx.reveal(); toast('REFUGEES RESCUED · they will be waiting at ' + hqName());
+  }
+  async function talkResident(n){
+    var no = +n.key.replace('res_w', '');
+    var lines = ['They have made a corner of ' + hqName() + ' their own. Someone has planted something.', 'They ask after ' + placeName(no) + '. You tell them what you saw.',
+      'The children follow you, then lose interest and go back to their game.', 'No warden here. They say it more than once.'];
+    var k = (S.seen['res:' + no] || 0); S.seen['res:' + no] = k + 1; save();
+    await say([lines[k % lines.length]]);
+  }
+  // an allied people, once they have taught you, help you once: your suit patched, your team rested
+  function allyAid(no){
+    if (S.exp.aid[no]) return false;
+    S.exp.aid[no] = Date.now(); S.suit = Math.min(100, S.suit + (EXP.ally.suit || 30)); healTeam(); save(); hudRefresh();
+    return true;
+  }
   // AIR at zero: you die where you stand. The expedition is lost: what you carried stays there.
   // The record picks up again at NASARUS, at the camp (or the wreck, before there is a camp).
   function airDeath(){
     if (mode !== 'surface') return;
-    var where = M.hq ? hqName() : zoneName(), lost = packTotal();
+    var where = M.hq ? hqName() : zoneName(), lost = packTotal() + packParts();
     if (fogArr) S.fog[M.id] = fogEnc(fogArr);
     stopWorld(); vibrate(1200, 1); sfx.warn();
+    (S.pack.parts || []).forEach(function(no){ delete S.exp.vault[no]; });   // the part goes back to lie where you fell: its vault holds it again
     S.pack = {}; S.deaths = (S.deaths || 0) + 1;
     hqRecord(hero().first + ' NASARO ran out of air on ' + where + '.' + (lost ? ' ' + lost + ' materials were lost there.' : ''));
     var s = screen('x-recall x-death', '<div class="x-paper"><p class="x-stamp red">OUT OF AIR</p><h2 class="x-death-h">' + esc(hero().first) + ' NASARO DID NOT COME BACK</h2>' +
       '<p class="x-mono">The tank ran dry on ' + esc(where) + '. Nothing there can be breathed.</p>' +
-      '<p class="x-mono">' + (lost ? 'The pack (' + lost + ' materials) is lost. ' : '') + 'Cards and records already in the AstraNav are kept.</p>' +
+      '<p class="x-mono">The suit’s AI took over. It flew what was left of you home to ' + esc(hqName()) + ' and brought you round at the base.</p>' +
+      '<p class="x-mono">' + (lost ? 'The pack (' + lost + ' items) stayed where you fell. ' : 'The pack stayed where you fell. ') + 'Cards and records already in the AstraNav are kept.</p>' +
       '<p class="x-mono"><b>Only ' + esc(hqName()) + ' holds oxygen.</b> Watch the AIR gauge, and turn for home before it runs low. Sprinting burns air twice as fast.</p>' +
-      '<button class="x-btn">THE RECORD CONTINUES · ' + esc(hqName()) + '</button></div>');
+      '<button class="x-btn">WAKE AT THE BASE · ' + esc(hqName()) + '</button></div>');
     $('.x-btn', s).addEventListener('click', function(){
       var m = buildMap('nasarus');
       S.at = 'nasarus'; S.landed = true; S.suit = 100; refillAir(); healTeam();
@@ -2059,7 +2227,10 @@
     var no = M.world, district = no === 9 ? n.key.replace('z_', '') : null, key = n.key, pid = no === 9 ? 'ppl_z_' + district : 'ppl_w' + no;
     var firstMeet = mark(pid, 'talk'); S.notes[pid] = 1; save();
     if (S.lore[key]) {
+      if (no !== 9 && allyAid(no)) { await say(['They are allies now. They patch your suit with their own materials and rest your Aethren by their fire. (SUIT +' + (EXP.ally.suit || 30) + ', team rested.)',
+        hasWarden(no) && !S.exp.beaten[no] ? 'They warn you: the ' + wardenName(no).toLowerCase() + ' guards the old vault, and hunts anything from outside.' : 'They point you on your way.']); return; }
       var lines = loreLines(no, district), k = (S.seen['talk:' + key] || 0); S.seen['talk:' + key] = k + 1; save();
+      if (M.vault && !S.exp.vault[no] && !S.hq.parts[no] && !S.hq.installed[no]) lines = lines.concat(['They draw the vault’s marks for you again, and point ' + compass(M.vault.x - P.x, M.vault.y - P.y) + '.']);
       await say([lines[k % lines.length]]);
       return;
     }
@@ -2259,9 +2430,10 @@
   // are free; A3 spends 2 gems (one gem builds each turn). Win and it calms:
   // it lets you close enough for a perfect scan. Scan a weakened one mid-battle
   // and it is written into the AstraNav, and slips away unharmed.
-  function battle(c, charged){
+  function battle(c, charged, boss){
     var team = teamReady(); if (!team.length) return;
     encounterOpen = true; held = null; path = [];
+    var queue = boss ? boss.foes.slice(1) : [];
     var foe = { sp:c.id, lv:c.lv, max:hpOf(c.id, c.lv) }; foe.hp = foe.max; foe.gems = 1;
     var me = null, gems = 1, busy = false, over = false;
     function load(id){ var cd = S.cards[id]; me = { id:id, sp:subj(id).sp, lv:cd.lv, max:maxHp(id) }; me.hp = cd.hp == null ? me.max : cd.hp; }
@@ -2297,7 +2469,7 @@
     async function attack(att, def, mv, side){
       lunge(side === 'me' ? 'foe' : 'me');
       await say2(subjName(att.sp === me.sp && att === me ? me.id : foe.sp) + ' used ' + mv.n.toUpperCase() + '!');
-      var r = damage(att, def, mv); def.hp = Math.max(0, def.hp - r.dmg);
+      var r = damage(att, def, mv); if (att === me && perk('fury')) r.dmg = Math.round(r.dmg * 1.2); def.hp = Math.max(0, def.hp - r.dmg);
       hit(side); paint(); await wait(380);
       var lab = effLabel(r.mult); if (lab) await say2(lab);
     }
@@ -2326,6 +2498,8 @@
       } else if (action.swap) {
         load(action.swap); paint(); await say2('Go, ' + subjName(me.id) + '!');
         if (!action.free) await foeTurn();
+      } else if (action.photo && boss) {
+        await say2('The warden’s Aethren will not hold still for a scan. Not while it commands them.'); await foeTurn();
       } else if (action.photo) {
         var f = foe.hp / foe.max, g = f < .25 ? 'excellent' : f < .5 ? 'good' : Math.random() < .25 ? 'good' : 'fair';
         sfx.shutter(); vibrate(160, .35); o.classList.remove('flash'); void o.offsetWidth; o.classList.add('flash');
@@ -2342,6 +2516,7 @@
         await foeTurn();
       } else if (action.run) {
         var ch = clamp(.5 + (stat(SP[me.sp].base.spd, me.lv) - stat(SP[foe.sp].base.spd, foe.lv)) / 120, .3, .95);
+        if (boss) { await say2('You break away and run!'); close(); if (boss.onRun) boss.onRun(); return; }
         if (Math.random() < ch) { await say2('Got away safely!'); c.cool = 8; c.state = 'idle'; return close(); }
         await say2('Couldn’t get away!'); await foeTurn();
       }
@@ -2349,7 +2524,24 @@
       if (me.hp > 0) { gems = Math.min(3, gems + 1); paint(); await say2('What will ' + subjName(me.id) + ' do?'); showMenu(); }
     }
     async function win(){
+      if (queue.length) {                      // the warden sends the next of its Aethren
+        mark(foe.sp, 'battled'); S.notes[foe.sp] = 1;
+        $('.x-bt-mon.foe', o).classList.add('calmed');
+        await say2(subjName(foe.sp) + ' is beaten back!'); await wait(300);
+        var nx = queue.shift(); foe = { sp:nx.sp, lv:nx.lv, max:hpOf(nx.sp, nx.lv) }; foe.hp = foe.max; foe.gems = 1;
+        $('.x-bt-mon.foe', o).classList.remove('calmed'); paint(); sfx.warn();
+        await say2('The ' + boss.name.toLowerCase().replace(/^warden/, 'warden') + ' sends ' + subjName(foe.sp) + '!');
+        gems = Math.min(3, gems + 1); paint(); await say2('What will ' + subjName(me.id) + ' do?'); showMenu(); return;
+      }
+      if (boss) {
+        over = true; mark(foe.sp, 'battled');
+        $('.x-bt-mon.foe', o).classList.add('calmed');
+        await say2(boss.winLine);
+        var cd0 = S.cards[me.id]; cd0.hp = me.hp; cd0.xp = (cd0.xp || 0) + 40 + foe.lv * 4; save();
+        await wait(400); close(); if (boss.onWin) boss.onWin(); return;
+      }
       over = true; mark(foe.sp, 'battled'); S.notes[foe.sp] = 1;
+      if (c.guardian) { S.exp.beaten[M.world] = Date.now(); gainAll(EXP.guardian.reward, true); save(); setTimeout(function(){ toast('THE GUARDIAN STANDS ASIDE · the vault is unguarded · +' + costText(EXP.guardian.reward)); }, 900); }
       var tier = SP[foe.sp].tier || 1, xp = Math.round((8 + foe.lv * 5 * Math.sqrt(tier)) * (S.hq.research['r-cards'] ? 1.3 : 1)); gain('data', 2, true);
       $('.x-bt-mon.foe', o).classList.add('calmed');
       await say2(subjName(foe.sp) + ' is calmed! It stops, and watches you.');
@@ -2381,6 +2573,7 @@
     }
     async function lose(){
       over = true;
+      if (boss) { await say2(boss.loseLine); await wait(400); close(); if (boss.onLose) boss.onLose(); return; }
       await say2('Your cards are spent! You fall back, and it lets you go.');
       S.suit = Math.max(1, S.suit - suitDmg(15)); save(); c.cool = 10; c.calm = 30;
       await wait(500); close();
@@ -2443,7 +2636,7 @@
     else s = (t.ground === 'grass' && key.indexOf('v') > 0 ? 'grass2' : t.ground) + '@' + id + '-ground';
     return (specCache[key] = s);
   }
-  var OBJ = 'TbBAMXPLSwF';
+  var OBJ = 'TbBAMXPLSwFK';
   function objSpec(ch, i, e, now){
     var no = M.world;
     if (ch === 'T') return 'tree';
@@ -2454,6 +2647,7 @@
     if (ch === 'X') return M.hq ? 'hq_rubble' : 'sign';
     if (ch === 'w') return 'hq_scrap';
     if (ch === 'L') return 'spire@lm-gold';
+    if (ch === 'K') return S.hq.installed[no] || S.hq.parts[no] || S.exp.vault[no] ? 'ruin_vault' : 'rest_vault';
     if (ch === 'P') { var p = M.props[i]; return p ? p[0] + (p[1] ? '@' + e.id + '-' + p[1] : '') : 'boulder'; }
     return null;
   }
@@ -2483,6 +2677,11 @@
       if (o.k === 'struct') { ART.draw(ctx, o.st.spr, ox + (o.st.x + o.st.w / 2) * TZ, Y, z); return; }
       if (o.k === 'ship') { ART.draw(ctx, 'ship', X, Y + 2 * z, z);
         if (M.hq && !S.hq.drive) for (var sm = 0; sm < 4; sm++) { var ph = ((now / 1600) + sm / 4) % 1; ctx.fillStyle = 'rgba(70,66,60,' + (.45 * (1 - ph)).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(X + Math.sin(ph * 6 + sm) * 6 * z, Y - (26 + ph * 26) * z, (3 + ph * 6) * z, 0, 7); ctx.fill(); } }
+      else if (o.k === 'npc' && o.n.warden) {
+        shadow(X, Y, z, 12); ART.draw(ctx, withRc(ART.frame('haemen', o.n.dir, 0), 'ppl-' + o.n.env), X, Y, z);
+        var wy = Y - 21 * z + Math.sin(now / 200) * z; ctx.fillStyle = '#1c0a08'; ctx.fillRect(X - 4 * z, wy - z, 8 * z, 10 * z);
+        ctx.fillStyle = '#ff4a2a'; ctx.fillRect(X - z, wy, 2 * z, 5 * z); ctx.fillRect(X - z, wy + 6 * z, 2 * z, 2 * z);
+      }
       else if (o.k === 'npc') { shadow(X, Y, z, 10); ART.draw(ctx, o.n.key === 'furtrader' ? ART.frame('haemen', o.n.dir, 0) : withRc(ART.frame('haemen', o.n.dir, 0), 'ppl-' + o.n.env), X, Y, z); }
       else if (o.k === 'critter') drawCritter(o.c, X, Y, z, now);
       else if (o.k === 'player') drawPlayer(X, Y, z);
@@ -2687,7 +2886,7 @@
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },
     nav:navFocus, activate:activate, back:goBack, btnA:function(){ btnA(); },
     hq:function(){ return S.hq; }, pack:function(){ return S.pack; }, give2:function(o){ gainAll(o, true); }, store:function(o){ Object.keys(o).forEach(function(k){ S.hq.store[k] = (S.hq.store[k] || 0) + o[k]; }); save(); },
-    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash, buildTank:buildTank, airMax:function(){ return airMax(); } };
+    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash, buildTank:buildTank, airMax:function(){ return airMax(); }, exp:function(){ return S.exp; }, installPart:installPart, settle:settleAethren, wardenMeet:function(){ var w = npcs.filter(function(n){ return n.warden; })[0]; if (w) wardenMeet(w); }, openVault:openVault, perk:function(){ return leadPerk(); } };
   applyOpts();
   if (S) applyLook();
   title();

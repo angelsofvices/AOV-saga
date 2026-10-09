@@ -61,8 +61,10 @@ window.AOV_HQ = {
       does: 'Manages the restoration of the ancient ruins you have surveyed.' },
     { id: 'history', name: 'HISTORICAL ARCHIVE', spr: 'hq_history', at: [31, 30], w: 2, cost: { relic: 4, fibre: 3 }, requires: ['terminal', 'r-script'],
       does: 'Displays what has been recovered from the ruins of NASARUS.' },
-    { id: 'habitation', name: 'HABITATION ZONE', spr: 'hq_plot', at: [34, 22], w: 2, cost: {}, future: true,
-      does: 'For settlers or inhabitants, if population development is approved. A future expansion.' }
+    { id: 'habitation', name: 'HABITATION ZONE', spr: 'hq_tent', at: [34, 22], w: 2, cost: { scrap: 10, fibre: 8, crystal: 4 }, requires: ['workshop'],
+      does: 'Shelter for the refugees you rescue from war regions on other worlds. NASARUS becomes their home too.' },
+    { id: 'sanctuary', name: 'AETHREN SANCTUARY', spr: 'rest_plaza', at: [39, 28], w: 2, cost: { crystal: 8, fibre: 6, relic: 2 }, requires: ['archive'],
+      does: 'Settle Aethren here from your collection (one spare copy each). New species come to live on NASARUS.' }
   ],
   // RUINS (handoff §6). Plain descriptive labels only. found: what surveying them yields once.
   ruins: [
@@ -111,13 +113,14 @@ window.AOV_HQ = {
     { id: 'tank3', name: 'AIR TANK MK III', cap: 220, cost: { scrap: 10, crystal: 8, relic: 2, data: 16 }, requires: ['tank2', 'r-air'],
       does: 'Pressurised cylinders, refitted with what the Air Recycler taught. More than twice the stock tank.' }
   ],
-  // STAGES (handoff §7). 4 and 5 are long-term; 5 is a future expansion and never completes here.
+  // STAGES (handoff §7). 4 is long-term. 5 opened by the Creator 2026-10-09: NASARUS is populated with
+  // settled Aethren and rescued Haemen refugees, like creating your own planet in the saga.
   stages: [
     { n: 1, name: 'CRASH SITE',             needs: [] },
     { n: 2, name: 'EXPEDITION CAMP',        needs: ['camp', 'stores', 'nav', 'research', 'depot'] },
     { n: 3, name: 'ESTABLISHED HEADQUARTERS', needs: ['workshop', 'archive', 'terminal', 'restored:2'] },
     { n: 4, name: 'RECLAIMED SETTLEMENT',   needs: ['history', 'basin', 'restored:7'], longTerm: true },
-    { n: 5, name: 'EMERGING WORLD',         needs: ['future'], future: true }
+    { n: 5, name: 'EMERGING WORLD',         needs: ['habitation', 'sanctuary', 'residents:3', 'settled:6'] }
   ],
   // what the ruins yield when surveyed again after restoration (records stay neutral: no history is stated)
   recordNote: 'Recorded for the Historical Archive. What it meant to the people who built it is not yet known.'

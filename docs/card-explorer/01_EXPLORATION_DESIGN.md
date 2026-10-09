@@ -370,6 +370,8 @@ Recorded from the Creator's direction after the first playable build. These take
 13. **The map is a natural spiral, as seen through a telescope** (Creator ruling, 2026-10-07), not the top-down four-spire diagram. To be matched to RP7D's telescope view.
 14. **Open world** (Creator ruling, 2026-10-07): collect cards, battle Aethren, meet the peoples to learn the world, travel planet to planet. Full DualSense support; native landscape on phones. All customisation stays (Art Studio, World Atlas, kit, settings).
 
+15. **NASARUS is the starting and headquarters planet** (Creator handoff, Canon V1.0, 2026-10-09). The public title is **Aethryx Adventures: 1936**; the Living Master Codex is the underlying record. Carl crash-lands on NASARUS, makes camp beside the wreck and builds a headquarters among its ruins. Every expedition returns there: EXPLORE → EXTRACT → RETURN → CATALOG → DEVELOP. Why NASARUS was abandoned is not stated anywhere. Full handoff: [05_NASARUS_CANON.md](05_NASARUS_CANON.md); build: [06_NASARUS_BUILD.md](06_NASARUS_BUILD.md).
+
 Full design of builds 6–7: [04_OPEN_EXPANSE.md](04_OPEN_EXPANSE.md).
 
 ### Implemented in survey build 2 (`/explorer/`)

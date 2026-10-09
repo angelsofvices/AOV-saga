@@ -31,7 +31,7 @@ window.EXP_DATA = {
     ],
     // Chapter titles stay hidden in-game until reached, so the story is not spoiled.
     chapters: [
-      { era:'1936', title:'Discovery', note:'Carl Nasaro reaches Zyraxis.', open:true },
+      { era:'1936', title:'Discovery', note:'Carl Nasaro crash-lands on NASARUS.', open:true },
       { era:'1936–1945', title:'The Expedition', note:'' },
       { era:'1945', title:'Contact', note:'' },
       { era:'1945–1955', title:'Coda', note:'' }

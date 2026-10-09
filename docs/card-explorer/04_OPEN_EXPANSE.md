@@ -34,13 +34,13 @@ The AstraNav Mk. I is a 1936 American navigation, survey and scanning unit: a cr
 
 States: **aboard** (in deep space, in orbit, or landed; boarding refills SUIT and AIR and rests the card team) and **on foot** (the AstraNav in hand; ◀ FIELD returns to the ground).
 
-After hyperspace the AstraNav runs its self-test, finds no Earth stars, charts *28 bodies · 1 star · 1 satellite* and asks for a first landing. Any world can be the first landing. The fauna signal level warns what to expect, and Zyraxis is the gentlest start (Malezor, level 2–5).
+**Superseded in survey build 8** (Creator handoff, [05_NASARUS_CANON.md](05_NASARUS_CANON.md)): hyperspace now ends in a crash landing on **NASARUS**, the headquarters world. The AstraNav comes back online when the drive is repaired and the Navigation Center is built at camp; from then on any world can be set as a course, and every expedition returns to NASARUS. See [06_NASARUS_BUILD.md](06_NASARUS_BUILD.md).
 
 ## 3 · The spiral (the telescope view)
 
 The four canon spires become **four arms of a spiral** winding out from Aenor. Each world keeps its canon place in the order: world *n* sits on arm *n mod 4* at ring *⌈n/4⌉*. The whole disc is seen at an angle, as through a telescope. Nearer bodies are drawn larger and in front, with dust lanes, faint orbits, the drift orbit, and AEP-28 off the plane as a sealed body.
 
-All positions come from one table (`POS` in `explorer.js`), so the layout can be matched exactly to RP7D's telescope view. **The RP7D telescope view is not in either repository this session can see**, so this is a first pass awaiting that reference.
+All positions come from one table (`POS` in `explorer.js`), so the layout can be matched exactly to RP7D's telescope view. **Survey build 8 matches RP7D's telescope geometry** (`rp7d/developer/astragraphy.js`): zone *n* = (n−1) mod 4 at ALPHA 0°, OMEGA 90°, TRINITY 180°, DICHOTOMY 270°; ring radius 22 + 8·ring; the same per-ring fan offsets; the same camera pitch; and AEP-28 (Ovauron) on its own tilted drift orbit. NASARUS's place on the chart is provisional, outside the seventh ring and apart from AEP-28.
 
 Drag to pan, and use the wheel or a pinch to zoom; on a pad, the right stick pans and L2/R2 zoom. Any world can be set as a course; the trip takes longer the farther it is.
 
@@ -110,7 +110,7 @@ The game is built for landscape. Phones held upright get a *turn your device* ca
 
 ## 11 · Open questions for the Creator
 
-1. **RP7D's telescope view:** please share a screenshot or the layout so the spiral can be matched exactly.
+1. **NASARUS's place on the chart:** provisional; please confirm where it drifts.
 2. **Species for the other 26 worlds:** their Aethren are provisional placeholders.
 3. **Peoples' race names:** taken from each world's canon first race; please confirm (for example *Endurers* for Gravaron and *Sound-carriers* for Rhyzor are short forms).
 4. **The Director:** left unnamed. Name them if canon has a name.

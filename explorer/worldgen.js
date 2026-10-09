@@ -17,7 +17,7 @@
   'use strict';
   var ENV = {}; (window.AOV_ENV || []).forEach(function(e){ ENV[e.id] = e; });
   var FAUNA = window.AOV_FAUNA || { species:{}, peoples:{} };
-  var SOLID = { T:1, b:1, B:1, '~':1, A:1, S:1, M:1, X:1, '#':1, P:1, L:1, F:1, w:1 };
+  var SOLID = { T:1, b:1, B:1, '~':1, A:1, S:1, M:1, X:1, '#':1, P:1, L:1, F:1, w:1, K:1 };
 
   // ── seeded noise ──
   function hash(x, y, s){ var h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
@@ -74,7 +74,7 @@
       else y += dy > 0 ? 1 : -1;
       if (x < 1 || y < 1 || x >= m.W - 1 || y >= m.H - 1) continue;
       var c = m.at(x, y);
-      if ('SEXMLA*Fw'.indexOf(c) >= 0) continue;
+      if ('SEXMLA*FwK'.indexOf(c) >= 0) continue;
       m.set(x, y, 'd'); delete m.props[y * m.W + x];
     }
   }
@@ -155,6 +155,33 @@
       made++;
     }
   }
+  // THE WAY HOME · each world's sealed vault, as far from the ship as the area allows. Peoples set a
+  // warden on it and have a refugee camp in a war region; worlds without a people (and Zyraxis) have an
+  // Aethren guardian at the vault instead.
+  function strongest(no, district){
+    return speciesFor(no, district).sort(function(a, b){ return (FAUNA.species[b].tier || 0) - (FAUNA.species[a].tier || 0) || (a < b ? -1 : 1); });
+  }
+  function vault(m, r, area, no, envId, people, lvl, district){
+    var best = null, bd = -1;
+    for (var k = 0; k < 50; k++) {
+      var p = spot(m, r, area.x, area.y, area.w, area.h, [], 0), d = Math.abs(p.x - area.sx) + Math.abs(p.y - area.sy);
+      if (d > bd && p.y > area.y + 3 && p.y < area.y + area.h - 4) { bd = d; best = p; }
+    }
+    clearRect(m, best.x, best.y, 3, 3, 'd'); m.set(best.x, best.y, 'K');
+    m.vault = { x:best.x, y:best.y, no:no };
+    road(m, area.sx, area.sy, best.x, best.y + 2, r);
+    if (people && people.race) {
+      m.npcs.push({ x:best.x + 1, y:best.y + 2, dir:'down', key:'warden_w' + no, env:envId, n:0, warden:true });
+      var rp = spot(m, r, area.x, area.y, area.w, area.h, [best, { x:area.sx, y:area.sy }], 16);
+      clearRect(m, rp.x, rp.y, 3, 2, 'd');
+      for (var n = 0; n < 3; n++) m.npcs.push({ x:rp.x - 1 + n, y:rp.y, dir:'down', key:'ref_w' + no, env:envId, n:n, refugee:true });
+      m.refugeeCamp = { x:rp.x, y:rp.y };
+      road(m, area.sx, area.sy, rp.x, rp.y + 1, r);
+    } else {
+      var g = strongest(no, district)[0];
+      if (g) m.spawns.push({ x:best.x + 1, y:best.y + 1, id:g, lv:lvl + 8, guardian:true });
+    }
+  }
   function finish(m){
     // the ship stands three tiles wide and two tall around its anchor
     for (var j = -1; j <= 0; j++) for (var i = -1; i <= 1; i++) { var c = m.at(m.ship.x + i, m.ship.y + j); if (c !== '#' || j === 0) m.set(m.ship.x + i, m.ship.y + j, 'S'); delete m.props[(m.ship.y + j) * m.W + m.ship.x + i]; }
@@ -181,6 +208,7 @@
     populate(m, r, area, 0, { people:people, peopleKey:'w' + no, camps:2, perCamp:2, landmarks:3, minerals:4, finds:3 });
     for (var k = 0; k < 4; k++) { var a = spot(m, r, 0, 0, W, H, [area], 18); road(m, sx, sy + 1, a.x, a.y, r); }
     spawnFauna(m, r, area, speciesFor(no), 16, levelFor(no));
+    vault(m, r, area, no, e.id, people, levelFor(no));
     return finish(m);
   }
 
@@ -233,7 +261,9 @@
       var ids = speciesFor(9, id).filter(function(s){ return i !== 0 || ['otterlin','verdanix','aetherwing','volcanut'].indexOf(s) < 0; });
       spawnFauna(m, r, i === 0 ? { x:a.x + 1, y:a.y + 1, w:a.w - 2, h:a.h - 2, sx:m.ship.x, sy:m.ship.y } : area, ids, i === 0 ? 4 : 9, levelFor(9, i));
     });
-    // Malezor's own landmarks, beyond the meadow
+    // Zyraxis's vault lies in Korathen, the far end of the Z, with an Aethren guardian
+    var kd = m.districts[9];
+    vault(m, r, { x:kd.x, y:kd.y, w:kd.w, h:kd.h, sx:centres[9].x, sy:centres[9].y }, 9, 'korathen', null, levelFor(9, 9), 'korathen');
     return finish(m);
   }
 
@@ -304,6 +334,17 @@
     function scatter(ch, count){ var made = 0, t = 0; while (made < count && t++ < 600) { var x2 = 2 + ((r() * (reg.ridgeX - 4)) | 0), y2 = 2 + ((r() * (H - 4)) | 0); if (Math.abs(x2 - camp.x) + Math.abs(y2 - camp.y) < 11 || !free(x2, y2)) continue; put(x2, y2, ch); made++; } }
     scatter('A', 8); scatter('b', 12);
     var basinMade = 0, t3 = 0; while (basinMade < 5 && t3++ < 300) { var bx = reg.ridgeX + 3 + ((r() * (W - reg.ridgeX - 5)) | 0), by = 2 + ((r() * (H - 4)) | 0); if (!free(bx, by)) continue; put(bx, by, basinMade % 2 ? 'A' : 'w'); basinMade++; }
+    // the new population: refugees by the Habitation Zone, settled Aethren around the Sanctuary
+    (st.residents || []).forEach(function(rs, i){
+      var hx = 33 + (i % 4) * 2, hy = 25 + ((i / 4) | 0) * 2;
+      if (free(hx, hy)) { used[hx + ',' + hy] = 1; m.npcs.push({ x:hx, y:hy, dir:'down', key:'res_w' + rs.no, env:rs.env, n:i, resident:true }); }
+    });
+    (st.settled || []).forEach(function(id, i){
+      for (var t4 = 0; t4 < 40; t4++) {
+        var sx2 = 36 + ((r() * 10) | 0), sy2 = 30 + ((r() * 10) | 0);
+        if (free(sx2, sy2)) { used[sx2 + ',' + sy2] = 1; m.spawns.push({ x:sx2, y:sy2, id:id, lv:5, resident:true }); break; }
+      }
+    });
     if (stage >= 2) [[18, 28], [30, 28], [24, 20], [33, 24]].forEach(function(l){ if (free(l[0], l[1])) { m.set(l[0], l[1], 'P'); m.props[l[1] * W + l[0]] = ['hq_lamp', null]; used[l[0] + ',' + l[1]] = 1; } });
     return finish(m);
   }

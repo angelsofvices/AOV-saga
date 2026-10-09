@@ -93,3 +93,5 @@ Creator ruling (2026-10-09): sprinting uses air faster. The air tank can be upgr
 - **Warnings** fire at 50%, 25% and 10%. The first landing on another world explains the rule, and setting a course below 40% AIR warns before departure.
 - **Out of air means death.** The pack is lost where you fell, and cards and records already in the AstraNav are kept. The record picks up again at NASARUS: at the camp, or at the wreck before there is a camp.
 - **Tanks** (Workshop, `airTanks` in `nasarus.js`): AIR TANK MK II (150; SCRAP 6 · CRYSTAL 4 · DATA 8) and AIR TANK MK III (220; needs MK II and the Air Recycler; SCRAP 10 · CRYSTAL 8 · RELICS 2 · DATA 16).
+
+**Death, per the Creator (2026-10-09):** you keep everything except the pack. The suit's AI flies you home to the base. See [08_THE_WAY_HOME.md](08_THE_WAY_HOME.md).

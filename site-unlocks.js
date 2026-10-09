@@ -84,6 +84,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 9.2', title:'Cloning at NASARUS',
+      notes:[
+        'A scan is only a profile. To fight beside you, an Aethren must be cloned from its card at NASARUS',
+        'Bring profiles home, then clone them at the Research Station (COMPANIONS · Profiles ready to clone)',
+        'Profiles still in your pack are lost if you die out there. Companions you already had are kept'
+      ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 9.1', title:'The AstraNav, Rebuilt',
       notes:[
         'Seven sections: System, Headquarters, Navigation, Companions, Research, Journal and Setup',

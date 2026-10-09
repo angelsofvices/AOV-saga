@@ -1,4 +1,4 @@
-<!-- Received from the Creator 2026-10-09: "official roster so far". Recorded word for word. STATUS: CANON. -->
+<!-- Received from the Creator 2026-10-09: "official roster so far". Recorded word for word, with the Creator's corrections of the same day. STATUS: CANON. -->
 
 # The Official Aethren Roster (so far)
 
@@ -77,7 +77,7 @@ Abyssarch
 65. Frosane
 66. Frostphen
 67. Frostwisp
-68. G-112265
+68. G112265 *(sent as G-112265; Creator correction: G112265)*
 69. Gearbyte
 70. Glaciogre
 71. Glimsprit
@@ -205,6 +205,13 @@ Abyssarch
 193. Zarakai
 194. Zelozon
 
+## Creator rulings (2026-10-09)
+
+- **Tiers** will be canonized later. Until then, a name with no source data stays tier-provisional (see below).
+- **Older spellings are the same species**, and the names on this roster are the official ones: Abyssarch ← Abyssarach · Boltwish ← Boltwisp · Chamelor ← Chameleor · Cindercut ← Cindercur · Floravexa ← Floravex · Gnashegrege ← Gnashgrege · Gravemourne ← Gravemourn · Lecarion ← Leoarion · Luminacore ← Luminacor · Maulimp ← Manlimp · Mortyvaxis ← Mortyxaxis · Mortyvyl ← Mortyryl · Nimbovus ← Nimbovis · Nytopus ← Nyctopus · Pharophix ← Pharorix · Rubracket ← Rubraket · Shinobio ← Shinobix · Shogunox ← Shogunnox · Sigilmore ← Sigilmor · Sproutish ← Sprutish · Suburrow ← Saburrow · Volcanax ← Vulcanax · Stelden ← Steelden · Dracaryze ← Drakaryze · Cravotor ← Cravodor · Gravik ← Gravvik · Voltimite ← Volitimite, Votimite · Sprinkie ← Sprinklez · Blazonon ← Blazenon · Impyxid ← Imyxid · G112265 ← G-112265, G11266.
+- **Smogrin and Smogrim** are the same species with a different type. Smogrin is Aura / Spirit and Smogrim is Extraterrestrial. Each form is its own card.
+- **G112265** is the official spelling (no hyphen; the older rosters read G11266).
+
 ## How the game reads it
 
 For each name, tier and types come from the newest source that has them: the live RP7B dex index (`rp7b.html`), then `game_roster/roster.json` (which also has stats and moves), then `roster_v7.js` and the v8 evolution lines. The district comes from the roster data where it exists. Otherwise the tier sets the district: tier 1 in Malezor or Zarvane, tier 2 in Zarvane, tier 3 in Andrannor, and so on.
@@ -279,7 +286,7 @@ For each name, tier and types come from the newest source that has them: the liv
 | FROSANE | 1 | Elemental | malezor | canon source |
 | FROSTPHEN | 4 | Nature / Spirit | xilnar | canon source |
 | FROSTWISP | 1 | Nature / Beast | malezor | canon source |
-| G-112265 | 5 | Tech / Crystal / Humanoid | netharion | canon source |
+| G112265 | 5 | Tech / Crystal / Humanoid | netharion | canon source |
 | GEARBYTE | 2 | Tech / Humanoid | thardin | canon source |
 | GLACIOGRE | 1 | Beast / Nature | andrannor | canon source |
 | GLIMSPRIT | 1 | Beast / Creature | malezor | **provisional** |
@@ -361,6 +368,7 @@ For each name, tier and types come from the newest source that has them: the liv
 | SKORRAX | 5 | Corrupted / Beast | netharion | canon source |
 | SKYBEAM | 4 | Beast / Tech | veridan | canon source |
 | SKYRATHON | 6 | Beast / Aura | vorashil | canon source |
+| SMOGRIM | 3 | Extraterrestrial | netharion | canon source |
 | SMOGRIN | 3 | Aura / Spirit | andrannor | canon source |
 | SNOK | 4 | Nature | andrannor | canon source |
 | SOLARYX | 5 | Beast / Spirit | xilnar | canon source |
@@ -407,12 +415,9 @@ For each name, tier and types come from the newest source that has them: the liv
 | ZARAKAI | 4 | Astral / Beast | veridan | canon source |
 | ZELOZON | 1 | Beast / Creature | malezor | **provisional** |
 
-## Needs the Creator
+## Still open
 
-1. **Provisional tier and types** (50 names): none of the sources has these names yet. Their tier comes from the v8 evolution lines where possible, otherwise tier 1. Their types are guessed from the name. In game, their cards read *tier and types provisional*. The rows marked **provisional** above list them.
-2. **Spellings read as the same species** (proposed by matching; confirm or correct): Abyssarch ← Abyssarach · Boltwish ← Boltwisp · Chamelor ← Chameleor · Cindercut ← Cindercur · Floravexa ← Floravex · G-112265 ← G11266 · Gnashegrege ← Gnashgrege · Gravemourne ← Gravemourn · Lecarion ← Leoarion · Luminacore ← Luminacor · Maulimp ← Manlimp · Mortyvaxis ← Mortyxaxis · Mortyvyl ← Mortyryl · Nimbovus ← Nimbovis · Nytopus ← Nyctopus · Pharophix ← Pharorix · Rubracket ← Rubraket · Shinobio ← Shinobix · Shogunox ← Shogunnox · Sigilmore ← Sigilmor · Sproutish ← Sprutish · Suburrow ← Saburrow · Volcanax ← Vulcanax · Stelden ← Steelden · Smogrin / Smogrim ← Smogrim, Smogrin · Dracaryze ← Drakaryze · Cravotor ← Cravodor · Gravik ← Gravvik · Voltimite ← Volitimite, Votimite · Sprinkie ← Sprinklez · Blazonon ← Blazenon · Impyxid ← Imyxid.
-3. **Smogrin / Smogrim:** both are on the list. The game shows SMOGRIN (the first spelling). The v8 ruling had chosen Smogrim.
-4. **G-112265:** the older rosters read G11266.
-5. **Never wild:** Mealux (hidden in RP7B as a remnant trace), the tier 9–10 beings (Abyssion, Aetherion, Aethravax, Anciuxor, Azyrath), and the Elzebub → Elzimir → Elzoran → Omegoran easter-egg line. These stay out of the wild and out of the set counts, as before.
-6. **Retired from the wild:** 79 older roster entries are not on the official list. Several of them are people and named characters (Auraxion, Aurellyn, Hollis Quay, Mira, the Beastcalls, the Dragonsongs), not Aethren. Cards already held still show, marked RETIRED, but these entries no longer spawn or count toward a set: DUNECHITTER, ABYSSIQ, NEUROMOO, STEELWARD, GLACIERWING FALCON, MORLINGSPAWN, NIMBUSOR, RUSTMAW, SHARKFIN, TICK & TUNE, TITANOVA, VOIDWARD, WYNTERMANE, CROWNFEATHER GRYPHON, CRYCARYS, EMBERCREST, FINWYN & GILTYN, GEMORID, GLACIOBOLT, GRAVIGON, GRIZZIGOR, HOLLIS QUAY, RHAEGOR IV, ROBOTRYX, STAVROS BEASTCALL, TONITREX, AUDRELLIUS, AURARERIS, AURAXION, AVIANEX, DEVORMOR, ELRIK DRACONICAL, FAUNWELL, INFERLEON, MATRIARIS, MYRRADON, ONYAXIUS, PHANTUAR, PYRSECT, SERPERYX, SKORLEAX, STAEVOR BEASTCALL, TITANTUSK, TUNDRACIA, VAELERYS DRAGONSONG I, VALDYR GLACIERFANG, XYROS DRAGONSONG I, YHAEROK WILDEONEUS, ABYSSYLYX, AURELLYN, DIVINIARA, KHRONICORE, OPHIRA, PHEONARIS, ROYALESUS, VORAKHAN, XYROS DRAGONSONG XXXV, AEGIRI, CINDERETH, LUMINARI, NIGHTSTANG, OULIRIS, SERAPHAELA, SYLVANS, TERVALOR, VERDANTUS, VYDEXEUS, XENOXIL, XYROS DRAGONSONG XXVII, ALDORIS, DESPERA, IMPERION, KALENATEL, LUCIENIS, MIRA, ODION, VITRIARCH, ABOMINALYS, ULTHARIS.
-7. **Other games:** RP7B, RP7D, the Codex page and roster.json still use the older spellings. This change only touches the explorer.
+1. **Tier-provisional names** (50): none of the sources has these names yet. Their tier comes from the v8 evolution lines where possible, otherwise tier 1. Their types are guessed from the name. In game, their cards read *tier and types provisional*. They wait for the Creator to canonize tiers.
+2. **Never wild:** Mealux (hidden in RP7B as a remnant trace), the tier 9–10 beings (Abyssion, Aetherion, Aethravax, Anciuxor, Azyrath), and the Elzebub → Elzimir → Elzoran → Omegoran easter-egg line. These stay out of the wild and out of the set counts.
+3. **Retired from the wild:** 79 older roster entries are not on the official list. Several of them are people and named characters, not Aethren. Cards already held still show, marked RETIRED, but these entries no longer spawn or count toward a set: DUNECHITTER, ABYSSIQ, NEUROMOO, STEELWARD, GLACIERWING FALCON, MORLINGSPAWN, NIMBUSOR, RUSTMAW, SHARKFIN, TICK & TUNE, TITANOVA, VOIDWARD, WYNTERMANE, CROWNFEATHER GRYPHON, CRYCARYS, EMBERCREST, FINWYN & GILTYN, GEMORID, GLACIOBOLT, GRAVIGON, GRIZZIGOR, HOLLIS QUAY, RHAEGOR IV, ROBOTRYX, STAVROS BEASTCALL, TONITREX, AUDRELLIUS, AURARERIS, AURAXION, AVIANEX, DEVORMOR, ELRIK DRACONICAL, FAUNWELL, INFERLEON, MATRIARIS, MYRRADON, ONYAXIUS, PHANTUAR, PYRSECT, SERPERYX, SKORLEAX, STAEVOR BEASTCALL, TITANTUSK, TUNDRACIA, VAELERYS DRAGONSONG I, VALDYR GLACIERFANG, XYROS DRAGONSONG I, YHAEROK WILDEONEUS, ABYSSYLYX, AURELLYN, DIVINIARA, KHRONICORE, OPHIRA, PHEONARIS, ROYALESUS, VORAKHAN, XYROS DRAGONSONG XXXV, AEGIRI, CINDERETH, LUMINARI, NIGHTSTANG, OULIRIS, SERAPHAELA, SYLVANS, TERVALOR, VERDANTUS, VYDEXEUS, XENOXIL, XYROS DRAGONSONG XXVII, ALDORIS, DESPERA, IMPERION, KALENATEL, LUCIENIS, MIRA, ODION, VITRIARCH, ABOMINALYS, ULTHARIS.
+4. **Other games:** RP7B, RP7D, the Codex page and roster.json still use the older spellings. Only the explorer follows this roster so far.

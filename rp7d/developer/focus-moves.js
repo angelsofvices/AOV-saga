@@ -1,7 +1,8 @@
 // RP7D · Lightbulbs & Focus Moves.
 //
-//   Lightbulb     a knowledge collectible lying in the world. Collecting one teaches Rizer its Focus Move for good
-//                 (it is never spent, and it is not a crafting material).
+//   Lightbulb     a knowledge collectible. Four wait in gold chests around Malezor: open a chest (○) and its bulb
+//                 floats out; collect it (✕) and Rizer learns its Focus Move for good (it is never spent, and it is not
+//                 a crafting material).
 //   Focus Move    a technique Rizer knows. Four of them are set on the D-pad (Zyphone › Labs › Focus) and cast with
 //                 Lock-On + D-pad. This file only says WHAT he knows and WHERE it sits; the existing Astral combat
 //                 (astral.js, run from game.js) still owns damage, targeting, animation, energy and cooldowns.
@@ -10,8 +11,8 @@
 // entry if it is learned from a Lightbulb. Concept moves (Fire Surge, Wind Step, Earth Break) stay out until their
 // canonical definitions are approved.
 //
-// State lives in inventory.focus { learned:[id], slots:{ up, right, down, left }, bulbs:[lightbulbId] }, saved with
-// the bag, so everything learned and assigned survives a reload (a new game starts it clean).
+// State lives in inventory.focus { learned:[id], slots:{ up, right, down, left }, bulbs:[lightbulbId], chests:{ id:1 } },
+// saved with the bag, so everything learned and assigned survives a reload (a new game starts it clean).
 import * as THREE from 'three';
 import { inventory, saveInv } from './loot.js';
 
@@ -20,33 +21,32 @@ export const DIR_NAME = { up: '↑', right: '→', down: '↓', left: '←' };
 export const DIR_KEY = { up: 'I', right: 'U', down: 'T', left: 'Y' }; // keyboard stand-ins for the D-pad
 export const DIR_CODE = { up: 'KeyI', right: 'KeyU', down: 'KeyT', left: 'KeyY' };
 
-// innate: he already knows it (the techniques RP7D shipped with before Lightbulbs). The rest come from a Lightbulb.
+// innate: he knows it from the start, without a Lightbulb (none do for now: every technique comes from a gold chest).
 export const FOCUS_MOVES = {
   astralthunder: { name: 'Astralthunder', element: 'LIGHTNING', color: '#6fb0ff', glyph: 'ϟ', innate: false,
     blurb: 'Calls lightning down from the sky onto the locked enemy. Anyone standing close is caught in the strike.' },
-  astralift: { name: 'Astralift', element: 'ASTRAL', color: '#5ef2ff', glyph: '⇑', innate: true,
+  astralift: { name: 'Astralift', element: 'ASTRAL', color: '#5ef2ff', glyph: '⇑', innate: false,
     blurb: 'Lifts the locked enemy off its feet and throws it back. (A locked chest always takes ↑ to lift its lid.)' },
-  astralburst: { name: 'Astralburst', element: 'ASTRAL', color: '#b98bff', glyph: '✺', innate: true,
+  astralburst: { name: 'Astralburst', element: 'ASTRAL', color: '#b98bff', glyph: '✺', innate: false,
     blurb: 'Lightning gathers over Rizer, then bursts out around him, throwing back everything in the radius.' },
-  rolling_thunder: { name: 'Rolling Thunder', element: 'LIGHTNING', color: '#ffd04a', glyph: '◉', innate: true,
+  rolling_thunder: { name: 'Rolling Thunder', element: 'LIGHTNING', color: '#ffd04a', glyph: '◉', innate: false,
     blurb: 'Rolls a sphere of lightning at the target. Every impact chains to the enemies near it before the final blast.' }
 };
-// The slots a brand-new save starts with: the innate techniques where they always were; ↓ waits for Astralthunder.
-const DEFAULT_SLOTS = { up: 'astralift', right: 'rolling_thunder', down: null, left: 'astralburst' };
+// A brand-new save starts with an empty D-pad: every slot is filled from what the Lightbulbs teach.
+const DEFAULT_SLOTS = { up: null, right: null, down: null, left: null };
 
-// Lightbulbs: what each teaches, its glow, and where it waits (a function of the world data, so it follows the map).
+// Lightbulbs: what each teaches and its glow. Each waits in its own gold chest; `near` says which part of Malezor the
+// chest is placed near (a compass bearing from Malezor Square, so it follows the map; 'home' = by Rizer's door).
 export const LIGHTBULBS = {
-  lb_astralthunder: { move: 'astralthunder', color: '#ffc24a', place: W => {
-    // beside the lane from home down into Malezor Square, a little way off the path
-    const a = W.playerStart, b = W.plaza || a, t = 0.42, x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
-    const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz) || 1;
-    return { x: x - (dz / d) * 6.5, z: z + (dx / d) * 6.5 }; // the open side, by the bus stop
-  } }
+  lb_astralthunder: { move: 'astralthunder', color: '#ffc24a', near: 'home' },          // the first one: a short walk from Rizer's door
+  lb_astralift:     { move: 'astralift', color: '#4fa8ff', near: 'east' },
+  lb_astralburst:   { move: 'astralburst', color: '#b98bff', near: 'west' },
+  lb_rolling:       { move: 'rolling_thunder', color: '#ff7a3d', near: 'north' }
 };
 
 const state = () => {
   const f = inventory.focus ||= {};
-  f.learned ||= []; f.bulbs ||= [];
+  f.learned ||= []; f.bulbs ||= []; f.chests ||= {};
   for (const [id, m] of Object.entries(FOCUS_MOVES)) if (m.innate && !f.learned.includes(id)) f.learned.push(id);
   f.learned = f.learned.filter(id => FOCUS_MOVES[id]);
   if (!f.slots) f.slots = { ...DEFAULT_SLOTS };
@@ -63,6 +63,8 @@ export const focus = {
   get slots() { return { ...state().slots }; },
   dirOf: id => DIRS.find(d => state().slots[d] === id) || null,
   hasBulb: id => state().bulbs.includes(id),
+  chestOpen: id => !!state().chests[id],
+  openChest(id) { state().chests[id] = 1; changed(); },
   onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   // Unlock service: a Lightbulb collected → its move learned (once, for good). Returns the move id, or null.
   learnFrom(bulbId) {
@@ -116,35 +118,84 @@ export function buildLightbulb(color = '#ffc24a') {
   return g;
 }
 
-// The Lightbulbs placed in the world: each idles (bobs, its filament turning, light breathing) until collected.
-// Collect with ✕ (Space). onCollect(bulbId, moveId | null) is told when one is taken.
-export function createLightbulbs({ scene, world, W, fx, onCollect }) {
-  const list = [];
+// ── the four gold chests ──
+// Placed once from the map: Malezor's landmarks (the discoverable places) sorted by the bearing each Lightbulb asks for,
+// then the first clear, level spot a few steps from that landmark. Chest states: closed → opening → rising (the bulb
+// floats up out of it) → waiting (hovering in front of the chest, ✕ to collect) → empty. Opened chests and collected
+// bulbs are remembered with the save (inventory.focus), so a reload puts each chest back the way it was left.
+export function createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect, onOpen }) {
+  const P = W.plaza || W.playerStart, S = W.playerStart, list = [];
+  const clear = (x, z, r) => { const probe = new THREE.Vector3(x, world.groundAt(x, z), z); return !world.resolve(probe, r) && world.waterAt(x, z) < world.heightAt(x, z) - 0.2 && Math.abs(world.heightAt(x + 1.4, z) - world.heightAt(x - 1.4, z)) < 0.6 && Math.abs(world.heightAt(x, z + 1.4) - world.heightAt(x, z - 1.4)) < 0.6; };
+  const places = world.interactables.filter(i => i.discover && Number.isFinite(i.cx));
+  const used = [];
+  const others = world.interactables.filter(i => Number.isFinite(i.x)).map(i => ({ x: i.x, z: i.z })); // doors, chests, rides: a gold chest never shares their prompt
+  const far = (x, z) => used.every(u => Math.hypot(u.x - x, u.z - z) > 40) && others.every(o => Math.hypot(o.x - x, o.z - z) > 7);
+  const BEAR = { east: [1, 0], west: [-1, 0], north: [0, -1], south: [0, 1] };
+  function spotFor(near) {
+    let anchors;
+    if (near === 'home') anchors = [{ cx: S.x, cz: S.z, r0: 14 }];
+    else { const [bx, bz] = BEAR[near]; anchors = places.map(p => ({ cx: p.cx, cz: p.cz, r0: 7, score: ((p.cx - P.x) * bx + (p.cz - P.z) * bz) - Math.abs((p.cx - P.x) * bz - (p.cz - P.z) * bx) * 0.35 }))
+      .filter(a => a.score > 30).sort((a, b) => b.score - a.score); }
+    for (const a of anchors) for (const r of [a.r0, a.r0 + 2.5, a.r0 + 5, a.r0 + 8]) for (let k = 0; k < 12; k++) {
+      const ang = k / 12 * Math.PI * 2, x = a.cx + Math.sin(ang) * r, z = a.cz + Math.cos(ang) * r;
+      if (clear(x, z, 2.2) && far(x, z)) return { x, z, face: Math.atan2(a.cx - x, a.cz - z) };
+    }
+    return null;
+  }
   for (const [id, b] of Object.entries(LIGHTBULBS)) {
-    if (focus.hasBulb(id)) continue;
-    const p = b.place(W), mesh = buildLightbulb(b.color), y = world.groundAt(p.x, p.z);
-    mesh.scale.setScalar(1.35); mesh.position.set(p.x, y, p.z); scene.add(mesh);
-    const it = { id, bulb: b, mesh, x: p.x, z: p.z, y, taken: false, t: Math.random() * 6 };
-    it.spot = { id: 'lightbulb:' + id, kind: 'lightbulb', door: true, discover: false, reach: 2.6, name: 'Collect Lightbulb',
-      x: p.x, z: p.z, cx: p.x, cz: p.z, active: () => !it.taken };
-    world.interactables.push(it.spot); list.push(it);
+    const at = spotFor(b.near); if (!at) { console.warn('[rp7d] no spot for', id); continue; }
+    used.push(at);
+    const y = world.groundAt(at.x, at.z), C = buildChest('gold');
+    C.root.position.set(at.x, y, at.z); C.root.rotation.y = at.face; scene.add(C.root); world.addMesh?.(C.root);
+    const front = new THREE.Vector3(Math.sin(at.face), 0, Math.cos(at.face));
+    const rest = new THREE.Vector3(at.x, y + 1.15, at.z).addScaledVector(front, 0.15); // where the bulb hovers: over the open chest, in view past Rizer's shoulder
+    const bulb = buildLightbulb(b.color); bulb.scale.setScalar(1.1); bulb.visible = false; scene.add(bulb);
+    const taken = focus.hasBulb(id), opened = focus.chestOpen(id) || taken;
+    const it = { id, bulb: b, C, x: at.x, z: at.z, y, rest, mesh: bulb, t: Math.random() * 6, k: 0, state: taken ? 'empty' : opened ? 'waiting' : 'closed' };
+    if (opened) { C.hinge.rotation.x = -1.9; C.inner.material.emissiveIntensity = 0.6; }
+    if (it.state === 'waiting') { bulb.visible = true; bulb.position.copy(rest); }
+    it.front = () => chestFront(C);
+    it.chestSpot = { id: 'lbchest:' + id, kind: 'goldchest', discover: false, reach: 3.2, name: 'Open gold chest', x: at.x, z: at.z, cx: at.x, cz: at.z, active: () => it.state === 'closed' };
+    it.spot = { id: 'lightbulb:' + id, kind: 'lightbulb', door: true, discover: false, reach: 2.8, name: 'Collect Lightbulb', x: rest.x, z: rest.z, cx: rest.x, cz: rest.z, active: () => it.state === 'waiting' };
+    world.interactables.push(it.chestSpot, it.spot); list.push(it);
+  }
+  const find = spotId => list.find(q => q.spot.id === spotId || q.chestSpot.id === spotId);
+  function open(spotId) {
+    const it = find(spotId); if (!it || it.state !== 'closed') return false;
+    it.state = 'opening'; it.k = 0; focus.openChest(it.id); onOpen?.(it);
+    return true;
   }
   function collect(spotId) {
-    const it = list.find(q => q.spot.id === spotId); if (!it || it.taken) return false;
-    it.taken = true; const move = focus.learnFrom(it.id);
-    fx?.emit(it.x, it.y + 0.8, it.z, 36, { color: it.bulb.color, speed: 3, up: 2.2, size: 0.26, life: 0.9, g: -1 });
-    fx?.emit(it.x, it.y + 0.8, it.z, 18, { color: '#ffffff', speed: 1.6, up: 2.8, size: 0.18, life: 0.7, g: -2 });
-    let k = 0; const fade = () => { k += 0.06; it.mesh.scale.setScalar(1.35 * (1 + k * 0.8)); it.mesh.position.y = it.y + k * 1.2; it.mesh.traverse(o => { if (o.material && 'opacity' in o.material) { o.material.transparent = true; o.material.opacity = Math.max(0, (o.material.opacity ?? 1) - 0.07); } }); if (k < 1) requestAnimationFrame(fade); else { scene.remove(it.mesh); const i = world.interactables.indexOf(it.spot); if (i >= 0) world.interactables.splice(i, 1); } };
-    fade(); onCollect?.(it.id, move);
+    const it = find(spotId); if (!it || it.state !== 'waiting') return false;
+    it.state = 'collected'; it.k = 0; const move = focus.learnFrom(it.id), p = it.mesh.position;
+    fx?.emit(p.x, p.y + 0.5, p.z, 36, { color: it.bulb.color, speed: 3, up: 2.2, size: 0.26, life: 0.9, g: -1 });
+    fx?.emit(p.x, p.y + 0.5, p.z, 18, { color: '#ffffff', speed: 1.6, up: 2.8, size: 0.18, life: 0.7, g: -2 });
+    onCollect?.(it.id, move);
     return true;
   }
   function update(dt) {
-    for (const it of list) if (!it.taken) {
-      it.t += dt; const P = it.mesh.userData.parts;
-      P.fil.rotation.y += dt * 1.4; P.fil.rotation.x = Math.sin(it.t * 0.7) * 0.4;
-      const pulse = 0.5 + 0.5 * Math.sin(it.t * 2.6); P.light.intensity = 1.6 + pulse * 1.4; P.halo.material.opacity = 0.12 + pulse * 0.12;
-      it.mesh.position.y = it.y + Math.sin(it.t * 1.3) * 0.04;
+    for (const it of list) {
+      const P = it.mesh.userData.parts; it.t += dt;
+      if (it.state === 'opening') { // the lid swings up, gold light spills out
+        it.k = Math.min(1, it.k + dt / 0.55); const e = 1 - Math.pow(1 - it.k, 3);
+        it.C.hinge.rotation.x = -1.9 * e; it.C.light.intensity = 9 * e; it.C.inner.material.emissiveIntensity = 1.4 * e;
+        if (it.k >= 1) { it.state = 'rising'; it.k = 0; it.mesh.visible = true; fx?.emit(it.x, it.y + 0.6, it.z, 30, { color: '#ffd98a', speed: 3, up: 3, size: 0.4, life: 0.8, g: 3 }); }
+      } else if (it.state === 'rising') { // floats up out of the chest, turning, and drifts to the front
+        it.k = Math.min(1, it.k + dt / 1.6); const e = it.k * it.k * (3 - 2 * it.k);
+        it.mesh.position.set(it.x + (it.rest.x - it.x) * e, it.y + 0.3 + (it.rest.y - it.y - 0.3) * e + Math.sin(it.k * Math.PI) * 1.1, it.z + (it.rest.z - it.z) * e);
+        it.mesh.rotation.y = it.k * Math.PI * 3; it.mesh.scale.setScalar(1.1 * (0.4 + 0.6 * e));
+        if (Math.random() < dt * 30) fx?.emit(it.mesh.position.x, it.mesh.position.y + 0.4, it.mesh.position.z, 1, { color: it.bulb.color, speed: 0.3, up: 0.2, size: 0.22, life: 0.5, g: 0 });
+        if (it.k >= 1) it.state = 'waiting';
+      } else if (it.state === 'waiting') { // hovers, its filament turning, light breathing
+        it.mesh.position.set(it.rest.x, it.rest.y + Math.sin(it.t * 1.6) * 0.07, it.rest.z); it.mesh.rotation.y += dt * 0.4;
+        it.C.light.intensity = 3 + Math.sin(it.t * 2.6);
+      } else if (it.state === 'collected') { // swells and fades into light
+        it.k = Math.min(1, it.k + dt * 2.2); it.mesh.scale.setScalar(1.1 * (1 + it.k * 0.8)); it.mesh.position.y += dt * 1.4;
+        it.mesh.traverse(o => { if (o.material && 'opacity' in o.material) { o.material.transparent = true; o.material.opacity = Math.max(0, o.material.opacity - dt * 2.4); } });
+        if (it.k >= 1) { it.mesh.visible = false; it.state = 'empty'; }
+      } else if (it.state === 'empty') it.C.light.intensity = Math.max(0, it.C.light.intensity - dt * 4);
+      if (it.mesh.visible && it.state !== 'collected') { P.fil.rotation.y += dt * 1.4; P.fil.rotation.x = Math.sin(it.t * 0.7) * 0.4; const pulse = 0.5 + 0.5 * Math.sin(it.t * 2.6); P.light.intensity = 1.6 + pulse * 1.4; P.halo.material.opacity = 0.12 + pulse * 0.12; }
     }
   }
-  return { list, collect, update, has: spotId => list.some(q => q.spot.id === spotId && !q.taken) };
+  return { list, open, collect, update, find };
 }

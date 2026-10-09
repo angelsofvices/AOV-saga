@@ -390,14 +390,17 @@ export const WEAPON_MESH = { blaster: buildBlasterRifle, telescope: buildTelesco
 // One standard chest, two finishes. Every chest in the game is this size.
 //   common   · wooden: oak planks, black-iron bands and lock · coins inside
 //   uncommon · silver: dark slate wood, polished silver bands and lock, a pale-blue gem · a weapon inside
+//   gold     · gilded: gold body and bands, a blue crystal lock · a Lightbulb inside
 export const CHEST = { w: 1.1, d: 0.7, h: 0.55 }; // body size (units); the rounded lid adds ~0.22
 const FINISH = {
   common: { wood: '#7a5230', dark: '#553823', band: '#3b3d42', bandM: 0.6, gem: null, glow: '#ffcf7a', inner: '#e9c982' },
-  uncommon: { wood: '#4d5561', dark: '#363c46', band: '#d6dde6', bandM: 0.95, gem: '#bfe4ff', glow: '#dff0ff', inner: '#cfe6ff' }
+  uncommon: { wood: '#4d5561', dark: '#363c46', band: '#d6dde6', bandM: 0.95, gem: '#bfe4ff', glow: '#dff0ff', inner: '#cfe6ff' },
+  // gold · gilded body, bright gold bands, a blue crystal lock · a Lightbulb inside (focus-moves.js)
+  gold: { wood: '#c08a2a', woodM: 0.75, woodR: 0.35, dark: '#5e3f0e', band: '#ffd76a', bandM: 1, gem: '#4fa8ff', glow: '#ffd98a', inner: '#ffe7a8' }
 };
 export function buildChest(tier = 'common') {
   const F = FINISH[tier] || FINISH.common, root = new THREE.Group();
-  const wood = M(F.wood, { roughness: 0.82 }), dark = M(F.dark, { roughness: 0.88 }), band = M(F.band, { metalness: F.bandM, roughness: tier === 'uncommon' ? 0.22 : 0.5 });
+  const wood = M(F.wood, { roughness: F.woodR ?? 0.82, metalness: F.woodM ?? 0 }), dark = M(F.dark, { roughness: 0.88 }), band = M(F.band, { metalness: F.bandM, roughness: tier !== 'common' ? 0.22 : 0.5 });
   const { w: W, d: D, h: H } = CHEST;
   const body = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), wood); body.position.y = H / 2; root.add(body);
   for (const y of [H * 0.33, H * 0.66]) { const seam = new THREE.Mesh(new THREE.BoxGeometry(W + 0.005, 0.012, D + 0.005), dark); seam.position.y = y; root.add(seam); } // plank lines
@@ -407,7 +410,7 @@ export function buildChest(tier = 'common') {
   const foot = new THREE.Mesh(new THREE.BoxGeometry(W + 0.05, 0.06, D + 0.05), dark); foot.position.y = 0.03; root.add(foot);
   // lid hinged along the back edge
   const hinge = new THREE.Group(); hinge.position.set(0, H, -D / 2); root.add(hinge);
-  const lid = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, W, 12, 1, false, 0, Math.PI), M(F.wood, { roughness: 0.82, side: THREE.DoubleSide })); lid.rotation.set(0, 0, Math.PI / 2); lid.scale.set(0.62, 1, 1); lid.position.set(0, 0, D / 2); hinge.add(lid);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, W, 12, 1, false, 0, Math.PI), M(F.wood, { roughness: F.woodR ?? 0.82, metalness: F.woodM ?? 0, side: THREE.DoubleSide })); lid.rotation.set(0, 0, Math.PI / 2); lid.scale.set(0.62, 1, 1); lid.position.set(0, 0, D / 2); hinge.add(lid);
   for (const x of [-W / 2 + 0.06, 0, W / 2 - 0.06]) { const arc = new THREE.Mesh(new THREE.TorusGeometry(D / 2, 0.03, 5, 14, Math.PI), band); arc.rotation.set(0, Math.PI / 2, 0); arc.scale.set(1, 0.62, 1); arc.position.set(x, 0, D / 2); hinge.add(arc); }
   const lock = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.2, 0.05), band); lock.position.set(0, H - 0.06, D / 2 + 0.02); root.add(lock);
   let lockGem = null;

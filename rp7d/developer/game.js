@@ -29,9 +29,9 @@ import { WildZyrex } from './zyrex.js'; // the 3D meshes: Dev › Zyrex as 3D me
 import { createBondGame } from './bond.js';
 import { createFX } from './fx.js';
 import { createAstral, ASTRAL } from './astral.js';
-import { focus, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY, DIR_CODE, createLightbulbs } from './focus-moves.js';
+import { focus, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY, DIR_CODE, createLightbulbChests } from './focus-moves.js';
 import { createAstralvision } from './astralvision.js';
-import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
+import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
 import { storage } from './storage.js';
 import { createTVSystem, buildDvdPickup } from './tv-system.js';
 import { DVDS } from './dvd-registry.js';
@@ -277,10 +277,10 @@ function spawnZyrex() {
   for (const z of zyrex) z.setVisible ? z.setVisible(!homeMode) : (z.b.root.visible = !homeMode);
   console.log(`[rp7d] wild Zyrex (${mesh3d ? '3D' : '2DHD'}):`, zyrex.length);
 }
-// Focus mode (hold R3): on, a fight locks the nearest enemy without being asked; off, every lock is manual.
+// FocusLock (hold R3): on, a fight locks the nearest enemy without being asked; off, every lock is manual.
 function toggleFocus() {
   settings.focus = settings.focus === false; saveSettings();
-  showToast(settings.focus ? 'FOCUS MODE ON · enemies in reach are locked automatically' : 'FOCUS MODE OFF · lock on manually (R3 / R)');
+  showToast(settings.focus ? 'FOCUSLOCK ON · enemies in reach are locked automatically' : 'FOCUSLOCK OFF · lock on manually (R3 / R)');
 }
 // The active partner: one bonded Zyrex out in the world with Rizer. Picking another (Zyphone › Zyrex) swaps it.
 function setPartner(id) {
@@ -777,7 +777,7 @@ function readPad() {
     jump: btn(0), jumpEdge: edge(0), run: btn(7), descendHeld: btn(6), crouch: false, punch: edge(2), punchHeld: btn(2), kick: edge(3), interact: edge(1), zyphone: edge(17), dodge: edge(6), dodgeHeld: btn(6), burst: edge(14), down: edge(13), astralift: edge(12), rolling: edge(15), prevWeapon: edge(4), nextWeapon: edge(5), lock: false, vision: false };
   // L3 / R3 alone = crouch / lock-on; both together = Astralvision. Single presses wait 120 ms for a partner.
   const e10 = edge(10), e11 = edge(11);
-  // R3: a tap locks on (on release) · held for a moment, it toggles focus mode instead.
+  // R3: a tap locks on (on release) · held for a moment, it toggles FocusLock instead.
   if ((e10 || e11) && btn(10) && btn(11)) { out.vision = true; stickPend = null; r3Hold = null; }
   else if (e10) stickPend = { k: 'crouch', t: performance.now() };
   else if (e11) r3Hold = { t: performance.now(), fired: false };
@@ -993,7 +993,7 @@ function build() {
   av = createAstralvision(scene, camera, fx);
   loot = createLoot(scene, world, fx, W); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
-  lightbulbs = createLightbulbs({ scene, world, W, fx, onCollect: lightbulbLearned }); fhud.render(); // Lightbulbs: collect one (✕) to learn its Focus Move for good
+  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); fhud.render(); // four gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
   westLakeBus = createWestLakeBus(scene, world, fx, showToast, { x:W.playerStart.x + 14, z:W.playerStart.z + 8, facing:Math.PI * 0.15 });
   commonChests = createCommonChests(scene, world, fx, W, (x, z) => quarterAt(x, z, W) === 'core', [...loot.all.filter(c => !['psychosyd-chest', 'astralboard-chest'].includes(c.id)).map(c => ({ x: c.chest.position.x, z: c.chest.position.z })), { x: W.playerStart.x, z: W.playerStart.z }],
     (ch, n) => showToast(`✦ ASTRALIFT · ${n} coin pile${n === 1 ? '' : 's'} shaken loose`), // the astral-pop payoff
@@ -1065,7 +1065,7 @@ function build() {
   // Zoryn is paused for the art pass. Keep his NPC implementation and saved
   // progress intact so he can return without resetting the player's history.
   createSeers(scene, world, W).then(sq => { seers = sq; sq.onDefeated = (g, kind) => awardCombatRXP(g, g.T.key, kind); // RXP source · combat: one award per defeat, by RP7B's formula
-     bowProjectiles = createPearlbow(scene, world, sq, fx, techBodies, sfx); window.__rp7d.seers = sq; setOutdoorActorsVisible(!homeMode); console.log('[rp7d] seers on patrol:', sq.total); })
+     bowProjectiles = createPearlbow(scene, world, sq, fx, techBodies, sfx); setOutdoorActorsVisible(!homeMode); console.log('[rp7d] seers on patrol:', sq.total); })
     .catch(e => console.warn('[rp7d] seers failed to load', e));
   zy = createZyphone({
     W, hud, characters: CHARACTERS, itemCatalog: ITEMS, onUseItem: k => useItem(k),
@@ -1652,7 +1652,7 @@ function optionsMenu() {
     { act: 'sens', label: 'Look sensitivity', value: `${settings.sens}×` },
     { act: 'invert', label: 'Invert camera up / down', value: onOff(settings.invertY) },
     { head: 'SCREEN' },
-    { act: 'focus', label: 'Focus mode', note: 'On: a fight locks the nearest enemy automatically. Off: every lock-on is manual. Hold R3 to switch.', value: onOff(settings.focus !== false) },
+    { act: 'focus', label: 'FocusLock', note: 'On: a fight locks the nearest enemy automatically. Off: every lock-on is manual. Hold R3 to switch.', value: onOff(settings.focus !== false) },
     { act: 'hints', label: 'Button hints', value: onOff(settings.hints) },
     { act: 'minimap', label: 'Minimap', value: onOff(settings.minimap) },
     { act: 'coords', label: 'Coordinates panel', note: 'Click the panel to copy your position for placing 3D assets.', value: onOff(settings.coords) },
@@ -2131,6 +2131,9 @@ function update(dt, t, realDt = dt) {
       if (it?.kind === 'npc') {
         if (it.id === 'npc-zoryn' && npcs?.meet(it)) { inventory.zorynMet = true; saveInv(); showToast('CONTACT DISCOVERED · ZORYN'); }
         hud.say(it.name, npcs?.talk(it) || it.note);
+      } else if (it?.kind === 'goldchest') { // gold chest: walk up to the lock, lift the lid, and its Lightbulb floats out
+        const c = lightbulbs?.find(it.id), f = c?.front();
+        if (c?.state === 'closed') rizer.walkTo(f, f.face, () => { if (c.state !== 'closed') return; rizer.playInteract(false); later(0.28, () => lightbulbs.open(it.id)); }, { around: f.around });
       } else if (it?.kind === 'chest' && it.common) { // wooden chest: walk up to the lock, lift the lid, coins
         const ch = it.chest, f = commonChests.front(ch);
         if (ch.state === 'closed') rizer.walkTo(f, f.face, () => {

@@ -37,6 +37,8 @@ const PLAYER = {
   thunder: { clip: L('Astralthunder_Lock_Down') }, // lock on + d-pad ↓: hands up, then slams down (the strike)
   astralburst: { clip: L('Standing_2H_Magic_Area_Attack_02') }, // lock on + d-pad ←: lightning gathers over him, then bursts out around him
   rollingThunder: { clip: L('Rolling_Thunder'), inPlace: true }, // lock on + d-pad →: builds and rolls a lightning sphere at the target
+  astralclap: { clip: L('Astralclap') },                    // Focus Move: arms up, hands to the ground, rise, CLAP (astral-storm.js · STORM_TIMING)
+  astralspin: { clip: L('Astralspin'), inPlace: true },     // Focus Move: two fast turns, then out of the spin (ground or air)
   block: { clip: L('Standing_Block_Idle') },      // hold L2 + R2
   airslam: { clip: L('Jump_Attack'), inPlace: true }, // in the air, locked on, □: dives onto the target and slams the ground (rizer.js · airSlam)
   parry: { clip: L('Perfect_Block_Parry'), inPlace: true }, // guard raised just as a blow lands: deflects it and stuns the attacker

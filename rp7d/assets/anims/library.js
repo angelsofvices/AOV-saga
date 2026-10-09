@@ -62,6 +62,8 @@ export default [
   { file: 'rizer/TURN.FBX', name: '180° joystick turn', loop: false },
   { file: 'rizer/Standing_1H_Magic_Attack_03.fbx', name: 'Astralift · 1H magic attack (lock + d-pad ↑)', loop: false },
   { file: 'rizer/Astralthunder_Lock_Down.fbx', name: 'Astralthunder · slam (lock + d-pad ↓)', loop: false },
+  { file: 'rizer/Astralclap.fbx', name: 'Astralclap · charge, clap (Focus Move)', loop: false },
+  { file: 'rizer/Astralspin.fbx', name: 'Astralspin · spin into the tornado (Focus Move)', loop: false, inPlace: true },
   { file: 'rizer/Astralthunder.fbx', name: 'Astralthunder cast (astralift 2)', loop: false },
   { file: 'rizer/Standing_Block_Idle.fbx', name: 'Block (standing block idle)', loop: true },
   { file: 'rizer/Perfect_Block_Parry.fbx', name: 'Parry (perfect block)', loop: false, inPlace: true },

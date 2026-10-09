@@ -539,5 +539,5 @@ export function createAstral(scene, world, fx) {
       if (Math.random() < dt * 40) fx.emit(tmp.x, tmp.y, tmp.z, 1, { color: b.pal.trail, speed: 0.4, up: 0.2, size: 0.32, life: 0.3, g: 0, spread: 0.1 });
     }
   }
-  return { setPalette, get palette() { return palKey; }, toggleLock, autoLock, switchLock, clearLock, assistTarget, astralift, canAstralift, thunder, astralburst, shockwave, rollingThunder, fire, update, get bursting() { return bursts.length > 0; }, get rolling() { return rollers.length > 0; }, get rollingCast() { return rollers.some(q => q.castLeft > 0); }, get lock() { return lock; }, get bolts() { return bolts.length; } };
+  return { arc, get flash() { return flash; }, setPalette, get palette() { return palKey; }, toggleLock, autoLock, switchLock, clearLock, assistTarget, astralift, canAstralift, thunder, astralburst, shockwave, rollingThunder, fire, update, get bursting() { return bursts.length > 0; }, get rolling() { return rollers.length > 0; }, get rollingCast() { return rollers.some(q => q.castLeft > 0); }, get lock() { return lock; }, get bolts() { return bolts.length; } };
 }

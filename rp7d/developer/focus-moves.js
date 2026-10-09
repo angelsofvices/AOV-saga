@@ -1,6 +1,6 @@
 // RP7D · Lightbulbs & Focus Moves.
 //
-//   Lightbulb     a knowledge collectible. Four wait in gold chests around Malezor: open a chest (○) and its bulb
+//   Lightbulb     a knowledge collectible. Six wait in gold chests around Malezor: open a chest (○) and its bulb
 //                 floats out; collect it (✕) and Rizer learns its Focus Move for good (it is never spent, and it is not
 //                 a crafting material).
 //   Focus Move    a technique Rizer knows. Four of them are set on the D-pad (Zyphone › Labs › Focus) and cast with
@@ -30,7 +30,12 @@ export const FOCUS_MOVES = {
   astralburst: { name: 'Astralburst', element: 'ASTRAL', color: '#b98bff', glyph: '✺', innate: false,
     blurb: 'Lightning gathers over Rizer, then bursts out around him, throwing back everything in the radius.' },
   rolling_thunder: { name: 'Rolling Thunder', element: 'LIGHTNING', color: '#ffd04a', glyph: '◉', innate: false,
-    blurb: 'Rolls a sphere of lightning at the target. Every impact chains to the enemies near it before the final blast.' }
+    blurb: 'Rolls a sphere of lightning at the target. Every impact chains to the enemies near it before the final blast.' },
+  // Thunder-based moves (astral-storm.js · RP7D_ASTRALCLAP_ASTRALSPIN_V1.md)
+  astralclap: { name: 'Astralclap', element: 'LIGHTNING', color: '#8fd0ff', glyph: '⇆', innate: false,
+    blurb: 'Lightning erupts under every enemy near the lock and holds them up. On the clap they are pulled together and collide in an electrical explosion: the more bodies, the harder it hits.' },
+  astralspin: { name: 'Astralspin', element: 'STORM', color: '#b8e4ff', glyph: '✴', innate: false, noLock: true,
+    blurb: 'Rizer spins (on the ground or in the air) and a tornado forms on the ground below him. It travels along the surface; its storm drags in, lifts and shocks every enemy inside until it dissipates. Needs no lock.' }
 };
 // A brand-new save starts with an empty D-pad: every slot is filled from what the Lightbulbs teach.
 const DEFAULT_SLOTS = { up: null, right: null, down: null, left: null };
@@ -41,7 +46,9 @@ export const LIGHTBULBS = {
   lb_astralthunder: { move: 'astralthunder', color: '#ffc24a', near: 'home' },          // the first one: a short walk from Rizer's door
   lb_astralift:     { move: 'astralift', color: '#4fa8ff', near: 'east' },
   lb_astralburst:   { move: 'astralburst', color: '#b98bff', near: 'west' },
-  lb_rolling:       { move: 'rolling_thunder', color: '#ff7a3d', near: 'north' }
+  lb_rolling:       { move: 'rolling_thunder', color: '#ff7a3d', near: 'north' },
+  lb_astralclap:    { move: 'astralclap', color: '#8fd0ff', near: 'south' },
+  lb_astralspin:    { move: 'astralspin', color: '#d9f1ff', near: 'northwest' }
 };
 
 const state = () => {
@@ -118,7 +125,7 @@ export function buildLightbulb(color = '#ffc24a') {
   return g;
 }
 
-// ── the four gold chests ──
+// ── the gold chests (one per Lightbulb) ──
 // Placed once from the map: Malezor's landmarks (the discoverable places) sorted by the bearing each Lightbulb asks for,
 // then the first clear, level spot a few steps from that landmark. Chest states: closed → opening → rising (the bulb
 // floats up out of it) → waiting (hovering in front of the chest, ✕ to collect) → empty. Opened chests and collected
@@ -126,11 +133,11 @@ export function buildLightbulb(color = '#ffc24a') {
 export function createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect, onOpen }) {
   const P = W.plaza || W.playerStart, S = W.playerStart, list = [];
   const clear = (x, z, r) => { const probe = new THREE.Vector3(x, world.groundAt(x, z), z); return !world.resolve(probe, r) && world.waterAt(x, z) < world.heightAt(x, z) - 0.2 && Math.abs(world.heightAt(x + 1.4, z) - world.heightAt(x - 1.4, z)) < 0.6 && Math.abs(world.heightAt(x, z + 1.4) - world.heightAt(x, z - 1.4)) < 0.6; };
-  const places = world.interactables.filter(i => i.discover && Number.isFinite(i.cx));
+  const places = world.interactables.filter(i => i.discover && Number.isFinite(i.cx) && !String(i.id).startsWith('cave:')); // Malezor's own landmarks (cave mouths across Zyraxis are not chest anchors: they would pull a chest out of Malezor)
   const used = [];
   const others = world.interactables.filter(i => Number.isFinite(i.x)).map(i => ({ x: i.x, z: i.z })); // doors, chests, rides: a gold chest never shares their prompt
   const far = (x, z) => used.every(u => Math.hypot(u.x - x, u.z - z) > 40) && others.every(o => Math.hypot(o.x - x, o.z - z) > 7);
-  const BEAR = { east: [1, 0], west: [-1, 0], north: [0, -1], south: [0, 1] };
+  const BEAR = { east: [1, 0], west: [-1, 0], north: [0, -1], south: [0, 1], northwest: [-0.7071, -0.7071] };
   function spotFor(near) {
     let anchors;
     if (near === 'home') anchors = [{ cx: S.x, cz: S.z, r0: 14 }];

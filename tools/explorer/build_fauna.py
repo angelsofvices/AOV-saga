@@ -131,9 +131,9 @@ def add_species(sid, name, tier, types, d, base, mv, note, flags):
 
 hidden = {norm(n) for n in OFF.get('hidden', [])}
 official_ids, report = set(), {'provisional': [], 'aliased': []}
-for line in OFF['roster']:
-    shown = line.split(' / ')[0].strip()
-    keys = [norm(x) for x in line.split(' / ')] + [norm(a) for a in OFF['aliases'].get(line, [])]
+FORMS = OFF.get('forms', {})
+for line, shown in [(l, f) for l in OFF['roster'] for f in FORMS.get(l, [l])]:
+    keys = [norm(shown)] + [norm(a) for a in OFF['aliases'].get(shown, [])]
     rj = next((RJ[k] for k in keys if k in RJ), None)
     ix = next((IDX[k] for k in keys if k in IDX), None)
     v7 = next((V7[k] for k in keys if k in V7), None)
@@ -155,6 +155,7 @@ for line in OFF['roster']:
     base = rj['base'] if rj else pool(sid, tier, types)
     mv = moves(rj, types) if rj else moves({}, types)
     note = ''
+    if line in FORMS: note = 'Same species as ' + ' and '.join(f.upper() for f in FORMS[line] if f != shown) + ', with a different type.'
     if rj and rj.get('source') == 'hand': note = (rj.get('flavor') or '').split('\n')[0].split('·')[-1].strip()
     add_species(sid, shown, tier, types, d, base, mv, note, flags)
     official_ids.add(sid)

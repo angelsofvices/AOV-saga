@@ -29,6 +29,7 @@ import { WildZyrex } from './zyrex.js'; // the 3D meshes: Dev › Zyrex as 3D me
 import { createBondGame } from './bond.js';
 import { createFX } from './fx.js';
 import { createAstral, ASTRAL } from './astral.js';
+import { focus, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY, DIR_CODE, createLightbulbs } from './focus-moves.js';
 import { createAstralvision } from './astralvision.js';
 import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
 import { storage } from './storage.js';
@@ -802,6 +803,39 @@ let n3000 = null, n3000Camera = null, tv = null, tvCamera = null; // tv: the liv
 let dep = null, stationUI = null; // storage foundation: deployed Field Equipment · Home PC / Experiment Table screens
 let furnMover = null, homeInterior = null, homeMode = false, homeReturn = null, npcs = null, commonChests = null, zycube = null;
 let astralboard = null;
+// ── Lightbulbs (focus-moves.js): ✕ collects one and its Focus Move is learned for good ──
+let lightbulbs = null, learnedCardT = null;
+function lightbulbLearned(bulbId, moveId) {
+  const M = FOCUS_MOVES[moveId] || null;
+  sfx.play('lift', 0.9, 1.2); sfx.play('thunder', 0.35, 1.4); cam.kick(0.5); rumbleHit('medium');
+  let el = $('#focus-learned');
+  if (!el) { el = document.createElement('section'); el.id = 'focus-learned'; el.className = 'focus-learned'; $('#game').appendChild(el); }
+  el.innerHTML = `<header>LIGHTBULB ACQUIRED</header><div class="fl-body"><i class="fl-bulb" style="--c:${M?.color || '#ffc24a'}"><b></b></i><div>`
+    + (M ? `<small>NEW FOCUS MOVE LEARNED</small><b style="color:${M.color}">${M.name.toUpperCase()}</b><p>You can now equip this Focus Move in the Zyphone · Labs › Focus.</p>`
+         : `<small>ALREADY KNOWN</small><p>This Lightbulb holds a technique Rizer already knows.</p>`) + `</div></div>`;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(learnedCardT); learnedCardT = setTimeout(() => el.classList.remove('show'), 5200);
+  fhud?.render();
+}
+// FHUD: the compact Focus Move cross beside the WHUD · what sits on each D-pad direction, lit while locked on an enemy
+const fhud = (() => {
+  let el = null;
+  const make = () => {
+    const host = document.querySelector('.wheel.whud'); if (!host) return null;
+    el = document.createElement('div'); el.className = 'fhud'; el.setAttribute('aria-label', 'Focus Moves');
+    el.innerHTML = `<small>FOCUS</small><div class="fhud-cross">${DIRS.map(d => `<span class="fhud-slot" data-dir="${d}"><i></i><kbd class="p">${DIR_NAME[d]}</kbd><kbd class="k">${DIR_KEY[d]}</kbd></span>`).join('')}<em class="fhud-lock">LOCK</em></div>`;
+    host.appendChild(el); return el;
+  };
+  return {
+    render() {
+      if (!el && !make()) return;
+      for (const d of DIRS) { const s = el.querySelector(`[data-dir="${d}"]`), id = focus.slot(d), M = FOCUS_MOVES[id]; s.classList.toggle('filled', !!M); s.style.setProperty('--c', M?.color || '#5b6b8a'); s.querySelector('i').textContent = M ? M.glyph : ''; s.title = M ? `${DIR_NAME[d]} · ${M.name}` : `${DIR_NAME[d]} · empty`; }
+    },
+    lock(on) { if (el) el.classList.toggle('armed', !!on); },
+    flash(id) { const d = focus.dirOf(id); const s = d && el?.querySelector(`[data-dir="${d}"]`); if (!s) return; s.classList.remove('cast'); void s.offsetWidth; s.classList.add('cast'); }
+  };
+})();
+focus.onChange(() => fhud.render());
 let westLakeBus = null;
 let coinPiles = null; // the coin piles wooden chests throw out (coin-piles.js)
 let scanobots = null, gatelocks = null, penumbras = null, novas = null, bolts = null; // Penumbra: the heavy rocket tier above the Scanobots (penumbra.js)
@@ -811,6 +845,59 @@ const techLocks = () => [...(scanobots?.lockTargets() || []), ...(penumbras?.loc
 // Every enemy the lock d-pad moves can reach, behind the one interface astral.js speaks (the Seers' own): Seers and
 // Mori answer as before; Scanobots and Penumbras (tech bodies) take the same moves as damage, a shove and a stun.
 const isFoeLock = lk => !!lk && ((lk.kind === 'enemy' && !!seers?.alive(lk.ref)) || (lk.kind === 'scanobot' && !!lk.ref.alive));
+// ── Focus Move executor: runs a learned technique on the existing Astral combat (astral.js owns damage, targeting,
+// animation, energy and timing). One cast per move id; a new Focus Move adds its cast here. ──
+function castFocus(id, context = false) {
+  const M = FOCUS_MOVES[id], lk = astral.lock, label = (M?.name || id).toUpperCase();
+  if (!M || (!context && !focus.knows(id))) return;
+  if (id === 'astralift') {
+    if (!astral.canAstralift(foes)) return showToast('ASTRALIFT · lock an enemy or a closed chest');
+    if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) return;
+    if (!rizer.spendEnergy(ASTRAL.lift.energy)) return showToast('ASTRAL ENERGY LOW');
+    if (astral.astralift(rizer, foes, loot, commonChests, result => {
+      if (!result) return;
+      if (result.kind === 'chest') showToast('ASTRALIFT · chest opening');
+      else if (result.kind === 'coinchest') showToast('ASTRALIFT · the lid gives');
+      else showToast(result.down && result.scanobot ? downToast(result) : `${result.name || 'Enemy'} blasted back · 2 damage`);
+    })) later(Math.max(0, ASTRAL.lift.release - 0.25), () => sfx.play('lift', 1, 1)); // the crack peaks as the lift lands
+    return;
+  }
+  if (!isFoeLock(lk)) return showToast(`${label} · lock an enemy first (R3 / R)`);
+  if (id === 'astralthunder') { // lightning from the sky onto the locked Seer or Mori
+    if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) return;
+    if (!rizer.spendEnergy(ASTRAL.thunder.energy)) return showToast('ASTRAL ENERGY LOW');
+    fhud?.flash(id);
+    astral.thunder(rizer, lk.ref, foes, (p, hits) => {
+      cam.kick(1.2); hitStop = Math.max(hitStop, 0.1); sfx.play('thunder'); rumbleHit('thunder');
+      const main = hits[0]; showToast(main?.down ? `ASTRALTHUNDER · ${main.name} down` : `ASTRALTHUNDER · ${ASTRAL.thunder.damage} damage${hits.length > 1 ? ` · ${hits.length - 1} caught in the blast` : ''}`);
+    });
+  } else if (id === 'astralburst') { // lightning crackles over Rizer, then explodes out around him
+    if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.bursting) return;
+    if (!rizer.spendEnergy(ASTRAL.burst.energy)) return showToast('ASTRAL ENERGY LOW');
+    fhud?.flash(id);
+    const p = lk.ref.pos; rizer.facing = Math.atan2(p.x - rizer.position.x, p.z - rizer.position.z);
+    sfx.play('blast', 0.55, 0.8); rumbleHit('light'); // the charge hums up
+    astral.astralburst(rizer, foes, (c, hits) => {
+      cam.kick(1.6); hitStop = Math.max(hitStop, 0.1); sfx.play('thunder', 0.9); sfx.play('heavy', 0.8); if (hits.length) sfx.play('lift', 1); rumbleHit('thunder');
+      const down = hits.filter(h => h.down).length;
+      showToast(hits.length ? `ASTRALBURST · ${hits.length} blasted back${down ? ` · ${down} down` : ''}` : 'ASTRALBURST');
+    });
+  } else if (id === 'rolling_thunder') { // every impact starts a 3 s fuse; nearby enemies chain before the final blast
+    if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.rolling) return;
+    if (!rizer.spendEnergy(ASTRAL.rolling.energy)) return showToast('ASTRAL ENERGY LOW');
+    fhud?.flash(id);
+    sfx.play('blast', 0.6, 0.75); rumbleHit('light');
+    astral.rollingThunder(rizer, lk.ref, foes, result => {
+      if (result.exploded) {
+        cam.kick(1.45); hitStop = Math.max(hitStop, 0.11); sfx.play('thunder', 0.9); sfx.play('heavy', 0.75); rumbleHit('thunder');
+        showToast(`ROLLING THUNDER · ${result.hits.length} chained · ${result.explosionHits.length} caught in final blast`);
+      } else {
+        sfx.play('thunder', 0.55, 0.8); rumbleHit('medium');
+        showToast(result.hits.length ? `ROLLING THUNDER · ${result.hits.length} electrocuted · charge ${Math.round(result.charge * 100)}%` : 'ROLLING THUNDER · blast dissipated');
+      }
+    });
+  }
+}
 const techStun = (o, from) => { if (o.alive) (o.isNova ? novas : o.isPenumbra ? penumbras : scanobots)?.stun(o, from); };
 const foes = {
   get grunts() { return [...(seers?.grunts || []), ...(techBodies() || [])]; },
@@ -906,6 +993,7 @@ function build() {
   av = createAstralvision(scene, camera, fx);
   loot = createLoot(scene, world, fx, W); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
+  lightbulbs = createLightbulbs({ scene, world, W, fx, onCollect: lightbulbLearned }); fhud.render(); // Lightbulbs: collect one (✕) to learn its Focus Move for good
   westLakeBus = createWestLakeBus(scene, world, fx, showToast, { x:W.playerStart.x + 14, z:W.playerStart.z + 8, facing:Math.PI * 0.15 });
   commonChests = createCommonChests(scene, world, fx, W, (x, z) => quarterAt(x, z, W) === 'core', [...loot.all.filter(c => !['psychosyd-chest', 'astralboard-chest'].includes(c.id)).map(c => ({ x: c.chest.position.x, z: c.chest.position.z })), { x: W.playerStart.x, z: W.playerStart.z }],
     (ch, n) => showToast(`✦ ASTRALIFT · ${n} coin pile${n === 1 ? '' : 's'} shaken loose`), // the astral-pop payoff
@@ -1028,7 +1116,7 @@ function build() {
   addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
   // Debug/test hook for playtests and automated checks.
-  window.__rp7d = { get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
+  window.__rp7d = { focus, get lightbulbs() { return lightbulbs; }, get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
   frame();
   // title screen: ready once the world exists · a NEW GAME reload skips straight into play
   $('#new-sub').textContent = 'Wake up in Rizer’s room';
@@ -2017,6 +2105,7 @@ function update(dt, t, realDt = dt) {
     if (doorJump) {
       const it = promptTarget;
       if (it?.id === 'player-home') walkHomeDoor('enter');
+      else if (it?.kind === 'lightbulb') { rizer.playInteract(true); lightbulbs?.collect(it.id); }
       else if (it?.door) { rizer.playInteract(true); showToast(`◈ ${it.name} · sealed for now`); }
     }
     const square = pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch;
@@ -2085,81 +2174,37 @@ function update(dt, t, realDt = dt) {
     else if (!rizer.flying && (pressed.has('KeyF') || circle)) rizer.strike('blast');
     // Weapon wheel: R1 / L1 cycle what's in hand (Q cycles · 1-2 pick directly)
     const friendlyLock = astral.lock?.kind === 'friendly' ? astral.lock.ref : null;
-    if (padAct?.astralift && friendlyLock && !rizer.flying) {
+    // ── the D-pad: context first (a friend, a chest, a wild Zyrex), then Focus Moves (Lock-On + D-pad) ──
+    // Each direction casts whatever Focus Move sits on it (Zyphone › Labs › Focus · focus-moves.js). Keyboard: I ↑ · U → · T ↓ · Y ←.
+    const dpad = { up: !!padAct?.astralift || pressed.has('KeyI'), right: !!padAct?.rolling || pressed.has('KeyU'), down: !!padAct?.down || pressed.has('KeyT'), left: !!padAct?.burst || pressed.has('KeyY') };
+    const chestLock = (astral.lock?.kind === 'chest' || astral.lock?.kind === 'coinchest');
+    if (dpad.up && friendlyLock && !rizer.flying) {
       if (friendlyLock.downed) showToast('ZORYN · press D-pad ↓ to revive');
       else if (npcs?.recruit(friendlyLock)) { inventory.zorynRecruited = true; saveInv(); showToast('ZORYN WALKS WITH YOU · you are not out here alone'); }
-    } else if (padAct?.astralift && !rizer.flying) {
-      if (!astral.canAstralift(foes)) showToast('ASTRALIFT · lock an enemy or a closed chest');
-      else if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) {}
-      else if (!rizer.spendEnergy(ASTRAL.lift.energy)) showToast('ASTRAL ENERGY LOW');
-      else if (astral.astralift(rizer, foes, loot, commonChests, result => {
-        if (!result) return;
-        if (result.kind === 'chest') showToast('ASTRALIFT · chest opening');
-        else if (result.kind === 'coinchest') showToast('ASTRALIFT · the lid gives');
-        else showToast(result.down && result.scanobot ? downToast(result) : `${result.name || 'Enemy'} blasted back · 2 damage`);
-      }))
-        later(Math.max(0, ASTRAL.lift.release - 0.25), () => sfx.play('lift', 1, 1)); // the crack peaks as the lift lands
-    }
+      dpad.up = false;
+    } else if (dpad.up && chestLock && !rizer.flying) { castFocus('astralift', true); dpad.up = false; } // a locked chest always lifts on ↑
     if (padAct?.down && reviveLocked && !rizer.flying && Math.hypot(astral.lock.ref.root.position.x-rizer.position.x, astral.lock.ref.root.position.z-rizer.position.z) < 4.5) {
       const downed = astral.lock.ref;
       rizer.actor?.play('blast', 0.85);
       fx.emit(downed.x, downed.root.position.y + 1, downed.z, 15, { color: '#80bfff', speed: 1.4, up: 1.6, size: 0.22, life: 0.8 });
       later(0.75, () => { if (npcs?.revive(downed)) { inventory.zorynDowned = false; inventory.zorynHealth = downed.health; saveInv(); showToast('ZORYN IS BACK ON HIS FEET'); } });
+      dpad.down = false;
     }
     // Bond: lock on a wild Zyrex + d-pad ↓ (T) within 8 units starts the bond trial (bond.js)
-    if (bondLocked && (padAct?.down || pressed.has('KeyT')) && !rizer.flying) {
+    if (bondLocked && dpad.down && !rizer.flying) {
       const lz = astral.lock;
       if (lz.pos().distanceTo(rizer.position) >= 8) showToast('BOND · get closer to the Zyrex');
       else if (lz.ref.state === 'flee') showToast('BOND · wait for the Zyrex to calm down');
       else { keys.clear(); bondGame.start(lz.ref, rizer); }
+      dpad.down = false;
     }
-    // Astralthunder: lock on + d-pad ↓ (T): lightning from the sky onto the locked Seer or Mori
-    else if ((padThunder || pressed.has('KeyT')) && !rizer.flying) {
-      const lk = astral.lock;
-      if (!isFoeLock(lk)) showToast('ASTRALTHUNDER · lock an enemy first (R3 / R)');
-      else if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) {}
-      else if (!rizer.spendEnergy(ASTRAL.thunder.energy)) showToast('ASTRAL ENERGY LOW');
-      else astral.thunder(rizer, lk.ref, foes, (p, hits) => {
-        cam.kick(1.2); hitStop = Math.max(hitStop, 0.1); sfx.play('thunder'); rumbleHit('thunder');
-        const main = hits[0]; showToast(main?.down ? `ASTRALTHUNDER · ${main.name} down` : `ASTRALTHUNDER · ${ASTRAL.thunder.damage} damage${hits.length > 1 ? ` · ${hits.length - 1} caught in the blast` : ''}`);
-      });
-    }
-    // Astralburst: lock on + d-pad ← (Y): lightning crackles over Rizer, then explodes out around him,
-    // electrocuting every Seer and Mori in the radius.
-    if ((padAct?.burst || pressed.has('KeyY')) && !rizer.flying) {
-      const lk = astral.lock;
-      if (!isFoeLock(lk)) showToast('ASTRALBURST · lock an enemy first (R3 / R)');
-      else if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.bursting) {}
-      else if (!rizer.spendEnergy(ASTRAL.burst.energy)) showToast('ASTRAL ENERGY LOW');
-      else {
-        const p = lk.ref.pos; rizer.facing = Math.atan2(p.x - rizer.position.x, p.z - rizer.position.z);
-        sfx.play('blast', 0.55, 0.8); rumbleHit('light'); // the charge hums up
-        astral.astralburst(rizer, foes, (c, hits) => {
-          cam.kick(1.6); hitStop = Math.max(hitStop, 0.1); sfx.play('thunder', 0.9); sfx.play('heavy', 0.8); if (hits.length) sfx.play('lift', 1); rumbleHit('thunder');
-          const down = hits.filter(h => h.down).length;
-          showToast(hits.length ? `ASTRALBURST · ${hits.length} blasted back${down ? ` · ${down} down` : ''}` : 'ASTRALBURST');
-        });
-      }
-    }
-    // Rolling Thunder: lock + d-pad → (U on keyboard). Every impact starts a 3 s fuse; nearby enemies
-    // are electrocuted into the chain before the expanding final blast throws affected bodies back.
-    if ((padAct?.rolling || pressed.has('KeyU')) && !rizer.flying) {
-      const lk = astral.lock;
-      if (!isFoeLock(lk)) showToast('ROLLING THUNDER · lock an enemy first (R3 / R)');
-      else if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.rolling) {}
-      else if (!rizer.spendEnergy(ASTRAL.rolling.energy)) showToast('ASTRAL ENERGY LOW');
-      else {
-        sfx.play('blast', 0.6, 0.75); rumbleHit('light');
-        astral.rollingThunder(rizer, lk.ref, foes, result => {
-          if (result.exploded) {
-            cam.kick(1.45); hitStop = Math.max(hitStop, 0.11); sfx.play('thunder', 0.9); sfx.play('heavy', 0.75); rumbleHit('thunder');
-            showToast(`ROLLING THUNDER · ${result.hits.length} chained · ${result.explosionHits.length} caught in final blast`);
-          } else {
-            sfx.play('thunder', 0.55, 0.8); rumbleHit('medium');
-            showToast(result.hits.length ? `ROLLING THUNDER · ${result.hits.length} electrocuted · charge ${Math.round(result.charge * 100)}%` : 'ROLLING THUNDER · blast dissipated');
-          }
-        });
-      }
+    if (!rizer.flying) for (const d of DIRS) {
+      if (!dpad[d]) continue;
+      if (d === 'down' && padAct?.down && !astral.lock) continue; // d-pad ↓ with nothing locked is the emote
+      if (astral.lock && !isFoeLock(astral.lock)) continue; // locked on something that isn't a fight (a friend, a Zyrex): no technique
+      const id = focus.slot(d);
+      if (!id) { showToast(`D-PAD ${DIR_NAME[d]} · empty · equip a Focus Move in the Zyphone (Labs › Focus)`); continue; }
+      castFocus(id);
     }
     if (padAct?.nextWeapon || pressed.has('KeyQ')) cycleWeapon(1);
     if (padAct?.prevWeapon) cycleWeapon(-1);
@@ -2203,7 +2248,7 @@ function update(dt, t, realDt = dt) {
   const movementWorld = homeMode ? homeInterior.roomWorld : world;
   if (westLakeBus?.driving) westLakeBus.cameraUpdate(dt, camera, cam, busInput);
   else { if (labsView) { cam.yaw = rizer.facing; cam.pitch = 0.1; cam.targetDist = 3.4; } cam.update(dt, rizer, movementWorld, { autoRecenter: usingPad && !menu }); }
-  labs?.update(dt); xray?.update(dt);
+  labs?.update(dt); xray?.update(dt); lightbulbs?.update(dt); fhud.lock(isFoeLock(astral?.lock));
   updateBackBoard();
   if (homeMode) homeInterior.nebulaTick?.(dt);
   if (pcUse) tickPcUse(dt);

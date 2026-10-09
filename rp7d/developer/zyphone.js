@@ -2,6 +2,7 @@
 // controller touchpad (Tab on keyboard). Tabs: Map · Time · Field Notes ·
 // Rizer · Armory · Controls · Options · Dev. Time skipping lives only here.
 import { describeHour } from './sky.js';
+import { focus as focusMoves, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY } from './focus-moves.js';
 
 const $ = s => document.querySelector(s);
 const TABS = ['home', 'map', 'time', 'notes', 'rizer', 'zyrex', 'weapons', 'items', 'missions', 'contacts', 'zydex', 'astral', 'portal', 'experiment', 'camera', 'controls', 'options', 'dev'];
@@ -11,18 +12,18 @@ const HOME_KEY = 'rp7d.zyphone.home.v1';
 const GROUPS = [
   { id: 'home', name: 'Home', pages: ['home'] },
   { id: 'world', name: 'World', pages: ['map', 'portal', 'notes', 'time'] },        // where things are, how to get there, what's been found, when
-  { id: 'rizer', name: 'Labs', pages: ['rizer', 'astral', 'zyrex'] },               // LABS: Rizer (builds · skins · animations), Astral, Zyrex
+  { id: 'rizer', name: 'Labs', pages: ['rizer', 'astral', 'zyrex'] },               // LABS: Rizer (builds · skins · animations), Focus (the X-ray: attributes + Focus Moves), Zyrex
   { id: 'gear', name: 'Gear', pages: ['weapons', 'items', 'experiment'] },          // what he carries and what he makes from it
   { id: 'journal', name: 'Journal', pages: ['missions', 'contacts', 'zydex', 'camera'] }, // what to do, who he knows, what he's recorded
   { id: 'system', name: 'System', pages: ['controls', 'options', 'dev'] }
 ];
 const ORDER = GROUPS.flatMap(g => g.pages), groupOf = key => GROUPS.findIndex(g => g.pages.includes(key));
-const PAGE_NAME = { home: 'Home', map: 'Map', portal: 'Portal', notes: 'Field Notes', time: 'Time', rizer: 'Rizer', astral: 'Astral', zyrex: 'Zyrex', weapons: 'Armory', items: 'Items', experiment: 'Experiment', missions: 'Missions', contacts: 'Contacts', zydex: 'Zydex', camera: 'Camera', controls: 'Controls', options: 'Options', dev: 'Dev' };
+const PAGE_NAME = { home: 'Home', map: 'Map', portal: 'Portal', notes: 'Field Notes', time: 'Time', rizer: 'Rizer', astral: 'Focus', zyrex: 'Zyrex', weapons: 'Armory', items: 'Items', experiment: 'Experiment', missions: 'Missions', contacts: 'Contacts', zydex: 'Zydex', camera: 'Camera', controls: 'Controls', options: 'Options', dev: 'Dev' };
 const APPS = Object.freeze([
   ['map','✦','Map','Locations & Navigation'], ['time','☀','Time','Day / Night & Weather'], ['notes','▤','Field Notes','Discoveries & Progress'],
   ['rizer','♟','Labs','Rizer · Builds, Skins & Animations'], ['zyrex','❧','Zyrex','Partners & Bonding'], ['weapons','⚔','Armory','Weapons & Equipment'],
   ['items','◆','Items','Inventory & Materials'], ['missions','!','Missions','Main Story & Side Quests'], ['contacts','●','Contacts','People & Messages'],
-  ['zydex','▱','Zydex','Creatures, Places & Lore'], ['astral','◈','Astral','Techniques & Aura'], ['portal','◉','Portal','Gatelocks & Fast Travel'],
+  ['zydex','▱','Zydex','Creatures, Places & Lore'], ['astral','✧','Focus','Attributes & Focus Moves'], ['portal','◉','Portal','Gatelocks & Fast Travel'],
   ['experiment','⚗','Experiment','Compounds & Research'], ['camera','▣','Camera','Photos, Scans & Evidence'], ['controls','⚙','Controls','Game & HUD Settings'], ['options','⌁','Options','Audio, Display & More']
 ].map(([id,icon,name,desc]) => ({ id, icon, name, desc })));
 export const TIME_PRESETS = [
@@ -33,6 +34,7 @@ export const TIME_PRESETS = [
 export function createZyphone({ W, hud, characters, getState, onTime, onCharacter, onAnimLab, onSkinLab, onBuildLab, weapons, inventory, storage = null, crafting = null, onDeploy, onPackDeployed, itemCatalog = {}, onUseItem, onPartner, onWeapon, onWheel, icons = {}, menus, onAction, onOpen, onClose, labsHub = null, astralHub = null, onLabsView }) {
   const root = $('#zyphone');
   let isOpen = false, tab = 0, focus = 0;
+  let fpick = null, axMode = 'attr'; // Focus: the move being placed on a D-pad direction · which side of the page (attributes | moves)
   let carry = null; // Armory: what's being moved — { from: 'slot', i, k } or { from: 'bag', k }
   let homeEdit = false, homeDrag = null;
   const lastIn = {}; // the page each section was last on, so coming back to a section returns there
@@ -171,22 +173,42 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
       <div class="ax-btns"><button class="zy-item rz-mini" data-item data-astral="lower" data-arg="${s.id}">−</button><span>${s.value}</span><button class="zy-item rz-mini" data-item data-astral="raise" data-arg="${s.id}">+</button></div></div>`;
     const system = sys => bin(sys.code, sys.name, sys.note, sys.mods.map(m => `<button class="zy-item rz-row${m.installed ? ' current' : ''}" data-item data-astral="mod" data-arg="${m.id}"><span>${esc(m.name)}<em>${esc(m.effect)}</em></span><small>${m.installed ? 'INSTALLED' : m.cost + ' AP'}</small></button>`).join(''), ' ax-sys');
     const [cortex, spine, arms, legs] = v.systems;
+    const modes = `<div class="ax-modes">${[['attr', 'ATTRIBUTES'], ['moves', 'FOCUS MOVES']].map(([m, t]) => `<button class="zy-item ax-mode${axMode === m ? ' current' : ''}" data-item data-focus="mode" data-arg="${m}">${t}</button>`).join('')}</div>`;
+    // ── the move editor: the D-pad loadout (left) and every learned Focus Move (right) · focus-moves.js ──
+    const learned = focusMoves.learned, slots = focusMoves.slots, sel = FOCUS_MOVES[fpick] ? fpick : null, D = sel ? FOCUS_MOVES[sel] : null, at = sel ? focusMoves.dirOf(sel) : null;
+    const ico = (M, big = '') => `<i class="fm-ico${big}" style="--c:${M.color}">${M.glyph}</i>`;
+    const slot = d => { const M = FOCUS_MOVES[slots[d]]; return `<button class="zy-item fm-slot fm-${d}${M ? ' filled' : ''}${sel && slots[d] === sel ? ' current' : ''}" data-item data-focus="slot" data-arg="${d}">${M ? ico(M, ' big') : '<i class="fm-plus">+</i>'}<b>${M ? esc(M.name) : 'Empty'}</b><small>${DIR_NAME[d]} · ${DIR_KEY[d]}</small></button>`; };
+    const loadout = bin('FM', 'LOADOUT', 'LOCK ON + D-PAD', `<div class="fm-cross">${slot('up')}${slot('left')}<div class="fm-core">${sel ? `${ico(D, ' big')}<b>${esc(D.name)}</b><small>CHOOSE A DIRECTION</small>` : '<b>D-PAD</b><small>PICK A MOVE · THEN A DIRECTION</small>'}</div>${slot('right')}${slot('down')}</div>
+      <p class="fm-hint">${sel ? `Placing <b>${esc(D.name)}</b> · ✕ (Enter) on a direction · ○ (Esc) cancels` : 'Lock onto an enemy (R3 / R), then press the D-pad direction to cast what sits there.'}</p>`);
+    const known = bin('LB', 'LEARNED', `${learned.length} FOCUS MOVES KNOWN`, `<div class="fm-list">${learned.map(id => { const M = FOCUS_MOVES[id], d = focusMoves.dirOf(id); return `<button class="zy-item fm-row${id === sel ? ' current' : ''}" data-item data-focus="pick" data-arg="${id}">${ico(M)}<span><b>${esc(M.name)}</b><em>${esc(M.element)}${M.innate ? '' : ' · LIGHTBULB'}</em></span><small>${d ? 'D-PAD ' + DIR_NAME[d] : 'NOT SET'}</small></button>`; }).join('')}
+      <div class="fm-more">(More to be discovered · find Lightbulbs in the world)</div></div>
+      ${D ? `<div class="fm-detail"><small>${esc(D.element)} · ${at ? 'ON D-PAD ' + DIR_NAME[at] : 'NOT EQUIPPED'}</small><b style="color:${D.color}">${esc(D.name.toUpperCase())}</b><p>${esc(D.blurb)}</p></div>` : ''}`);
+    const moves = axMode === 'moves';
     page.innerHTML = `<div class="rz-labs ax-labs">
-      <div class="rz-col rz-left">
-        <section class="ax-ap"><small>ASTRAL POINTS</small><b>${v.free}</b><span>of ${v.total} · Level ${v.level} · +${v.perLevel} per Level</span></section>
+      <div class="rz-col rz-left">${modes}
+        ${moves ? loadout : `<section class="ax-ap"><small>ASTRAL POINTS</small><b>${v.free}</b><span>of ${v.total} · Level ${v.level} · +${v.perLevel} per Level</span></section>
         ${bin('01', 'STATS', 'SPEND AP · RAISE HIS LIMITS', v.stats.map(stat).join(''))}
-        ${system(cortex)}${system(arms)}
+        ${system(cortex)}${system(arms)}`}
       </div>
       <div class="rz-stage" aria-hidden="true"><span class="rz-tl"></span><span class="rz-tr"></span><span class="rz-bl"></span><span class="rz-br"></span>
         <em class="ax-tag ax-t-cortex">CORTEX</em><em class="ax-tag ax-t-spine">SPINAL CORD</em><em class="ax-tag ax-t-arms">ARMS · HANDS</em><em class="ax-tag ax-t-legs">LEGS</em>
         <div class="rz-tag"><small>ASTRAL MATRIX · LIVE</small><b>${esc(v.name)}</b><em>NERVOUS SYSTEM · ${v.mods} MOD${v.mods === 1 ? '' : 'S'}</em></div>
         <div class="rz-scan"></div></div>
       <div class="rz-col rz-right">
-        ${bin('ID', 'READOUT', 'WHAT THE MATRIX GIVES HIM', `<dl class="rz-dl">${v.readout.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('')}</dl>`)}
+        ${moves ? known : `${bin('ID', 'READOUT', 'WHAT THE MATRIX GIVES HIM', `<dl class="rz-dl">${v.readout.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('')}</dl>`)}
         ${system(spine)}${system(legs)}
-        <button class="zy-item rz-row rz-danger" data-item data-astral="reset"><span>${v.resetArmed ? 'Press again to reset' : 'Reset Astral'}</span><small>REFUND ALL AP</small></button>
+        <button class="zy-item rz-row rz-danger" data-item data-astral="reset"><span>${v.resetArmed ? 'Press again to reset' : 'Reset Astral'}</span><small>REFUND ALL AP</small></button>`}
       </div></div>`;
     page.querySelectorAll('.rz-col').forEach((c, i) => { c.scrollTop = scroll[i] || 0; });
+  }
+  function focusAct(action, arg) {
+    if (action === 'mode') { axMode = arg === 'moves' ? 'moves' : 'attr'; fpick = null; return; }
+    if (action === 'pick') { fpick = fpick === arg ? null : arg; return; }
+    if (action === 'slot') {
+      const here = focusMoves.slot(arg);
+      if (fpick) { if (here === fpick) focusMoves.clear(arg); else focusMoves.assign(arg, fpick); fpick = null; }
+      else if (here) fpick = here;
+    }
   }
   function renderHome(st) {
     const grid = $('#zy-app-grid'); if (!grid) return;
@@ -328,7 +350,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     $('#zy-hp').textContent = Math.ceil(st.hp); $('#zy-hp-fill').style.width = `${f * 100}%`;
     $('#zy-hp-fill').parentElement.classList.toggle('low', f < 0.3);
   }
-  function setTab(i) { tab = (i + TABS.length) % TABS.length; focus = 0; carry = null; homeEdit = false; render(); }
+  function setTab(i) { tab = (i + TABS.length) % TABS.length; focus = 0; carry = null; fpick = null; homeEdit = false; render(); }
   const setPage = key => setTab(TABS.indexOf(key));
   const stepPage = d => setPage(ORDER[(ORDER.indexOf(TABS[tab]) + d + ORDER.length) % ORDER.length]); // next page, running on into the next section
   const stepInGroup = d => { const P = GROUPS[groupOf(TABS[tab])].pages; if (P.length > 1) setPage(P[(P.indexOf(TABS[tab]) + d + P.length) % P.length]); }; // stays inside the section, wrapping round
@@ -340,6 +362,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (el.dataset.hour) { onTime(+el.dataset.hour); setTimeout(render, 50); }
     if (el.dataset.char) Promise.resolve(onCharacter(el.dataset.char)).then(render);
     if (el.dataset.partner) { onPartner?.(el.dataset.partner); render(); return; } // call that bonded Zyrex to walk with him
+    if (el.dataset.focus) { const keep = focus; focusAct(el.dataset.focus, el.dataset.arg); render(); focus = keep; paintFocus(); return; }
     if (el.dataset.astral) { const keep = focus; astralHub?.act(el.dataset.astral, el.dataset.arg); if (isOpen) { render(); focus = keep; paintFocus(); } return; }
     if (el.dataset.labs) { const keep = focus, name = root.querySelector('[data-labs-name]')?.value || ''; Promise.resolve(labsHub?.act(el.dataset.labs, el.dataset.arg, name)).then(() => { if (isOpen && TABS[tab] === 'rizer') { render(); focus = keep; paintFocus(); } }); return; }
     if ('lab' in el.dataset) onAnimLab?.();
@@ -355,7 +378,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (isOpen) { if (which) setTab(TABS.indexOf(which)); return; }
     isOpen = true; root.hidden = false; if (which) tab = TABS.indexOf(which); focus = 0; render(); status(); onOpen?.();
   }
-  function close() { if (!isOpen) return; isOpen = false; carry = null; root.hidden = true; root.classList.remove('labs'); onLabsView?.(false); onClose?.(); }
+  function close() { if (!isOpen) return; isOpen = false; carry = null; fpick = null; root.hidden = true; root.classList.remove('labs'); onLabsView?.(false); onClose?.(); }
 
   tabsEl.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const g = GROUPS.findIndex(x => x.id === b.dataset.group); setPage(lastIn[g] || GROUPS[g].pages[0]); });
   subEl.addEventListener('click', e => { const b = e.target.closest('button'); if (b) setPage(b.dataset.pageTab); });
@@ -368,6 +391,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     const typing = document.activeElement?.matches?.('[data-labs-name]');
     if (typing) { if (code === 'Escape' || code === 'Enter') document.activeElement.blur(); if (code === 'Enter') { focus = items().findIndex(el => el.dataset.labs === 'save'); paintFocus(); } return true; }
     if (carry && (code === 'Escape' || code === 'Backspace')) { carry = null; render(); }
+    else if (fpick && (code === 'Escape' || code === 'Backspace')) { fpick = null; render(); }
     else if (TABS[tab] === 'home' && homeEdit && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(code)) {
       const cols = 5, delta = code === 'ArrowLeft' ? -1 : code === 'ArrowRight' ? 1 : code === 'ArrowUp' ? -cols : cols;
       const from = +(items()[focus]?.dataset.appIndex ?? 0); swapHome(from, Math.max(0, Math.min(homeOrder.length - 1, from + delta)));
@@ -387,7 +411,8 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   // Controller while open: L1/R1 or d-pad ←/→ tabs, d-pad ↑/↓ choose, ✕ select, ○/touchpad close.
   function pad(p) {
     if (!isOpen) return;
-    if (carry && p.edge(1)) { carry = null; render(); return; } // ○ drops what you're moving back where it was
+    if (carry && p.edge(1)) { carry = null; render(); return; }
+    if (fpick && p.edge(1)) { fpick = null; render(); return; } // ○ drops what you're moving back where it was
     if (p.edge(1) || p.edge(17)) return close();
     if (TABS[tab] === 'weapons' && p.edge(2)) equipFocused(); // □ equips
     if (TABS[tab] === 'home' && homeEdit && (p.edge(12) || p.edge(13) || p.edge(14) || p.edge(15))) {

@@ -10,6 +10,10 @@ import { createMassGrid } from './massgrid.js';
 import { createExpanse } from './expanse.js';
 import { createVoidSea } from './void-sea.js';
 import { VOID_SEA_LEVEL } from './overworld-land.js';
+import { DISTRICTS, worldDistrictAt } from './world-data.js';
+import { placeCaves, placementReport, hydrateLock } from './cave-placement.js';
+import { createCaveFormations } from './cave-terrain.js';
+import { CAVE_LOCK } from './cave-lock.js';
 
 const TALL = { championStadium: 17, house: 9, townHall: 20, academy: 13, shop: 8, gearShop: 8, hospital: 8, zysphereShop: 11, research: 13, barn: 12, seerHQ: 14, seerGate: 9, districtGate: 14, sealedChest: 2.2, radioTower: 30, treehouse: 24, novariusStatue: 12, ufo: 6, fanghall: 14, bloodscentLodge: 14, firstDen: 14, fountain: 1.5, fallenTitan: 9, rubyCave: 14, bridge: 1.6, lamp: 4.5 };
 const BUILDING_SCALE = {
@@ -37,6 +41,18 @@ export function createWorld(W, scene, shared) {
     };
     T.waterAt = (x, z) => onLand(x, z) ? inlandWaterAt(x, z) : VOID_SEA_LEVEL;
   }
+
+  // ── Caves (cave-placement.js · cave-terrain.js): 20 cave mouths in their districts. Placed before anything else
+  // is set down (so nothing is ever built on a cave), the ground sculpted under each (a mound for a mountain cave, a
+  // cut for a canyon cave), and every ground query from here on includes that sculpt. The placement is the locked
+  // one (cave-lock.js) when it exists and still matches the manifest, else it is computed from the live world.
+  const pinnedSites = Object.fromEntries([...W.structures, ...W.landmarks].filter(s => s.recipe === 'rubyCave').map(s => [s.id, s]));
+  const caveRun = performance.now();
+  const cavePlan = hydrateLock(CAVE_LOCK) || placeCaves({ districts: DISTRICTS, worldDistrictAt, heightAt: T.heightAt, waterAt: T.waterAt, pinnedSites });
+  const caves = createCaveFormations({ placements: cavePlan.placements, pads: T.pads });
+  { const base = T.heightAt; T.heightAt = (x, z) => base(x, z) + caves.sculpt(x, z); }
+  caves.paintAndDeform(T.mesh); caves.paintAndDeform(expanse.meshes.terrain);
+  console.log(`[rp7d] caves placed · ${cavePlan.placements.filter(p => p.status === 'PASS').length}/20 · ${cavePlan.locked ? 'locked' : 'computed'} · ${Math.round(performance.now() - caveRun)} ms`);
 
   const obstacles = [], surfaces = [], interactables = [], lampLights = [], spinners = [], mapShapes = [];
   let ufoVehicle = null;
@@ -124,6 +140,14 @@ export function createWorld(W, scene, shared) {
   for (const s of W.structures) place(s);
   for (const h of T.homes) place(h);
   for (const l of W.landmarks) place(l);
+  // the cave formations and their mouths (the pinned Ruby Cave is already standing: its recipe IS the mouth)
+  caves.build(T.heightAt, structures);
+  for (const f of caves.formations) {
+    if (f.pinned) { const ref = interactables.find(i => i.id === f.cave.pinned); if (ref) ref.cave = f.cave.id; continue; }
+    interactables.push({ id: 'cave:' + f.cave.id, cave: f.cave.id, name: f.cave.name, kind: 'cave', door: true, discover: true, reach: 6,
+      note: `${f.cave.classification === 'gemlord' ? `${f.cave.gemlord}'s Gemlord cave` : `${f.cave.rarity === 'ancient' ? 'An Ancient' : 'A'} natural cave`} · ${f.cave.terrainType} · ${f.cave.floorCount} floors ${f.cave.verticalDirection === 'up' ? 'up' : 'down'}`,
+      x: f.stand.x, z: f.stand.z, cx: f.mouth.x, cz: f.mouth.z, active: () => !!f.cave });
+  }
 
   // Street lamps: plaza ring + the lanes. The four nearest the square carry real lights.
   const lampSpots = [];
@@ -219,7 +243,11 @@ export function createWorld(W, scene, shared) {
     }
     return best;
   }
-  function groundAt(x, z, y) { return Math.max(T.heightAt(x, z), surfaceAt(x, z, y)); }
+  // Cave interiors (cave-interior.js) live in their own region of this same world; every physical query there is
+  // theirs. setInterior() hands the region over once the caves exist (game.js).
+  let interior = null;
+  { const h = T.heightAt, w = T.waterAt; T.heightAt = (x, z) => interior?.owns(x, z) ? interior.groundAt(x, z) : h(x, z); T.waterAt = (x, z) => interior?.owns(x, z) ? -Infinity : w(x, z); }
+  function groundAt(x, z, y) { if (interior?.owns(x, z)) return interior.groundAt(x, z, y); return Math.max(T.heightAt(x, z), surfaceAt(x, z, y)); }
   // Material-aware ground normal. The same query drives feet, bodies and steep-slope
   // handling, so a roof, stair or terrain face never disagrees with collision height.
   function groundNormalAt(x, z, y, span = 0.32) {
@@ -243,7 +271,7 @@ export function createWorld(W, scene, shared) {
   // Keep movement on the RP7B coast mask. This is the single intentional
   // invisible world boundary; movement is clipped to its edge, never relocated.
   function keepOnLand(p, fromX = p.x, fromZ = p.z) {
-    if (onLand(p.x, p.z)) return false;
+    if (interior?.owns(p.x, p.z) || onLand(p.x, p.z)) return false;
     const dx = p.x - fromX, dz = p.z - fromZ;
     let lo = 0, hi = 1;
     for (let i = 0; i < 14; i++) {
@@ -256,6 +284,7 @@ export function createWorld(W, scene, shared) {
 
   // Push a circle of radius `rad` out of every nearby obstacle. Mutates p (Vector3).
   function resolve(p, rad, opts) {
+    if (interior?.owns(p.x, p.z)) return interior.resolve(p, rad);
     let hit = false;
     const support = surfaceAt(p.x, p.z, p.y + 0.46);
     const supportedTop = opts?.landedOnSurface || (Number.isFinite(support) && Math.abs(support - p.y) <= 0.32);
@@ -298,6 +327,7 @@ export function createWorld(W, scene, shared) {
 
   // Cheap camera ray: march against the heightfield and building volumes.
   function rayClear(from, to, pad = 0.35) {
+    if (interior?.owns(from.x, from.z)) return interior.rayClear(from, to);
     const dir = to.clone().sub(from), len = dir.length(); dir.divideScalar(len);
     const pt = new THREE.Vector3();
     for (let t = 0.6; t < len; t += 0.3) {
@@ -330,5 +360,5 @@ export function createWorld(W, scene, shared) {
     if (natureGroup) natureGroup.visible = v; expanse.group.visible = v; sea.visible = v;
     exterior = v; // lights stay visible (see game.js · borrowed lights)
   }
-  return { T, mass, structures, nature: natureGroup, heightAt: T.heightAt, waterAt: T.waterAt, groundAt, groundNormalAt, surfaceAt, resolve, rayClear, keepOnLand, containsLand: W.containsLand || (() => true), onLand, expanse, sea, interactables, obstacles, mapShapes, camFloor, addObstacle, addMesh, update, homes: T.homes, lampLights, ufo: ufoVehicle, setExteriorVisible };
+  return { caves, cavePlan, caveReport: () => placementReport(cavePlan), setInterior(router) { interior = router; }, interiorOwns: (x, z) => !!interior?.owns(x, z), interiorName: (x, z) => interior?.owns(x, z) ? interior.name?.(x, z) : null, T, mass, structures, nature: natureGroup, heightAt: T.heightAt, waterAt: T.waterAt, groundAt, groundNormalAt, surfaceAt, resolve, rayClear, keepOnLand, containsLand: W.containsLand || (() => true), onLand, expanse, sea, interactables, obstacles, mapShapes, camFloor, addObstacle, addMesh, update, homes: T.homes, lampLights, ufo: ufoVehicle, setExteriorVisible };
 }

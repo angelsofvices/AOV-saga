@@ -100,6 +100,7 @@ export function createHUD(W, world) {
   refreshNote();
 
   function regionName(x, z) {
+    const cave = world.interiorName?.(x, z); if (cave) return cave; // inside a cave (cave-interior.js)
     if (!malezorOwns(x, z)) { const d = world.expanse?.districtAt(x, z); if (d) return `${d.name} · District ${d.numeral}`; } // an empty district beyond Malezor
     if (Math.hypot(x - W.plaza.x, z - W.plaza.z) < W.plaza.r + 4) return W.plaza.name;
     const section = sectionAt(x, z, W);

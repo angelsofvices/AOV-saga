@@ -30,8 +30,10 @@ import { createBondGame } from './bond.js';
 import { createFX } from './fx.js';
 import { createAstral, ASTRAL } from './astral.js';
 import { focus, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY, DIR_CODE, createLightbulbChests } from './focus-moves.js';
+import { CAVES, CAVE_BY_ID } from './caves-data.js';
+import { createCaveInteriors } from './cave-interior.js';
 import { createAstralvision } from './astralvision.js';
-import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
+import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, ASTRALITE_FAMILIES, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
 import { storage } from './storage.js';
 import { createTVSystem, buildDvdPickup } from './tv-system.js';
 import { DVDS } from './dvd-registry.js';
@@ -304,7 +306,7 @@ function setOutdoorActorsVisible(value) {
   if (npcs) for (const n of npcs.npcs) n.root.visible = visible;
   for (const z of zyrex || []) z.setVisible ? z.setVisible(visible) : z.b?.root && (z.b.root.visible = visible);
   partner?.setVisible(visible);
-  if (seers) for (const g of seers.grunts) { g.root.visible = visible; g.lootBag.visible = visible && g.state === 'down' && !g.looted; }
+  if (seers) for (const g of seers.grunts) { const v = g.cave ? caveMode && g.cave === caveId : visible; g.root.visible = v; g.lootBag.visible = v && g.state === 'down' && !g.looted; }
   commonChests?.setVisible(visible);
   if (loot) for (const c of loot.all) { c.chest.visible = visible; c.mesh.visible = visible && c.state === 'waiting'; }
   astralboard?.setVisible(visible);
@@ -704,7 +706,7 @@ function saveGame() {
   if (!started || !rizer || koT > 0 || ufoPilot || astralboard?.active) return;
   const hero = npcs?.npcs.find(n => n.role === 'hero');
   if (hero) { inventory.zorynMet = hero.met; inventory.zorynRecruited = hero.recruited || hero.wasRecruited; inventory.zorynDowned = hero.downed; inventory.zorynHealth = hero.health; saveInv(); }
-  const p = rizer.position, at = homeMode ? homeReturn : { x: p.x, y: p.y, z: p.z, facing: rizer.facing };
+  const p = rizer.position, at = homeMode ? homeReturn : caveMode && caveReturn ? { x: caveReturn.x, y: world.groundAt(caveReturn.x, caveReturn.z), z: caveReturn.z, facing: caveReturn.face } : { x: p.x, y: p.y, z: p.z, facing: rizer.facing };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, t: Date.now(), home: homeMode, at, hour, region: hud?.regionOf(p.x, p.z) })); } catch (e) {}
 }
 function titleButtons() { return [...document.querySelectorAll('#title-menu .title-btn')].filter(b => !b.disabled); }
@@ -836,6 +838,94 @@ const fhud = (() => {
   };
 })();
 focus.onChange(() => fhud.render());
+
+// ── Caves (caves-data.js · cave-placement.js · cave-terrain.js · cave-interior.js) ──
+// The third layer of the world: building interiors · the overworld · cave interiors. ✕ (Space) at a cave mouth
+// takes Rizer inside; ○ (E) at the daylight on Floor 1 brings him back out at the same mouth, facing out. Inside, the
+// floors are one continuous space joined by spiral staircases. Progress per cave lives in inventory.caves (saved).
+let caveTp = -1, caveSys = null, caveMode = false, caveId = null, caveReturn = null, caveLight = null;
+const caveGrunts = new Map(); // cave id → its Floor 3 Seer patrol (spawned the first time Rizer goes in)
+function caveState(id) {
+  const all = inventory.caves ||= {}, s = all[id] ||= {};
+  s.discovered ??= false; s.clearedObstacles ||= []; s.collectedUniqueItems ||= []; s.unlockedFloors ||= [1]; s.completedEvents ||= [];
+  Object.defineProperty(s, 'save', { value: () => saveInv(), enumerable: false, configurable: true });
+  return s;
+}
+const caveFormation = id => world.caves.formations.find(f => f.cave.id === id);
+function spawnCavePatrol(P) {
+  if (caveGrunts.has(P.cave.id) || P.floors.length < 3 || !seers?.spawnRoute) return;
+  const f3 = P.floors[2], stops = f3.rooms.filter(r => r.tag !== 'arrive' && r.tag !== 'stair'), list = [];
+  const pts = (stops.length >= 2 ? stops : f3.rooms).slice(0, 4).map(r => ({ x: r.x, z: r.z }));
+  for (let i = 0; i < (P.cave.classification === 'gemlord' ? 3 : 2); i++) {
+    const g = seers.spawnRoute('seer', i % 2 ? [...pts].reverse() : pts, { id: `${P.cave.id}-f3-seer-${i}`, y: f3.y + 0.3 });
+    if (g) { g.cave = P.cave.id; list.push(g); }
+  }
+  caveGrunts.set(P.cave.id, list);
+}
+function showCaveGrunts() { for (const [id, L] of caveGrunts) for (const g of L) g.root.visible = caveMode && id === caveId; }
+function enterCave(id) {
+  if (caveMode || homeMode || !caveSys || ufoPilot || westLakeBus?.driving || astralboard?.active || rizer.seq) return;
+  const f = caveFormation(id); if (!f) return;
+  const P = caveSys.enter(id), s = caveState(id), fade = fadeEl();
+  if (!s.discovered) { s.discovered = true; s.worldEntrance = { x: +f.stand.x.toFixed(2), z: +f.stand.z.toFixed(2), face: +f.face.toFixed(4) }; s.save(); }
+  caveReturn = { x: f.stand.x, z: f.stand.z, face: f.face };
+  caveMode = true; caveId = id; astral.clearLock();
+  world.setExteriorVisible(false); setOutdoorActorsVisible(false); $('#game').classList.add('in-cave');
+  spawnCavePatrol(P); showCaveGrunts();
+  rizer.position.set(P.entry.x, P.floors[0].y, P.entry.z); rizer.facing = P.entry.face; rizer.vel.set(0, 0, 0); rizer.vy = 0; rizer.onGround = true; rizer.flying = false;
+  cam.snapBehind(rizer, 5); fade.style.transition = 'opacity .5s'; fade.style.opacity = 1; requestAnimationFrame(() => { fade.style.opacity = 0; });
+  sfx.play('land', 0.5, 0.7);
+  showToast(`${P.cave.name} · ${P.cave.floorCount} floors ${P.cave.verticalDirection === 'up' ? 'rising' : 'sinking'} from here · ○ at the daylight to leave`, 4200);
+}
+function exitCave(quiet = false) {
+  if (!caveMode) return;
+  caveSys.exit(); caveMode = false; const id = caveId; caveId = null;
+  world.setExteriorVisible(true); setOutdoorActorsVisible(true); showCaveGrunts(); $('#game').classList.remove('in-cave');
+  if (caveLight) caveLight.intensity = 0; scene.background = null; sky.dome.visible = true;
+  const at = caveReturn || caveFormation(id)?.stand; caveReturn = null;
+  if (at && !quiet) { rizer.position.set(at.x, world.groundAt(at.x, at.z), at.z); rizer.facing = at.face; rizer.vel.set(0, 0, 0); rizer.vy = 0; cam.snapBehind(rizer, 5); showToast(`Back outside · ${CAVE_BY_ID[id]?.name || 'the cave'} stays open`); }
+}
+// One cave thing under Rizer's hand (cave-interior.js · spots): talk, mine, search, smash, leave.
+function useCaveSpot(sp) {
+  const P = caveSys.active, s = caveState(P.cave.id);
+  if (sp.kind === 'exit') return exitCave();
+  if (sp.kind === 'npc') { hud.say(sp.who, sp.lines[sp.i++ % sp.lines.length]); return; }
+  if (sp.kind === 'vein' || sp.kind === 'raid') {
+    if (s.collectedUniqueItems.includes(sp.item)) return showToast(sp.kind === 'vein' ? 'The vein is worked out' : 'The cache is empty');
+    const fam = ASTRALITE_FAMILIES[P.index % ASTRALITE_FAMILIES.length], ast = fam.items[(P.index * 7 + (sp.kind === 'raid' ? 3 : 0)) % fam.items.length];
+    rizer.playInteract(false); s.collectedUniqueItems.push(sp.item); s.save();
+    if (sp.kind === 'vein') { const t = addResource('everstone', 4); addItem(ast.key, 1); showToast(`+4 EVERSTONE (${t}) · +1 ${ast.symbol} ${ast.name}`); }
+    else { inventory.coins = (inventory.coins || 0) + 90; saveInv(); hud.setWallet(inventory); addItem(ast.key, 1); showToast(`SEER RAID CACHE · +90 coins · +1 ${ast.symbol} ${ast.name}`); }
+    sfx.play('lift', 0.7, 1.2); fx.emit(sp.x, rizer.position.y + 1, sp.z, 20, { color: '#9fdcff', speed: 2, up: 2, size: 0.25, life: 0.6 });
+    if (sp.mesh && sp.kind === 'vein') sp.mesh.children.forEach((c, i) => { if (i < sp.mesh.children.length - 1) c.visible = false; });
+    return;
+  }
+  if (sp.kind === 'sanctum') {
+    if (!s.completedEvents.includes(sp.event)) { s.completedEvents.push(sp.event); s.save(); }
+    hud.say(`${P.cave.gemlord}'s Sanctum`, `The gem hums with ${P.cave.gemlord}'s presence. The Gemlord is not here yet: this domain waits for its story.`);
+    return;
+  }
+  if (sp.kind === 'blocker') {
+    const b = sp.blocker; if (b.cleared) return;
+    rizer.strike('kick'); b.hp--; cam.kick(0.6); sfx.play('heavy', 0.8, 0.8);
+    fx.emit(b.x, b.y + 0.8, b.z, 16, { color: '#a49a8c', speed: 3, up: 2, size: 0.3, life: 0.6 });
+    if (b.hp <= 0) { b.cleared = true; b.mesh.visible = false; s.clearedObstacles.push(b.id); s.save(); showToast('The way up is clear · it stays clear'); }
+    else showToast(`The boulders crack · ${b.hp} more`);
+  }
+}
+let caveSpotShown = null;
+function caveFrame(dt) {
+  if (!caveMode) return;
+  caveSys.update(dt, rizer);
+  // the cave's own light: the sky gone, a dim cool ambience, and a warm glow that walks with Rizer
+  sky.sun.intensity = 0; sky.hemi.intensity = 0.55; sky.hemi.color.set('#8fa6c8'); sky.hemi.groundColor.set('#2a2230');
+  scene.fog.color.set('#07060b'); scene.fog.density = 0.03; sky.dome.visible = false; scene.background ||= new THREE.Color('#050409');
+  if (caveLight) { caveLight.intensity = 26; caveLight.position.set(rizer.position.x, rizer.position.y + 2.6, rizer.position.z); }
+  for (const g of caveGrunts.get(caveId) || []) if (Math.abs(g.pos.y - rizer.position.y) > 4) { g.root.visible = false; g.lootBag.visible = false; } // only the floor he is on
+  const P = caveSys.active; if (P) $('#loc-name').textContent = `${P.cave.name.toUpperCase()} · FLOOR ${P.phys.floorIndexAt(rizer.position.y) + 1}`;
+  const sp = caveSys.spotNear(rizer.position); caveSpotShown = sp;
+  if (sp) dep?.showPrompt(sp.name, sp.kind === 'exit' ? 'LEAVE · ○ / E' : sp.kind === 'npc' ? 'TALK · ○ / E' : sp.kind === 'blocker' ? 'SMASH · ○ / E' : '○ / E');
+}
 let westLakeBus = null;
 let coinPiles = null; // the coin piles wooden chests throw out (coin-piles.js)
 let scanobots = null, gatelocks = null, penumbras = null, novas = null, bolts = null; // Penumbra: the heavy rocket tier above the Scanobots (penumbra.js)
@@ -994,6 +1084,10 @@ function build() {
   loot = createLoot(scene, world, fx, W); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
   lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); fhud.render(); // four gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
+  // Caves: the interiors answer every physical query in their region of the world (world.js · setInterior)
+  caveSys = createCaveInteriors({ scene, caves: CAVES, toast: showToast, fx, state: caveState });
+  world.setInterior({ name: x => caveSys.planAt(x)?.cave.name, owns: caveSys.owns, groundAt: (x, z, y) => caveSys.planAt(x)?.phys.groundAt(x, z, y) ?? -60, resolve: (p, r) => caveSys.planAt(p.x)?.phys.resolve(p, r) ?? false, rayClear: (a, b) => caveSys.planAt(a.x)?.phys.rayClear(a, b) ?? a.distanceTo(b) });
+  caveLight = new THREE.PointLight('#ffd9a8', 0, 18, 1.6); scene.add(caveLight); // one light, always in the scene (a light appearing later would recompile every material)
   westLakeBus = createWestLakeBus(scene, world, fx, showToast, { x:W.playerStart.x + 14, z:W.playerStart.z + 8, facing:Math.PI * 0.15 });
   commonChests = createCommonChests(scene, world, fx, W, (x, z) => quarterAt(x, z, W) === 'core', [...loot.all.filter(c => !['psychosyd-chest', 'astralboard-chest'].includes(c.id)).map(c => ({ x: c.chest.position.x, z: c.chest.position.z })), { x: W.playerStart.x, z: W.playerStart.z }],
     (ch, n) => showToast(`✦ ASTRALIFT · ${n} coin pile${n === 1 ? '' : 's'} shaken loose`), // the astral-pop payoff
@@ -1116,7 +1210,7 @@ function build() {
   addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
   // Debug/test hook for playtests and automated checks.
-  window.__rp7d = { focus, get lightbulbs() { return lightbulbs; }, get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
+  window.__rp7d = { focus, get lightbulbs() { return lightbulbs; }, caves: { get sys() { return caveSys; }, enter: id => enterCave(id), exit: () => exitCave(), get mode() { return caveMode; }, get id() { return caveId; }, report: () => world.caveReport(), plan: () => world.cavePlan, state: caveState, grunts: caveGrunts },  get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
   frame();
   // title screen: ready once the world exists · a NEW GAME reload skips straight into play
   $('#new-sub').textContent = 'Wake up in Rizer’s room';
@@ -1676,6 +1770,7 @@ function devMenu() {
     { act: 'axe', label: 'Give the Jaded Axe of Emeralix', value: hasWeapon('axe') ? 'OWNED' : 'GIVE' },
     { act: 'bow', label: 'Give the Pearlbow of Ivirium', value: hasWeapon('bow') ? 'OWNED' : 'GIVE' },
     { act: 'blaster', label: 'Give the Thardin Blaster Rifle', value: hasWeapon('blaster') ? 'OWNED' : 'GIVE' },
+    { act: 'cavenext', label: 'Teleport to the next cave mouth', note: `${CAVES.length} caves · ${CAVES.reduce((n, c) => n + c.floorCount, 0)} floors · next: ${CAVES[(caveTp + 1) % CAVES.length].name}`, value: `${(caveTp + 1) % CAVES.length + 1} / ${CAVES.length}` },
     { act: 'scrap', label: 'Drop a Scrap Metal pile ahead', note: `Carried: ${getResourceCount('scrap_metal')}`, value: '×5' },
     { act: 'zyupgrade', label: 'Upgrade the Zycube', note: `${storage.tier().name} · ${storage.slotsUsed('ZYCUBE')} / ${storage.capacity()} slots`, value: storage.nextTier() ? 'UPGRADE' : 'MAX' },
     { act: 'scrap15', label: 'Give 15 Scrap Metal (to the Zycube)', note: `Zycube: ${storage.count('ZYCUBE', 'scrap_metal')} · Home PC: ${storage.count('HOME_PC', 'scrap_metal')}`, value: '×15' },
@@ -1754,6 +1849,7 @@ function menuAction(act) {
   if (act === 'axe' && !hasWeapon('axe')) { inventory.owned.push('axe'); (inventory.chests ||= {})['emeralix-chest'] = 1; saveInv(); syncWheel(); wheel.render(); showToast('Jaded Axe of Emeralix added · R1 to draw'); }
   if (act === 'bow' && !hasWeapon('bow')) { inventory.owned.push('bow'); (inventory.chests ||= {})['ivirium-chest'] = 1; saveInv(); syncWheel(); wheel.render(); showToast('Pearlbow of Ivirium added · R1 to draw'); }
   if (act === 'blaster' && !hasWeapon('blaster')) { inventory.owned.push('blaster'); saveInv(); syncWheel(); wheel.render(); showToast('Thardin Blaster Rifle added · R1 to draw, □ to fire'); }
+  if (act === 'cavenext' && !homeMode) { if (caveMode) exitCave(true); caveTp = (caveTp + 1) % CAVES.length; const f = caveFormation(CAVES[caveTp].id); if (f) { const out = { x: f.stand.x + Math.sin(f.face) * 5, z: f.stand.z + Math.cos(f.face) * 5 }; rizer.position.set(out.x, world.groundAt(out.x, out.z), out.z); rizer.facing = f.face + Math.PI; rizer.vel.set(0, 0, 0); cam.snapBehind(rizer, 7); showToast(`${f.cave.name} · ${f.cave.district || f.cave.districtId} · ✕ at the mouth to go in`); } }
   if (act === 'scrap' && resources && !homeMode) { const f = rizer.facing; resources.drop('scrap_metal', 5, rizer.position.x + Math.sin(f) * 2.5, rizer.position.y + 1.2, rizer.position.z + Math.cos(f) * 2.5, { x: Math.sin(f), z: Math.cos(f) }); }
   if (act === 'zyupgrade') { const r = storage.upgradeZycube(); showToast(r.ok ? `Zycube upgraded · ${storage.tier().name} · ${r.slots} slots` : r.message); }
   if (act === 'scrap15') { const r = storage.add('ZYCUBE', 'scrap_metal', 15); showToast(r.ok ? '+15 Scrap Metal · Zycube' : r.message); }
@@ -1947,6 +2043,7 @@ function knockOut(sub, hold) {
 }
 function dropZycube(at) {
   if (homeMode || !zycube) return;
+  if (caveMode && caveReturn) at = { x: caveReturn.x, y: world.groundAt(caveReturn.x, caveReturn.z), z: caveReturn.z }; // fell in a cave: it waits at the mouth
   const prev = inventory.zycube, items = { ...(prev?.items || {}) };
   for (const [k, n] of Object.entries(inventory.items || {})) if (n > 0) items[k] = (items[k] || 0) + n;
   const coins = (prev?.coins || 0) + (inventory.coins || 0), gems = (prev?.gems || 0) + (inventory.gems || 0);
@@ -1965,6 +2062,7 @@ function takeZycube() {
 }
 function recover() {
   if (homeMode) leaveHomeInterior();
+  if (caveMode) exitCave(true);
   rizer.heal(); rizer.stamina = rizer.maxStamina; rizer.astralEnergy = rizer.maxAstralEnergy; rizer.vel.set(0, 0, 0); rizer.vy = 0; rizer.flying = false; rizer.onGround = true;
   seers?.standDown(); scanobots?.standDown(); penumbras?.standDown(); novas?.standDown(); bolts?.clear(); astral.clearLock();
   const hinge = world.structures.getObjectByName('hospitalDoor'), fade = fadeEl();
@@ -2094,6 +2192,7 @@ function update(dt, t, realDt = dt) {
       }
     } else {
     const promptTarget = hud.promptTarget;
+    if (caveMode && caveSpotShown && (pressed.has('KeyE') || padAct?.interact) && !rizer.flying) { useCaveSpot(caveSpotShown); pressed.delete('KeyE'); if (padAct) padAct.interact = false; }
     const boardTriangle = promptTarget?.id === 'astralboard-ride' && (pressed.has('KeyE') || !!padAct?.kick); // △ on, like every vehicle
     if (boardTriangle) { astral.clearLock(); astralboard.mount(rizer); }
     const boardStow = !boardTriangle && promptTarget?.id === 'astralboard-ride' && (pressed.has('KeyO') || !!padAct?.interact); // ○ stows it on his back
@@ -2105,6 +2204,7 @@ function update(dt, t, realDt = dt) {
     if (doorJump) {
       const it = promptTarget;
       if (it?.id === 'player-home') walkHomeDoor('enter');
+      else if (it?.cave) enterCave(it.cave);
       else if (it?.kind === 'lightbulb') { rizer.playInteract(true); lightbulbs?.collect(it.id); }
       else if (it?.door) { rizer.playInteract(true); showToast(`◈ ${it.name} · sealed for now`); }
     }
@@ -2258,10 +2358,11 @@ function update(dt, t, realDt = dt) {
   if (scopeView) scopeCamera(dt);
   shared.uPlayer.value.copy(rizer.position); shared.uCam.value.copy(camera.position); shared.uFocus.value.copy(cam.focus);
   const night = sky.update(hour, rizer.position);
+  caveFrame(dt);
   setNight(night, t); world.update(t, night);
   world.nature?.userData?.stones?.update(dt);
   if (!homeMode && started && !menu && rizer.onGround) world.nature?.userData?.breakables?.rustle(rizer.position, 0.55, rizer.speed); // pushing through a bush
-  if (!homeMode && started) world.mass.warm(rizer.position.x, rizer.position.z); // build collision just ahead of him
+  if (!homeMode && !caveMode && started) world.mass.warm(rizer.position.x, rizer.position.z); // build collision just ahead of him
   bloom.strength = 0.25 + night * 0.3;
   renderer.toneMappingExposure = 1.05 + night * 0.15;
   if (!menu && !homeMode) {

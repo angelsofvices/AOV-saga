@@ -1208,7 +1208,7 @@ export class Rizer {
       if (rs > preResolveSpeed && rs > 1e-4) { const k = preResolveSpeed / rs; rx *= k; rz *= k; }
       this.vel.x = rx; this.vel.z = rz;
     }
-    if (!world.expanse?.contains(p.x, p.z)) { const B = world.roam ?? world.bound; p.x = clamp(p.x, -B, B); p.z = clamp(p.z, -B, B); } // Malezor's map edge; the empty districts beyond it are open
+    if (!world.expanse?.contains(p.x, p.z) && !world.interiorOwns?.(p.x, p.z)) { const B = world.roam ?? world.bound; p.x = clamp(p.x, -B, B); p.z = clamp(p.z, -B, B); } // Malezor's map edge; the empty districts beyond it are open
 
     // Jumping into the edge of a flat roof or platform catches it; the two mocap clips own
     // the short path from reach to hang to standing on that same material surface.

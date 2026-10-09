@@ -84,7 +84,7 @@ export function createSky(scene, shared) {
     dome.position.copy(focus);
     return night;
   }
-  return { update, sun, hemi };
+  return { update, sun, hemi, dome };
 }
 
 export function describeHour(h) {

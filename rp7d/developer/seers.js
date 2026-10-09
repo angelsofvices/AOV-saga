@@ -290,7 +290,8 @@ export async function createSeers(scene, world, W) {
   function reset(g) {
     releaseFeed(g); fedBodies.delete(g);
     const s = g.pts[0];
-    g.pos.set(s.x, world.groundAt(s.x, s.y), s.y); g.wp = Math.min(1, g.pts.length - 1); g.dir = 1;
+    // spawnY: a patrol on one floor of a cave (cave-interior.js) picks that floor; undefined everywhere else
+    g.pos.set(s.x, world.groundAt(s.x, s.y, g.spawnY), s.y); g.wp = Math.min(1, g.pts.length - 1); g.dir = 1;
     g.heading = g.pts.length > 1 ? Math.atan2(g.pts[1].x - s.x, g.pts[1].y - s.y) : 0;
     g.rxpPaid = false; g.tech = null; g.state = 'patrol'; g.timer = 0; g.hp = g.T.hp; g.lost = 0; g.cool = 0; g.evadeCool = 0; g.evadeThreat = null; g.atk = null; g.next = null; g.feedRetry = 0; g.barT = 0; g.fall = 0; g.sink = 0; g.looted = false; g.stag = 0; g.dazed = 0; g.dazedMode = null; g.observeLost = 0; g.stuck = 0; g.avoidT = 0; g.actor.dazed = false; g.actor.fighting = false; g.actor.crawling = false;
     g.root.visible = true; g.root.position.copy(g.pos); g.actor.release(); g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.bang.visible = false;
@@ -721,7 +722,7 @@ export async function createSeers(scene, world, W) {
         if (world.waterAt(nx, nz) < world.heightAt(nx, nz) - 0.1) { p.x = nx; p.z = nz; } else if (g.state === 'patrol') g.wp = nearestWp(g);
         world.resolve(p, g.T.radius);
         world.keepOnLand?.(p, oldX, oldZ);
-        const B = world.bound; p.x = clamp(p.x, -B, B); p.z = clamp(p.z, -B, B);
+        if (!world.interiorOwns?.(p.x, p.z)) { const B = world.bound; p.x = clamp(p.x, -B, B); p.z = clamp(p.z, -B, B); } // (a cave's own region is not Malezor's)
         p.y = world.groundAt(p.x, p.z, p.y + 0.5) + (g.launch?.y || 0);
         const moved = Math.hypot(p.x - oldX, p.z - oldZ), trying = Math.abs(want) > 0.35 && !recovering;
         g.stuck = trying && moved < Math.abs(want) * dt * 0.14 ? g.stuck + dt : Math.max(0, g.stuck - dt * 3);
@@ -912,6 +913,11 @@ export async function createSeers(scene, world, W) {
 
   return {
     grunts, update, playerStrike, hitGrunt, stun, setMusic, get dancing() { return grunts.filter(g => g.state === 'dance').length; }, astralift, blastBack, shock, standDown, alive,
+    // A patrol on an authored route that is not on the overworld (a cave floor): no coast check; y picks the floor.
+    spawnRoute(key, pts, { id, y } = {}) {
+      const kind = byKey[key]; if (!kind?.gltf || pts.length < 1) return null;
+      return spawn(kind.T, kind.gltf, { id: id || `route-${key}-${grunts.length}`, loop: true, pts: pts.map(p => new THREE.Vector2(p.x, p.z)) }, { spawnY: y });
+    },
     spawnAt(key, x, z) {
       const kind = byKey[key];
       if (!kind?.gltf || !onLand(x, z)) return null;

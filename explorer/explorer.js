@@ -1146,7 +1146,7 @@
       row('sound', 'SOUND', ['OFF', 'ON']) + row('haptics', 'HAPTICS', ['OFF', 'ON']) + row('text', 'TEXT SPEED', ['SLOW', 'NORMAL', 'FAST']) +
       row('hand', 'TOUCH CONTROLS', ['D-PAD LEFT', 'D-PAD RIGHT']) + row('alpha', 'CONTROL OPACITY', ['SOLID', 'SOFT', 'FAINT']) +
       '<p class="x-mono light">' + esc(padTxt) + '</p>' +
-      '<p class="x-mono light">✕ examine · ○ back / stalk · □ scan · △ AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
+      '<p class="x-mono light">✕ examine · ○ back / gait (stalk · steady · sprint) · □ scan · △ AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
       '<div class="x-sh-btns"><button class="x-btn" data-a="kit">REFIT YOUR KIT</button><button class="x-btn ghost" data-a="rename">RENAME ASTRONAUT</button><button class="x-btn ghost" data-a="renamehq">RENAME ' + esc(hqName()) + '</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
         '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>' +
       '<p class="x-mono light">PILOT-OBSERVER: ' + esc(heroName()) + ' · HEADQUARTERS: ' + esc(hqName()) + '</p>' +
@@ -1333,7 +1333,7 @@
     S.hq.name = nm; hqRecord((crashed ? 'Crash landing. ' : 'First landing. ') + 'The log names this world ' + nm + '.'); save();
     surface('nasarus');
     await say([nm + '. You write it on the first page of the log.',
-      'Walk with the arrows (or the stick), or tap the ground. A examines what you face. B toggles a slow, quiet STALK. NAV opens the AstraNav.',
+      'Walk with the arrows (or the stick), or tap the ground. A examines what you face. B changes your gait: STALK, STEADY or SPRINT. NAV opens the AstraNav.',
       crashed ? 'First, a camp: there is a staked patch of flat ground beside the wreck.' : 'Make camp on the staked ground, and this world becomes your headquarters.']);
   }
 
@@ -1543,7 +1543,7 @@
     S.stage = 'surface'; S.landed = true; if (M.world) S.at = M.world;
     var start = S.pos && S.pos.map === mapId ? S.pos : { x:M.ship ? M.ship.x : 1, y:M.ship ? M.ship.y + 1 : 1, dir:'down' };
     if (SOLID[at(start.x, start.y)]) start = { x:M.ship.x, y:M.ship.y + 1, dir:'down' };
-    P = { x:start.x, y:start.y, fx:start.x, fy:start.y, dir:start.dir || 'down', t:0, moving:false, stalk:false, anim:0 };
+    P = { x:start.x, y:start.y, fx:start.x, fy:start.y, dir:start.dir || 'down', t:0, moving:false, gait:S.gait || 'steady', dust:[], anim:0 };
     critters = M.spawns.map(function(sp){
       var s = SP[sp.id] || {};
       return { id:sp.id, lv:sp.lv, x:sp.x, y:sp.y, fx:sp.x, fy:sp.y, fromX:sp.x, fromY:sp.y, t:1, home:{ x:sp.x, y:sp.y }, dir:'down', cool:Math.random() * 2,
@@ -1559,9 +1559,9 @@
         '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
         '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
       '<p class="x-objhint" aria-live="polite"></p>' +
-      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ STALK · □ SCAN · △ ASTRANAV</p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ SCAN · △ ASTRANAV</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<div class="x-ab"><button class="x-b" aria-label="B: back, or stalk">B<small>STALK</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
+      '<div class="x-ab"><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI();
     startWorld('surface');
@@ -1571,7 +1571,7 @@
     save();
     if (M.hq && !S.flags.crashIntro) { setTimeout(crashIntro, 300); return; }
     if (S.flags.hqNew) { S.flags.hqNew = false; save(); setTimeout(function(){ toast('A new body on the AstraNav: a drifting world with ruins. Set course for ' + hqName() + ' to make your headquarters.'); }, 800); }
-    if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Walk with the arrows (or the stick), or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B toggles STALK, a slow and quiet walk.', 'NAV opens the AstraNav: the star map, your cards, the Codex and everything else.']); }
+    if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Walk with the arrows (or the stick), or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B changes your gait: STALK (slow and quiet), STEADY or SPRINT (fast and loud).', 'NAV opens the AstraNav: the star map, your cards, the Codex and everything else.']); }
   }
   function gauge(label, id){
     return '<div class="x-g" data-g="' + id + '"><svg viewBox="0 0 60 40" aria-hidden="true"><path d="M6 36 A24 24 0 0 1 54 36" class="x-arc"/><path d="M6 36 A24 24 0 0 1 14 18" class="x-arc red"/>' +
@@ -1594,8 +1594,8 @@
     });
     var lead = $('.x-lead'), team = teamReady();
     if (lead) lead.innerHTML = team.length ? '<img class="x-pix" alt="" src="' + ART.url(subjArt(team[0]), 2) + '"><b>LV ' + S.cards[team[0]].lv + '</b>' : '';
-    var b = $('.x-b small'); if (b) b.textContent = P.stalk ? 'WALK' : 'STALK';
-    var bb = $('.x-b'); if (bb) bb.classList.toggle('on', P.stalk);
+    var b = $('.x-b small'); if (b) b.textContent = GAIT[P.gait].label;
+    var bb = $('.x-b'); if (bb) { bb.classList.toggle('on', P.gait !== 'steady'); bb.dataset.gait = P.gait; }
   }
   function checkZone(quiet){
     if (!M || M.indoor || M.world !== 9) return;
@@ -1674,8 +1674,9 @@
   function updateSurface(dt, now){
     if (!P) return;
     if (P.moving) {
-      P.t += dt / (P.stalk ? .3 : .17);
-      P.anim += dt * (P.stalk ? 5 : 9);
+      var G = GAIT[P.gait];
+      P.t += dt / G.step;
+      P.anim += dt * G.anim;
       if (P.t >= 1) { P.moving = false; P.fx = P.x; P.fy = P.y; arrived(); if (mode !== 'surface') return; }
       else { P.fx = P.px0 + (P.x - P.px0) * P.t; P.fy = P.py0 + (P.y - P.py0) * P.t; }
     }
@@ -1745,7 +1746,7 @@
     if (dist > 22) return;                      // far away: asleep until you come near
     var s = subj(c.id) || {};
     c.cool -= dt; if (c.calm > 0) c.calm -= dt;
-    if (s.temperament === 'skittish' && dist <= 2 && !P.stalk) {
+    if (s.temperament === 'skittish' && !stalking() && dist <= (P.gait === 'sprint' && P.moving ? 4 : 2)) {
       if (c.state !== 'flee') { c.state = 'flee'; c.cool = 0; }
     } else if (c.state === 'flee' && dist > 4) c.state = 'idle';
     if (s.temperament === 'territorial' && c.calm <= 0) {
@@ -1820,9 +1821,17 @@
   function btnB(){
     if (dialogOpen) { advanceDialog(true); return; }
     if (encounterOpen || doc.querySelector('.x-modal')) return;
-    P.stalk = !P.stalk; hudRefresh(); sfx.click();
-    toast(P.stalk ? 'STALKING · slow and quiet' : 'WALKING');
+    var order = ['stalk', 'steady', 'sprint'];
+    P.gait = S.gait = order[(order.indexOf(P.gait) + 1) % order.length]; hudRefresh(); sfx.click(); vibrate(40, P.gait === 'sprint' ? .5 : .2);
+    toast(GAIT[P.gait].toast);
   }
+  // the three gaits: ○ / B cycles STALK → STEADY → SPRINT
+  var GAIT = {
+    stalk:  { label:'STALK',  step:.3,  anim:5,  toast:'STALK · slow and quiet. Skittish creatures let you near.' },
+    steady: { label:'STEADY', step:.17, anim:9,  toast:'STEADY · an ordinary walking pace.' },
+    sprint: { label:'SPRINT', step:.095, anim:17, toast:'SPRINT · fast and loud. Creatures hear you coming.' }
+  };
+  function stalking(){ return P && P.gait === 'stalk'; }
 
   // ── dialog box (the field, and the opening) ──
   var dlg = null;
@@ -2061,7 +2070,7 @@
   // then scan. A strong lock writes it into the AstraNav as a card on the spot.
   function encounter(c, charged){
     var s = subj(c.id), team = teamReady();
-    if (s.temperament === 'skittish' && !P.stalk && !charged) {
+    if (s.temperament === 'skittish' && !stalking() && !charged) {
       c.state = 'flee';
       toast('It bolted before you got close. Try STALKING (B).', 'red'); return;
     }
@@ -2464,8 +2473,24 @@
   }
   function drawPlayer(X, Y, z){
     shadow(X, Y, z, 10);
-    var stp = P.moving ? Math.floor(P.anim / 1.6) % 4 : 0;
-    ART.draw(ctx, heroSpec(P.dir, stp), X, Y, z, P.stalk ? .8 : null);
+    var stp = P.moving ? Math.floor(P.anim / 1.6) % 4 : 0, g = P.gait, now = performance.now();
+    // sprint: kicked-up dust behind the boots
+    if (g === 'sprint' && P.moving && (!P.dust.length || now - P.dust[P.dust.length - 1].t > 70)) P.dust.push({ x:P.fx, y:P.fy, t:now, j:(Math.random() - .5) * 6 });
+    P.dust = P.dust.filter(function(d){ return now - d.t < 420; });
+    P.dust.forEach(function(d){
+      var k = (now - d.t) / 420, dx = X + (d.x - P.fx) * T * z + d.j * z, dy = Y + (d.y - P.fy) * T * z - k * 5 * z, r = Math.max(1, Math.round((1 + k * 2.5) * z));
+      ctx.fillStyle = 'rgba(214,200,170,' + (.55 * (1 - k)).toFixed(2) + ')'; ctx.fillRect(Math.round(dx - r), Math.round(dy - r), r * 2, r * 2);
+    });
+    if (g === 'stalk') {
+      // stalk: crouched low, half-shadowed, careful steps
+      ctx.save(); ctx.translate(X, Y); ctx.scale(1.06, .84);
+      ART.draw(ctx, heroSpec(P.dir, stp), 0, 0, z, .78); ctx.restore();
+    } else if (g === 'sprint' && P.moving) {
+      // sprint: a running bob, the body leaning into the run
+      var bob = (stp % 2 ? 1 : 0) * z, lean = P.dir === 'left' ? -.08 : P.dir === 'right' ? .08 : 0;
+      ctx.save(); ctx.translate(X, Y - bob); if (lean) ctx.transform(1, 0, -lean, 1, 0, 0);
+      ART.draw(ctx, heroSpec(P.dir, stp), 0, 0, z); ctx.restore();
+    } else ART.draw(ctx, heroSpec(P.dir, stp), X, Y, z);
   }
 
   // ═════════════════════════ INPUT · keyboard, touch, DualSense ═════════════════════════

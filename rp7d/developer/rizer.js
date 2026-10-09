@@ -6,6 +6,7 @@ import { Actor, CLIPS, loadGLB } from './actor.js';
 import { clamp, damp, dampAngle } from './util.js';
 import { DOORWALK, doorPath } from './doorwalk.js';
 import { preloadBuild, applyBuildToActor } from './build-library.js';
+import { maxHpOf, maxStaminaOf, maxEnergyOf, staminaRegenMul, dodgeCostMul, astralHitMul, astralRegen, hpRegen } from './astral-stats.js';
 
 // Playable characters. All share the Mixamo rig and its Idle/Walk/Run/Punch/Kick clips.
 // Characters saved from the Build Lab join this list at startup (build-library.js · registerPlayableBuilds): they
@@ -201,13 +202,13 @@ export class Rizer {
     this.actor = null; this.cast = {}; this.charKey = null; this.C = null;
     this.comboStage = 0; this.comboT = 0; this.strikeStage = 1; this.comboKind = null;
     this.weapon = 'fists'; this.swordAt = 'hip'; this.handWeapon = null; this.swap = null; this.pick = null; this.crouched = false; this.autoLand = false; this.lockPos = null; this.flying = false; this.dodgeT = 0; this.dodgeCool = 0; this.dodgeDir = new THREE.Vector3(); this.usedDouble = false; this.swimW = 0; this.ledge = null; this.ledgeCooldown = 0; this.teeter = null; this.groundNormal = new THREE.Vector3(0, 1, 0); this.slopeSliding = false; this.prayer = null; this.prayerIntent = 0; this.prayerSpentHold = false;
-    this.hp = COMBAT.maxHp; this.stamina = 100; this.astralEnergy = 100; this.hurtT = 0; this.sinceHurt = 99; this.attack = null; this.knock = new THREE.Vector3(); this.flinch = 0; this.guardT = 0; this.parryT = 0; this.lastParried = false;
+    this.hp = this.maxHp; this.stamina = this.maxStamina; this.astralEnergy = this.maxAstralEnergy; this.hurtT = 0; this.sinceHurt = 99; this.attack = null; this.knock = new THREE.Vector3(); this.flinch = 0; this.guardT = 0; this.parryT = 0; this.lastParried = false;
     this.ready = this.setCharacter(DEFAULT_CHARACTER);
   }
   get model() { return this.actor?.model; }
-  get maxHp() { return COMBAT.maxHp; }
-  get maxStamina() { return 100; }
-  get maxAstralEnergy() { return 100; }
+  get maxHp() { return maxHpOf(COMBAT.maxHp); }          // LABS › ASTRAL stats and mods (astral-stats.js)
+  get maxStamina() { return maxStaminaOf(100); }
+  get maxAstralEnergy() { return maxEnergyOf(100); }
   spendEnergy(amount) { if (this.god) return true; if (this.astralEnergy < amount) return false; this.astralEnergy -= amount; return true; }
   // Swap the visible character; each GLB loads once and is kept.
   async setCharacter(key) {
@@ -338,9 +339,9 @@ export class Rizer {
     if (at || this.comboT > 0) this.comboT = Math.max(this.comboT || 0, (this.dodgeLock || 0) + COMBAT.comboWindow);
   }
   dodge(dir) {
-    if (!this.onGround || this.flying || this.dodgeT > 0 || this.dodgeCool > 0 || this.hp <= 0 || this.vault || this.fc || this.stamina < COMBAT.dodge.stamina) return false;
+    if (!this.onGround || this.flying || this.dodgeT > 0 || this.dodgeCool > 0 || this.hp <= 0 || this.vault || this.fc || this.stamina < COMBAT.dodge.stamina * dodgeCostMul()) return false;
     this.dodgeKind = 'dodge'; this.dodgeAge = 0; this.perfectDone = false;
-    this.stamina = Math.max(0, this.stamina - COMBAT.dodge.stamina);
+    this.stamina = Math.max(0, this.stamina - COMBAT.dodge.stamina * dodgeCostMul());
     if (this.boltThreat != null && this.boltThreat <= COMBAT.perfect.bolt && this.actor?.has('aerialEvade')) { // a bolt is about to land: the jump spin carries him clear of it
       const C = COMBAT.aerial, A = this.actor, d = dir && dir.lengthSq() > 0.01 ? dir.clone().setY(0).normalize() : new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing));
       this.dodgeKind = 'aerial'; this.dodgeDir = d; this.dodgeT = C.time; this.dodgeLock = C.time; this.dodgeCool = C.time + C.cooldown;
@@ -889,7 +890,7 @@ export class Rizer {
       if (p.standAfterKneel) { p.phase = 'stand'; p.t = 0; A.play('prayStand', 1, { hold: true }); }
       else {
         const P = COMBAT.prayer;
-        this.hp = Math.min(COMBAT.maxHp, this.hp + P.hp * dt);
+        this.hp = Math.min(this.maxHp, this.hp + P.hp * dt);
         this.astralEnergy = Math.min(this.maxAstralEnergy, this.astralEnergy + P.astral * dt);
         this.stamina = Math.min(this.maxStamina, this.stamina + P.stamina * dt);
       }
@@ -900,10 +901,10 @@ export class Rizer {
   }
   // A melee blow landed (game.js · onLanded): astral energy charges up, more the deeper into the combo. Returns the gain.
   chargeAstral(stage = 1, finisher = false) {
-    const R = COMBAT.regen, gain = (R.astralHit[Math.min(R.astralHit.length, stage) - 1] || 1) + (finisher ? R.astralFinisher : 0);
+    const R = COMBAT.regen, gain = ((R.astralHit[Math.min(R.astralHit.length, stage) - 1] || 1) + (finisher ? R.astralFinisher : 0)) * astralHitMul();
     const before = this.astralEnergy; this.astralEnergy = clamp(this.astralEnergy + gain, 0, this.maxAstralEnergy); return this.astralEnergy - before;
   }
-  heal() { this.bail = null; this.bl = null; this.fc = null; this.hp = COMBAT.maxHp; this.stamina = this.maxStamina; this.astralEnergy = this.maxAstralEnergy; this.hurtT = 0; this.knock.set(0, 0, 0); this.attack = null; this.actor?.release(); }
+  heal() { this.bail = null; this.bl = null; this.fc = null; this.hp = this.maxHp; this.stamina = this.maxStamina; this.astralEnergy = this.maxAstralEnergy; this.hurtT = 0; this.knock.set(0, 0, 0); this.attack = null; this.actor?.release(); }
   timing(kind) { return this.actor ? this.actor.timing(kind) : CLIPS[kind]; }
   animateModel(dt) {
     const A = this.actor, still = !!A.preview;
@@ -1006,10 +1007,11 @@ export class Rizer {
     const exerting = running || (this.flying && !flyIdle) || this.dodgeT > 0 || this.dodgeLock > 0 || this.blocking || this.attack || this.vault || this.wf || !this.onGround || this.bail;
     this.restT = exerting ? 0 : (this.restT || 0) + dt; // how long he's been taking it easy
     const R = COMBAT.regen, regenDelay = inp.inCombat ? R.combatStaminaDelay : R.staminaDelay;
-    const passiveRegen = !this.attack && this.restT > regenDelay ? (inp.inCombat ? R.combatStamina : R.stamina) : 0;
+    const passiveRegen = !this.attack && this.restT > regenDelay ? (inp.inCombat ? R.combatStamina : R.stamina) * staminaRegenMul() : 0;
     const staminaRate = running ? -COMBAT.runStamina : (this.flying && !flyIdle) ? -COMBAT.flightStamina : passiveRegen;
     this.stamina = clamp(this.stamina + staminaRate * dt, 0, this.maxStamina);
-    if (COMBAT.regen.astral) this.astralEnergy = clamp(this.astralEnergy + COMBAT.regen.astral * dt, 0, this.maxAstralEnergy);
+    const astralRate = COMBAT.regen.astral + astralRegen(); // Calm Mind (LABS › ASTRAL)
+    if (astralRate) this.astralEnergy = clamp(this.astralEnergy + astralRate * dt, 0, this.maxAstralEnergy);
     // L2 (C): a tap rolls, a hold slides. The press is decided on release, or once it's been held `slide.hold` s.
     // L2 + R2 while still prays outside combat; in combat it blocks.
     if (inp.dodgePressed && !this.flying) this.l2 = { t: 0 };
@@ -1358,7 +1360,8 @@ export class Rizer {
     else if (this.speed > 0.4 && this.dodgeT <= 0 && this.hurtT < COMBAT.invuln - 0.25 && this.attack?.kind !== 'kickup') this.facing = dampAngle(this.facing, Math.atan2(this.vel.x, this.vel.z), TUNE.turnRate * (this.attack ? 0.25 : 1), dt);
     // Combat timers: the blow lands at the clip's active frame.
     this.hurtT = Math.max(0, this.hurtT - dt); this.sinceHurt += dt;
-    if (COMBAT.regen.hp && this.sinceHurt > COMBAT.regen.hpDelay && this.hp > 0) this.hp = Math.min(COMBAT.maxHp, this.hp + COMBAT.regen.hp * dt);
+    const hpRate = COMBAT.regen.hp + hpRegen(); // Second Wind (LABS › ASTRAL)
+    if (hpRate && this.sinceHurt > COMBAT.regen.hpDelay && this.hp > 0) this.hp = Math.min(this.maxHp, this.hp + hpRate * dt);
     if (this.attack) {
       const at = this.attack, spd = at.spd || COMBAT[at.kind].speed; at.t += dt;
       while (at.hi < at.hits.length && at.t >= at.hits[at.hi] / spd) { at.hi++; this.strikeStage = at.stage; ev.push(at.kind === 'blast' ? `blast${at.stage > 1 ? at.stage : ''}` : at.kind); }

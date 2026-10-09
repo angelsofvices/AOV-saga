@@ -35,6 +35,8 @@ import { storage } from './storage.js';
 import { createTVSystem, buildDvdPickup } from './tv-system.js';
 import { DVDS } from './dvd-registry.js';
 import { createLabs } from './labs.js';
+import { createXray } from './astral-xray.js';
+import { astral as astralBuild, ASTRAL as ASTRAL_AP, STATS, SYSTEMS, MODS, meleeMul, staminaRegenMul, dodgeCostMul, astralHitMul, astralRegen, hpRegen } from './astral-stats.js';
 import { crafting } from './crafting.js';
 import { createDeployables } from './deployables.js';
 import { pushOut, sweepOut } from './body-collision.js';
@@ -754,7 +756,7 @@ let partner = null; // the bonded, active Zyrex walking with Rizer (zyrex2d.js �
 let world, sky, rizer, cam, zyrex, fx, hud, zy, lab, skinLab, buildLab, bondGame, anciuxor = null, astral, seers = null, started = false, usingPad = false;
 let seating = null; // INTERACTIVE_SEAT controller (the Nebuladock chair)
 let pcUse = null; // Nebuladock 3000 session: {phase 'walk'|'in'|'on'|'out', k 0..1 camera blend, n:{screen}}
-let labs = null, labsView = null; // LABS › Rizer (labs.js): clones, templates, reset · labsView: the camera held on him while the page is up
+let labs = null, labsView = null, xray = null, astralResetArmed = 0; // LABS › Rizer (labs.js): clones, templates, reset · labsView: the camera held on him while the page is up
 let n3000 = null, n3000Camera = null, tv = null, tvCamera = null; // tv: the living-room TV & DVD system (tv-system.js)
 let dep = null, stationUI = null; // storage foundation: deployed Field Equipment · Home PC / Experiment Table screens
 let furnMover = null, homeInterior = null, homeMode = false, homeReturn = null, npcs = null, commonChests = null, zycube = null;
@@ -940,7 +942,7 @@ function build() {
     W, hud, characters: CHARACTERS, itemCatalog: ITEMS, onUseItem: k => useItem(k),
     getState: () => ({ hour, dev: settings.dev, hp: rizer.hp, maxHp: rizer.maxHp, charKey: rizer.charKey, defeated: seers?.defeated || 0, seers: seers?.total || W.seerPatrols.length, region: hud.regionOf(rizer.position.x, rizer.position.z), x: rizer.position.x, y: rizer.position.y, z: rizer.position.z, contacts: npcs?.npcs.filter(n => n.met).map(n => ({ name:n.name, note:n.recruited ? 'Companion · following Rizer' : n.downed ? 'Downed · lock on and press D-pad ↓ to revive' : 'Contact · Malezor' })) || [] }),
     onPartner: id => { const ok = setPartner(id); if (ok) showToast(`${partner.record.name} walks with you`); return ok; },
-    labsHub: makeLabsHub(), onLabsView: on => setLabsView(on),
+    labsHub: makeLabsHub(), astralHub: makeAstralHub(), onLabsView: on => setLabsView(on),
     onTime: h => { if (settings.dev) hourTarget = h > hour + 0.05 ? h : h + 24; },
     onCharacter: async k => { settings.char = k; saveSettings(); await rizer.setCharacter(k); skinLab?.apply(); }, // skins and characters stick between sessions
     onAnimLab: () => { zy.close(); skinLab?.close(); buildLab?.close(); lab.open(); },
@@ -1082,7 +1084,38 @@ function makeLabsHub() {
     }
   };
 }
+// ── LABS › ASTRAL: the X-ray Rizer (astral-xray.js) and his stats and mods (astral-stats.js) ──
+function makeAstralHub() {
+  const pct = v => `${Math.round(v * 100)}%`;
+  return {
+    view() {
+      const lv = progression.level;
+      return {
+        name: CHARACTERS[rizer.charKey]?.name || 'Rizer', level: lv, total: astralBuild.total, free: astralBuild.free, perLevel: ASTRAL_AP.perLevel, statMax: ASTRAL_AP.statMax,
+        stats: STATS.map(st => ({ ...st, value: astralBuild.stat(st.id) })), mods: astralBuild.mods.length, resetArmed: performance.now() - astralResetArmed < 4000,
+        systems: SYSTEMS.map((sys, i) => ({ ...sys, code: ['CTX', 'SPN', 'ARM', 'LEG'][i], mods: Object.entries(MODS).filter(([, m]) => m.system === sys.id).map(([id, m]) => ({ id, ...m, installed: astralBuild.has(id) })) })),
+        readout: [['LEVEL', lv], ['MAX HEALTH', rizer.maxHp], ['MAX STAMINA', rizer.maxStamina], ['MAX ASTRAL', rizer.maxAstralEnergy], ['MELEE DAMAGE', pct(meleeMul())],
+          ['FINISHERS', pct(meleeMul(true))], ['STAMINA REGEN', pct(staminaRegenMul())], ['DODGE COST', pct(dodgeCostMul())], ['ASTRAL / BLOW', pct(astralHitMul())],
+          ['HEALTH REGEN', hpRegen() ? `+${hpRegen()} / s` : '—'], ['ASTRAL REGEN', astralRegen() ? `+${astralRegen()} / s` : '—']]
+      };
+    },
+    act(action, arg) {
+      let err = null;
+      if (action === 'raise') err = astralBuild.raise(arg);
+      else if (action === 'lower') err = astralBuild.lower(arg);
+      else if (action === 'mod') { const had = astralBuild.has(arg); err = astralBuild.toggle(arg); if (!err) showToast(`${MODS[arg].name} · ${had ? 'removed' : 'installed'}`); }
+      else if (action === 'reset') {
+        if (performance.now() - astralResetArmed > 4000) { astralResetArmed = performance.now(); return showToast('RESET ASTRAL · press again to refund every point'); }
+        astralResetArmed = 0; astralBuild.reset(); showToast('Astral reset · every point refunded');
+      }
+      if (err) return showToast(err);
+      rizer.hp = Math.min(rizer.hp, rizer.maxHp); rizer.stamina = Math.min(rizer.stamina, rizer.maxStamina); rizer.astralEnergy = Math.min(rizer.astralEnergy, rizer.maxAstralEnergy);
+    }
+  };
+}
 function setLabsView(on) {
+  xray ||= createXray({ scene, camera, renderer, getRizer: () => rizer });
+  if (on === 'astral') xray.enable(); else xray.disable();
   $('#game').classList.toggle('labs-view', !!on);
   if (on && !labsView) labsView = { yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist };
   else if (!on && labsView) { cam.yaw = labsView.yaw; cam.pitch = labsView.pitch; cam.targetDist = labsView.dist; labsView = null; }
@@ -2122,7 +2155,7 @@ function update(dt, t, realDt = dt) {
   const movementWorld = homeMode ? homeInterior.roomWorld : world;
   if (westLakeBus?.driving) westLakeBus.cameraUpdate(dt, camera, cam, busInput);
   else { if (labsView) { cam.yaw = rizer.facing; cam.pitch = 0.1; cam.targetDist = 3.4; } cam.update(dt, rizer, movementWorld, { autoRecenter: usingPad && !menu }); }
-  labs?.update(dt);
+  labs?.update(dt); xray?.update(dt);
   if (homeMode) homeInterior.nebulaTick?.(dt);
   if (pcUse) tickPcUse(dt);
   if (scopeView) scopeCamera(dt);

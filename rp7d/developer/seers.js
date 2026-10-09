@@ -22,6 +22,7 @@ import { dressCorrupted } from './enemy-skins.js';
 import { dressDaemon } from './daemon-skins.js';
 import { DAEMON_BLACK_SPEC } from './daemons-black.js';
 import { rollEnemyBag } from './coin-piles.js';
+import { meleeMul } from './astral-stats.js';
 import { DAEMON_RED_SPEC } from './daemons-red.js';
 
 export const SEER = {
@@ -887,7 +888,7 @@ export async function createSeers(scene, world, W) {
           at.done.add(key);
           const kx = hit.at.x - ra.x, kz = hit.at.z - ra.z, kd = Math.hypot(kx, kz) || 1;
           const fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1; // mid-combo blows rock them; the finisher's last blow sends them
-          const r = hitGrunt(g, base * stageMul, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)));
+          const r = hitGrunt(g, base * stageMul * meleeMul(fin), kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)));
           hooks.onLanded?.({ ...r, x: hit.at.x, y: hit.at.y, z: hit.at.z, part: hit.part }, at.kind, g);
           if (r.down) ghost = { at, w, x: hit.at.x, y: hit.at.y, z: hit.at.z, name: r.name, t: clock };
         }

@@ -30,7 +30,7 @@ export const TIME_PRESETS = [
   { h: 18.7, name: 'Golden hour' }, { h: 20.3, name: 'Dusk' }, { h: 23.5, name: 'Night' }
 ];
 
-export function createZyphone({ W, hud, characters, getState, onTime, onCharacter, onAnimLab, onSkinLab, onBuildLab, weapons, inventory, storage = null, crafting = null, onDeploy, onPackDeployed, itemCatalog = {}, onUseItem, onPartner, onWeapon, onWheel, icons = {}, menus, onAction, onOpen, onClose, labsHub = null, onLabsView }) {
+export function createZyphone({ W, hud, characters, getState, onTime, onCharacter, onAnimLab, onSkinLab, onBuildLab, weapons, inventory, storage = null, crafting = null, onDeploy, onPackDeployed, itemCatalog = {}, onUseItem, onPartner, onWeapon, onWheel, icons = {}, menus, onAction, onOpen, onClose, labsHub = null, astralHub = null, onLabsView }) {
   const root = $('#zyphone');
   let isOpen = false, tab = 0, focus = 0;
   let carry = null; // Armory: what's being moved — { from: 'slot', i, k } or { from: 'bag', k }
@@ -85,8 +85,10 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
         ? st.contacts.map(c => `<div class="zy-note"><small>MALEZOR · HERO</small><b>${esc(c.name)}</b><p>${esc(c.note)}</p></div>`).join('')
         : '<p>People, messages and lore connections will appear here as Rizer meets Malezor\'s residents.</p>'}`;
     }
-    root.classList.toggle('labs', key === 'rizer' && !!labsHub); onLabsView?.(isOpen && key === 'rizer' && !!labsHub);
-    heroEl.hidden ||= key === 'rizer' && !!labsHub;
+    const labsPage = (key === 'rizer' && !!labsHub) || (key === 'astral' && !!astralHub); // LABS pages: Rizer in the open middle
+    root.classList.toggle('labs', labsPage); root.classList.toggle('labs-astral', key === 'astral' && labsPage); onLabsView?.(isOpen && labsPage ? key : null);
+    heroEl.hidden ||= labsPage;
+    if (key === 'astral' && astralHub) renderAstral();
     if (key === 'rizer' && labsHub) renderLabs();
     else if (key === 'rizer') {
       $('#zy-stats').innerHTML = [
@@ -123,6 +125,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   function renderLabs() {
     const page = root.querySelector('.zy-page[data-page="rizer"]'); if (!page) return;
     const v = labsHub.view(), keepName = page.querySelector('[data-labs-name]')?.value ?? '';
+    const scroll = [...page.querySelectorAll('.rz-col')].map(c => c.scrollTop);
     const row = (attrs, label, value = '', cls = '') => `<button class="zy-item rz-row${cls}" data-item ${attrs}><span>${esc(label)}</span><small>${esc(value)}</small></button>`;
     const bin = (code, title, sub, body) => `<section class="rz-bin"><header><i>${code}</i><b>${title}</b><small>${sub}</small></header>${body}</section>`;
     page.innerHTML = `<div class="rz-labs">
@@ -155,6 +158,35 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
           ${v.templates.length ? `<small class="rz-sub">SAVED · ${v.templates.length}</small>` + v.templates.map((t, i) => `<div class="rz-tpl"><button class="zy-item rz-row" data-item data-labs="wear" data-arg="${i}"><span>${esc(t.name)}</span><small>WEAR</small></button><button class="zy-item rz-mini" data-item data-labs="cloneT" data-arg="${i}">CLONE</button><button class="zy-item rz-mini" data-item data-labs="dl" data-arg="${i}">JSON</button><button class="zy-item rz-mini" data-item data-labs="del" data-arg="${i}">✕</button></div>`).join('') : '<p class="rz-note">Saved templates appear here. A downloaded template JSON can be dropped onto the game to wear it.</p>'}`)}
         ${row('data-labs="reset"', v.resetArmed ? 'Press again to reset' : 'Reset Rizer', 'DEFAULT LOOK', ' rz-danger')}
       </div></div>`;
+    page.querySelectorAll('.rz-col').forEach((c, i) => { c.scrollTop = scroll[i] || 0; });
+  }
+  // ── LABS › ASTRAL: the X-ray Rizer · stats and mods on his nervous system (game.js · astralHub, astral-stats.js) ──
+  function renderAstral() {
+    const page = root.querySelector('.zy-page[data-page="astral"]'); if (!page) return;
+    const scroll = [...page.querySelectorAll('.rz-col')].map(c => c.scrollTop); // a redraw keeps each column where it was
+    const v = astralHub.view();
+    const bin = (code, title, sub, body, cls = '') => `<section class="rz-bin${cls}"><header><i>${code}</i><b>${title}</b><small>${sub}</small></header>${body}</section>`;
+    const stat = s => `<div class="ax-stat"><div class="ax-stat-top"><b style="color:${s.color}">${s.name}</b><small>+${s.per} ${esc(s.unit)} each</small></div>
+      <div class="ax-pips">${Array.from({ length: v.statMax }, (_, i) => `<i class="${i < s.value ? 'on' : ''}" style="--c:${s.color}"></i>`).join('')}</div>
+      <div class="ax-btns"><button class="zy-item rz-mini" data-item data-astral="lower" data-arg="${s.id}">−</button><span>${s.value}</span><button class="zy-item rz-mini" data-item data-astral="raise" data-arg="${s.id}">+</button></div></div>`;
+    const system = sys => bin(sys.code, sys.name, sys.note, sys.mods.map(m => `<button class="zy-item rz-row${m.installed ? ' current' : ''}" data-item data-astral="mod" data-arg="${m.id}"><span>${esc(m.name)}<em>${esc(m.effect)}</em></span><small>${m.installed ? 'INSTALLED' : m.cost + ' AP'}</small></button>`).join(''), ' ax-sys');
+    const [cortex, spine, arms, legs] = v.systems;
+    page.innerHTML = `<div class="rz-labs ax-labs">
+      <div class="rz-col rz-left">
+        <section class="ax-ap"><small>ASTRAL POINTS</small><b>${v.free}</b><span>of ${v.total} · Level ${v.level} · +${v.perLevel} per Level</span></section>
+        ${bin('01', 'STATS', 'SPEND AP · RAISE HIS LIMITS', v.stats.map(stat).join(''))}
+        ${system(cortex)}${system(arms)}
+      </div>
+      <div class="rz-stage" aria-hidden="true"><span class="rz-tl"></span><span class="rz-tr"></span><span class="rz-bl"></span><span class="rz-br"></span>
+        <em class="ax-tag ax-t-cortex">CORTEX</em><em class="ax-tag ax-t-spine">SPINAL CORD</em><em class="ax-tag ax-t-arms">ARMS · HANDS</em><em class="ax-tag ax-t-legs">LEGS</em>
+        <div class="rz-tag"><small>ASTRAL MATRIX · LIVE</small><b>${esc(v.name)}</b><em>NERVOUS SYSTEM · ${v.mods} MOD${v.mods === 1 ? '' : 'S'}</em></div>
+        <div class="rz-scan"></div></div>
+      <div class="rz-col rz-right">
+        ${bin('ID', 'READOUT', 'WHAT THE MATRIX GIVES HIM', `<dl class="rz-dl">${v.readout.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('')}</dl>`)}
+        ${system(spine)}${system(legs)}
+        <button class="zy-item rz-row rz-danger" data-item data-astral="reset"><span>${v.resetArmed ? 'Press again to reset' : 'Reset Astral'}</span><small>REFUND ALL AP</small></button>
+      </div></div>`;
+    page.querySelectorAll('.rz-col').forEach((c, i) => { c.scrollTop = scroll[i] || 0; });
   }
   function renderHome(st) {
     const grid = $('#zy-app-grid'); if (!grid) return;
@@ -308,6 +340,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (el.dataset.hour) { onTime(+el.dataset.hour); setTimeout(render, 50); }
     if (el.dataset.char) Promise.resolve(onCharacter(el.dataset.char)).then(render);
     if (el.dataset.partner) { onPartner?.(el.dataset.partner); render(); return; } // call that bonded Zyrex to walk with him
+    if (el.dataset.astral) { const keep = focus; astralHub?.act(el.dataset.astral, el.dataset.arg); if (isOpen) { render(); focus = keep; paintFocus(); } return; }
     if (el.dataset.labs) { const keep = focus, name = root.querySelector('[data-labs-name]')?.value || ''; Promise.resolve(labsHub?.act(el.dataset.labs, el.dataset.arg, name)).then(() => { if (isOpen && TABS[tab] === 'rizer') { render(); focus = keep; paintFocus(); } }); return; }
     if ('lab' in el.dataset) onAnimLab?.();
     if ('skinLab' in el.dataset) onSkinLab?.();

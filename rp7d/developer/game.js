@@ -818,27 +818,7 @@ function lightbulbLearned(bulbId, moveId) {
          : `<small>ALREADY KNOWN</small><p>This Lightbulb holds a technique Rizer already knows.</p>`) + `</div></div>`;
   el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
   clearTimeout(learnedCardT); learnedCardT = setTimeout(() => el.classList.remove('show'), 5200);
-  fhud?.render();
 }
-// FHUD: the compact Focus Move cross beside the WHUD · what sits on each D-pad direction, lit while locked on an enemy
-const fhud = (() => {
-  let el = null;
-  const make = () => {
-    const host = document.querySelector('.wheel.whud'); if (!host) return null;
-    el = document.createElement('div'); el.className = 'fhud'; el.setAttribute('aria-label', 'Focus Moves');
-    el.innerHTML = `<small>FOCUS</small><div class="fhud-cross">${DIRS.map(d => `<span class="fhud-slot" data-dir="${d}"><i></i><kbd class="p">${DIR_NAME[d]}</kbd><kbd class="k">${DIR_KEY[d]}</kbd></span>`).join('')}<em class="fhud-lock">LOCK</em></div>`;
-    host.appendChild(el); return el;
-  };
-  return {
-    render() {
-      if (!el && !make()) return;
-      for (const d of DIRS) { const s = el.querySelector(`[data-dir="${d}"]`), id = focus.slot(d), M = FOCUS_MOVES[id]; s.classList.toggle('filled', !!M); s.style.setProperty('--c', M?.color || '#5b6b8a'); s.querySelector('i').textContent = M ? M.glyph : ''; s.title = M ? `${DIR_NAME[d]} · ${M.name}` : `${DIR_NAME[d]} · empty`; }
-    },
-    lock(on) { if (el) el.classList.toggle('armed', !!on); },
-    flash(id) { const d = focus.dirOf(id); const s = d && el?.querySelector(`[data-dir="${d}"]`); if (!s) return; s.classList.remove('cast'); void s.offsetWidth; s.classList.add('cast'); }
-  };
-})();
-focus.onChange(() => fhud.render());
 
 // ── Caves (caves-data.js · cave-placement.js · cave-terrain.js · cave-interior.js) ──
 // The third layer of the world: building interiors · the overworld · cave interiors. ✕ (Space) at a cave mouth
@@ -955,17 +935,16 @@ function castFocus(id, context = false) {
   }
   if (id === 'astralspin') { // no lock needed; grounded or airborne
     const r = storm.astralspin(rizer); if (r.fail) return showToast(r.fail);
-    fhud?.flash(id); rumbleHit('medium'); showToast(r.airborne ? 'ASTRALSPIN · the tornado forms on the ground below' : 'ASTRALSPIN'); return;
+    rumbleHit('medium'); showToast(r.airborne ? 'ASTRALSPIN · the tornado forms on the ground below' : 'ASTRALSPIN'); return;
   }
   if (!isFoeLock(lk)) return showToast(`${label} · lock an enemy first (R3 / R)`);
   if (id === 'astralclap') {
     const r = storm.astralclap(rizer, lk.ref); if (r.fail) return r.fail && showToast(r.fail);
-    fhud?.flash(id); rumbleHit('light'); return;
+    rumbleHit('light'); return;
   }
   if (id === 'astralthunder') { // lightning from the sky onto the locked Seer or Mori
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) return;
     if (!rizer.spendEnergy(ASTRAL.thunder.energy)) return showToast('ASTRAL ENERGY LOW');
-    fhud?.flash(id);
     astral.thunder(rizer, lk.ref, foes, (p, hits) => {
       cam.kick(1.2); hitStop = Math.max(hitStop, 0.1); sfx.play('thunder'); rumbleHit('thunder');
       const main = hits[0]; showToast(main?.down ? `ASTRALTHUNDER · ${main.name} down` : `ASTRALTHUNDER · ${ASTRAL.thunder.damage} damage${hits.length > 1 ? ` · ${hits.length - 1} caught in the blast` : ''}`);
@@ -973,7 +952,6 @@ function castFocus(id, context = false) {
   } else if (id === 'astralburst') { // lightning crackles over Rizer, then explodes out around him
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.bursting) return;
     if (!rizer.spendEnergy(ASTRAL.burst.energy)) return showToast('ASTRAL ENERGY LOW');
-    fhud?.flash(id);
     const p = lk.ref.pos; rizer.facing = Math.atan2(p.x - rizer.position.x, p.z - rizer.position.z);
     sfx.play('blast', 0.55, 0.8); rumbleHit('light'); // the charge hums up
     astral.astralburst(rizer, foes, (c, hits) => {
@@ -984,7 +962,6 @@ function castFocus(id, context = false) {
   } else if (id === 'rolling_thunder') { // every impact starts a 3 s fuse; nearby enemies chain before the final blast
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.rolling) return;
     if (!rizer.spendEnergy(ASTRAL.rolling.energy)) return showToast('ASTRAL ENERGY LOW');
-    fhud?.flash(id);
     sfx.play('blast', 0.6, 0.75); rumbleHit('light');
     astral.rollingThunder(rizer, lk.ref, foes, result => {
       if (result.exploded) {
@@ -1093,7 +1070,7 @@ function build() {
   av = createAstralvision(scene, camera, fx);
   loot = createLoot(scene, world, fx, W); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
-  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, porch: PLAYTEST_PORCH_CHESTS ? porchChestSpots(W, world).gold : null, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); fhud.render(); // the gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
+  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, porch: PLAYTEST_PORCH_CHESTS ? porchChestSpots(W, world).gold : null, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); // the gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
   // Caves: the interiors answer every physical query in their region of the world (world.js · setInterior)
   caveSys = createCaveInteriors({ scene, caves: CAVES, toast: showToast, fx, state: caveState });
   world.setInterior({ name: x => caveSys.planAt(x)?.cave.name, owns: caveSys.owns, groundAt: (x, z, y) => caveSys.planAt(x)?.phys.groundAt(x, z, y) ?? -60, resolve: (p, r) => caveSys.planAt(p.x)?.phys.resolve(p, r) ?? false, rayClear: (a, b) => caveSys.planAt(a.x)?.phys.rayClear(a, b) ?? a.distanceTo(b) });
@@ -2362,7 +2339,7 @@ function update(dt, t, realDt = dt) {
   const movementWorld = homeMode ? homeInterior.roomWorld : world;
   if (westLakeBus?.driving) westLakeBus.cameraUpdate(dt, camera, cam, busInput);
   else { if (labsView) { cam.yaw = rizer.facing; cam.pitch = 0.1; cam.targetDist = 3.4; } cam.update(dt, rizer, movementWorld, { autoRecenter: usingPad && !menu }); }
-  labs?.update(dt); xray?.update(dt); lightbulbs?.update(dt); fhud.lock(isFoeLock(astral?.lock));
+  labs?.update(dt); xray?.update(dt); lightbulbs?.update(dt);
   updateBackBoard();
   if (homeMode) homeInterior.nebulaTick?.(dt);
   if (pcUse) tickPcUse(dt);

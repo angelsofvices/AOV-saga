@@ -106,7 +106,7 @@
   }
   function speciesFor(no, district){
     return Object.keys(FAUNA.species).filter(function(id){
-      var s = FAUNA.species[id]; return s.world === no && (!district || s.district === district);
+      var s = FAUNA.species[id]; return s.world === no && !s.retired && !s.hidden && (!district || s.district === district);
     });
   }
   // wild levels rise with distance from the start: Zyraxis by district order, other worlds by ring

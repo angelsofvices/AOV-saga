@@ -47,7 +47,8 @@
     Object.keys(SP).forEach(function(id){
       var s = SP[id];
       if (!D.subjects[id]) D.subjects[id] = { kind:'aethren', set:s.world, term:id, district:s.district, tier:s.tier, types:s.types.join(' / '),
-        temperament:s.temperament, canonNote:s.note || '', journal:s.journal, provisional:!!s.provisional };
+        temperament:s.temperament, canonNote:s.note || '', journal:s.journal, provisional:!!s.provisional,
+        provisionalData:!!s.provisionalData, retired:!!s.retired, hidden:!!s.hidden };
       D.subjects[id].sp = id;
       if (!D.lexicon[id]) D.lexicon[id] = { unknown:s.unknown, canon:s.canon ? s.name : null };
       if (!ART.ANIM[id]) {
@@ -256,7 +257,7 @@
   function arc(id){ return S.archive[id] || (S.archive[id] = {}); }
   function mark(id, what){ var a = arc(id); if (a[what]) return false; a[what] = Date.now(); save(); return true; }
   var setCache = {};
-  function setSubjects(n){ return setCache[n] || (setCache[n] = Object.keys(D.subjects).filter(function(id){ return subj(id).set === n; })); }
+  function setSubjects(n){ return setCache[n] || (setCache[n] = Object.keys(D.subjects).filter(function(id){ var x = subj(id); return x.set === n && !x.retired && !x.hidden; })); }
   function setPct(n){
     var got = 0, max = 0;
     setSubjects(n).forEach(function(id){
@@ -324,6 +325,8 @@
         (s.sp && c.lv ? '<p class="x-card-moves">' + spMoves(s.sp).map(function(m){ return '<span style="--tc:' + typeCol(m.t) + '">' + esc(m.n) + ' · ' + esc(m.t.toUpperCase()) + '</span>'; }).join('') + '</p>' : '') +
         (s.canonNote && known(s.term) ? '<p class="x-card-canon">' + esc(s.canonNote) + '</p>' : '') +
         (s.provisional ? '<p class="x-card-canon">PROVISIONAL · awaiting the Creator’s species for this world</p>' : '') +
+        (s.provisionalData ? '<p class="x-card-canon">OFFICIAL ROSTER · tier and types provisional, awaiting the Creator</p>' : '') +
+        (s.retired ? '<p class="x-card-canon">RETIRED · no longer on the official roster</p>' : '') +
         '<p class="x-card-note">“' + esc(s.journal) + '”</p>'
         : '<div class="x-card-meta"><span>' + esc(classLine(s)) + (s.sp && c.lv ? ' · LV ' + c.lv : '') + '</span><b>' + rarity(s) + '</b></div>') +
       (c.qty > 1 ? '<span class="x-qty">×' + c.qty + '</span>' : '') +

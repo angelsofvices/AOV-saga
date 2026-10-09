@@ -84,6 +84,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 8.1', title:'The Official Aethren Roster',
+      notes:[
+        'The wild Aethren of Zyraxis are now exactly the Creator\u2019s official roster, with official spellings',
+        'Gravemourne and Sigilmore take their official spellings, and dozens of newly named Aethren join the wild',
+        'People and named characters no longer appear as wild Aethren; cards you already hold stay in your collection'
+      ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 8', title:'NASARUS, the Headquarters World',
       notes:[
         'The game is now Aethryx Adventures: 1936, and the Living Master Codex is its record of everything you find',

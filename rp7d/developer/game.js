@@ -32,6 +32,7 @@ import { createAstral, ASTRAL } from './astral.js';
 import { focus, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY, DIR_CODE, createLightbulbChests } from './focus-moves.js';
 import { CAVES, CAVE_BY_ID } from './caves-data.js';
 import { createCaveInteriors } from './cave-interior.js';
+import { createStoreInterior } from './store-interior.js';
 import { createAstralStorm, STORM, STORM_TIMING } from './astral-storm.js';
 import { createAstralvision } from './astralvision.js';
 import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, porchChestSpots, PLAYTEST_PORCH_CHESTS, ASTRALITE_FAMILIES, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
@@ -315,14 +316,18 @@ function setOutdoorActorsVisible(value) {
   if (anciuxor) anciuxor.sprite.visible = visible;
   scanobots?.setVisible(visible); penumbras?.setVisible(visible); novas?.setVisible(visible); bolts?.setVisible(visible); resources?.setVisible(visible); gatelocks?.setVisible(visible); coinPiles?.setVisible(visible);
 }
-function showHomeInterior() {
-  if (homeMode || !homeInterior) return;
+// Building interiors: one mechanism for every enterable building (Rizer's Home, the Malezor Town Store, …). The exterior
+// stays part of the overworld; walking through the door loads that building's own interior level, and leaving puts
+// Rizer back where he went in. Inventory, gold, progress: untouched by the trip.
+function showInterior(I = homeInterior) {
+  if (homeMode || !I) return;
   homeReturn = { x: rizer.position.x, y: rizer.position.y, z: rizer.position.z, facing: rizer.facing };
-  homeMode = true; world.setExteriorVisible(false); homeInterior.show(true); setOutdoorActorsVisible(false);
-  $('#game').classList.add('home-interior'); astral.clearLock(); homeInterior.start(rizer, cam, 1);
+  indoor = I; homeMode = true; world.setExteriorVisible(false); I.show(true); setOutdoorActorsVisible(false);
+  $('#game').classList.add('home-interior'); astral.clearLock(); I.start(rizer, cam, 1);
   cam.snapBehind(rizer);
-  showToast('Rizer’s Living Room · walk upstairs to Rizer’s room', 3000);
+  showToast(I === homeInterior ? 'Rizer’s Living Room · walk upstairs to Rizer’s room' : 'Malezor Town Store · Floor 1 · Rizer Department · the stairs on the right lead up to the Zyrex Department', 3400);
 }
+const showHomeInterior = () => showInterior(homeInterior);
 // ── Pickups: loot lying in the world. Wild fruit in the grass (nature.js) and the bags defeated enemies drop.
 // ○ (E) near one picks it up: running, he scoops it on the move (Pick Up Item); otherwise he walks up and
 // picks it up (Picking Up). Works mid-fight. Picked fruit stays picked (inventory.picked.flowers — the key predates fruit).
@@ -448,7 +453,7 @@ function tickPcUse(dt) {
   if (u.k > 0) { const e = u.k * u.k * (3 - 2 * u.k), s = u.n.screen; _pcPos.set(s.x + 0.5, s.y + 0.05, s.z + 1.55); camera.position.lerp(_pcPos, e); _pcLook.copy(cam.focus).lerp(s, e); camera.lookAt(_pcLook); }
 }
 function openStation(kind, ctx) {
-  if (kind === 'n3000') { if (homeMode && !rizer.seq && !bondGame?.active && !seating?.active) n3000?.open(); return; }
+  if (kind === 'n3000') { if (homeMode && indoor === homeInterior && !rizer.seq && !bondGame?.active && !seating?.active) n3000?.open(); return; }
   if (kind === 'homepc') kind = 'home'; // the interior calls the desk 'homepc', the screen is 'home'
   if (kind !== 'home' && kind !== 'experiment' && kind !== 'workstation' && kind !== 'astralite') return;
   dep?.showPrompt(null); stationUI.open(kind, ctx || {});
@@ -626,18 +631,20 @@ function doorFrame(hinge, sign) { // sign +1: walking in · -1: walking out
 // low, behind and beside him, never inside the house and never overhead.
 function snapOutsideDoor(dist = 3.4) {
   cam.snapBehind(rizer, dist);
-  const outside = world.structures.getObjectByName('homeDoor'); if (!outside) return;
+  const outside = world.structures.getObjectByName(indoor?.exteriorDoor || 'homeDoor'); if (!outside) return;
   const fr = doorFrame(outside, -1), d0 = (rizer.position.x - fr.hx) * fr.ux + (rizer.position.z - fr.hz) * fr.uz; // how far he stands outside the wall
   if (d0 > dist + 0.6) return;
   const a = Math.acos(THREE.MathUtils.clamp((d0 - 0.55) / dist, 0, 1)); // enough angle that the ray back to the camera runs along the wall, not through it
   cam.yaw = Math.atan2(-fr.ux, -fr.uz) + a; cam.targetDist = cam.dist = cam.cur = dist; cam.pitch = 0.08;
 }
-function walkHomeDoor(mode) {
-  const outside = world.structures.getObjectByName('homeDoor'), inside = homeInterior?.frontDoor;
+const walkHomeDoor = mode => walkDoor(mode, mode === 'enter' ? homeInterior : indoor);
+// The door walk, for any building: up to the knob, the door swings, through the doorway into its interior (or out).
+function walkDoor(mode, I = indoor) {
+  const outside = world.structures.getObjectByName(I?.exteriorDoor || 'homeDoor'), inside = I?.frontDoor;
   if (!outside || !inside || rizer.seq || !rizer.actor) return;
   const sign = mode === 'enter' ? 1 : -1, ext = doorFrame(outside, sign), int = doorFrame(inside, sign);
   const [first, second] = mode === 'enter' ? [ext, int] : [int, ext], slot = mode === 'enter' ? 'enter' : 'exitDoor';
-  if (!rizer.actor.has(slot)) { if (mode === 'enter') showHomeInterior(); else leaveHomeInterior(); return; } // clip not loaded: plain switch
+  if (!rizer.actor.has(slot)) { if (mode === 'enter') showInterior(I); else leaveHomeInterior(); return; } // clip not loaded: plain switch
   let switched = false;
   fadeEl();
   const go = () => rizer.startDoorWalk(first, slot, {
@@ -647,8 +654,8 @@ function walkHomeDoor(mode) {
       const sw = DOORWALK.switchAt; doorFade.style.opacity = t < sw - 0.25 ? 0 : t < sw ? (t - sw + 0.25) / 0.25 : Math.max(0, 1 - (t - sw) / 0.3);
       if (!switched && t >= DOORWALK.switchAt) { // through the doorway: change scene, same door on the other side
         switched = true; first.set(0); second.set(a);
-        if (mode === 'enter') showHomeInterior(); else leaveHomeInterior();
-        rizer.retargetDoor(second); rizer.doorStep(0, homeMode ? homeInterior.roomWorld : world);
+        if (mode === 'enter') showInterior(I); else leaveHomeInterior();
+        rizer.retargetDoor(second); rizer.doorStep(0, homeMode ? indoor.roomWorld : world);
         cam.snapBehind(rizer);
       }
       // Follow the animated body through the doorway instead of leaving the
@@ -664,9 +671,9 @@ function walkHomeDoor(mode) {
 }
 function leaveHomeInterior() {
   if (!homeMode) return;
-  homeMode = false; homeInterior.show(false); world.setExteriorVisible(true); setOutdoorActorsVisible(true); $('#game').classList.remove('home-interior');
+  homeMode = false; indoor.show(false); world.setExteriorVisible(true); setOutdoorActorsVisible(true); $('#game').classList.remove('home-interior');
   const at = homeReturn || { x: W.playerStart.x, z: W.playerStart.z, facing: W.playerStart.facing };
-  rizer.position.set(at.x, world.groundAt(at.x, at.z), at.z); rizer.facing = at.facing; rizer.vel.set(0, 0, 0); rizer.vy = 0; rizer.speed = 0; rizer.onGround = true; rizer.flying = false;
+  rizer.position.set(at.x, world.groundAt(at.x, at.z, Number.isFinite(at.y) ? at.y + 0.5 : undefined), at.z); rizer.facing = at.facing; rizer.vel.set(0, 0, 0); rizer.vy = 0; rizer.speed = 0; rizer.onGround = true; rizer.flying = false; // the ground he went in from, never a roof above the doorway
   snapOutsideDoor(3.4); homeReturn = null;
   showToast('Outside · the door will still be here');
 }
@@ -708,7 +715,7 @@ function saveGame() {
   const hero = npcs?.npcs.find(n => n.role === 'hero');
   if (hero) { inventory.zorynMet = hero.met; inventory.zorynRecruited = hero.recruited || hero.wasRecruited; inventory.zorynDowned = hero.downed; inventory.zorynHealth = hero.health; saveInv(); }
   const p = rizer.position, at = homeMode ? homeReturn : caveMode && caveReturn ? { x: caveReturn.x, y: world.groundAt(caveReturn.x, caveReturn.z), z: caveReturn.z, facing: caveReturn.face } : { x: p.x, y: p.y, z: p.z, facing: rizer.facing };
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, t: Date.now(), home: homeMode, at, hour, region: hud?.regionOf(p.x, p.z) })); } catch (e) {}
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, t: Date.now(), home: homeMode && indoor === homeInterior, at, hour, region: hud?.regionOf(p.x, p.z) })); } catch (e) {}
 }
 function titleButtons() { return [...document.querySelectorAll('#title-menu .title-btn')].filter(b => !b.disabled); }
 function titleFocus(i) { const list = titleButtons(); if (!list.length) return; titleIndex = (i + list.length) % list.length; list.forEach((b, k) => b.classList.toggle('focus', k === titleIndex)); }
@@ -804,6 +811,7 @@ let pcUse = null; // Nebuladock 3000 session: {phase 'walk'|'in'|'on'|'out', k 0
 let labs = null, labsView = null, xray = null, astralResetArmed = 0; // LABS › Rizer (labs.js): clones, templates, reset · labsView: the camera held on him while the page is up
 let n3000 = null, n3000Camera = null, tv = null, tvCamera = null; // tv: the living-room TV & DVD system (tv-system.js)
 let dep = null, stationUI = null; // storage foundation: deployed Field Equipment · Home PC / Experiment Table screens
+let storeInterior = null, indoor = null; // every enterable building is an interior level; `indoor` is the one Rizer is in (homeMode = indoors)
 let furnMover = null, homeInterior = null, homeMode = false, homeReturn = null, npcs = null, commonChests = null, zycube = null;
 let astralboard = null;
 // ── Lightbulbs (focus-moves.js): ✕ collects one and its Focus Move is learned for good ──
@@ -1008,7 +1016,8 @@ function build() {
   world.bound = W.bound; world.roam = W.extent - 1; // spawns keep Malezor's bound; Rizer himself may walk to the edge of Malezor's ground and on into the empty districts
   shared.groundAt = world.groundAt;
   sky = createSky(scene, shared);
-  homeInterior = createHomeInterior(scene); homeMode = true; world.setExteriorVisible(false);
+  homeInterior = createHomeInterior(scene); indoor = homeInterior; homeMode = true; world.setExteriorVisible(false);
+  storeInterior = createStoreInterior(scene); // the Malezor Town Store (the Gear Shop's door)
   homeInterior.setGuitarTaken(hasWeapon('guitar'));
   initTV();
   const s = W.playerStart;
@@ -1197,7 +1206,7 @@ function build() {
   addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
   // Debug/test hook for playtests and automated checks.
-  window.__rp7d = { focus, get storm() { return storm; }, castFocus, get lightbulbs() { return lightbulbs; }, caves: { get sys() { return caveSys; }, enter: id => enterCave(id), exit: () => exitCave(), get mode() { return caveMode; }, get id() { return caveId; }, report: () => world.caveReport(), plan: () => world.cavePlan, state: caveState, grunts: caveGrunts },  get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
+  window.__rp7d = { get store() { return storeInterior; }, get indoor() { return indoor; }, enterStore: () => walkDoor('enter', storeInterior), stationUI: () => stationUI, focus, get storm() { return storm; }, castFocus, get lightbulbs() { return lightbulbs; }, caves: { get sys() { return caveSys; }, enter: id => enterCave(id), exit: () => exitCave(), get mode() { return caveMode; }, get id() { return caveId; }, report: () => world.caveReport(), plan: () => world.cavePlan, state: caveState, grunts: caveGrunts },  get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
   frame();
   // title screen: ready once the world exists · a NEW GAME reload skips straight into play
   $('#new-sub').textContent = 'Wake up in Rizer’s room';
@@ -2089,7 +2098,8 @@ function update(dt, t, realDt = dt) {
   const menu = zy.isOpen || wasOpen || !!stationUI?.isOpen || stWas || pcLock, ko = koT > 0;
   if ((zy.isOpen || stationUI?.isOpen) && dep?.placing) dep.cancel(true); // opening a menu abandons a placement
   dep?.showPrompt(null); // re-shown below when something usable is in reach
-  if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'tv' ? 'WATCH TV · ○ / E' : st.id === 'floor-guitar' || st.pickup ? 'PICK UP · ○ / E' : undefined); } } }
+  if (!menu && homeMode && indoor !== homeInterior) { const st = indoor.stationAt(rizer); if (st) dep?.showPrompt(st.name, 'SHOP · ○ / E'); }
+  else if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'tv' ? 'WATCH TV · ○ / E' : st.id === 'floor-guitar' || st.pickup ? 'PICK UP · ○ / E' : undefined); } } }
   if (!menu) dep?.update(); // the placement ghost
   const kx = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
   const kz = (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0);
@@ -2126,10 +2136,10 @@ function update(dt, t, realDt = dt) {
   const placingNow = !!dep?.placing; // placing: ○ / E confirms, △ cancels, and nothing else acts on those buttons
   if (placingNow && !menu) { if (pressed.has('KeyE') || pad?.interact) dep.confirm(); else if (pad?.kick) dep.cancel(); for (const c of ['KeyE', 'KeyF', 'KeyJ', 'KeyK', 'MousePunch', 'MouseKick']) pressed.delete(c); }
   const padAct = pad && !labOpen && !placingNow ? pad : null; // while the lab is open the face buttons drive the lab
-  if (homeMode && furnMover) furnMover.update(dt, inp, { active: act && !menu, lock: pressed.has('KeyR') || pressed.has('MouseLock') || !!padAct?.lock, square: pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch, cancel: pressed.has('KeyE') || !!padAct?.interact });
+  if (homeMode && indoor === homeInterior && furnMover) furnMover.update(dt, inp, { active: act && !menu, lock: pressed.has('KeyR') || pressed.has('MouseLock') || !!padAct?.lock, square: pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch, cancel: pressed.has('KeyE') || !!padAct?.interact });
   else if (furnMover?.busy) furnMover.abort();
   if (homeMode && seating?.active) seating.update(dt, { interact: !menu && (pressed.has('KeyE') || !!padAct?.interact), square: !menu && (pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch) }); else if (seating?.active) seating.abort();
-  if (homeMode && !menu && act && !rizer.seq && !furnMover?.busy && homeInterior.nearDoor(rizer)) { // inside, at the front door: ✕ / Space leaves the same way ✕ enters
+  if (homeMode && !menu && act && !rizer.seq && !furnMover?.busy && indoor.nearDoor(rizer)) { // inside, at the front door: ✕ / Space leaves the same way ✕ enters
     dep?.showPrompt('Front door', 'X / SPACE · go outside');
     if (inp.jumpPressed) { inp.jumpPressed = false; inp.jumpHeld = false; walkHomeDoor('exit'); }
   }
@@ -2170,6 +2180,12 @@ function update(dt, t, realDt = dt) {
     } else if (astralboard?.active) {
       if (astralboard.mounted && (pressed.has('KeyE') || padAct?.kick)) astralboard.dismount(rizer); // △ off, like every vehicle
       else if (astralboard.mounted && (pressed.has('KeyO') || padAct?.interact)) { astralboard.dismount(rizer); boardStowAfter = true; } // ○ off and onto his back
+    } else if (homeMode && indoor !== homeInterior) { // another building: its counters are merchants (store.js · station-ui 'shop')
+      if (pressed.has('KeyE') || padAct?.interact) {
+        const st = indoor.stationAt(rizer);
+        if (st?.dept) { dep?.showPrompt(null); stationUI.open('shop', { store: indoor.id, dept: st.dept, onWallet: inv => hud.setWallet(inv) }); }
+        else showToast(indoor.level === 1 ? 'Front door · ✕ / Space to leave · the stairs on the right go up' : 'The stairs by the east wall lead back down');
+      }
     } else if (homeMode) {
       if ((pressed.has('KeyE') || padAct?.interact) && !furnMover?.busy && !pcUse && !seating?.active) {
         const st = homeInterior.stationAt(rizer), line = st ? null : homeInterior.interact(rizer);
@@ -2191,6 +2207,7 @@ function update(dt, t, realDt = dt) {
     if (doorJump) {
       const it = promptTarget;
       if (it?.id === 'player-home') walkHomeDoor('enter');
+      else if (it?.id === 'malezor-gear-shop') walkDoor('enter', storeInterior); // the Malezor Town Store
       else if (it?.cave) enterCave(it.cave);
       else if (it?.kind === 'lightbulb') { rizer.playInteract(true); lightbulbs?.collect(it.id); }
       else if (it?.door) { rizer.playInteract(true); showToast(`◈ ${it.name} · sealed for now`); }
@@ -2328,20 +2345,20 @@ function update(dt, t, realDt = dt) {
   }
   if (rizer.actor) rizer.actor.fighting = !ufoPilot && !westLakeBus?.driving && !astralboard?.active && !homeMode && !menu && (astral.lock?.kind === 'enemy' || astral.lock?.kind === 'scanobot');
   if (!menu && ufoTransition) updateUfoTransition(dt);
-  else if (!menu) { if (westLakeBus?.driving) westLakeBus.update(dt, busInput, rizer); else if (ufoPilot) updateUfo(dt, inp, cam.yaw); else if (astralboard?.active) astralboard.update(dt, inp, cam.yaw, rizer); else { rizer.update(dt, inp, homeMode ? homeInterior.roomWorld : westLakeBus?.playerWorld || world, cam.yaw); if (!homeMode) westLakeBus?.resolvePlayer(rizer); } }
+  else if (!menu) { if (westLakeBus?.driving) westLakeBus.update(dt, busInput, rizer); else if (ufoPilot) updateUfo(dt, inp, cam.yaw); else if (astralboard?.active) astralboard.update(dt, inp, cam.yaw, rizer); else { rizer.update(dt, inp, homeMode ? indoor.roomWorld : westLakeBus?.playerWorld || world, cam.yaw); if (!homeMode) westLakeBus?.resolvePlayer(rizer); } }
   if (menu && seating?.active) rizer.update(dt, inp, homeInterior.roomWorld, cam.yaw); // seated at the PC: only his animation runs
   if (rizer.god && rizer.hp > 0) { rizer.hp = rizer.maxHp; rizer.stamina = rizer.maxStamina; rizer.astralEnergy = rizer.maxAstralEnergy; } // dev god mode: HP, STM and AE never drop
   if (!menu && !westLakeBus?.driving) updateBow(dt, rizer.weapon === 'bow' && (keys.has('KeyJ') || mousePunchHeld || !!padAct?.punchHeld));
   if (!menu && !westLakeBus?.driving && held) updateBlaster(dt, act && rizer.weapon === 'blaster' && (keys.has('KeyJ') || mousePunchHeld || !!padAct?.punchHeld));
   if (!menu && !westLakeBus?.driving) { const mv = Math.hypot(inp.x || 0, inp.z || 0) > 0.3 || !!inp.jumpPressed; updateJam(dt, mv); updateScope(dt, mv); }
-  if (!menu && homeMode) homeInterior.update(rizer, cam, () => walkHomeDoor('exit'), showToast, dt);
+  if (!menu && homeMode) indoor.update(rizer, cam, () => walkHomeDoor('exit'), showToast, dt);
   if (!menu && !homeMode) npcs?.update(dt, rizer, seers);
-  const movementWorld = homeMode ? homeInterior.roomWorld : world;
+  const movementWorld = homeMode ? indoor.roomWorld : world;
   if (westLakeBus?.driving) westLakeBus.cameraUpdate(dt, camera, cam, busInput);
   else { if (labsView) { cam.yaw = rizer.facing; cam.pitch = 0.1; cam.targetDist = 3.4; } cam.update(dt, rizer, movementWorld, { autoRecenter: usingPad && !menu }); }
   labs?.update(dt); xray?.update(dt); lightbulbs?.update(dt);
   updateBackBoard();
-  if (homeMode) homeInterior.nebulaTick?.(dt);
+  if (homeMode && indoor === homeInterior) homeInterior.nebulaTick?.(dt);
   if (pcUse) tickPcUse(dt);
   if (scopeView) scopeCamera(dt);
   shared.uPlayer.value.copy(rizer.position); shared.uCam.value.copy(camera.position); shared.uFocus.value.copy(cam.focus);
@@ -2520,7 +2537,7 @@ addEventListener('resize', () => {
 let lentLights = null;
 const townLights = () => [...world.lampLights, shared.rubyLight].filter(Boolean);
 function lightIndoors() {
-  const L = townLights(), specs = homeInterior.lights();
+  const L = townLights(), specs = indoor.lights();
   if (!lentLights) lentLights = L.map(l => ({ p: l.position.clone(), c: l.color.clone(), d: l.distance, k: l.decay }));
   L.forEach((l, i) => { const s = specs[i]; if (!s) { l.intensity = 0; return; } l.position.copy(s.pos); l.color.copy(s.color); l.intensity = s.intensity; l.distance = s.distance; l.decay = s.decay; });
 }
@@ -2536,11 +2553,12 @@ function lightOutdoors() {
 function warmShaders() {
   const culled = [];
   try {
-    const was = homeMode; world.setExteriorVisible(true); homeInterior.show(true); homeInterior.showAll(true);
+    const was = homeMode; world.setExteriorVisible(true); homeInterior.show(true); homeInterior.showAll(true); storeInterior?.show(true); storeInterior?.showAll(true);
     scene.traverse(o => { if ((o.isMesh || o.isInstancedMesh || o.isPoints) && o.frustumCulled) { o.frustumCulled = false; culled.push(o); } });
     renderer.compile(scene, camera); composer.render();
-    homeInterior.showAll(false);
+    homeInterior.showAll(false); storeInterior?.showAll(false); if (indoor !== storeInterior || !was) storeInterior?.show(false);
     if (was) world.setExteriorVisible(false); else homeInterior.show(false);
+    if (was && indoor !== homeInterior) homeInterior.show(false);
   } catch (e) { console.warn('[rp7d] shader warm-up', e); }
   for (const o of culled) o.frustumCulled = true;
 }

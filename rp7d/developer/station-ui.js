@@ -6,6 +6,7 @@ import { storage, LOC } from './storage.js';
 import { crafting } from './crafting.js';
 import { defOf, CATEGORY_ORDER, CATEGORY_LABEL, FIELD_EQUIPMENT } from './item-registry.js';
 import { nebulaAudio } from './nebula-audio.js';
+import { STORES, department, stockRows, sellable, buy, sell, gold, storeState } from './store.js';
 
 const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -107,9 +108,36 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
         <small class="st-note">Placeholder rate · 3 of one Astralite → 1 Gemshard</small></section></div>
       <div class="st-foot"><span>${esc(notice)}</span><em>↑↓ choose · ←→ family · Enter synthesize · Space all · F ${showAll ? 'held only' : 'show all 63'} · Esc close</em></div>`;
   }
+  // Shop (store.js): one merchant screen for every store and department. Left: what this counter sells. Right: what
+  // it buys back from your Zycube. Gold is shared with the RHUD; everything bought goes into the Zycube.
+  const shopRows = c => c === 0 ? stockRows(ctx.store, ctx.dept) : sellable(ctx.store, ctx.dept);
+  function shopHTML() {
+    const S = STORES[ctx.store], D = department(ctx.store, ctx.dept), cap = storage.capacity(), used = storage.slotsUsed(LOC.ZYCUBE), free = Math.max(0, cap - used);
+    const cols = [0, 1].map(c => {
+      const rows = shopRows(c); focus[c] = Math.max(0, Math.min(focus[c], rows.length - 1));
+      const list = rows.map((r, i) => c === 0
+        ? `<div class="st-row${col === 0 && focus[0] === i ? ' focus' : ''}${gold() < r.price ? ' lock' : ''}" data-col="0" data-i="${i}"><i class="st-sw" style="background:${esc(r.def.color || '#9aa')}"></i><b>${esc(r.def.name)}</b><em>${r.price} g</em><small>${r.have ? `CARRYING ${r.have}` : 'BUY'}</small></div>`
+        : `<div class="st-row${col === 1 && focus[1] === i ? ' focus' : ''}" data-col="1" data-i="${i}"><i class="st-sw" style="background:${esc(r.def.color || '#9aa')}"></i><b>${esc(r.def.name)}</b><em>×${r.qty}</em><small>SELL · +${r.price} g</small></div>`).join('');
+      return `<section class="st-col${col === c ? ' on' : ''}" data-col="${c}"><header><b>${c === 0 ? 'FOR SALE' : 'SELL FROM YOUR ZYCUBE'}</b><small>${c === 0 ? esc(D.sub) : 'HALF PRICE BACK'}</small></header>
+        <div class="st-list">${list || `<div class="st-empty">${c === 0 ? 'Nothing in stock' : 'Nothing this counter buys'}</div>`}</div></section>`;
+    }).join('');
+    const cur = shopRows(col)[focus[col]];
+    return `<div class="st-head"><small>${esc(S.name.toUpperCase())} · ${esc(D.sub)}</small><b>${esc(D.title)}</b><span>Gold <b class="st-gold">${gold()}</b> · Zycube ${used} / ${cap} slots · ${free} free</span></div>
+      <div class="st-cols">${cols}</div>
+      ${cur ? `<p class="st-note">${esc(cur.def.blurb || '')}</p>` : ''}
+      <div class="st-foot"><span class="${bad ? 'bad' : ''}">${esc(notice)}</span><em>↑↓ choose · ←→ buy / sell · Enter one · Space five · Esc leave</em></div>`;
+  }
+  function trade(n) {
+    const r = shopRows(col)[focus[col]]; if (!r) return;
+    const qty = col === 1 ? Math.min(n, r.qty) : n;
+    const res = col === 0 ? buy(ctx.store, ctx.dept, r.id, qty, ctx.onWallet) : sell(ctx.store, ctx.dept, r.id, qty, ctx.onWallet);
+    bad = !res.ok; notice = res.message || (res.ok ? '' : 'Not possible');
+    if (res.ok) nebulaAudio.transfer(); else nebulaAudio.error();
+    render();
+  }
   function render() {
     const keep = root.querySelector('.st-list')?.scrollTop || 0;
-    root.innerHTML = `<div class="st-panel st-${kind}${kind === 'home' ? ' nb' : ''}">${kind === 'home' ? homeHTML() : kind === 'experiment' ? expHTML() : kind === 'astralite' ? astHTML() : fwHTML()}</div>`;
+    root.innerHTML = `<div class="st-panel st-${kind}${kind === 'home' ? ' nb' : ''}">${kind === 'home' ? homeHTML() : kind === 'experiment' ? expHTML() : kind === 'astralite' ? astHTML() : kind === 'shop' ? shopHTML() : fwHTML()}</div>`;
     root.querySelector('.st-row.focus')?.scrollIntoView({ block: 'nearest' });
     void keep;
   }
@@ -118,6 +146,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     kind = k; ctx = c; col = 0; focus = [0, 0]; notice = ''; bad = false; showAll = false; tab = 0; sort = 0; qi = 0; custom = '';
     root.hidden = false; render(); onOpen();
     if (k === 'home') { nebulaAudio.startup(); nebulaAudio.ambience(true); }
+    if (k === 'shop') { const s = storeState(c.store); s.visits++; s.lastDept = c.dept; }
   }
   function close() { if (!isOpen()) return; if (kind === 'home') nebulaAudio.ambience(false); root.hidden = true; kind = null; onClose(); }
 
@@ -141,9 +170,9 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     notice = all ? res.message : res.ok ? `${x.r.name} → Gemshard` : res.message; if (!res.ok) toast(res.message); render();
   }
   function packNow() { const res = onPack(ctx.uid); if (res?.ok) close(); else { notice = res?.message || ''; render(); } }
-  const act = (all = true) => { if (kind === 'home') move(all ? 'one' : 'all'); else if (kind === 'astralite') synth(!all); else if (kind === 'experiment') craftNow(); else if (kind === 'workstation') packNow(); };
+  const act = (all = true) => { if (kind === 'shop') return trade(all ? 1 : 5); if (kind === 'home') move(all ? 'one' : 'all'); else if (kind === 'astralite') synth(!all); else if (kind === 'experiment') craftNow(); else if (kind === 'workstation') packNow(); };
   function jump(d) { const L = astList(); let i = focus[0], g = L[i]?.r.group; while (i + d >= 0 && i + d < L.length && L[i + d].r.group === g) i += d; i = Math.max(0, Math.min(L.length - 1, i + d)); if (d < 0) { const gg = L[i]?.r.group; while (i > 0 && L[i - 1].r.group === gg) i--; } focus[0] = i; render(); }
-  const step = d => { const n = kind === 'home' ? flat(columns()[col].loc).length : kind === 'experiment' ? crafting.listRecipes().length : kind === 'astralite' ? astList().length : 0; if (n) { focus[col] = (focus[col] + d + n) % n; if (kind === 'home') nebulaAudio.select(); render(); } };
+  const step = d => { const n = kind === 'shop' ? shopRows(col).length : kind === 'home' ? flat(columns()[col].loc).length : kind === 'experiment' ? crafting.listRecipes().length : kind === 'astralite' ? astList().length : 0; if (n) { focus[col] = (focus[col] + d + n) % n; if (kind === 'home') nebulaAudio.select(); render(); } };
   const setTab = d => { tab = (tab + d + TABS.length) % TABS.length; focus = [0, 0]; notice = ''; bad = false; nebulaAudio.select(); render(); };
   const setQty = d => { custom = ''; qi = (qi + d + PRESETS.length) % PRESETS.length; nebulaAudio.select(); render(); };
   const sideTo = c => { if (col !== c) { col = c; nebulaAudio.select(); render(); } };
@@ -156,8 +185,8 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     else if (code === 'Escape' || code === 'Backspace' || code === 'Tab') close();
     else if (code === 'ArrowUp' || code === 'KeyW') step(-1);
     else if (code === 'ArrowDown' || code === 'KeyS') step(1);
-    else if (kind === 'home' && (code === 'ArrowLeft' || code === 'KeyA')) sideTo(0);
-    else if (kind === 'home' && (code === 'ArrowRight' || code === 'KeyD')) sideTo(1);
+    else if ((kind === 'home' || kind === 'shop') && (code === 'ArrowLeft' || code === 'KeyA')) sideTo(0);
+    else if ((kind === 'home' || kind === 'shop') && (code === 'ArrowRight' || code === 'KeyD')) sideTo(1);
     else if (kind === 'home' && code === 'KeyQ') setTab(-1);
     else if (kind === 'home' && code === 'KeyE') setTab(1);
     else if (kind === 'home' && code === 'KeyZ') setQty(-1);
@@ -175,6 +204,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     if (p.edge(1) || p.edge(17)) return close();
     if (p.edge(12)) step(-1); if (p.edge(13)) step(1);
     if (kind === 'home') { if (p.edge(14)) sideTo(0); if (p.edge(15)) sideTo(1); if (p.edge(4)) setTab(-1); if (p.edge(5)) setTab(1); if (p.edge(3)) setQty(1); if (p.edge(2)) act(false); }
+    if (kind === 'shop') { if (p.edge(14)) sideTo(0); if (p.edge(15)) sideTo(1); if (p.edge(2)) act(false); }
     if (kind === 'astralite') { if (p.edge(14)) jump(-1); if (p.edge(15)) jump(1); if (p.edge(2)) act(false); if (p.edge(3)) { showAll = !showAll; focus[0] = 0; render(); } }
     if (p.edge(0)) act(true);
   }
@@ -188,10 +218,12 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
       const q = e.target.closest('[data-q]'); if (q) { if (q.dataset.q === 'c') { custom = custom || '1'; } else { custom = ''; qi = +q.dataset.q; } nebulaAudio.select(); return render(); }
       if (e.target.closest('[data-xfer]')) return move('one');
     }
-    const row = e.target.closest('.st-row'); if (!row || row.classList.contains('lock') && kind !== 'experiment' && kind !== 'home') return;
+    const row = e.target.closest('.st-row');
+    if (row && kind === 'shop') { const c = +row.dataset.col, i = +row.dataset.i; if (col === c && focus[c] === i) return trade(1); col = c; focus[c] = i; return render(); } // click to choose, click again to trade
+    if (!row || row.classList.contains('lock') && kind !== 'experiment' && kind !== 'home') return;
     if (kind === 'home') { col = +row.dataset.col; focus[col] = +row.dataset.i; nebulaAudio.select(); render(); } else if (kind === 'experiment') { focus[0] = +row.dataset.i; render(); } else if (kind === 'astralite') { focus[0] = +row.dataset.i; synth(false); }
   });
   root.addEventListener('wheel', e => { if (kind === 'home' && !e.target.closest('.st-list')) e.preventDefault(); }, { passive: false });
-  storage.onChange(() => { if (isOpen() && (kind === 'workstation' || kind === 'home')) render(); });
+  storage.onChange(() => { if (isOpen() && (kind === 'workstation' || kind === 'home' || kind === 'shop')) render(); });
   return { open, close, key, pad, get isOpen() { return isOpen(); }, get kind() { return kind; } };
 }

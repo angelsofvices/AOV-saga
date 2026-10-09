@@ -86,7 +86,7 @@ export function createWorld(W, scene, shared) {
       const [ax, az] = toWorld(0, -site.span / 2 - 0.5), [bx, bz] = toWorld(0, site.span / 2 + 0.5);
       baseY = 0; site.deckY = Math.max(T.heightAt(ax, az), T.heightAt(bx, bz)) + 0.22;
     }
-    const out = recipe(local, { ...site, ...extra }, { heightAt: T.heightAt });
+    const out = recipe(local, { ...site, ...extra, buildingScale: BUILDING_SCALE[site.recipe] }, { heightAt: T.heightAt });
     // RP7B buildings meet the land at their walls and supports; large floating
     // slab foundations in the 3D recipes lifted the entire structure.
     const footingDrop = removeFoundation(local); if (footingDrop) baseY -= footingDrop;

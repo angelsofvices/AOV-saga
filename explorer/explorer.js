@@ -119,7 +119,7 @@
              suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{},
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
-  function newHQ(){ return { id:'nasarus', name:HQ.canonicalName, built:{}, drive:false, ruins:{}, regions:[], store:{}, research:{}, records:[], stage:1 }; }
+  function newHQ(){ return { id:'nasarus', name:HQ.canonicalName, built:{}, drive:false, ruins:{}, regions:[], store:{}, research:{}, records:[], stage:1, equip:{} }; }
   var S = null, fresh = /[?&]newgame\b/.test(location.search);
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch(e){}
   if (S && S.v === 1) {          // carry an early-build save forward
@@ -721,9 +721,11 @@
     if (S.at) return 'ABOARD · IN ORBIT · ' + placeName(S.at);
     return 'ABOARD · DEEP SPACE · ' + term('expanse');
   }
-  // climbing aboard refills the suit and air and rests the card team
+  // climbing aboard repairs the suit and rests the card team. AIR refills only at NASARUS.
   function aboard(){
-    S.stage = 'nav'; S.suit = 100; S.air = 100; S.flares = Math.max(S.flares, flaresMax()); healTeam(); save();
+    S.stage = 'nav'; S.suit = 100; S.flares = Math.max(S.flares, flaresMax()); healTeam();
+    if (S.at === 'nasarus') refillAir();         // the ship carries no oxygen of its own: only the base refills it
+    save();
   }
   function ship(){ if (S.stage !== 'nav') aboard(); nav('system'); }
   function nav(tab, sel){
@@ -967,6 +969,7 @@
   function travel(no){
     if (!navOnline()) { toast('NAVIGATION OFFLINE', 'red'); return; }
     var from = placeName(S.at), d = hopDist(no);
+    if (no !== 'nasarus' && airPct() < 40) toast('AIR ' + Math.round(airPct()) + '% · there is no oxygen out there. Refill at ' + hqName() + ' first.', 'red');
     var s = screen('x-hyper', '<p class="x-hyper-t x-travel"></p>');
     startWorld('hyper'); vibrate(700, .4);
     S.stage = 'nav'; S.landed = false; S.pos = null; save();
@@ -989,12 +992,17 @@
     S.visited[no] = S.visited[no] || Date.now();
     S.at = no; S.landed = true;
     var m = no === 'nasarus' ? buildMap('nasarus') : GEN.build('w' + no);
-    if (no === 'nasarus') { S.pos = { map:'nasarus', x:m.ship.x + 2, y:m.ship.y + 1, dir:'down' }; S.stage = 'surface'; save();
+    if (no === 'nasarus') { S.pos = { map:'nasarus', x:m.ship.x + 2, y:m.ship.y + 1, dir:'down' }; S.stage = 'surface';
+      if (S.hq.built.camp && S.air < airMax()) { refillAir(); setTimeout(function(){ toast('OXYGEN · the tank refilled from the base · AIR ' + airMax()); }, 300); }
+      save();
       if (S.hq.built.depot && packTotal()) setTimeout(function(){ deposit(); }, 600);
       else if (packTotal()) setTimeout(function(){ toast('PACK · ' + packTotal() + ' materials · deposit them at the camp stores'); }, 600);
       surface('nasarus'); return; }
     S.pos = { map:m.id, x:m.ship.x, y:m.ship.y + 1, dir:'down' }; save();
     surface(m.id);
+    if (!S.flags.airRule) { S.flags.airRule = 1; save(); setTimeout(function(){ if (mode === 'surface' && !dlg) say(['The air here cannot be breathed. Everything you breathe is in the tank on your back.',
+      'Only ' + hqName() + ' holds oxygen. The ship carries none of its own: watch the AIR gauge, and turn for home before it runs low.',
+      'If the tank runs dry out here, you will not come back. Sprinting burns air twice as fast.']); }, 1400); }
   }
   function disembark(){ if (S.pos && S.pos.map) surface(S.pos.map); else touchdown(S.at); }
   function descent(no){
@@ -1008,7 +1016,7 @@
       else {
         $('.x-readout', s).textContent = 'TOUCHDOWN';
         s.classList.remove('shake'); sfx.click(); vibrate(250, 1);
-        setTimeout(function(){ touchdown(no); setTimeout(function(){ toast('TOUCHDOWN · ' + term(WORLD[no].term) + ' · SUIT ON, AIR TANK FULL'); }, 300); }, reduced ? 50 : 900);
+        setTimeout(function(){ touchdown(no); setTimeout(function(){ toast('TOUCHDOWN · ' + term(WORLD[no].term) + ' · AIR ' + Math.round(airPct()) + '% · only ' + hqName() + ' can refill it', airPct() < 50 ? 'red' : undefined); }, 300); }, reduced ? 50 : 900);
       }
     })(t0);
   }
@@ -1018,7 +1026,7 @@
     if (!M || (S.pos && M.id !== S.pos.map)) { var m0 = S.pos && buildMap(S.pos.map); if (m0) { M = m0; fogArr = fogDec(S.fog[M.id], M.W * M.H); if (!P) P = { x:S.pos.x, y:S.pos.y }; } }
     var team = S.team || [];
     body.innerHTML = '<div class="x-field2"><canvas class="x-sketch" width="640" height="400" aria-label="Field sketch map"></canvas>' +
-      '<div class="x-field-side"><p class="x-crt">' + esc(zoneName()) + '<br><small>SUIT ' + Math.round(S.suit) + ' · AIR ' + Math.round(S.air) + ' · FLARES ' + S.flares + '</small></p>' +
+      '<div class="x-field-side"><p class="x-crt">' + esc(zoneName()) + '<br><small>SUIT ' + Math.round(S.suit) + ' · AIR ' + Math.round(S.air) + '/' + airMax() + ' · FLARES ' + S.flares + '</small></p>' +
         (team.length ? '<div class="x-teamrow">' + team.map(teamChip).join('') + '</div>' : '<p class="x-crt dim">NO CARD TEAM YET · scan a creature</p>') +
         '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
           '<button class="x-btn" data-a="out">DISEMBARK</button>') + '</div></div></div>';
@@ -1189,9 +1197,20 @@
   function nameOf(k){
     if (k === 'drive') return 'REPAIRED DRIVE';
     var f = HQ.facilities.filter(function(x){ return x.id === k; })[0], r = HQ.research.filter(function(x){ return x.id === k; })[0], g = HQ.regions.filter(function(x){ return x.id === k; })[0];
-    return f ? f.name : r ? r.name : g ? g.name : k.toUpperCase();
+    var t = (HQ.airTanks || []).filter(function(x){ return x.id === k; })[0];
+    return f ? f.name : r ? r.name : g ? g.name : t ? t.name : k.toUpperCase();
   }
-  function hqHas(k){ var h = S.hq; return !!(h.built[k] || (k === 'drive' && h.drive) || h.research[k] || h.regions.indexOf(k) >= 0); }
+  function hqHas(k){ var h = S.hq; return !!(h.built[k] || (k === 'drive' && h.drive) || h.research[k] || (h.equip && h.equip[k]) || h.regions.indexOf(k) >= 0); }
+  // ── AIR: only NASARUS holds oxygen. The tank refills at the base, never on another world. ──
+  function airMax(){ var cap = 100; (HQ.airTanks || []).forEach(function(t){ if (S.hq.equip && S.hq.equip[t.id]) cap = Math.max(cap, t.cap); }); return cap; }
+  function airPct(){ return S.air / airMax() * 100; }
+  function refillAir(){ S.air = airMax(); }
+  function buildTank(id){
+    var t = (HQ.airTanks || []).filter(function(x){ return x.id === id; })[0];
+    if (!t || !S.hq.built.workshop || (S.hq.equip || {})[id] || !(t.requires || []).every(hqHas) || !canAfford(t.cost)) return false;
+    pay(t.cost); S.hq.equip = S.hq.equip || {}; S.hq.equip[id] = Date.now(); refillAir();
+    hqRecord('Fitted the ' + t.name + '. The tank now holds ' + t.cap + ' AIR.'); save(); toast(t.name + ' FITTED · AIR ' + t.cap); return true;
+  }
   function reqText(reqs){ return (reqs || []).filter(function(k){ return !hqHas(k); }).map(nameOf).join(' · '); }
   function hqRestored(){ return Object.keys(S.hq.ruins).filter(function(k){ return S.hq.ruins[k].restored; }).length; }
   function stageNeedMet(k){ var m = /^restored:(\d+)$/.exec(k); return m ? hqRestored() >= +m[1] : hqHas(k); }
@@ -1403,7 +1422,7 @@
     await say([(ch === 'w' ? 'Wreckage from the crash. Twisted, but useful.' : ch === 'A' ? 'A crystal outcrop. You break off what you can carry.' : 'Grey scrub with tough, stringy fibre.') + (got ? ' (' + got + ')' : '')]);
   }
   async function rest(){
-    S.suit = 100; S.air = 100; S.flares = Math.max(S.flares, flaresMax()); healTeam(); save(); hudRefresh(); sfx.meet();
+    S.suit = 100; refillAir(); S.flares = Math.max(S.flares, flaresMax()); healTeam(); save(); hudRefresh(); sfx.meet();
     await say(['You rest in the shelter. SUIT and AIR refilled, flares restocked, your card team rested. The expedition is saved.']);
   }
 
@@ -1440,6 +1459,13 @@
     if (h.built.workshop) {
       var g = HQ.regions[0], open = h.regions.indexOf(g.id) >= 0;
       html += '<section class="x-arc riv" id="hq-workshop"><h3>WORKSHOP</h3><ul class="x-hqlist">' +
+        (HQ.airTanks || []).map(function(t){
+          var have = (h.equip || {})[t.id], req = (t.requires || []).filter(function(k){ return !hqHas(k); }), act;
+          if (have) act = '<em class="ok">FITTED</em>';
+          else if (req.length) act = '<em class="dim">NEEDS ' + esc(reqText(t.requires)) + '</em>';
+          else act = '<em>' + costText(t.cost) + '</em>' + (at ? '<button class="x-btn small" data-w="' + t.id + '"' + (canAfford(t.cost) ? '' : ' disabled') + '>FIT</button>' : '');
+          return '<li class="' + (have ? 'done' : '') + '"><b>' + esc(t.name) + ' · ' + t.cap + ' AIR</b><span>' + esc(t.does) + '</span><div>' + act + '</div></li>';
+        }).join('') +
         '<li><b>RECALL FLARE</b><span>Craft a flare. You carry ' + S.flares + ' of ' + flaresMax() + '.</span><div><em>FIBRE 2 · SCRAP 1</em>' + (at ? '<button class="x-btn small" data-w="flare"' + (canAfford({ fibre:2, scrap:1 }) && S.flares < flaresMax() ? '' : ' disabled') + '>CRAFT</button>' : '') + '</div></li>' +
         '<li class="' + (open ? 'done' : '') + '"><b>' + esc(g.name) + '</b><span>' + esc(g.does) + '</span><div>' + (open ? '<em class="ok">OPEN</em>' : '<em>' + costText(g.cost) + '</em>' + (at ? '<button class="x-btn small" data-w="clear"' + (canAfford(g.cost) ? '' : ' disabled') + '>CLEAR</button>' : '')) + '</div></li></ul></section>';
     }
@@ -1470,6 +1496,7 @@
       else if (d.u) { ok = restoreRuin(d.u); keep = 'restore'; }
       else if (d.w === 'flare') { ok = craftFlare(); keep = 'workshop'; }
       else if (d.w === 'clear') { ok = clearRegion('basin'); keep = 'workshop'; }
+      else if (/^tank/.test(d.w)) { ok = buildTank(d.w); keep = 'workshop'; }
       else return;
       if (!ok) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); }
       else sfx.click();
@@ -1588,7 +1615,7 @@
     zn.textContent = zoneName();
     $('.x-zw').textContent = M.hq ? 'HEADQUARTERS · STAGE ' + hqStage() + ' · PACK ' + packTotal() : M.world === 9 ? term('zyraxis') : M.indoor ? term(M.name) : setName(M.world).replace(/ — .*/, '') + ' · PACK ' + packTotal();
     var oh = $('.x-objhint'); if (oh) { var nx = objectives().filter(function(o){ return !o.done && !o.main; })[0]; oh.textContent = nx ? '▸ ' + nx.t : ''; }
-    [['suit', S.suit], ['air', S.air]].forEach(function(g){
+    [['suit', S.suit], ['air', airPct()]].forEach(function(g){
       var n = $('[data-g="' + g[0] + '"] .x-needle'); if (n) n.style.transform = 'rotate(' + (-80 + clamp(g[1], 0, 100) / 100 * 160) + 'deg)';
       var box = $('[data-g="' + g[0] + '"]'); if (box) box.classList.toggle('low', g[1] < 25);
     });
@@ -1669,7 +1696,8 @@
   function hazardDrain(){
     var e = M.env(P.x, P.y), r = e && e.hazard && e.hazard.rule || '';
     var k = S.hq.research['r-air'] ? .65 : 1;
-    return { air:M.indoor ? 0 : (M.hq ? .08 : .16 * (/AIR/.test(r) ? 1.8 : 1)) * k, suit:/SUIT/.test(r) ? .06 * (S.hq.research['r-suit'] ? .65 : 1) : 0 };
+    var run = P && P.gait === 'sprint' && (P.moving || held || path.length) ? 2.2 : 1;   // sprinting burns air
+    return { air:(M.indoor ? 0 : (M.hq ? .08 : .16 * (/AIR/.test(r) ? 1.8 : 1)) * k) * run, suit:/SUIT/.test(r) ? .06 * (S.hq.research['r-suit'] ? .65 : 1) : 0 };
   }
   function updateSurface(dt, now){
     if (!P) return;
@@ -1697,9 +1725,14 @@
       airTimer = 0;
       if (!dialogOpen && !encounterOpen) { var hz = hazardDrain(); S.air = Math.max(0, S.air - hz.air); S.suit = Math.max(0, S.suit - hz.suit); }
       hudRefresh();
-      if (S.air <= 0) return recall('AIR');
+      if (S.air <= 0) return airDeath();
       if (S.suit <= 0) return recall('SUIT');
-      if (Math.abs(S.air - 25) < .17) { toast('AIR LOW · return to the ship or fire a flare', 'red'); sfx.warn(); vibrate(200); }
+      var ap = airPct(), band = ap <= 10 ? 3 : ap <= 25 ? 2 : ap <= 50 ? 1 : 0;
+      if (band > (P.airBand || 0)) {
+        toast(band === 3 ? 'AIR CRITICAL · ' + Math.round(ap) + '% · get back to ' + hqName() + ' now' : band === 2 ? 'AIR LOW · ' + Math.round(ap) + '% · head home to ' + hqName() : 'AIR HALF GONE · only ' + hqName() + ' can refill the tank', band > 1 ? 'red' : undefined);
+        sfx.warn(); vibrate(band * 150, .3 * band);
+      }
+      P.airBand = band;
     }
     saveTimer -= dt;
     if (saveTimer <= 0) { saveTimer = 3; S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save(); }
@@ -1808,7 +1841,7 @@
     var hid = M.id + ':' + f.x + ',' + f.y;
     if (ch === '*' && !S.found[hid]) {
       S.found[hid] = 1; var k = Object.keys(S.found).length % 2; sfx.reveal(); vibrate(60, .3); gain('scrap', 2);
-      if (k === 1) { S.air = Math.min(100, S.air + 40); save(); hudRefresh(); return say(['A spare air cylinder from your own kit, lost on landing. Still charged.', 'AIR +40']); }
+      if (k === 1) { S.air = Math.min(airMax(), S.air + 40); save(); hudRefresh(); return say(['A spare air cylinder from your own kit, lost on landing. Still charged.', 'AIR +40']); }
       S.flares++; save(); return say(['A signal flare, wrapped in oilcloth.', 'FLARES +1']);
     }
   }
@@ -1829,7 +1862,7 @@
   var GAIT = {
     stalk:  { label:'STALK',  step:.3,  anim:5,  toast:'STALK · slow and quiet. Skittish creatures let you near.' },
     steady: { label:'STEADY', step:.17, anim:9,  toast:'STEADY · an ordinary walking pace.' },
-    sprint: { label:'SPRINT', step:.095, anim:17, toast:'SPRINT · fast and loud. Creatures hear you coming.' }
+    sprint: { label:'SPRINT', step:.095, anim:17, toast:'SPRINT · fast and loud. Burns AIR twice as fast, and creatures hear you coming.' }
   };
   function stalking(){ return P && P.gait === 'stalk'; }
 
@@ -1958,6 +1991,28 @@
     $('.x-btn', s).addEventListener('click', function(){ aboard(); nav('system'); });
   }
 
+  // AIR at zero: you die where you stand. The expedition is lost: what you carried stays there.
+  // The record picks up again at NASARUS, at the camp (or the wreck, before there is a camp).
+  function airDeath(){
+    if (mode !== 'surface') return;
+    var where = M.hq ? hqName() : zoneName(), lost = packTotal();
+    if (fogArr) S.fog[M.id] = fogEnc(fogArr);
+    stopWorld(); vibrate(1200, 1); sfx.warn();
+    S.pack = {}; S.deaths = (S.deaths || 0) + 1;
+    hqRecord(hero().first + ' NASARO ran out of air on ' + where + '.' + (lost ? ' ' + lost + ' materials were lost there.' : ''));
+    var s = screen('x-recall x-death', '<div class="x-paper"><p class="x-stamp red">OUT OF AIR</p><h2 class="x-death-h">' + esc(hero().first) + ' NASARO DID NOT COME BACK</h2>' +
+      '<p class="x-mono">The tank ran dry on ' + esc(where) + '. Nothing there can be breathed.</p>' +
+      '<p class="x-mono">' + (lost ? 'The pack (' + lost + ' materials) is lost. ' : '') + 'Cards and records already in the AstraNav are kept.</p>' +
+      '<p class="x-mono"><b>Only ' + esc(hqName()) + ' holds oxygen.</b> Watch the AIR gauge, and turn for home before it runs low. Sprinting burns air twice as fast.</p>' +
+      '<button class="x-btn">THE RECORD CONTINUES · ' + esc(hqName()) + '</button></div>');
+    $('.x-btn', s).addEventListener('click', function(){
+      var m = buildMap('nasarus');
+      S.at = 'nasarus'; S.landed = true; S.suit = 100; refillAir(); healTeam();
+      var c = S.hq.built.camp ? HQ.facilities.filter(function(f){ return f.id === 'camp'; })[0].at : [m.ship.x + 2, m.ship.y];
+      S.pos = { map:'nasarus', x:c[0], y:c[1] + 1, dir:'down' }; S.stage = 'surface'; save();
+      fade(function(){ surface('nasarus'); });
+    });
+  }
   // ── the peoples: relationships, and what they teach ──
   function compass(dx, dy){
     var a = Math.atan2(dy, dx) * 180 / Math.PI, i = Math.round(((a + 360) % 360) / 45) % 8;
@@ -2632,7 +2687,7 @@
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },
     nav:navFocus, activate:activate, back:goBack, btnA:function(){ btnA(); },
     hq:function(){ return S.hq; }, pack:function(){ return S.pack; }, give2:function(o){ gainAll(o, true); }, store:function(o){ Object.keys(o).forEach(function(k){ S.hq.store[k] = (S.hq.store[k] || 0) + o[k]; }); save(); },
-    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash };
+    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash, buildTank:buildTank, airMax:function(){ return airMax(); } };
   applyOpts();
   if (S) applyLook();
   title();

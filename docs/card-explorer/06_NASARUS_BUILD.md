@@ -83,3 +83,13 @@ Save key `aov.explorer.v1`, version 3. It adds `hq` (name, built, drive, ruins, 
 ## The Aethren
 
 The wild Aethren of Zyraxis follow the Creator's official roster: [07_OFFICIAL_AETHREN_ROSTER.md](07_OFFICIAL_AETHREN_ROSTER.md).
+
+## Air (survey build 8.3)
+
+Creator ruling (2026-10-09): sprinting uses air faster. The air tank can be upgraded later. You must return to NASARUS for oxygen before it runs low on any expedition, or you die there.
+
+- **Only NASARUS holds oxygen.** AIR refills when you rest at the camp shelter, land at NASARUS once the camp exists, or board the ship at NASARUS. Boarding the ship on any other world still repairs the SUIT and rests the cards, but it does not refill AIR.
+- **Drain** happens on foot only. The base rate is 0.16 AIR per second (1.8× under an AIR hazard), and 0.08 on NASARUS itself. **Sprinting** multiplies the drain by 2.2. The Air Recycler research cuts it by a third.
+- **Warnings** fire at 50%, 25% and 10%. The first landing on another world explains the rule, and setting a course below 40% AIR warns before departure.
+- **Out of air means death.** The pack is lost where you fell, and cards and records already in the AstraNav are kept. The record picks up again at NASARUS: at the camp, or at the wreck before there is a camp.
+- **Tanks** (Workshop, `airTanks` in `nasarus.js`): AIR TANK MK II (150; SCRAP 6 · CRYSTAL 4 · DATA 8) and AIR TANK MK III (220; needs MK II and the Air Recycler; SCRAP 10 · CRYSTAL 8 · RELICS 2 · DATA 16).

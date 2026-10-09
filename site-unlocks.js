@@ -84,6 +84,13 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 8.3', title:'Only NASARUS Holds Oxygen',
+      notes:[
+        'AIR now refills only at NASARUS: rest at camp, land at the base, or board the ship there. The ship carries no oxygen of its own',
+        'Sprinting burns air more than twice as fast as walking',
+        'Run out of air on an expedition and you do not come back: the pack is lost, and the record picks up again at NASARUS',
+        'Fit bigger tanks at the Workshop: AIR TANK MK II (150) and MK III (220)'
+      ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 8.2', title:'Stalk, Steady, Sprint',
       notes:[
         'Circle (or B) now cycles three gaits: STALK, STEADY and SPRINT',

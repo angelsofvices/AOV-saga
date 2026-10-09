@@ -84,6 +84,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 8.2', title:'Stalk, Steady, Sprint',
+      notes:[
+        'Circle (or B) now cycles three gaits: STALK, STEADY and SPRINT',
+        'Each gait moves and animates differently: a low, careful crouch; an ordinary walk; a fast, leaning run that kicks up dust',
+        'Sprinting is loud: skittish creatures hear you from twice as far away'
+      ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 8.1', title:'The Official Aethren Roster',
       notes:[
         'The wild Aethren of Zyraxis are now exactly the Creator\u2019s official roster, with official spellings',

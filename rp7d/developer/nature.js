@@ -244,10 +244,11 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   }
   let rockDebris = null;
   // One rock fragment — the stone's own geometry and material, so fragments are the same stone.
-  function addShard(stone, x, y, z, vx, vy, vz, size) {
+  // ever: a piece of Everstone Rizer can gather by running over it (it lies a little longer than the rest).
+  function addShard(stone, x, y, z, vx, vy, vz, size, ever = false) {
     rockDebris ||= makeDebris(stone.mesh.geometry, stone.mesh.material, STONE.shards);
     const r = Math.random;
-    rockDebris.add({ x, y, z, vx, vy, vz, sx: size * (0.7 + r() * 0.6), sy: size * (0.45 + r() * 0.5), sz: size * (0.6 + r() * 0.6), color: stone.baseColor.clone().multiplyScalar(0.82 + r() * 0.3), half: size * 0.3 });
+    rockDebris.add({ x, y, z, vx, vy, vz, sx: size * (0.7 + r() * 0.6), sy: size * (0.45 + r() * 0.5), sz: size * (0.6 + r() * 0.6), color: stone.baseColor.clone().multiplyScalar(0.82 + r() * 0.3), half: size * 0.3, ...(ever ? { ever: 1, life: 6 + r() * 2 } : {}) });
   }
   // Chips knocked off by a blow, away from where it came from.
   function chipStone(stone, from, n) {
@@ -296,13 +297,13 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   const placeCracks = (stone, matrix) => { if (stone.cracks) { stone.cracks.matrix.copy(matrix); stone.cracks.matrixWorldNeedsUpdate = true; } };
   // It comes apart. `force`: 1 = broken by blows · higher = shattered (the aerial slam).
   function crumbleStone(stone, from, force = 1) {
-    const s = stone.scale, n = Math.max(12, Math.min(32, Math.round(12 + s * 11)));
+    const s = stone.scale, n = Math.max(12, Math.min(32, Math.round(12 + s * 11))), ever = Math.max(2, Math.min(6, Math.round(1 + s * 2.5))); // the first few core pieces are Everstone to gather
     let ax = from ? stone.x - from.x : 0, az = from ? stone.z - from.z : 0; const ad = Math.hypot(ax, az) || 1; ax /= ad; az /= ad; // away from the blow
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * stone.radius * 0.8, core = i < n * 0.4;
       const x = stone.x + Math.cos(a) * rr, z = stone.z + Math.sin(a) * rr, y = stone.y + stone.h * (0.15 + Math.random() * 0.7);
       const out = (core ? 0.4 + Math.random() * 0.9 : 1.8 + Math.random() * 3.2) * force, push = from ? (core ? 0.5 : 1.6) * force : 0;
-      addShard(stone, x, y, z, Math.cos(a) * out + ax * push, (core ? 0.6 + Math.random() * 1.6 : 2.4 + Math.random() * 3.6) * Math.min(1.6, force), Math.sin(a) * out + az * push, s * (core ? 0.14 + Math.random() * 0.1 : 0.06 + Math.random() * 0.09));
+      addShard(stone, x, y, z, Math.cos(a) * out + ax * push, (core ? 0.6 + Math.random() * 1.6 : 2.4 + Math.random() * 3.6) * Math.min(1.6, force), Math.sin(a) * out + az * push, s * (core ? 0.14 + Math.random() * 0.1 : 0.06 + Math.random() * 0.09), core && i < ever);
     }
   }
   function updateShards(dt) {
@@ -456,11 +457,11 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     const K = GREEN.kinds.bush, s = bush.scale; bush.hp = Math.max(0, bush.hp - damage);
     if (bush.hp > 0) { bush.shake = GREEN.bush.shake; bush.amp = 1; swaying.add(bush); shedLeaves(bush, K, 7, bush.radius * 0.8, 0.3 * s, 1.1 * s, 1.3); natureFX?.('bush', 'hit', bush.x, bush.gy + 0.6 * s, bush.z, bush); return true; }
     bush.broken = true; swaying.delete(bush); setInstance(bush, sM.makeScale(0, 0, 0)); disableTreeInstance(bush.mesh, bush.index);
-    const [dx, dz] = awayFrom(bush, from);
+    const [dx, dz] = awayFrom(bush, from), bushWood = s > 1 ? 2 : 1;
     for (let i = 0; i < 9; i++) { const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 2.5, sz = s * (0.2 + Math.random() * 0.2);
       leafDebris.add({ x: bush.x + Math.cos(a) * bush.radius * 0.5, y: bush.gy + (0.3 + Math.random() * 0.6) * s, z: bush.z + Math.sin(a) * bush.radius * 0.5, vx: Math.cos(a) * sp + dx * 1.5, vy: 2 + Math.random() * 2.5, vz: Math.sin(a) * sp + dz * 1.5, sx: sz, sy: sz * 0.6, sz: sz * 0.9, color: leafColor(K), half: sz * 0.4, life: 3.5 + Math.random() * 2, spin: 0.4 }); }
     for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, sz = s * (0.035 + Math.random() * 0.03);
-      woodDebris.add({ x: bush.x, y: bush.gy + 0.3 * s, z: bush.z, vx: Math.cos(a) * (1 + Math.random() * 2.5) + dx, vy: 2 + Math.random() * 2.5, vz: Math.sin(a) * (1 + Math.random() * 2.5) + dz, sx: sz, sy: sz * (8 + Math.random() * 8), sz: sz, color: woodColor(), half: sz * 0.5, life: 3.5 + Math.random() * 2 }); }
+      woodDebris.add({ x: bush.x, y: bush.gy + 0.3 * s, z: bush.z, vx: Math.cos(a) * (1 + Math.random() * 2.5) + dx, vy: 2 + Math.random() * 2.5, vz: Math.sin(a) * (1 + Math.random() * 2.5) + dz, sx: sz, sy: sz * (8 + Math.random() * 8), sz: sz, color: woodColor(), half: sz * 0.5, life: 3.5 + Math.random() * 2, ...(i < bushWood ? { wood: 1, life: 6 + Math.random() * 2 } : {}) }); } // the first few twigs are Fresh Wood
     shedLeaves(bush, K, 22, bush.radius, 0.2 * s, 1.2 * s, 2);
     natureFX?.('bush', 'break', bush.x, bush.gy + 0.5 * s, bush.z, bush);
     return true;
@@ -548,6 +549,17 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     get fragments() { return pools.reduce((n, p) => n + p.list.length, 0); },
     setDisableInstance(fn) { disableStoneInstance = fn || (() => {}); },
     setHitEffect(fn) { stoneFX = fn; },
+    // Everstone: the larger rubble of a smashed stone lying within `r` of (x, z), still above ground. Each is taken
+    // (it vanishes) and returned as { x, y, z }; once a piece has begun to sink into the soil it can't be gathered.
+    collectStone(x, y, z, r) {
+      const out = []; if (!rockDebris) return out; const L = rockDebris.list;
+      for (let i = L.length - 1; i >= 0; i--) {
+        const q = L[i]; if (!q.ever || q.t > q.life || Math.abs(q.y - y) > 2.2) continue;
+        const dx = q.x - x, dz = q.z - z, reach = r + q.sx * 0.5;
+        if (dx * dx + dz * dz < reach * reach) { out.push({ x: q.x, y: q.y, z: q.z }); L.splice(i, 1); }
+      }
+      return out;
+    },
     collect(drop) { if (!drop || drop.collected) return false; drop.collected = true; group.remove(drop.mesh); drop.mesh.traverse(o => { o.geometry?.dispose(); if (Array.isArray(o.material)) o.material.forEach(m => m.dispose()); else o.material?.dispose(); }); return true; },
     // Break it outright, whatever its health (the aerial slam). from: where the blow lands from · force: how hard it is thrown apart.
     shatter(stone, from = null, force = 1.8) { return !!stone && !stone.broken && damageStone(stone, stone.hp, `shatter-${stone.index}-${performance.now()}`, from, force); },

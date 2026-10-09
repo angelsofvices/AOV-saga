@@ -25,8 +25,8 @@ export function createAstralboard(scene, world, fx, toast, at) {
   placeHome(at); setGlow(false);
   root.visible = owned();
   const spot = {
-    id: 'astralboard-ride', kind: 'ride', discover: false, reach: 3.2,
-    get name() { return 'Ride Astralboard'; },
+    id: 'astralboard-ride', kind: 'ride', vehicle: true, discover: false, reach: 3.2, // a vehicle: △ gets on and off (game.js), ○ stows it
+    get name() { return 'Ride Astralboard · ○ / O stow'; },
     get x() { return root.position.x; }, get z() { return root.position.z; },
     get cx() { return root.position.x; }, get cz() { return root.position.z; },
     active: () => owned() && root.visible && !mounted && !transition

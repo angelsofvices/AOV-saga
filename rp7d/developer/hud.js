@@ -310,8 +310,9 @@ export function createHUD(W, world) {
     if (!best && lootHint) { $('#prompt-name').textContent = lootHint; $('#prompt .k').textContent = 'E'; $('#prompt .p').textContent = '○'; } // loot at his feet (game.js · pickups)
     if (best) {
       $('#prompt-name').textContent = best.name;
-      const glyph = best.id === 'auraxion-ufo' || best.id === 'west-lake-bus' ? '△' : best.door ? '✕' : '○';
-      $('#prompt .k').textContent = best.id === 'auraxion-ufo' || best.id === 'west-lake-bus' ? 'E' : best.door ? 'X / SPACE' : 'E';
+      const vehicle = best.vehicle || best.id === 'auraxion-ufo' || best.id === 'west-lake-bus'; // vehicles (bus, UFO, Astralboard, every future ride): △ on and off
+      const glyph = vehicle ? '△' : best.door ? '✕' : '○';
+      $('#prompt .k').textContent = vehicle ? 'E' : best.door ? 'X / SPACE' : 'E';
       $('#prompt .p').textContent = glyph;
     }
     if (cardTimer > 0) { cardTimer -= dt; if (cardTimer <= 0 || !best) { $('#card').classList.remove('show'); cardTimer = 0; } }

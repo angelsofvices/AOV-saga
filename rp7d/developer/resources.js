@@ -18,7 +18,11 @@ export const RESOURCES = {
   // Fresh Wood has no piles: it is the trunk of a felled tree, gathered by running over the lengths before they sink
   // back into the soil (nature.js · trees.collectWood, game.js · freshWoodTick).
   fresh_wood: { id: 'fresh_wood', name: 'Fresh Wood', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#c9a36b',
-    blurb: 'Green timber from a tree just felled, gathered before the ground takes it back. Used in field crafting.' }
+    blurb: 'Green timber from a felled tree or a broken bush, gathered before the ground takes it back. Used in field crafting.' },
+  // Everstone has no piles either: it is the rubble of a smashed stone, gathered by running over the larger pieces
+  // before they sink (nature.js · stones.collectStone, game.js · freshWoodTick).
+  everstone: { id: 'everstone', name: 'Everstone', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#9a968c',
+    blurb: 'Broken stone gathered from the rubble of a smashed rock. Used in crafting and repairs.' }
 };
 // What a destroyed tech body gives up when its wreck is struck: total scrap, and how many blows it takes to strip it.
 export const SALVAGE = {

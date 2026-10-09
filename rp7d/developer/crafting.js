@@ -13,15 +13,18 @@ export const STATIONS = {
 };
 
 const TEST = 'Test recipe · final cost and parts will change';
+// The three base materials are Scrap Metal (salvage), Fresh Wood (felled trees, broken bushes) and Everstone (smashed
+// stone rubble). The rule for every cost: the more complex the item, the more material it takes to make (and, when
+// repairs come, to repair). A simple field tool takes a little of each; a machine like the Astralboard takes a lot.
 export const RECIPES = [
   { id: 'field_workstation', name: 'Field Workstation', outputId: 'field_workstation', outputQuantity: 1,
-    ingredients: [{ itemId: 'scrap_metal', quantity: 15 }, { itemId: 'fresh_wood', quantity: 6 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
+    ingredients: [{ itemId: 'scrap_metal', quantity: 12 }, { itemId: 'fresh_wood', quantity: 8 }, { itemId: 'everstone', quantity: 4 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
   { id: 'guitar', name: "Psychosyd's Signed Red Guitar", outputId: 'guitar', outputQuantity: 1,
-    ingredients: [{ itemId: 'scrap_metal', quantity: 20 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
+    ingredients: [{ itemId: 'fresh_wood', quantity: 14 }, { itemId: 'scrap_metal', quantity: 8 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
   { id: 'telescope', name: 'Stargazer Telescope', outputId: 'telescope', outputQuantity: 1,
-    ingredients: [{ itemId: 'scrap_metal', quantity: 25 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
+    ingredients: [{ itemId: 'scrap_metal', quantity: 20 }, { itemId: 'everstone', quantity: 8 }, { itemId: 'fresh_wood', quantity: 6 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
   { id: 'astralboard', name: 'Astralboard', outputId: 'astralboard', outputQuantity: 1,
-    ingredients: [{ itemId: 'scrap_metal', quantity: 30 }, { itemId: 'gemshard', quantity: 3 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST + ' · Gemshards come from the Astralite Station' },
+    ingredients: [{ itemId: 'scrap_metal', quantity: 30 }, { itemId: 'everstone', quantity: 14 }, { itemId: 'fresh_wood', quantity: 10 }, { itemId: 'gemshard', quantity: 3 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST + ' · Gemshards come from the Astralite Station' },
   // Astralite Station: every one of the 63 Astralites can be synthesised into Gemshards (placeholder rate: 3 of one → 1 Gemshard).
   ...ASTRALITE_FAMILIES.flatMap(f => f.items.map(a => ({
     id: `synth_${a.key}`, name: `${a.symbol} · ${a.name}`, outputId: 'gemshard', outputQuantity: 1,

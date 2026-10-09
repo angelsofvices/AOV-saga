@@ -48,7 +48,7 @@ export function defOf(id) {
     d = { id, name: e.name, category: CATEGORY.FIELD_EQUIPMENT, unique: true, stackable: false, slots: e.slots, transferable: true, deployable: true, color: e.color, blurb: e.blurb };
   } else if (WEAPONS[id]) {
     const w = WEAPONS[id];
-    d = { id, name: w.name, category: CATEGORY.WEAPON, unique: true, stackable: false, slots: id === 'fists' ? 0 : 1, transferable: id !== 'fists', deployable: false, color: '#c9d6e6', blurb: w.blurb || '' };
+    d = { id, name: w.name, category: CATEGORY.WEAPON, unique: true, stackable: false, slots: id === 'fists' || id === 'workstation' ? 0 : 1, transferable: id !== 'fists' && id !== 'workstation', deployable: false, color: '#c9d6e6', blurb: w.blurb || '' };
   } else if (ITEMS[id]?.kind === 'dvd') { // a collectible movie (dvd-registry.js): one of each, played in the TV (tv-system.js)
     const it = ITEMS[id];
     d = { id, name: it.name, category: CATEGORY.MEDIA, unique: false, stackable: true, stackMax: 1, slots: 1, transferable: true, deployable: false, color: it.color, blurb: it.blurb };

@@ -22,6 +22,8 @@ export const WEAPONS = {
   guitar: { name: "Psychosyd's Signed Red Guitar", tier: 'Legendary', color: '#ff3b3b', banner: 'LEGENDARY · PSYCHOSYD', blurb: 'Cherry-red electric guitar with a gold signature: "Keep it loud. — PSYCHOSYD." □ plays the solo; every Seer and Mori in earshot drops everything and dances until it ends. □ again, moving or taking a hit stops it.' },
   rubypaw: { name: 'Rubypaw Sword · Longsword of Rakoron', tier: 'Uncommon', color: '#ff2a2a', banner: 'RUBYPAW · RAKORON', blurb: 'Rakoron’s heavy crimson longsword: obsidian inset, ruby edge and clawed guard. Stows across Rizer’s back. □ swings the Jaded Axe’s four-stage combo.' },
   telescope: { name: 'Stargazer Telescope', tier: 'Uncommon', color: '#6fb4ff', banner: 'EXPLORATION · STARGAZER', blurb: 'A brass-and-glass refractor on a wooden tripod. Draw it, then □ to set it up: Rizer crafts it piece by piece and plants it in the overworld. ○ / E beside it looks through it into the Aethryx Expanse; □ beside it packs it away.' },
+  // The crafted Field Workstation, as an Armory tool (game.js · syncWorkstationKit): on the wheel while one is owned; □ builds it.
+  workstation: { name: 'Field Workstation', tier: 'Crafted', color: '#7fd6ff', banner: 'FIELD EQUIPMENT · BUILD', blurb: 'The Field Workstation you crafted at your Experiment Table. Draw it, then □ to build it where you look; ○ / E sets it down. It stays in the Armory while you own one.' },
   // One definition for every owner: a Nova Guardian carries it, drops it when it falls, and Rizer fires the same weapon (thardin-rifle.js).
   blaster: { name: THARDIN_BLASTER_RIFLE.name, tier: 'Rare', color: '#ffb347', banner: 'THARDIN TECH · BLASTER RIFLE', weaponType: THARDIN_BLASTER_RIFLE.weaponType, blurb: 'A high-precision Thardin energy rifle, standard issue for Nova Guardians. Dark alloy, a long scope, and an amber energy chamber. □ shoulders it and fires; hold □ to keep firing. Lock on to choose a target.' }
 };
@@ -89,7 +91,10 @@ export const hasWeapon = k => inventory.owned.includes(k) || !!inventory.home?.w
 export const ITEMS = {
   // Resources (resources.js): stackable crafting materials. One stack each, counted in inventory.items like everything else here.
   scrap_metal: { name: 'Scrap Metal', kind: 'material', resource: true, color: '#a8744a', blurb: 'Salvaged metal and mechanical components used in technological crafting and repairs.' },
-  fresh_wood: { name: 'Fresh Wood', kind: 'material', resource: true, color: '#c9a36b', blurb: 'Green timber from a tree just felled, gathered before the ground takes it back. Used in field crafting.' },
+  fresh_wood: { name: 'Fresh Wood', kind: 'material', resource: true, color: '#c9a36b', blurb: 'Green timber from a felled tree or a broken bush, gathered before the ground takes it back. Used in field crafting.' },
+  // Everstone: the in-universe word for any stone. Astralite everstones (astralite stones) are the ones that hold an
+  // Astralite and are said to keep it forever; every other stone is plain everstone, gathered from the rubble.
+  everstone: { name: 'Everstone', kind: 'material', resource: true, color: '#9a968c', blurb: 'Broken stone gathered from the rubble of a smashed rock. "Everstone" is the old word for every stone; the ones that hold an Astralite (astralite stones) are said to keep it forever. Used in crafting and repairs.' },
   zyphere: { name: 'Zyphere', kind: 'key', color: '#5bb9ff', blurb: 'A blue-lit sphere used to attempt a bond with a wild Zyrex. One is committed per attempt.' },
   // Dropped by Scanobots (one each). A Portal Gatelock takes 10 to open (gatelocks.js).
   portalchip: { name: 'Portalchip', kind: 'key', color: '#3a8cff', blurb: 'A small blue circuit chip with gold contacts and a glowing portal display, dropped by Scanobots. A Portal Gatelock opens for 10.' },

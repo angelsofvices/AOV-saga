@@ -173,7 +173,7 @@ export function deployEquipment(uid, at) {
 export function packEquipment(uid) {
   const e = equipmentByUid(uid); if (!e) return fail('UNKNOWN_ITEM', 'No such equipment');
   if (e.loc !== LOC.DEPLOYED) return fail('NOT_DEPLOYED', 'It is not deployed');
-  const c = canStore(LOC.ZYCUBE, e.type, 1); if (!c.ok) return c; // no room: it stays standing, nothing is destroyed
+  const c = canStore(LOC.ZYCUBE, e.type, 1, { moving: true }); if (!c.ok) return c; // no room: it stays standing, nothing is destroyed · a move, so a single item (the Astralboard) isn't refused as a duplicate of itself
   e.loc = LOC.ZYCUBE; delete e.at; commit('pack', { uid, type: e.type }); return { ok: true, uid };
 }
 

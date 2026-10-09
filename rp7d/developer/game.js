@@ -30,7 +30,7 @@ import { createBondGame } from './bond.js';
 import { createFX } from './fx.js';
 import { createAstral, ASTRAL } from './astral.js';
 import { createAstralvision } from './astralvision.js';
-import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
+import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
 import { storage } from './storage.js';
 import { createTVSystem, buildDvdPickup } from './tv-system.js';
 import { DVDS } from './dvd-registry.js';
@@ -406,6 +406,7 @@ function placementOccupants() {
   return o;
 }
 function onStorageChange() { // a weapon that left the Zycube also leaves the hand, the wheel and the hip
+  syncWorkstationKit();
   if (!inventory.owned.includes(inventory.equipped)) equip('fists');
   syncWheel(); wheel.render(); dep?.sync();
 }
@@ -426,6 +427,7 @@ function initStorage() {
     ride: { spawn: e => { if (!astralboard) return false; astralboard.unlock({ x: e.at.x, z: e.at.z }); return true; }, despawn: () => astralboard?.pack() } });
   storage.addGuard((id, from) => id === 'telescope' && from === 'ZYCUBE' && (scopeSet || inventory.scope) ? 'Pack up the Stargazer Telescope first' : null);
   storage.onChange(onStorageChange);
+  syncWorkstationKit();
   dep.sync(); // deployed Field Equipment comes back where it was left
 }
 const _pcPos = new THREE.Vector3(), _pcLook = new THREE.Vector3();
@@ -452,6 +454,45 @@ function packDeployedFromZyphone(uid) {
   if (d.ride && astralboard?.active) return showToast('Get off the Astralboard first');
   const p = rizer.position; if (Math.hypot(d.mesh.position.x - p.x, d.mesh.position.z - p.z) > 8) return showToast('Walk back to it to pack it up');
   dep.packUp(uid); zy.open('items');
+}
+// ── Astralboard: △ on and off (every vehicle), ○ stows it: packed into the Zycube and carried on his back ──
+let boardStowAfter = false, backBoard = null;
+function stowBoard() {
+  const e = storage.equipmentIn('DEPLOYED', 'astralboard')[0];
+  if (!e) return showToast('The Astralboard is already stowed');
+  dep.packUp(e.uid);
+  if (!storage.equipmentIn('DEPLOYED', 'astralboard').length) showToast('Astralboard stowed · on your back · deploy it from the Zyphone (Items)');
+}
+const _bb = { up: new THREE.Vector3(), back: new THREE.Vector3(), x: new THREE.Vector3(), m: new THREE.Matrix4(), a: new THREE.Vector3(), b: new THREE.Vector3() };
+function updateBackBoard() { // the board slung on his back while it's carried (in the Zycube), deck out, nose up
+  if (boardStowAfter && !astralboard?.active) { boardStowAfter = false; stowBoard(); }
+  const carried = !homeMode && !!rizer?.actor && storage.equipmentIn('ZYCUBE', 'astralboard').length > 0 && !astralboard?.active;
+  if (!carried) { if (backBoard) backBoard.visible = false; return; }
+  if (!backBoard) { backBoard = buildAstralboard(); backBoard.matrixAutoUpdate = false; scene.add(backBoard); }
+  const M = rizer.actor.model, s1 = M.getObjectByName('mixamorigSpine1'), nk = M.getObjectByName('mixamorigNeck'), s2 = M.getObjectByName('mixamorigSpine2');
+  if (!s1 || !nk || !s2) { backBoard.visible = false; return; }
+  s1.getWorldPosition(_bb.a); nk.getWorldPosition(_bb.b); _bb.up.subVectors(_bb.b, _bb.a).normalize();
+  const f = rizer.facing; _bb.back.set(-Math.sin(f), 0, -Math.cos(f)); _bb.back.addScaledVector(_bb.up, -_bb.back.dot(_bb.up)).normalize();
+  _bb.x.crossVectors(_bb.back, _bb.up);
+  s2.getWorldPosition(_bb.a); _bb.a.addScaledVector(_bb.back, 0.2).addScaledVector(_bb.up, -0.12);
+  _bb.m.makeBasis(_bb.x, _bb.back, _bb.up).scale(new THREE.Vector3(0.62, 0.62, 0.62)).setPosition(_bb.a);
+  backBoard.matrix.copy(_bb.m); backBoard.visible = true;
+}
+// ── Field Workstation in the Armory: the 'workstation' kit is owned while a crafted workstation is (carried or set
+// up); equipped, □ builds the carried one where he looks, the same placement as the Zyphone's Deploy ──
+function syncWorkstationKit() {
+  const have = storage.equipmentIn('ZYCUBE', 'field_workstation').length + storage.equipmentIn('DEPLOYED', 'field_workstation').length + storage.equipmentIn('HOME_PC', 'field_workstation').length > 0;
+  const owns = inventory.owned.includes('workstation');
+  if (have && !owns) { inventory.owned.push('workstation'); saveInv(); syncWheel(); wheel.render(); showToast(inventory.wheel.includes('workstation') ? 'Field Workstation · in the Armory · draw it, □ to build' : 'Field Workstation · in the Armory · put it on the wheel (Zyphone → Armory)'); }
+  else if (!have && owns) { inventory.owned = inventory.owned.filter(k => k !== 'workstation'); if (inventory.equipped === 'workstation') equip('fists'); saveInv(); syncWheel(); wheel.render(); }
+}
+function buildWorkstation() {
+  if (homeMode) return showToast('Build it outdoors');
+  const e = storage.equipmentIn('ZYCUBE', 'field_workstation')[0];
+  if (!e) return showToast(storage.equipmentIn('DEPLOYED', 'field_workstation').length ? 'Your Field Workstation is already built · ○ / E at it to pack it up' : 'The Field Workstation is in Home Storage · carry it in the Zycube to build it');
+  if (dep.placing) return;
+  const r = dep.start(e.uid); if (!r.ok) return showToast(r.message || 'Cannot build here');
+  showToast('Look where you want it · ○ / E build · △ / Esc cancel', 4200);
 }
 function deployFromZyphone(uid) {
   const r = dep.start(uid); if (!r.ok) return showToast(r.message || 'Cannot deploy');
@@ -1003,6 +1044,7 @@ const ICONS = {
   rubypaw: '<svg viewBox="0 0 48 48"><path d="M24 2 31 13 29 30 19 30 17 13Z" fill="#e72732" stroke="#ff6566" stroke-width="1.2"/><path d="M24 8 27 15 26 27 22 27 21 15Z" fill="#180c16"/><path d="M24 13v12" stroke="#d71a2c" stroke-width="1.5"/><path d="M19 29q-7-1-10-8 1 8 8 12l7 2 7-2q7-4 8-12-3 7-10 8" fill="#a20e1f" stroke="#fa3a47" stroke-width="1.4"/><path d="M22 34v9h4v-9" fill="#17151b" stroke="#c18b30" stroke-width="1.4"/><path d="M20 43h8l-4 4z" fill="#df2331"/><path d="M24 28l4 4-4 4-4-4z" fill="#ff4b60"/></svg>',
   bow: '<svg viewBox="0 0 48 48"><path d="M34 5Q8 14 20 24Q8 34 34 43" fill="none" stroke="#f6e9f5" stroke-width="5" stroke-linecap="round"/><path d="M34 5V43" stroke="#d6a746" stroke-width="1.8"/><path d="M9 24h32m-6-5 6 5-6 5" fill="none" stroke="#d6a746" stroke-width="2.2"/><circle cx="19" cy="24" r="3" fill="#fff2ff" stroke="#d6a746"/></svg>',
   guitar: '<svg viewBox="0 0 48 48"><path d="M29 17l12-12" stroke="#4a2a17" stroke-width="4" stroke-linecap="round"/><path d="M38 4l5 5-3 2-4-4z" fill="#d11c26"/><path d="M26 16c-4-2-8 0-9 4-1 2-3 2-5 3-5 2-6 9-2 13s11 3 13-2c1-2 1-4 3-5 4-1 6-5 4-9l-2 2-4-4z" fill="#d11c26" stroke="#ffb3b3" stroke-width="1.2"/><path d="M14 26l5 5" stroke="#f1ece2" stroke-width="3"/><path d="M18 34l12-12" stroke="#d9dde2" stroke-width="0.9"/><circle cx="14" cy="34" r="2" fill="#d7a745"/></svg>',
+  workstation: '<svg viewBox="0 0 48 48"><rect x="7" y="18" width="34" height="5" rx="1" fill="#7fd6ff" stroke="#d7f4ff" stroke-width="1"/><path d="M11 23v15M37 23v15M11 31h26" stroke="#9aa7b8" stroke-width="3" stroke-linecap="round"/><path d="M17 18l4-8h6l4 8" fill="none" stroke="#d7a745" stroke-width="2"/><circle cx="24" cy="13" r="2.4" fill="#5ef2ff"/></svg>',
   telescope: '<svg viewBox="0 0 48 48"><path d="M24 29 13 45M24 29 35 45M24 29V45" stroke="#a0774a" stroke-width="2.4" stroke-linecap="round"/><g transform="rotate(-38 24 26)"><rect x="7" y="21.5" width="31" height="9" rx="2" fill="#1b3166" stroke="#c9a64f" stroke-width="1.4"/><rect x="33" y="19.5" width="7" height="13" rx="1.6" fill="#58c4ff" stroke="#c9a64f" stroke-width="1"/><path d="M17 21.5v9M25 21.5v9" stroke="#c9a64f" stroke-width="1.6"/></g><circle cx="24" cy="29" r="2.6" fill="#c9a64f"/></svg>',
   blaster: '<svg viewBox="0 0 48 48"><path d="M4 27h9l3-4h14v6H16l-3 4H6z" fill="#2a2f38" stroke="#59616e" stroke-width="1"/><rect x="22" y="22.5" width="13" height="5" rx="2" fill="#ffab45"/><path d="M35 25h9" stroke="#59616e" stroke-width="2.6" stroke-linecap="round"/><rect x="15" y="17" width="13" height="3.6" rx="1.6" fill="#23272e" stroke="#39d8ff" stroke-width="0.9"/><path d="M17 29l-2 8h4l2-7" fill="#23272e"/><path d="M20 30q3 4 6 0" fill="none" stroke="#39d8ff" stroke-width="1.3"/></svg>'
 };
@@ -1315,16 +1357,19 @@ function takeResource(p) {
   showToast(`+${got.quantity} ${name} · ${total} carried`);
 }
 // Fresh Wood: run over the lengths of a felled tree before they sink back into the soil (no button, like coins).
+// Everstone the same way: run over the larger rubble of a smashed stone before it sinks (bushes give Fresh Wood too).
 function freshWoodTick() {
   if (homeMode || !rizer || rizer.hp <= 0 || rizer.flying || ufoPilot || inventory.zycube) return;
-  const T = world.nature?.userData?.trees; if (!T?.collectWood) return;
-  const p = rizer.position, c = storage.canStore('ZYCUBE', 'fresh_wood', 1);
-  if (!c.ok && c.reason !== 'DUPLICATE' && c.reason !== 'UNKNOWN_ITEM') return; // no room: the wood stays where it lies
-  const got = T.collectWood(p.x, p.y, p.z, 0.9); if (!got.length) return;
-  const total = addResource('fresh_wood', got.length);
-  for (const g of got) fx.emit(g.x, g.y + 0.2, g.z, 7, { color: '#e2c08a', speed: 1.3, up: 1.2, size: 0.16, life: 0.35 });
-  sfx.play('land', 0.4, 1.25); sfx.play('light', 0.3, 0.7);
-  showToast(`+${got.length} FRESH WOOD · ${total} carried`);
+  const N = world.nature?.userData, p = rizer.position;
+  const room = id => { const c = storage.canStore('ZYCUBE', id, 1); return c.ok || c.reason === 'DUPLICATE' || c.reason === 'UNKNOWN_ITEM'; }; // no room: it stays where it lies
+  const gather = (id, got, color, name, sound) => {
+    if (!got?.length) return;
+    const total = addResource(id, got.length);
+    for (const g of got) fx.emit(g.x, g.y + 0.2, g.z, 7, { color, speed: 1.3, up: 1.2, size: 0.16, life: 0.35 });
+    sound(); showToast(`+${got.length} ${name} · ${total} carried`);
+  };
+  if (N?.trees?.collectWood && room('fresh_wood')) gather('fresh_wood', N.trees.collectWood(p.x, p.y, p.z, 0.9), '#e2c08a', 'FRESH WOOD', () => { sfx.play('land', 0.4, 1.25); sfx.play('light', 0.3, 0.7); });
+  if (N?.stones?.collectStone && room('everstone')) gather('everstone', N.stones.collectStone(p.x, p.y, p.z, 0.9), '#cfcac0', 'EVERSTONE', () => { sfx.play('land', 0.5, 0.8); sfx.play('light', 0.3, 0.55); });
 }
 function resourceEvent(type, w, n) {
   if (type === 'salvage') { sfx.play('medium', 0.7, 0.75); cam.kick(0.35); showToast(w.left > 0 ? `SALVAGE · ${RESOURCES[w.S.resourceId].name} ×${n} knocked loose` : `SALVAGE · wreck stripped · ${RESOURCES[w.S.resourceId].name} ×${n}`); }
@@ -1950,7 +1995,8 @@ function update(dt, t, realDt = dt) {
         else turboUfo();
       }
     } else if (astralboard?.active) {
-      if (astralboard.mounted && (pressed.has('KeyE') || padAct?.interact)) astralboard.dismount(rizer);
+      if (astralboard.mounted && (pressed.has('KeyE') || padAct?.kick)) astralboard.dismount(rizer); // △ off, like every vehicle
+      else if (astralboard.mounted && (pressed.has('KeyO') || padAct?.interact)) { astralboard.dismount(rizer); boardStowAfter = true; } // ○ off and onto his back
     } else if (homeMode) {
       if ((pressed.has('KeyE') || padAct?.interact) && !furnMover?.busy && !pcUse && !seating?.active) {
         const st = homeInterior.stationAt(rizer), line = st ? null : homeInterior.interact(rizer);
@@ -1960,8 +2006,10 @@ function update(dt, t, realDt = dt) {
       }
     } else {
     const promptTarget = hud.promptTarget;
-    const boardCircle = promptTarget?.id === 'astralboard-ride' && (pressed.has('KeyE') || !!padAct?.interact);
-    if (boardCircle) { astral.clearLock(); astralboard.mount(rizer); }
+    const boardTriangle = promptTarget?.id === 'astralboard-ride' && (pressed.has('KeyE') || !!padAct?.kick); // △ on, like every vehicle
+    if (boardTriangle) { astral.clearLock(); astralboard.mount(rizer); }
+    const boardStow = !boardTriangle && promptTarget?.id === 'astralboard-ride' && (pressed.has('KeyO') || !!padAct?.interact); // ○ stows it on his back
+    if (boardStow) stowBoard();
     const busTriangle = promptTarget?.id === 'west-lake-bus' && (pressed.has('KeyE') || !!padAct?.kick);
     if (busTriangle) { astral.clearLock(); westLakeBus.entry(rizer); }
     const ufoTriangle = promptTarget?.id === 'auraxion-ufo' && !!padAct?.kick;
@@ -1974,9 +2022,9 @@ function update(dt, t, realDt = dt) {
     const square = pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch;
     if (square && tryAirSlam()) {} // in the air + locked on an enemy: the aerial slam
     else if (!rizer.flying && square) {
-      if (rizer.weapon === 'bow') firePearlbow(); else if (rizer.weapon === 'guitar') toggleGuitar(); else if (rizer.weapon === 'telescope') toggleScope(); else if (rizer.weapon === 'blaster') rifleUp = Math.max(rifleUp, 0.01); else rizer.strike('punch');
+      if (rizer.weapon === 'bow') firePearlbow(); else if (rizer.weapon === 'guitar') toggleGuitar(); else if (rizer.weapon === 'telescope') toggleScope(); else if (rizer.weapon === 'workstation') buildWorkstation(); else if (rizer.weapon === 'blaster') rifleUp = Math.max(rifleUp, 0.01); else rizer.strike('punch');
     }
-    if (!rizer.flying && !ufoTriangle && !busTriangle && (pressed.has('KeyK') || pressed.has('MouseKick') || padAct?.kick)) rizer.strike('kick');
+    if (!rizer.flying && !ufoTriangle && !busTriangle && !boardTriangle && (pressed.has('KeyK') || pressed.has('MouseKick') || padAct?.kick)) rizer.strike('kick');
     // ○ is contextual: a place in front → interact · otherwise → Astral Blast (bonding is lock on + D-pad ↓, below)
     const circle = padAct?.interact, lk = astral.lock;
     // ○ near loot picks it up (flowers, a defeated enemy's bag), mid-fight too; otherwise ○ interacts or casts Astralstrike.
@@ -1984,7 +2032,7 @@ function update(dt, t, realDt = dt) {
     const depNear = dep?.nearest(rizer.position); if (depNear && !lootNear) dep.showNear(depNear);
     const lootWins = lootNear && (!hud.hasPrompt || pt?.kind === 'enemyLoot' || Math.hypot(pt.x - rizer.position.x, pt.z - rizer.position.z) > lootNear.d + 0.5);
     hud.setLootHint(lootNear ? lootNear.name : null);
-    if (boardCircle || busTriangle) {}
+    if (boardTriangle || boardStow || busTriangle) {}
     else if ((pressed.has('KeyE') || circle) && lootWins && !rizer.flying) pickupLoot(lootNear);
     else if ((pressed.has('KeyE') || circle) && depNear && !lootNear && !hud.hasPrompt && !rizer.flying) openStation('workstation', { uid: depNear.uid });
     else if (promptTarget?.id === 'auraxion-ufo' && pressed.has('KeyE')) enterUfo();
@@ -2156,6 +2204,7 @@ function update(dt, t, realDt = dt) {
   if (westLakeBus?.driving) westLakeBus.cameraUpdate(dt, camera, cam, busInput);
   else { if (labsView) { cam.yaw = rizer.facing; cam.pitch = 0.1; cam.targetDist = 3.4; } cam.update(dt, rizer, movementWorld, { autoRecenter: usingPad && !menu }); }
   labs?.update(dt); xray?.update(dt);
+  updateBackBoard();
   if (homeMode) homeInterior.nebulaTick?.(dt);
   if (pcUse) tickPcUse(dt);
   if (scopeView) scopeCamera(dt);

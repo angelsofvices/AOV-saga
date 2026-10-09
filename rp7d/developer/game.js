@@ -34,7 +34,7 @@ import { CAVES, CAVE_BY_ID } from './caves-data.js';
 import { createCaveInteriors } from './cave-interior.js';
 import { createAstralStorm, STORM, STORM_TIMING } from './astral-storm.js';
 import { createAstralvision } from './astralvision.js';
-import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, ASTRALITE_FAMILIES, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
+import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, porchChestSpots, PLAYTEST_PORCH_CHESTS, ASTRALITE_FAMILIES, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
 import { storage } from './storage.js';
 import { createTVSystem, buildDvdPickup } from './tv-system.js';
 import { DVDS } from './dvd-registry.js';
@@ -1093,13 +1093,13 @@ function build() {
   av = createAstralvision(scene, camera, fx);
   loot = createLoot(scene, world, fx, W); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
-  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); fhud.render(); // the gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
+  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, porch: PLAYTEST_PORCH_CHESTS ? porchChestSpots(W, world).gold : null, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); fhud.render(); // the gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
   // Caves: the interiors answer every physical query in their region of the world (world.js · setInterior)
   caveSys = createCaveInteriors({ scene, caves: CAVES, toast: showToast, fx, state: caveState });
   world.setInterior({ name: x => caveSys.planAt(x)?.cave.name, owns: caveSys.owns, groundAt: (x, z, y) => caveSys.planAt(x)?.phys.groundAt(x, z, y) ?? -60, resolve: (p, r) => caveSys.planAt(p.x)?.phys.resolve(p, r) ?? false, rayClear: (a, b) => caveSys.planAt(a.x)?.phys.rayClear(a, b) ?? a.distanceTo(b) });
   caveLight = new THREE.PointLight('#ffd9a8', 0, 18, 1.6); scene.add(caveLight); // one light, always in the scene (a light appearing later would recompile every material)
   westLakeBus = createWestLakeBus(scene, world, fx, showToast, { x:W.playerStart.x + 14, z:W.playerStart.z + 8, facing:Math.PI * 0.15 });
-  commonChests = createCommonChests(scene, world, fx, W, (x, z) => quarterAt(x, z, W) === 'core', [...loot.all.filter(c => !['psychosyd-chest', 'astralboard-chest'].includes(c.id)).map(c => ({ x: c.chest.position.x, z: c.chest.position.z })), { x: W.playerStart.x, z: W.playerStart.z }],
+  commonChests = createCommonChests(scene, world, fx, W, (x, z) => quarterAt(x, z, W) === 'core', [...loot.all.filter(c => !['psychosyd-chest', 'astralboard-chest'].includes(c.id)).map(c => ({ x: c.chest.position.x, z: c.chest.position.z })), ...(lightbulbs?.list || []).map(c => ({ x: c.x, z: c.z })), { x: W.playerStart.x, z: W.playerStart.z }],
     (ch, n) => showToast(`✦ ASTRALIFT · ${n} coin pile${n === 1 ? '' : 's'} shaken loose`), // the astral-pop payoff
     (ch, rolls, at) => coinPiles?.spawn(at, ch.face, rolls)); // every wooden chest: its 1–3 rolled piles fly out of the reward point, fanned toward its front
   // Coin piles: one pickup each, carrying its rolled value. Walking near a settled pile pulls it in and adds exactly that

@@ -130,7 +130,7 @@ export function buildLightbulb(color = '#ffc24a') {
 // then the first clear, level spot a few steps from that landmark. Chest states: closed → opening → rising (the bulb
 // floats up out of it) → waiting (hovering in front of the chest, ✕ to collect) → empty. Opened chests and collected
 // bulbs are remembered with the save (inventory.focus), so a reload puts each chest back the way it was left.
-export function createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect, onOpen }) {
+export function createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect, onOpen, porch = null }) { // porch: the playtest spots (loot.js · porchChestSpots), one per Lightbulb in order
   const P = W.plaza || W.playerStart, S = W.playerStart, list = [];
   const clear = (x, z, r) => { const probe = new THREE.Vector3(x, world.groundAt(x, z), z); return !world.resolve(probe, r) && world.waterAt(x, z) < world.heightAt(x, z) - 0.2 && Math.abs(world.heightAt(x + 1.4, z) - world.heightAt(x - 1.4, z)) < 0.6 && Math.abs(world.heightAt(x, z + 1.4) - world.heightAt(x, z - 1.4)) < 0.6; };
   const places = world.interactables.filter(i => i.discover && Number.isFinite(i.cx) && !String(i.id).startsWith('cave:')); // Malezor's own landmarks (cave mouths across Zyraxis are not chest anchors: they would pull a chest out of Malezor)
@@ -149,8 +149,8 @@ export function createLightbulbChests({ scene, world, W, fx, buildChest, chestFr
     }
     return null;
   }
-  for (const [id, b] of Object.entries(LIGHTBULBS)) {
-    const at = spotFor(b.near); if (!at) { console.warn('[rp7d] no spot for', id); continue; }
+  for (const [n, [id, b]] of Object.entries(LIGHTBULBS).entries()) {
+    const at = porch?.[n] || spotFor(b.near); if (!at) { console.warn('[rp7d] no spot for', id); continue; }
     used.push(at);
     const y = world.groundAt(at.x, at.z), C = buildChest('gold');
     C.root.position.set(at.x, y, at.z); C.root.rotation.y = at.face; scene.add(C.root); world.addMesh?.(C.root);

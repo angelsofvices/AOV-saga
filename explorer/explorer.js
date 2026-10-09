@@ -739,22 +739,6 @@
     save();
   }
   function ship(){ if (S.stage !== 'nav') aboard(); nav('system'); }
-  function fitNavContent(body){
-    if (!body || body.classList.contains('x-nav-system') || body.classList.contains('x-nav-stars') || body.classList.contains('x-nav-hq')) return;
-    var children = Array.prototype.slice.call(body.children);
-    if (!children.length) return;
-    var wrap = el('div', 'x-nav-fit');
-    children.forEach(function(child){ wrap.appendChild(child); });
-    body.appendChild(wrap);
-    var availableW = Math.max(1, body.clientWidth - 2), availableH = Math.max(1, body.clientHeight - 2);
-    var scale = Math.min(1, availableW / Math.max(1, wrap.scrollWidth), availableH / Math.max(1, wrap.scrollHeight));
-    if (scale < .995) {
-      wrap.style.transform = 'scale(' + scale.toFixed(4) + ')';
-      wrap.style.transformOrigin = 'top left';
-      wrap.style.width = (100 / scale).toFixed(3) + '%';
-      wrap.style.height = (100 / scale).toFixed(3) + '%';
-    }
-  }
   function nav(tab, sel){
     navTab = tab || navTab || 'system';
     navTab = { field:'system', cards:'companions', codex:'research', log:'journal' }[navTab] || navTab;   // old section names
@@ -777,7 +761,6 @@
       setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
     });
     ({ system:navHome, hq:navHQPanel, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
-    fitNavContent(body);
     return s;
   }
   function backToField(){ if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else nav('system'); }
@@ -1678,34 +1661,23 @@
       HQ.ruins.filter(function(u){ return h.ruins[u.id]; }).map(function(u){ return '<li class="done"><b>' + esc(u.label) + '</b><span>' + esc(u.cat.toUpperCase()) + '</span><em>' + esc(u.survey) + ' ' + esc(HQ.recordNote) + '</em></li>'; }).join('') + '</ul></section>';
     html += '<section class="x-arc riv" id="hq-records"><h3>RESTORATION RECORDS</h3><ol class="x-records">' + h.records.slice().reverse().map(function(r){ return '<li>' + esc(r.text) + '</li>'; }).join('') + '</ol></section>';
     body.innerHTML = html;
-    var hqNames = {
-      top:'BASE', ship:'SHIP', pop:'PEOPLE', mats:'MATERIALS', fac:'FACILITIES',
-      research:'RESEARCH', workshop:'WORKSHOP', restore:'RUINS', history:'HISTORY', records:'RECORDS'
-    };
-    var hqSections = Array.prototype.slice.call(body.querySelectorAll(':scope > section[id^="hq-"]'));
-    var hqCurrent = sec && body.querySelector('#hq-' + sec) ? sec : (hqSections[0] ? hqSections[0].id.slice(3) : 'top');
-    var hqDeck = el('div', 'x-hq-deck');
-    var hqPager = el('nav', 'x-hq-pager', Object.keys(hqNames).filter(function(k){ return body.querySelector('#hq-' + k); }).map(function(k){
-      return '<button type="button" data-hqpage="' + k + '" class="' + (k === hqCurrent ? 'on' : '') + '" aria-label="Open ' + hqNames[k] + ' page">' + hqNames[k] + '</button>';
-    }).join(''));
-    var hqPages = el('div', 'x-hq-pages');
-    hqSections.forEach(function(section){
-      var key = section.id.slice(3); section.classList.add('x-hq-page');
-      if (key === hqCurrent) section.classList.add('on');
-      hqPages.appendChild(section);
+    var hqOpen = sec ? 'hq-' + sec : 'hq-top';
+    Array.prototype.slice.call(body.querySelectorAll('section.x-arc[id^="hq-"]')).forEach(function(section){
+      var heading = section.querySelector(':scope > h3');
+      if (!heading) return;
+      var details = el('details', 'x-subsection x-arc riv');
+      details.id = section.id;
+      details.open = section.id === hqOpen;
+      var summary = el('summary', '', heading.innerHTML);
+      details.appendChild(summary);
+      heading.remove();
+      while (section.firstChild) details.appendChild(section.firstChild);
+      section.replaceWith(details);
     });
-    hqDeck.appendChild(hqPager); hqDeck.appendChild(hqPages);
-    body.innerHTML = ''; body.appendChild(hqDeck);
+    if (sec) { var t = $('#hq-' + sec, body); if (t) setTimeout(function(){ try { t.scrollIntoView({ block:'start' }); } catch(e){} }, 30); }
     body.onclick = function(e){
       var b = e.target.closest('button'); if (!b || b.disabled) return;
-      if (b.dataset.hqpage) {
-        var page = b.dataset.hqpage;
-        hqCurrent = page;
-        $$('.x-hq-page', body).forEach(function(p){ p.classList.toggle('on', p.id === 'hq-' + page); });
-        $$('.x-hq-pager [data-hqpage]', body).forEach(function(p){ p.classList.toggle('on', p.dataset.hqpage === page); });
-        sfx.click(); return;
-      }
-      var d = b.dataset, keep = hqCurrent, ok = true;
+      var d = b.dataset, keep = sec, ok = true;
       if (d.h === 'deposit') { deposit(); keep = 'mats'; }
       else if (d.h === 'xfrom') { xFrom = MATS[(MATS.map(function(m){ return m[0]; }).indexOf(xFrom) + 1) % MATS.length][0]; keep = 'mats'; }
       else if (d.h === 'xto') { xTo = MATS[(MATS.map(function(m){ return m[0]; }).indexOf(xTo) + 1) % MATS.length][0]; keep = 'mats'; }

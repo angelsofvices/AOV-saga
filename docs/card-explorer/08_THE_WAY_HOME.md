@@ -65,3 +65,19 @@ Your battle team fights every warden and guardian, so **build the right team** f
 2. **Part names and costs**, the perks, and warden strength are proposals.
 3. **The journey home** at 100% isn't written.
 4. **The warden's people:** a warden is drawn from the same people who become your allies on that world. Should wardens be a different faction, such as the war's other side?
+
+## The AstraNav's seven sections (survey build 9.1)
+
+Creator ruling (2026-10-09): the AstraNav is restructured into seven sections, in this order.
+
+| # | Section | What it holds |
+|---|---|---|
+| 1 | **SYSTEM** | The home panel. STATUS (location, SUIT and AIR meters, flares, pack, return / flare / disembark), the FIELD SKETCH when you're on the ground, and a widget for every other section. Tap a widget to open that section. |
+| 2 | **HEADQUARTERS** | A live digital map of NASARUS: facilities, plots, ruins (surveyed and restored), residents, settled Aethren, and you (blinking) when you're there. A running clock shows whether you're there or away. Below the map are the base's own pages: stages, the way home, the people, materials, facilities, research, workshop, restoration and records. |
+| 3 | **NAVIGATION** | The star map, laid out as in RP7D's telescope. Boarding the ship, arriving in orbit and booting the Navigation Center open here. |
+| 4 | **COMPANIONS** | Every Aethren card you've cloned, plus the battle team and the lead perk. |
+| 5 | **RESEARCH** | Everything else you collect. **In the pack · unredeemed**: materials, ship parts, and research cards scanned away from NASARUS. **Redeemed at NASARUS**: stores and parts at home. **Equipment and crafts**: the AstraNav, the air tank, flares, and your Aethren as weapons. **Research cards**: plants, minerals, places, peoples and bodies in the sky. **The Living Master Codex**: the lore. |
+| 6 | **JOURNAL** | The missions: the three objectives, the chapters, the mission list, and an **Expeditions** checklist for each world (clue · warden or guardian · part · refugees). |
+| 7 | **SETUP** | The settings. |
+
+**Redeeming:** a research card scanned away from NASARUS is in your pack until you bring it home. Depositing at NASARUS redeems it, for +2 DATA per card. If you die out there, unredeemed cards are lost with the pack. Aethren companions are cloned straight into the AstraNav and never wait to be redeemed, because they fight for you in the field.

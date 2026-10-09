@@ -287,6 +287,7 @@
     var c = S.cards[id], first = !c;
     if (!c) c = S.cards[id] = { qty:0, img:img || null, foil:false, at:Date.now() };
     c.qty++; if (foil) c.foil = true; if (!c.img && img) c.img = img;
+    if (!subj(id).sp && !(M && M.hq && mode === 'surface') && S.at !== 'nasarus') c.pend = (c.pend || 0) + 1;   // research: redeemed at home
     if (subj(id).sp) { c.lv = Math.max(c.lv || 0, lv || 3); c.xp = c.xp || 0; if (c.hp == null) c.hp = maxHp(id); autoTeam(); }
     if (!arc(id).classified) arc(id).classified = Date.now();
     S.notes[id] = 1;
@@ -320,7 +321,8 @@
     if (s.kind === 'haemen') rows.push(['PEOPLE', s.species ? (known(s.term) ? s.species : '— not yet learned —') : '— awaiting canon —']);
     if (s.sp && c.lv) rows.push(['LEVEL', String(c.lv)], ['VIGOUR', Math.max(0, c.hp == null ? maxHp(id) : c.hp) + ' / ' + maxHp(id)]);
     rows.push(['RARITY', rarity(s)], ['QUANTITY', String(c.qty)]);
-    return '<div class="x-card' + (c.foil ? ' foil' : '') + (big ? ' big' : '') + '" data-card="' + id + '">' +
+    return '<div class="x-card' + (c.foil ? ' foil' : '') + (big ? ' big' : '') + (c.pend ? ' pend' : '') + '" data-card="' + id + '">' +
+      (c.pend ? '<div class="x-card-pend">IN PACK · BRING HOME</div>' : '') +
       '<div class="x-card-band">' + esc(setName(s.set)) + '</div>' +
       '<div class="x-card-art">' + artHtml(s, c, id) + '</div>' +
       '<div class="x-card-nm">' + esc(subjName(id)) + '</div>' +
@@ -715,12 +717,13 @@
   // ═════════════════════════ THE ASTRANAV ═════════════════════════
   // Early American tech, issued to the pilot-observer on the first mission: a
   // navigation, survey and scanning unit in cream enamel and chrome with a green
-  // phosphor screen. It is the whole interface: the star map, the field sketch,
-  // the cards, the Codex, the log and the settings all live on it.
+  // phosphor screen. It is the whole interface, in seven sections: SYSTEM (home),
+  // HEADQUARTERS, NAVIGATION (the star map), COMPANIONS, RESEARCH, JOURNAL and SETUP.
   //
   //   S.stage 'nav'      aboard the ship (S.landed: on the ground at S.at, or in orbit; S.at null: deep space)
   //   S.stage 'surface'  on foot, the AstraNav in hand
-  var NAV_TABS = [['system', 'SYSTEM'], ['hq', null], ['field', 'FIELD'], ['cards', 'CARDS'], ['codex', 'CODEX'], ['log', 'LOG'], ['setup', 'SETUP']];
+  // the seven sections, in order: 1 SYSTEM (home) · 2 HEADQUARTERS · 3 NAVIGATION · 4 COMPANIONS · 5 RESEARCH · 6 JOURNAL · 7 SETUP
+  var NAV_TABS = [['system', 'SYSTEM'], ['hq', 'HEADQUARTERS'], ['stars', 'NAVIGATION'], ['companions', 'COMPANIONS'], ['research', 'RESEARCH'], ['journal', 'JOURNAL'], ['setup', 'SETUP']];
   var navTab = 'system';
   function onFoot(){ return S.stage === 'surface'; }
   function whereLine(){
@@ -738,14 +741,14 @@
   function ship(){ if (S.stage !== 'nav') aboard(); nav('system'); }
   function nav(tab, sel){
     navTab = tab || navTab || 'system';
-    if (navTab === 'field' && !(onFoot() || (S.landed && S.pos))) navTab = 'system';
-    var tabs = NAV_TABS.filter(function(t){ return t[0] !== 'field' || onFoot() || (S.landed && S.pos); });
+    navTab = { field:'system', cards:'companions', codex:'research', log:'journal' }[navTab] || navTab;   // old section names
+    var tabs = NAV_TABS;
     var s = screen('x-nav',
       '<div class="x-nav-dev">' +
         '<header class="x-nav-top"><b class="x-nav-logo">ASTRANAV</b><span class="x-nav-mk">MK.I · U.S. EXPERIMENTAL ROCKET PROGRAM · 1936</span>' +
           '<span class="x-nav-where">' + esc(whereLine()) + '</span></header>' +
         '<nav class="x-nav-tabs" aria-label="AstraNav">' + tabs.map(function(t){
-          return '<button data-tab="' + t[0] + '" class="' + (t[0] === navTab ? 'on' : '') + (t[0] === 'hq' ? ' x-tab-hq' : '') + '"' + (t[0] === navTab ? ' aria-current="page"' : '') + '>' + esc(t[1] || hqName()) + '</button>';
+          return '<button data-tab="' + t[0] + '" class="' + (t[0] === navTab ? 'on' : '') + (t[0] === 'hq' ? ' x-tab-hq' : '') + '"' + (t[0] === navTab ? ' aria-current="page"' : '') + '><i class="x-tab-n">' + (NAV_TABS.indexOf(t) + 1) + '</i>' + esc(t[1]) + '</button>';
         }).join('') + (onFoot() ? '<button data-tab="close" class="x-nav-close">◀ FIELD</button>' : '') + '</nav>' +
         '<div class="x-nav-screen x-nav-' + navTab + '"></div>' +
       '</div>');
@@ -757,7 +760,7 @@
       nav(t.dataset.tab);
       setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
     });
-    ({ system:navSystem, hq:navHQ, field:navField, cards:navCards, codex:navCodex, log:navLog, setup:navSetup })[navTab](body, sel);
+    ({ system:navHome, hq:navHQPanel, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
     return s;
   }
   function backToField(){ if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else nav('system'); }
@@ -965,13 +968,13 @@
     S.flags[id === 'aenor' ? 'shotAenor' : 'shotZoryth'] = true;
     var first = manifest(id, null, true); S.notes[id] = 1; save();
     await cardReveal(id, first, 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED');
-    nav('system', id);
+    nav('stars', id);
   }
   function fireFlare(){
     if (!S.flares) { toast('NO FLARES LEFT · walk back to the ship', 'red'); return; }
     S.flares--; if (M && fogArr) S.fog[M.id] = fogEnc(fogArr);
     if (M && M.ship) S.pos = { map:M.hq ? 'nasarus' : M.world ? 'w' + M.world : M.id, x:M.ship.x, y:M.ship.y + 1, dir:'down' };
-    aboard(); toast('RECALL FLARE · the ship homed in on you'); nav('system');
+    aboard(); toast('RECALL FLARE · the ship homed in on you'); nav('stars');
   }
 
   // ── the drive ──
@@ -988,7 +991,7 @@
       stopWorld();
       S.at = no; save();
       toast('IN ORBIT · ' + placeName(no));
-      nav('system', no === 'nasarus' ? 'nasarus' : 'w' + no);
+      nav('stars', no === 'nasarus' ? 'nasarus' : 'w' + no);
     })();
   }
   function land(no){
@@ -1004,8 +1007,8 @@
     if (no === 'nasarus') { S.pos = { map:'nasarus', x:m.ship.x + 2, y:m.ship.y + 1, dir:'down' }; S.stage = 'surface';
       if (S.hq.built.camp && S.air < airMax()) { refillAir(); setTimeout(function(){ toast('OXYGEN · the tank refilled from the base · AIR ' + airMax()); }, 300); }
       save();
-      if (S.hq.built.depot && (packTotal() || packParts())) setTimeout(function(){ deposit(); }, 600);
-      else if (packParts() && S.hq.built.stores) setTimeout(function(){ deposit(); }, 600);
+      if (S.hq.built.depot && (packTotal() || packParts() || pendingCards())) setTimeout(function(){ deposit(); }, 600);
+      else if ((packParts() || pendingCards()) && S.hq.built.stores) setTimeout(function(){ deposit(); }, 600);
       else if (packTotal()) setTimeout(function(){ toast('PACK · ' + packTotal() + ' materials · deposit them at the camp stores'); }, 600);
       surface('nasarus'); return; }
     S.pos = { map:m.id, x:m.ship.x, y:m.ship.y + 1, dir:'down' }; save();
@@ -1032,34 +1035,139 @@
   }
 
   // ── FIELD · the sketch of where you stand ──
-  function navField(body){
-    if (!M || (S.pos && M.id !== S.pos.map)) { var m0 = S.pos && buildMap(S.pos.map); if (m0) { M = m0; fogArr = fogDec(S.fog[M.id], M.W * M.H); if (!P) P = { x:S.pos.x, y:S.pos.y }; } }
-    var team = S.team || [];
-    body.innerHTML = '<div class="x-field2"><canvas class="x-sketch" width="640" height="400" aria-label="Field sketch map"></canvas>' +
-      '<div class="x-field-side"><p class="x-crt">' + esc(zoneName()) + '<br><small>SUIT ' + Math.round(S.suit) + ' · AIR ' + Math.round(S.air) + '/' + airMax() + ' · FLARES ' + S.flares + '</small></p>' +
-        (team.length ? '<div class="x-teamrow">' + team.map(teamChip).join('') + '</div>' : '<p class="x-crt dim">NO CARD TEAM YET · scan a creature</p>') +
+  // ── 1 · SYSTEM · the home panel: every section as a widget ──
+  function navHome(body){
+    var landed = onFoot() || (S.landed && S.pos), team = (S.team || []).filter(function(k){ return S.cards[k]; }), lp = leadPerk();
+    var next = objectives().filter(function(o){ return !o.done && !o.main; })[0];
+    var visited = D.worlds.filter(function(w){ return S.visited[w.no]; }).length, pend = pendingCards();
+    function w(tab, title, inner, cls){ return '<button class="x-wd' + (cls ? ' ' + cls : '') + '" data-go="' + tab + '"><h4><i>' + (NAV_TABS.map(function(t){ return t[0]; }).indexOf(tab) + 1) + '</i>' + title + '</h4>' + inner + '</button>'; }
+    body.innerHTML = '<div class="x-home">' +
+      '<section class="x-wd x-wd-status riv"><h4>STATUS</h4><p class="x-crt">' + esc(whereLine()) + '</p>' +
+        '<div class="x-meters">' + meter('SUIT', S.suit, 100) + meter('AIR', S.air, airMax()) + '</div>' +
+        '<p class="x-mono light">FLARES ' + S.flares + '/' + flaresMax() + ' · PACK ' + (packTotal() + packParts() + pend) + (packParts() ? ' · ' + packParts() + ' SHIP PART' + (packParts() > 1 ? 'S' : '') : '') + '</p>' +
         '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
-          '<button class="x-btn" data-a="out">DISEMBARK</button>') + '</div></div></div>';
-    if (M && P && fogArr) drawSketch($('.x-sketch', body));
+          landed ? '<button class="x-btn" data-a="out">DISEMBARK</button>' : '<button class="x-btn" data-go="stars">SET A COURSE</button>') + '</div></section>' +
+      (landed ? '<section class="x-wd x-wd-sketch riv"><h4>FIELD SKETCH · ' + esc(zoneName()) + '</h4><canvas class="x-sketch" width="640" height="400" aria-label="Field sketch map"></canvas></section>' : '') +
+      w('hq', 'HEADQUARTERS', '<p class="x-crt">' + esc(hqName()) + ' · STAGE ' + hqStage() + '</p><p class="x-mono light">' + esc(stageName(hqStage())) + ' · SHIP ' + shipPct() + '% · ' + Object.keys(S.hq.residents).length + ' groups · ' + Object.keys(S.hq.settled).length + ' species</p><i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i>') +
+      w('stars', 'NAVIGATION', '<p class="x-crt">' + (navOnline() ? 'DRIVE ONLINE' : 'NAVIGATION OFFLINE') + '</p><p class="x-mono light">' + visited + ' / 27 worlds visited · ' + Object.keys(S.hq.installed).length + ' parts home</p>') +
+      w('companions', 'COMPANIONS', team.length ? '<div class="x-wd-team">' + team.map(function(id){ return '<img class="x-pix" alt="" src="' + ART.url(subjArt(id), 2) + '" title="' + esc(subjName(id)) + '">'; }).join('') + '</div><p class="x-mono light">' + (lp ? 'LEAD PERK · ' + esc(lp.name) : 'No lead perk') + '</p>' : '<p class="x-mono light">No companions yet. Scan an Aethren to clone it.</p>') +
+      w('research', 'RESEARCH', '<p class="x-crt">' + researchCount() + ' records · ' + Object.keys(S.hq.store).reduce(function(n, k){ return n + (S.hq.store[k] || 0); }, 0) + ' in stores</p><p class="x-mono light">' + (packTotal() + packParts() + pend ? (packTotal() + packParts() + pend) + ' unredeemed in the pack · bring them home' : 'Nothing waiting in the pack') + '</p>') +
+      w('journal', 'JOURNAL', '<p class="x-crt">MISSION</p><p class="x-mono light">' + esc(next ? next.t : 'Every mission in the log is done.') + '</p>') +
+      w('setup', 'SETUP', '<p class="x-mono light">' + (PAD && PAD.connected() ? (PAD.dualsense() ? 'DUALSENSE CONNECTED' : 'CONTROLLER CONNECTED') : 'Sound, controls, text, controller') + '</p>', 'x-wd-small') +
+      '</div>';
+    if (landed) { navSketchReady(); var cv0 = $('.x-sketch', body); if (cv0 && M && P && fogArr) drawSketch(cv0); }
     body.onclick = function(e){
-      var a = e.target.closest('[data-a]'); if (!a) return;
-      if (a.dataset.a === 'field') backToField();
-      if (a.dataset.a === 'flare') fireFlare();
-      if (a.dataset.a === 'out') disembark();
+      var a = e.target.closest('[data-a]');
+      if (a) { if (a.dataset.a === 'field') backToField(); if (a.dataset.a === 'flare') fireFlare(); if (a.dataset.a === 'out') disembark(); return; }
+      var g = e.target.closest('[data-go]'); if (g) { sfx.click(); nav(g.dataset.go); }
     };
+  }
+  function meter(label, v, max){ var k = clamp(v / max, 0, 1); return '<div class="x-meter' + (k < .25 ? ' low' : '') + '"><span>' + label + '</span><i><i style="width:' + Math.round(k * 100) + '%"></i></i><b>' + Math.round(v) + '/' + max + '</b></div>'; }
+  function navSketchReady(){
+    if (!M || (S.pos && M.id !== S.pos.map)) { var m0 = S.pos && buildMap(S.pos.map); if (m0) { M = m0; fogArr = fogDec(S.fog[M.id], M.W * M.H); if (!P) P = { x:S.pos.x, y:S.pos.y }; } }
+  }
+
+  // ── 2 · HEADQUARTERS · a live digital map of the settlement, then the base itself ──
+  function navHQPanel(body, sec){
+    var host = el('div', 'x-hqmap-wrap', '<section class="x-arc riv" id="hq-map"><h3>' + esc(hqName()) + ' · LIVE MAP <b class="x-clock"></b></h3><canvas class="x-hqmap" width="768" height="576" aria-label="Live map of the settlement"></canvas>' +
+      '<p class="x-maplegend"><span class="k-fac">FACILITY</span><span class="k-plot">PLOT</span><span class="k-ruin">RUIN</span><span class="k-rest">RESTORED</span><span class="k-res">RESIDENTS</span><span class="k-aet">AETHREN</span><span class="k-you">YOU</span></p></section>');
+    var rest = el('div', 'x-hqbody');
+    body.innerHTML = ''; body.appendChild(host); body.appendChild(rest);
+    navHQ(rest, sec);
+    var cnv = $('.x-hqmap', host), clock = $('.x-clock', host);
+    var m = M && M.hq ? M : buildMap('nasarus');
+    var fog = M && M.hq && fogArr ? fogArr : fogDec(S.fog.nasarus, m.W * m.H);
+    function draw(){
+      if (!cnv.isConnected) { clearInterval(t); return; }
+      var g = cnv.getContext('2d'), s2 = Math.min(cnv.width / m.W, cnv.height / m.H), now = performance.now(), all = S.hq.research['r-survey'];
+      g.fillStyle = '#04110a'; g.fillRect(0, 0, cnv.width, cnv.height);
+      for (var y = 0; y < m.H; y++) for (var x = 0; x < m.W; x++) {
+        var ch = m.at(x, y), seen = all || fog[y * m.W + x];
+        g.fillStyle = ch === '#' ? '#0f3a20' : ch === 'X' ? '#5a4a20' : ch === 'd' ? '#123d24' : ch === 'w' ? '#3a5a44' : ch === 'A' ? '#3a6ad6' : ch === 'S' ? '#e8f4ea' : '#0a2414';
+        g.globalAlpha = seen ? 1 : .35; g.fillRect(x * s2, y * s2, s2 - .5, s2 - .5); g.globalAlpha = 1;
+      }
+      (m.structs || []).forEach(function(st){
+        var rs = st.kind === 'ruin' && S.hq.ruins[st.id];
+        if (!all && !fog[st.y * m.W + st.x] && !(st.kind === 'fac' || st.kind === 'plot')) return;
+        g.fillStyle = st.kind === 'fac' ? '#7cf08a' : st.kind === 'plot' ? '#3d6a48' : rs && rs.restored ? '#6fd0c0' : rs ? '#ffb347' : '#8a6a2a';
+        g.fillRect(st.x * s2 - 1, (st.y - 1) * s2, st.w * s2 + 2, s2 * 2);
+        if (st.kind === 'fac') { g.fillStyle = '#04110a'; g.font = '9px Courier Prime, monospace'; g.fillText((st.ref.name || '').split(' ')[0], st.x * s2, (st.y - 1.2) * s2); }
+      });
+      var live = M && M.hq && mode === 'surface';
+      (live ? npcs : m.npcs).forEach(function(n){ if (n.resident) { g.fillStyle = '#9fe8ff'; g.beginPath(); g.arc((n.x + .5) * s2, (n.y + .5) * s2, s2 * .45, 0, 7); g.fill(); } });
+      (live ? critters : m.spawns).forEach(function(c){ if (c.resident) { g.fillStyle = '#ff7ae0'; g.beginPath(); g.arc((c.x + .5) * s2, (c.y + .5) * s2, s2 * .4, 0, 7); g.fill(); } });
+      var here = S.at === 'nasarus' && (onFoot() || S.landed) && S.pos && S.pos.map === 'nasarus';
+      if (here && Math.floor(now / 400) % 2) { g.fillStyle = '#ff4a2a'; g.beginPath(); g.arc((S.pos.x + .5) * s2, (S.pos.y + .5) * s2, s2 * .7, 0, 7); g.fill(); }
+      var sweep = (now / 3000 % 1) * cnv.height; g.fillStyle = 'rgba(124,240,138,.08)'; g.fillRect(0, sweep, cnv.width, 10);
+      var d0 = new Date(); clock.textContent = (here ? 'YOU ARE HERE · ' : 'AWAY · ') + String(d0.getHours()).padStart(2, '0') + ':' + String(d0.getMinutes()).padStart(2, '0') + ':' + String(d0.getSeconds()).padStart(2, '0');
+    }
+    var t = setInterval(draw, 250); draw();
+  }
+
+  // ── 4 · COMPANIONS · the Aethren you have cloned ──
+  function navCompanions(body){ navCards(body); }
+
+  // ── 5 · RESEARCH · everything you collect. It counts once it is home at NASARUS. ──
+  function researchIds(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && !subj(id).sp; }).sort(function(a, b){ return subj(a).set - subj(b).set || (subj(a).kind > subj(b).kind ? 1 : -1); }); }
+  function researchCount(){ return researchIds().length; }
+  function pendingCards(){ return researchIds().reduce(function(n, id){ return n + (S.cards[id].pend || 0); }, 0); }
+  function navResearch(body){
+    var ids = researchIds(), h = S.hq, eq = (HQ.airTanks || []).filter(function(t){ return (h.equip || {})[t.id]; });
+    var pendIds = ids.filter(function(id){ return S.cards[id].pend; });
+    body.innerHTML = '<p class="x-crt">RESEARCH · what you carry counts only once it is home at ' + esc(hqName()) + '</p>' +
+      '<section class="x-arc riv" id="rs-pack"><h3>IN THE PACK · UNREDEEMED <b>' + (packTotal() + packParts() + pendingCards()) + '</b></h3>' +
+        '<p class="x-mono light">Lost if you die out there. Bring it home to ' + esc(hqName()) + ' to redeem it.</p><ul class="x-hqlist">' +
+        MATS.filter(function(m){ return S.pack[m[0]]; }).map(function(m){ return '<li><b>' + m[1] + ' × ' + S.pack[m[0]] + '</b><span>' + esc(m[2]) + '</span><div></div></li>'; }).join('') +
+        (S.pack.parts || []).map(function(no){ return '<li><b>' + esc(sysOf(no).part) + '</b><span>Ship part from ' + esc(placeName(no)) + ', for the ' + esc(sysOf(no).name) + '.</span><div><em>SHIP PART</em></div></li>'; }).join('') +
+        pendIds.map(function(id){ return '<li><b>' + esc(subjName(id)) + (S.cards[id].pend > 1 ? ' × ' + S.cards[id].pend : '') + '</b><span>' + esc(classLine(subj(id))) + ' · ' + esc(setName(subj(id).set)) + '</span><div><em>CARD</em></div></li>'; }).join('') +
+        (packTotal() + packParts() + pendingCards() ? '' : '<li><b>— the pack is empty —</b><span></span><div></div></li>') + '</ul></section>' +
+      '<section class="x-arc riv" id="rs-stores"><h3>REDEEMED AT ' + esc(hqName()) + '</h3><table class="x-mats"><tr><th></th><th>STORES</th></tr>' +
+        MATS.map(function(m){ return '<tr><td><b>' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
+        '<ul class="x-hqlist">' + Object.keys(h.parts).map(function(no){ return '<li class="done"><b>' + esc(sysOf(+no).part) + '</b><span>From ' + esc(placeName(+no)) + '. Ready to install (HEADQUARTERS).</span><div><em class="ok">HOME</em></div></li>'; }).join('') + '</ul></section>' +
+      '<section class="x-arc riv" id="rs-kit"><h3>EQUIPMENT AND CRAFTS</h3><ul class="x-hqlist">' +
+        '<li class="done"><b>THE ASTRANAV</b><span>Navigation, survey, cloning and the record of everything.</span><div><em class="ok">ISSUED</em></div></li>' +
+        '<li class="done"><b>AIR TANK · ' + airMax() + ' AIR</b><span>' + (eq.length ? esc(eq[eq.length - 1].name) : 'The stock tank.') + ' Only ' + esc(hqName()) + ' refills it.</span><div><em class="ok">FITTED</em></div></li>' +
+        '<li class="done"><b>RECALL FLARES · ' + S.flares + ' / ' + flaresMax() + '</b><span>Crafted at the Workshop. The ship homes in on the flare.</span><div><em class="ok">CARRIED</em></div></li>' +
+        '<li class="' + (h.built.workshop ? 'done' : '') + '"><b>WEAPONS</b><span>Your Aethren companions are your weapons. Build the team in COMPANIONS.</span><div><button class="x-btn small" data-go="companions">COMPANIONS</button></div></li>' +
+        '</ul></section>' +
+      '<section class="x-arc riv" id="rs-cards"><h3>RESEARCH CARDS <b>' + ids.length + '</b></h3>' +
+        (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>' : '<p class="x-mono light">Scan plants, minerals, places, peoples and bodies in the sky.</p>') + '</section>' +
+      '<section class="x-arc riv" id="rs-codex"><h3>THE LIVING MASTER CODEX</h3><div class="x-codex-in"></div></section>';
+    navCodex($('.x-codex-in', body));
+    body.onclick = function(e){
+      var g = e.target.closest('[data-go]'); if (g) { nav(g.dataset.go); return; }
+      var c = e.target.closest('.x-grid [data-card]'); if (!c) return;
+      var id = c.dataset.card;
+      var m = el('div', 'x-modal', '<div class="x-modal-in">' + cardHtml(id, true) + '<div class="x-sh-btns"><button class="x-btn ghost" data-t="close">CLOSE</button></div></div>');
+      ui.appendChild(m); sfx.click(); setTimeout(function(){ if (padOn) focusFirst(); }, 30);
+      m.addEventListener('click', function(ev){ if (ev.target === m || ev.target.closest('[data-t]')) m.remove(); });
+    };
+  }
+
+  // ── 6 · JOURNAL · the missions ──
+  function navJournal(body){
+    var vis = D.worlds.filter(function(w){ return S.visited[w.no] && w.no <= 27; });
+    body.innerHTML = '<div class="x-paper"><p class="x-mono">JOURNAL OF ' + esc(heroName()) + ' · ' + STORY.year + '</p>' + objList() + '</div>' +
+      '<section class="x-arc riv"><h3>EXPEDITIONS <b>' + vis.length + ' / 27</b></h3><ul class="x-hqlist">' +
+      (vis.length ? vis.map(function(w){
+        var no = w.no, steps = [hasClue(no) ? '✓ CLUE' : '· CLUE', S.exp.beaten[no] ? '✓ ' + (hasWarden(no) ? 'WARDEN' : 'GUARDIAN') : '· ' + (hasWarden(no) ? 'WARDEN' : 'GUARDIAN'),
+          S.hq.installed[no] || S.hq.parts[no] ? '✓ PART HOME' : S.exp.vault[no] ? '… PART IN PACK' : '· PART'];
+        if (hasWarden(no)) steps.push(S.hq.residents[no] ? '✓ REFUGEES' : '· REFUGEES');
+        return '<li class="' + (S.hq.installed[no] || S.hq.parts[no] ? 'done' : '') + '"><b>' + esc(placeName(no)) + '</b><span>' + steps.join(' · ') + '</span><div><em>' + esc(vaultState(no)) + '</em></div></li>';
+      }).join('') : '<li><b>— no expeditions yet —</b><span>Set a course in NAVIGATION.</span><div></div></li>') + '</ul></section>';
   }
 
   // ── CARDS · the collection and the battle team ──
   function navCards(body){
     autoTeam();
-    var ids = Object.keys(S.cards).filter(subj).sort(function(a, b){ return subj(a).set - subj(b).set || (subj(a).kind > subj(b).kind ? 1 : -1); });
-    body.innerHTML = '<p class="x-crt">COLLECT THE EXPANSE · ' + ids.length + ' card' + (ids.length === 1 ? '' : 's') + ' · ' + totalCopies() + ' copies, sealed for the voyage home</p>' +
+    var ids = Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp; }).sort(function(a, b){ return subj(a).set - subj(b).set || (S.cards[b].lv || 0) - (S.cards[a].lv || 0); });
+    body.innerHTML = '<p class="x-crt">COMPANIONS · ' + ids.length + ' Aethren cloned into the AstraNav · they fight for you and keep you alive</p>' +
       '<section class="x-team riv"><h3>BATTLE TEAM <small>up to ' + teamMax() + ' · the first leads</small></h3>' +
         (leadPerk() ? '<p class="x-perk"><b>LEAD PERK · ' + esc(leadPerk().name) + '</b> ' + esc(leadPerk().text) + '</p>' : '<p class="x-perk dim">The lead card’s first type gives a field perk.</p>') +
         '<div class="x-teamrow">' +
         (S.team.length ? S.team.map(teamChip).join('') : '<p class="x-mono light">No ' + (known('aethren') ? 'Aethren' : 'creature') + ' cards yet. Scan one in the field.</p>') + '</div></section>' +
       (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>'
-      : '<p class="x-empty">No cards yet. Scan creatures, plants, minerals and places with the AstraNav.</p>');
+      : '<p class="x-empty">No companions yet. Scan an Aethren in the field to clone it into the AstraNav.</p>');
     body.onclick = function(e){
       var c = e.target.closest('.x-grid [data-card], .x-teamrow [data-card]'); if (!c) return;
       var id = c.dataset.card, isA = !!(subj(id).sp && S.cards[id].lv), on = S.team.indexOf(id);
@@ -1075,7 +1183,7 @@
         if (t.dataset.t === 'on') { if (S.team.length >= teamMax()) S.team.pop(); S.team.push(id); }
         if (t.dataset.t === 'off') S.team.splice(S.team.indexOf(id), 1);
         if (t.dataset.t === 'lead') { S.team.splice(S.team.indexOf(id), 1); S.team.unshift(id); }
-        S.flags.teamSet = true; save(); m.remove(); nav('cards');
+        S.flags.teamSet = true; save(); m.remove(); nav('companions');
       });
     };
   }
@@ -1106,7 +1214,7 @@
         (canDecode() ? 'The carved markings can be cross-referenced against your scans.' : 'Markings copied. Classify at least 4 subjects to cross-reference them (' + classifiedCount() + '/4).') +
         '</p><button class="x-btn" data-a="dec"' + (canDecode() ? '' : ' disabled') + '>DECODE THE MARKINGS</button></section>' : '') +
       '<p class="x-crt">' + esc(heroName()) + '’S LIVING MASTER CODEX · ' + esc(STORY.rule) + '</p>' +
-      '<p class="x-mono light">PLAYER DISCOVERIES, drawn from the MASTER CANON. Cards are kept in CARDS; the planetary survey is on SYSTEM; restoration records are on the ' + esc(hqName()) + ' page.</p>' +
+      '<p class="x-mono light">PLAYER DISCOVERIES, drawn from the MASTER CANON. Aethren cards are in COMPANIONS, research cards above; the planetary survey is in NAVIGATION; restoration records are in HEADQUARTERS.</p>' +
       '<section class="x-arc riv"><h3>' + esc(hqName()) + ' · HEADQUARTERS <b>STAGE ' + hqStage() + '</b></h3><p class="x-mono light">An ancient drifting planet. Haemen and Aethren lived here before the First Eternal War. Why it was abandoned is not known.</p>' +
         '<ul>' + HQ.ruins.filter(function(u){ return S.hq.ruins[u.id]; }).map(function(u){ return '<li class="done"><b>' + esc(u.label) + '</b><span>' + (S.hq.ruins[u.id].restored ? 'RESTORED' : 'SURVEYED') + '</span><em>' + esc(u.survey) + '</em></li>'; }).join('') +
         (Object.keys(S.hq.ruins).length ? '' : '<li><b>— no ruins surveyed yet —</b></li>') + '</ul></section>' + sets.map(function(n){
@@ -1126,7 +1234,7 @@
     var dec = $('[data-a="dec"]', body);
     if (dec) dec.addEventListener('click', function(){
       reclassify(D.teaches.markings, 'The carved figures match your scans. Beside each figure, a word. The words repeat in the wireless pattern.', function(){
-        S.flags.decoded = true; save(); nav('system'); toast('The AstraNav now reads in the true names.');
+        S.flags.decoded = true; save(); nav('research'); toast('The AstraNav now reads in the true names.');
       });
     });
   }
@@ -1148,11 +1256,6 @@
     if (!terms.length) list.appendChild(el('li', '', '<b>Nothing new to learn here yet.</b>'));
     var b = $('.x-btn', s); b.hidden = false; b.focus();
     b.addEventListener('click', done);
-  }
-
-  // ── LOG ──
-  function navLog(body){
-    body.innerHTML = '<div class="x-paper"><p class="x-mono">LOG OF ' + esc(heroName()) + ' · ' + STORY.year + '</p>' + objList() + '</div>';
   }
 
   // ── SETUP · everything a player can tune ──
@@ -1288,6 +1391,12 @@
       S.pack.parts.forEach(function(no){ S.hq.parts[no] = Date.now(); delete S.exp.vault[no]; hqRecord('Brought the ' + sysOf(no).part + ' home from ' + placeName(no) + '.'); });
       if (!quiet) toast('SHIP PARTS HOME · ' + S.pack.parts.length + ' · install them at the Workshop'); S.pack.parts = []; save();
     }
+    var pc = pendingCards();
+    if (pc && S.hq.built.stores) {
+      researchIds().forEach(function(id){ S.cards[id].pend = 0; });
+      S.hq.store.data = (S.hq.store.data || 0) + pc * 2; hqRecord('Redeemed ' + pc + ' research card' + (pc > 1 ? 's' : '') + ' (+' + (pc * 2) + ' DATA).'); save();
+      if (!quiet) toast('REDEEMED · ' + pc + ' research card' + (pc > 1 ? 's' : '') + ' · +' + (pc * 2) + ' DATA');
+    }
     var n = packTotal(); if (!n || !S.hq.built.stores) return 0;
     MATS.forEach(function(m){ var k = m[0]; if (S.pack[k]) { S.hq.store[k] = (S.hq.store[k] || 0) + S.pack[k]; S.pack[k] = 0; } });
     S.flags.deposited = true; if (D.worlds.some(function(w){ return S.visited[w.no]; })) S.flags.returned = true;
@@ -1370,7 +1479,7 @@
     var lines = ['NAVIGATION CENTER · ONLINE', 'DRIVE .............. REPAIRED', 'STAR CATALOGUE ..... NO MATCH', 'EARTH .............. NOT FOUND', '', 'CHARTING THE BODIES IN VIEW . . .', '28 BODIES · 1 STAR · 1 SATELLITE', 'HOME BASE .......... ' + hqName(), '', 'EXPEDITIONS MAY DEPART.'];
     for (var i = 0; i < lines.length; i++) { await typeInto(log.appendChild(el('span', '')), lines[i] + '\n', 14); await wait(80); }
     await wait(700);
-    nav('system');
+    nav('stars');
     toast('Choose a destination. Board your ship at the wreck to depart.');
   }
 
@@ -1427,8 +1536,8 @@
     if (s.kind === 'fac') {
       var id = s.id;
       if (id === 'camp') return rest();
-      if (id === 'nav') { if (navOnline() && !S.flags.charted) return navOnlineBoot(); return openNav('system'); }
-      return openNav({ stores:'hq', depot:'hq', research:'hq', workshop:'hq', archive:'cards', terminal:'hq', history:'hq' }[id] || 'hq',
+      if (id === 'nav') { if (navOnline() && !S.flags.charted) return navOnlineBoot(); return openNav('stars'); }
+      return openNav({ stores:'hq', depot:'hq', research:'hq', workshop:'hq', archive:'companions', terminal:'hq', history:'hq' }[id] || 'hq',
         { research:'research', workshop:'workshop', terminal:'restore', history:'history', stores:'mats', depot:'mats' }[id]);
     }
     if (s.kind === 'ruin') return hqRuin(s.ref);
@@ -2035,14 +2144,14 @@
     var a = await say(['Your ship. Board?'], ['BOARD', 'STAY']);
     if (a !== 0) return;
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); S.landed = true; save(); sfx.click();
-    aboard(); nav('system');
+    aboard(); nav('stars');
   }
   // the AstraNav, opened in the field
   function openNav(tab){
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal, .x-battle')) return;
     held = null; path = [];
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save(); sfx.click();
-    nav(typeof tab === 'string' ? tab : 'field');
+    nav(typeof tab === 'string' ? tab : 'system');
   }
   // the field sketch: the stretch of ground around you, as far as you have walked it
   function drawSketch(c){
@@ -2161,10 +2270,12 @@
   // The record picks up again at NASARUS, at the camp (or the wreck, before there is a camp).
   function airDeath(){
     if (mode !== 'surface') return;
-    var where = M.hq ? hqName() : zoneName(), lost = packTotal() + packParts();
+    var where = M.hq ? hqName() : zoneName(), lost = packTotal() + packParts() + pendingCards();
     if (fogArr) S.fog[M.id] = fogEnc(fogArr);
     stopWorld(); vibrate(1200, 1); sfx.warn();
-    (S.pack.parts || []).forEach(function(no){ delete S.exp.vault[no]; });   // the part goes back to lie where you fell: its vault holds it again
+    (S.pack.parts || []).forEach(function(no){ delete S.exp.vault[no]; });
+    var lostCards = pendingCards();
+    researchIds().forEach(function(id){ var c = S.cards[id]; if (!c.pend) return; c.qty -= c.pend; c.pend = 0; if (c.qty <= 0) delete S.cards[id]; });   // the part goes back to lie where you fell: its vault holds it again
     S.pack = {}; S.deaths = (S.deaths || 0) + 1;
     hqRecord(hero().first + ' NASARO ran out of air on ' + where + '.' + (lost ? ' ' + lost + ' materials were lost there.' : ''));
     var s = screen('x-recall x-death', '<div class="x-paper"><p class="x-stamp red">OUT OF AIR</p><h2 class="x-death-h">' + esc(hero().first) + ' NASARO DID NOT COME BACK</h2>' +
@@ -2509,7 +2620,7 @@
           var first = manifest(foe.sp, null, g === 'excellent', foe.lv); S.notes[foe.sp] = 1; gain('data', first ? 4 : 1, true); save();
           await say2((g === 'excellent' ? 'PERFECT LOCK! ' : 'LOCKED! ') + subjName(foe.sp) + ' is in the AstraNav. It slips away, unharmed.');
           c.calm = 120; c.state = 'idle'; await wait(400); close();
-          await cardReveal(foe.sp, first, first ? 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED' : 'SCANNED AGAIN · QUANTITY +1');
+          await cardReveal(foe.sp, first, first ? 'CLONED INTO THE ASTRANAV · NEW COMPANION' : 'CLONED AGAIN · QUANTITY +1');
           return;
         }
         await say2('Too much movement. Wear it down first.');
@@ -2565,7 +2676,7 @@
           subm.hidden = true;
           await say2('It holds perfectly still. A perfect scan.');
           await wait(400); close();
-          await cardReveal(foe.sp, first, first ? 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED · FIRST EDITION' : 'SCANNED AGAIN · QUANTITY +1');
+          await cardReveal(foe.sp, first, first ? 'CLONED INTO THE ASTRANAV · NEW COMPANION · FIRST EDITION' : 'SCANNED AGAIN · QUANTITY +1');
           return;
         }
         close();

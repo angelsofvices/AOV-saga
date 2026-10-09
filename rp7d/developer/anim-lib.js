@@ -120,6 +120,8 @@ export const SLOTS = [
   { key: 'thunder', label: 'Astralthunder cast (lock + d-pad ↓)', kind: 'oneshot' },
   { key: 'astralburst', label: 'Astralburst cast (lock + d-pad ←)', kind: 'oneshot' },
   { key: 'rollingThunder', label: 'Rolling Thunder (lock + d-pad →)', kind: 'oneshot' },
+  { key: 'astralclap', label: 'Astralclap (Focus Move · lock + d-pad)', kind: 'oneshot' },
+  { key: 'astralspin', label: 'Astralspin (Focus Move · d-pad, ground or air)', kind: 'oneshot' },
   { key: 'slide', label: 'Dodge slide (hold L2)', kind: 'oneshot' },
   { key: 'doublejump', label: 'Double jump', kind: 'oneshot' },
   { key: 'runpickup', label: 'Pick up on the run (running + ○)', kind: 'oneshot' },

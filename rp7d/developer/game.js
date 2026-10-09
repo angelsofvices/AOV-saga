@@ -32,6 +32,7 @@ import { createAstral, ASTRAL } from './astral.js';
 import { focus, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY, DIR_CODE, createLightbulbChests } from './focus-moves.js';
 import { CAVES, CAVE_BY_ID } from './caves-data.js';
 import { createCaveInteriors } from './cave-interior.js';
+import { createAstralStorm, STORM, STORM_TIMING } from './astral-storm.js';
 import { createAstralvision } from './astralvision.js';
 import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, ASTRALITE_FAMILIES, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
 import { storage } from './storage.js';
@@ -806,7 +807,7 @@ let dep = null, stationUI = null; // storage foundation: deployed Field Equipmen
 let furnMover = null, homeInterior = null, homeMode = false, homeReturn = null, npcs = null, commonChests = null, zycube = null;
 let astralboard = null;
 // ── Lightbulbs (focus-moves.js): ✕ collects one and its Focus Move is learned for good ──
-let lightbulbs = null, learnedCardT = null;
+let lightbulbs = null, learnedCardT = null, storm = null;
 function lightbulbLearned(bulbId, moveId) {
   const M = FOCUS_MOVES[moveId] || null;
   sfx.play('lift', 0.9, 1.2); sfx.play('thunder', 0.35, 1.4); cam.kick(0.5); rumbleHit('medium');
@@ -952,7 +953,15 @@ function castFocus(id, context = false) {
     })) later(Math.max(0, ASTRAL.lift.release - 0.25), () => sfx.play('lift', 1, 1)); // the crack peaks as the lift lands
     return;
   }
+  if (id === 'astralspin') { // no lock needed; grounded or airborne
+    const r = storm.astralspin(rizer); if (r.fail) return showToast(r.fail);
+    fhud?.flash(id); rumbleHit('medium'); showToast(r.airborne ? 'ASTRALSPIN · the tornado forms on the ground below' : 'ASTRALSPIN'); return;
+  }
   if (!isFoeLock(lk)) return showToast(`${label} · lock an enemy first (R3 / R)`);
+  if (id === 'astralclap') {
+    const r = storm.astralclap(rizer, lk.ref); if (r.fail) return r.fail && showToast(r.fail);
+    fhud?.flash(id); rumbleHit('light'); return;
+  }
   if (id === 'astralthunder') { // lightning from the sky onto the locked Seer or Mori
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) return;
     if (!rizer.spendEnergy(ASTRAL.thunder.energy)) return showToast('ASTRAL ENERGY LOW');
@@ -1080,10 +1089,11 @@ function build() {
     }
   });
   astral = createAstral(scene, world, fx);
+  storm = createAstralStorm({ scene, world, fx, astral, foes, sfx, cam: { kick: k => cam?.kick(k) }, onToast: showToast }); // Astralclap · Astralspin
   av = createAstralvision(scene, camera, fx);
   loot = createLoot(scene, world, fx, W); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
-  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); fhud.render(); // four gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
+  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); fhud.render(); // the gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
   // Caves: the interiors answer every physical query in their region of the world (world.js · setInterior)
   caveSys = createCaveInteriors({ scene, caves: CAVES, toast: showToast, fx, state: caveState });
   world.setInterior({ name: x => caveSys.planAt(x)?.cave.name, owns: caveSys.owns, groundAt: (x, z, y) => caveSys.planAt(x)?.phys.groundAt(x, z, y) ?? -60, resolve: (p, r) => caveSys.planAt(p.x)?.phys.resolve(p, r) ?? false, rayClear: (a, b) => caveSys.planAt(a.x)?.phys.rayClear(a, b) ?? a.distanceTo(b) });
@@ -1210,7 +1220,7 @@ function build() {
   addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
   // Debug/test hook for playtests and automated checks.
-  window.__rp7d = { focus, get lightbulbs() { return lightbulbs; }, caves: { get sys() { return caveSys; }, enter: id => enterCave(id), exit: () => exitCave(), get mode() { return caveMode; }, get id() { return caveId; }, report: () => world.caveReport(), plan: () => world.cavePlan, state: caveState, grunts: caveGrunts },  get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
+  window.__rp7d = { focus, get storm() { return storm; }, castFocus, get lightbulbs() { return lightbulbs; }, caves: { get sys() { return caveSys; }, enter: id => enterCave(id), exit: () => exitCave(), get mode() { return caveMode; }, get id() { return caveId; }, report: () => world.caveReport(), plan: () => world.cavePlan, state: caveState, grunts: caveGrunts },  get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
   frame();
   // title screen: ready once the world exists · a NEW GAME reload skips straight into play
   $('#new-sub').textContent = 'Wake up in Rizer’s room';
@@ -2116,7 +2126,7 @@ function update(dt, t, realDt = dt) {
     run: keys.has('ShiftLeft') || keys.has('ShiftRight') || !!pad?.run, // walk by default · hold R2 (Shift) to run
     descendHeld: keys.has('KeyC') || !!pad?.descendHeld,
     jumpPressed: pressed.has('Space') || pad?.jumpEdge, jumpHeld: keys.has('Space') || pad?.jump,
-    dodgePressed: pressed.has('KeyC') || pad?.dodge, dodgeHeld: keys.has('KeyC') || !!pad?.dodgeHeld, emotePressed: pressed.has('KeyG') || (!!pad?.down && !downLocked && !reviveLocked && !bondLocked),
+    dodgePressed: pressed.has('KeyC') || pad?.dodge, dodgeHeld: keys.has('KeyC') || !!pad?.dodgeHeld, emotePressed: pressed.has('KeyG') || (!!pad?.down && !downLocked && !reviveLocked && !bondLocked && focus.slot('down') !== 'astralspin'),
     crouchPressed: pressed.has('KeyX') || !!pad?.crouch // L3 (X): crouch toggle on the ground · auto-land while flying
   };
   const busInput = {
@@ -2301,10 +2311,11 @@ function update(dt, t, realDt = dt) {
       else { keys.clear(); bondGame.start(lz.ref, rizer); }
       dpad.down = false;
     }
-    if (!rizer.flying) for (const d of DIRS) {
+    for (const d of DIRS) {
       if (!dpad[d]) continue;
-      if (d === 'down' && padAct?.down && !astral.lock) continue; // d-pad ↓ with nothing locked is the emote
-      if (astral.lock && !isFoeLock(astral.lock)) continue; // locked on something that isn't a fight (a friend, a Zyrex): no technique
+      if (rizer.flying && focus.slot(d) !== 'astralspin') continue; // only Astralspin works in the air
+      if (d === 'down' && padAct?.down && !astral.lock && focus.slot('down') !== 'astralspin') continue; // d-pad ↓ with nothing locked is the emote (unless Astralspin sits there: it needs no lock)
+      if (astral.lock && !isFoeLock(astral.lock) && focus.slot(d) !== 'astralspin') continue; // locked on something that isn't a fight (a friend, a Zyrex): no technique
       const id = focus.slot(d);
       if (!id) { showToast(`D-PAD ${DIR_NAME[d]} · empty · equip a Focus Move in the Zyphone (Labs › Focus)`); continue; }
       castFocus(id);
@@ -2415,6 +2426,7 @@ function update(dt, t, realDt = dt) {
   held.update(dt, !lab.previewing, !!BLADES[rizer.attack?.kind]);
   if ((rizer.C?.astral || 'blue') !== astral.palette) { astral.setPalette(rizer.C?.astral || 'blue'); if (rizer.C?.astral === 'green') av.setColor('#5dff8e', '#2bef66'); else av.setColor('#6fb4ff', '#4d99ff'); } // the skin's astral colour
   if (!menu && !homeMode) astral.update(dt, t, rizer, seers, h => { fx.emit(h.x, h.y, h.z, h.down ? 16 : 9, { color: h.down ? '#c9a0ff' : '#9cc0ff', speed: 3.4, up: 1.4, size: 0.4, life: 0.4 }); cam.kick(0.35); sfx.play(h.down ? 'heavy' : 'medium'); if (h.down) showToast(h.scanobot ? downToast(h) : `${h.name || 'Seer grunt'} falls · ${seers.defeated} fewer holding Malezor`); }, techBodies());
+  if (!menu && !homeMode) storm?.update(dt); // after the enemies' own update: a body held by Astralclap / Astralspin stays held
   if (!menu && !homeMode) bowProjectiles?.update(dt);
   ufoFireCooldown = Math.max(0, ufoFireCooldown - dt);
   if (ufoBeam) { ufoBeam.age += dt; ufoBeam.mesh.material.opacity = Math.max(0, 1 - ufoBeam.age / 0.18); if (ufoBeam.age >= 0.18) { scene.remove(ufoBeam.mesh); ufoBeam.mesh.geometry.dispose(); ufoBeam.mesh.material.dispose(); ufoBeam = null; } }

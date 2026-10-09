@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 9.1', title:'The AstraNav, Rebuilt',
+      notes:[
+        'Seven sections: System, Headquarters, Navigation, Companions, Research, Journal and Setup',
+        'SYSTEM is a home panel: your status, the field sketch, and a widget for every section',
+        'HEADQUARTERS opens on a live digital map of NASARUS: facilities, ruins, residents, settled Aethren and you',
+        'COMPANIONS holds every Aethren you have cloned. RESEARCH holds everything else, and what you carry only counts once it is redeemed at NASARUS',
+        'JOURNAL tracks your missions, with a checklist for every world you have reached'
+      ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 9', title:'The Way Home',
       notes:[
         'Your ship is too damaged to reach hyperspace. Every world holds a sealed vault with one of its 27 parts: rebuild it to perfection, and the way home opens',

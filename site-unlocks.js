@@ -88,7 +88,8 @@ window.AOV_UNLOCKS = {
       notes:[
         'A scan is only a profile. To fight beside you, an Aethren must be cloned from its card at NASARUS',
         'Bring profiles home, then clone them at the Research Station (COMPANIONS · Profiles ready to clone)',
-        'Profiles still in your pack are lost if you die out there. Companions you already had are kept'
+        'Profiles still in your pack are lost if you die out there. Companions you already had are kept',
+        'The live map is now the LIVE SCANNER on the SYSTEM home panel. It shows whatever world you are on, in real time'
       ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 9.1', title:'The AstraNav, Rebuilt',
       notes:[

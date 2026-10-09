@@ -735,7 +735,7 @@
   var navTab = 'system';
   function onFoot(){ return S.stage === 'surface'; }
   function whereLine(){
-    if (onFoot() && M) return 'ON FOOT · ' + zoneName() + (M.world && !M.hq ? ' · ' + term(WORLD[M.world].term) : '');
+    if (onFoot() && M) return 'ON FOOT · ' + zoneName() + (M.world === 9 ? ' · ' + term(WORLD[9].term) : '');
     if (S.at && S.landed) return 'ABOARD · LANDED ON ' + placeName(S.at);
     if (S.at) return 'ABOARD · IN ORBIT · ' + placeName(S.at);
     return 'ABOARD · DEEP SPACE · ' + term('expanse');
@@ -768,7 +768,7 @@
       nav(t.dataset.tab);
       setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
     });
-    ({ system:navHome, hq:navHQPanel, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
+    ({ system:navHome, hq:navHQ, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
     return s;
   }
   function backToField(){ if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else nav('system'); }
@@ -1055,7 +1055,8 @@
         '<p class="x-mono light">FLARES ' + S.flares + '/' + flaresMax() + ' · PACK ' + (packTotal() + packParts() + pend) + (packParts() ? ' · ' + packParts() + ' SHIP PART' + (packParts() > 1 ? 'S' : '') : '') + '</p>' +
         '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
           landed ? '<button class="x-btn" data-a="out">DISEMBARK</button>' : '<button class="x-btn" data-go="stars">SET A COURSE</button>') + '</div></section>' +
-      (landed ? '<section class="x-wd x-wd-sketch riv"><h4>FIELD SKETCH · ' + esc(zoneName()) + '</h4><canvas class="x-sketch" width="640" height="400" aria-label="Field sketch map"></canvas></section>' : '') +
+      '<section class="x-wd x-wd-sketch riv"><h4>LIVE SCANNER <b class="x-clock"></b></h4><canvas class="x-hqmap" width="768" height="480" aria-label="Live scanner: the ground around you"></canvas>' +
+        '<p class="x-maplegend"><span class="k-you">YOU</span><span class="k-ship">SHIP</span><span class="k-cre">CREATURES</span><span class="k-res">PEOPLE</span><span class="k-war">WARDEN · GUARDIAN</span><span class="k-vault">VAULT</span><span class="k-lm">LANDMARK</span>' + (onHQ() ? '<span class="k-fac">FACILITY</span><span class="k-aet">SETTLED AETHREN</span>' : '') + '</p></section>' +
       w('hq', 'HEADQUARTERS', '<p class="x-crt">' + esc(hqName()) + ' · STAGE ' + hqStage() + '</p><p class="x-mono light">' + esc(stageName(hqStage())) + ' · SHIP ' + shipPct() + '% · ' + Object.keys(S.hq.residents).length + ' groups · ' + Object.keys(S.hq.settled).length + ' species</p><i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i>') +
       w('stars', 'NAVIGATION', '<p class="x-crt">' + (navOnline() ? 'DRIVE ONLINE' : 'NAVIGATION OFFLINE') + '</p><p class="x-mono light">' + visited + ' / 27 worlds visited · ' + Object.keys(S.hq.installed).length + ' parts home</p>') +
       w('companions', 'COMPANIONS', team.length ? '<div class="x-wd-team">' + team.map(function(id){ return '<img class="x-pix" alt="" src="' + ART.url(subjArt(id), 2) + '" title="' + esc(subjName(id)) + '">'; }).join('') + '</div><p class="x-mono light">' + (lp ? 'LEAD PERK · ' + esc(lp.name) : 'No lead perk') + '</p>' : '<p class="x-mono light">No companions yet. Scan an Aethren, bring the profile home, clone it.' + (profileIds().length ? ' ' + profileIds().length + ' profile(s) waiting.' : '') + '</p>') +
@@ -1063,7 +1064,7 @@
       w('journal', 'JOURNAL', '<p class="x-crt">MISSION</p><p class="x-mono light">' + esc(next ? next.t : 'Every mission in the log is done.') + '</p>') +
       w('setup', 'SETUP', '<p class="x-mono light">' + (PAD && PAD.connected() ? (PAD.dualsense() ? 'DUALSENSE CONNECTED' : 'CONTROLLER CONNECTED') : 'Sound, controls, text, controller') + '</p>', 'x-wd-small') +
       '</div>';
-    if (landed) { navSketchReady(); var cv0 = $('.x-sketch', body); if (cv0 && M && P && fogArr) drawSketch(cv0); }
+    liveScanner($('.x-wd-sketch canvas', body), $('.x-wd-sketch .x-clock', body), landed);
     body.onclick = function(e){
       var a = e.target.closest('[data-a]');
       if (a) { if (a.dataset.a === 'field') backToField(); if (a.dataset.a === 'flare') fireFlare(); if (a.dataset.a === 'out') disembark(); return; }
@@ -1075,39 +1076,39 @@
     if (!M || (S.pos && M.id !== S.pos.map)) { var m0 = S.pos && buildMap(S.pos.map); if (m0) { M = m0; fogArr = fogDec(S.fog[M.id], M.W * M.H); if (!P) P = { x:S.pos.x, y:S.pos.y }; } }
   }
 
-  // ── 2 · HEADQUARTERS · a live digital map of the settlement, then the base itself ──
-  function navHQPanel(body, sec){
-    var host = el('div', 'x-hqmap-wrap', '<section class="x-arc riv" id="hq-map"><h3>' + esc(hqName()) + ' · LIVE MAP <b class="x-clock"></b></h3><canvas class="x-hqmap" width="768" height="576" aria-label="Live map of the settlement"></canvas>' +
-      '<p class="x-maplegend"><span class="k-fac">FACILITY</span><span class="k-plot">PLOT</span><span class="k-ruin">RUIN</span><span class="k-rest">RESTORED</span><span class="k-res">RESIDENTS</span><span class="k-aet">AETHREN</span><span class="k-you">YOU</span></p></section>');
-    var rest = el('div', 'x-hqbody');
-    body.innerHTML = ''; body.appendChild(host); body.appendChild(rest);
-    navHQ(rest, sec);
-    var cnv = $('.x-hqmap', host), clock = $('.x-clock', host);
-    var m = M && M.hq ? M : buildMap('nasarus');
-    var fog = M && M.hq && fogArr ? fogArr : fogDec(S.fog.nasarus, m.W * m.H);
+  // ── the LIVE SCANNER · whatever world you are on, in real time (on the SYSTEM home panel) ──
+  function liveScanner(cnv, label, landed){
+    if (landed) navSketchReady();
+    var m = landed ? M : null, fog = landed ? fogArr : null, VW = 64, VH = 40;
     function draw(){
       if (!cnv.isConnected) { clearInterval(t); return; }
-      var g = cnv.getContext('2d'), s2 = Math.min(cnv.width / m.W, cnv.height / m.H), now = performance.now(), all = S.hq.research['r-survey'];
-      g.fillStyle = '#04110a'; g.fillRect(0, 0, cnv.width, cnv.height);
-      for (var y = 0; y < m.H; y++) for (var x = 0; x < m.W; x++) {
-        var ch = m.at(x, y), seen = all || fog[y * m.W + x];
-        g.fillStyle = ch === '#' ? '#0f3a20' : ch === 'X' ? '#5a4a20' : ch === 'd' ? '#123d24' : ch === 'w' ? '#3a5a44' : ch === 'A' ? '#3a6ad6' : ch === 'S' ? '#e8f4ea' : '#0a2414';
-        g.globalAlpha = seen ? 1 : .35; g.fillRect(x * s2, y * s2, s2 - .5, s2 - .5); g.globalAlpha = 1;
+      var g = cnv.getContext('2d'), now = performance.now(), W2 = cnv.width, H2 = cnv.height;
+      g.fillStyle = '#04110a'; g.fillRect(0, 0, W2, H2);
+      if (!m || !fog) {                                  // aboard in orbit or in deep space: nothing under the scanner
+        for (var k = 0; k < 900; k++) { g.fillStyle = 'rgba(124,240,138,' + (Math.random() * .25).toFixed(2) + ')'; g.fillRect(Math.random() * W2, Math.random() * H2, 2, 2); }
+        g.fillStyle = '#7cf08a'; g.font = '22px VT323, monospace'; g.textAlign = 'center'; g.fillText('NO SURFACE UNDER THE SCANNER', W2 / 2, H2 / 2); g.textAlign = 'left';
+        label.textContent = 'NO SIGNAL · ' + whereLine(); return;
       }
-      (m.structs || []).forEach(function(st){
-        var rs = st.kind === 'ruin' && S.hq.ruins[st.id];
-        if (!all && !fog[st.y * m.W + st.x] && !(st.kind === 'fac' || st.kind === 'plot')) return;
-        g.fillStyle = st.kind === 'fac' ? '#7cf08a' : st.kind === 'plot' ? '#3d6a48' : rs && rs.restored ? '#6fd0c0' : rs ? '#ffb347' : '#8a6a2a';
-        g.fillRect(st.x * s2 - 1, (st.y - 1) * s2, st.w * s2 + 2, s2 * 2);
-        if (st.kind === 'fac') { g.fillStyle = '#04110a'; g.font = '9px Courier Prime, monospace'; g.fillText((st.ref.name || '').split(' ')[0], st.x * s2, (st.y - 1.2) * s2); }
-      });
-      var live = M && M.hq && mode === 'surface';
-      (live ? npcs : m.npcs).forEach(function(n){ if (n.resident) { g.fillStyle = '#9fe8ff'; g.beginPath(); g.arc((n.x + .5) * s2, (n.y + .5) * s2, s2 * .45, 0, 7); g.fill(); } });
-      (live ? critters : m.spawns).forEach(function(c){ if (c.resident) { g.fillStyle = '#ff7ae0'; g.beginPath(); g.arc((c.x + .5) * s2, (c.y + .5) * s2, s2 * .4, 0, 7); g.fill(); } });
-      var here = S.at === 'nasarus' && (onFoot() || S.landed) && S.pos && S.pos.map === 'nasarus';
-      if (here && Math.floor(now / 400) % 2) { g.fillStyle = '#ff4a2a'; g.beginPath(); g.arc((S.pos.x + .5) * s2, (S.pos.y + .5) * s2, s2 * .7, 0, 7); g.fill(); }
-      var sweep = (now / 3000 % 1) * cnv.height; g.fillStyle = 'rgba(124,240,138,.08)'; g.fillRect(0, sweep, cnv.width, 10);
-      var d0 = new Date(); clock.textContent = (here ? 'YOU ARE HERE · ' : 'AWAY · ') + String(d0.getHours()).padStart(2, '0') + ':' + String(d0.getMinutes()).padStart(2, '0') + ':' + String(d0.getSeconds()).padStart(2, '0');
+      var px = onFoot() && P ? P.x : S.pos.x, py = onFoot() && P ? P.y : S.pos.y, vw = Math.min(m.W, VW), vh = Math.min(m.H, VH);
+      var vx = clamp(px - (vw >> 1), 0, m.W - vw), vy = clamp(py - (vh >> 1), 0, m.H - vh), s2 = Math.min(W2 / vw, H2 / vh);
+      var ox = (W2 - vw * s2) / 2, oy = (H2 - vh * s2) / 2, all = m.hq && S.hq.research['r-survey'];
+      for (var y = vy; y < vy + vh; y++) for (var x = vx; x < vx + vw; x++) {
+        var seen = all || fog[y * m.W + x]; if (!seen) continue;
+        var ch = m.at(x, y);
+        g.fillStyle = ch === '#' ? '#0f3a20' : ch === '~' ? '#123a5a' : ch === 'd' ? '#164a2c' : 'TbB'.indexOf(ch) >= 0 ? '#1d5a2a' : ch === 'A' ? '#3a6ad6' : ch === 'X' ? '#5a4a20' :
+          ch === 'w' ? '#3a5a44' : ch === 'S' ? '#e8f4ea' : ch === 'L' ? '#ffd27a' : ch === 'K' ? '#ff6a3a' : ch === 'F' ? '#7cf08a' : ch === 'M' ? '#b8862a' : '#0a2414';
+        g.fillRect(ox + (x - vx) * s2, oy + (y - vy) * s2, s2 - .5, s2 - .5);
+      }
+      function dot(x, y, col, r){ if (x < vx || y < vy || x >= vx + vw || y >= vy + vh) return; if (!all && !fog[y * m.W + x]) return;
+        g.fillStyle = col; g.beginPath(); g.arc(ox + (x - vx + .5) * s2, oy + (y - vy + .5) * s2, s2 * r, 0, 7); g.fill(); }
+      var live = mode === 'surface' && M === m;
+      (live ? critters : m.spawns).forEach(function(c){ if (c.guardian && S.exp.beaten[m.world]) return; dot(c.x, c.y, c.resident ? '#ff7ae0' : c.guardian ? '#ff3a2a' : '#d8f05a', .38); });
+      (live ? npcs : m.npcs).forEach(function(n){ if (n.warden && S.exp.beaten[m.world]) return; if (n.refugee && S.hq.residents[m.world]) return; dot(n.x, n.y, n.warden ? '#ff3a2a' : '#9fe8ff', .42); });
+      if (Math.floor(now / 400) % 2) { g.fillStyle = '#ffffff'; g.beginPath(); g.arc(ox + (px - vx + .5) * s2, oy + (py - vy + .5) * s2, s2 * .6, 0, 7); g.fill(); }
+      g.strokeStyle = '#ff4a2a'; g.lineWidth = 2; g.beginPath(); g.arc(ox + (px - vx + .5) * s2, oy + (py - vy + .5) * s2, s2 * (1 + (now / 600 % 1) * 2), 0, 7); g.stroke();
+      var sweep = (now / 3000 % 1) * H2; g.fillStyle = 'rgba(124,240,138,.08)'; g.fillRect(0, sweep, W2, 10);
+      var d0 = new Date();
+      label.textContent = (m.hq ? hqName() : zoneName()) + ' · ' + String(d0.getHours()).padStart(2, '0') + ':' + String(d0.getMinutes()).padStart(2, '0') + ':' + String(d0.getSeconds()).padStart(2, '0');
     }
     var t = setInterval(draw, 250); draw();
   }

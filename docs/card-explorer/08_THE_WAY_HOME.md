@@ -72,8 +72,8 @@ Creator ruling (2026-10-09): the AstraNav is restructured into seven sections, i
 
 | # | Section | What it holds |
 |---|---|---|
-| 1 | **SYSTEM** | The home panel. STATUS (location, SUIT and AIR meters, flares, pack, return / flare / disembark), the FIELD SKETCH when you're on the ground, and a widget for every other section. Tap a widget to open that section. |
-| 2 | **HEADQUARTERS** | A live digital map of NASARUS: facilities, plots, ruins (surveyed and restored), residents, settled Aethren, and you (blinking) when you're there. A running clock shows whether you're there or away. Below the map are the base's own pages: stages, the way home, the people, materials, facilities, research, workshop, restoration and records. |
+| 1 | **SYSTEM** | The home panel. STATUS (location, SUIT and AIR meters, flares, pack, return / flare / disembark), the **LIVE SCANNER**, and a widget for every other section. Tap a widget to open that section. The live scanner shows the world you're on in real time: the ground you've explored, the ship, creatures, peoples, wardens and guardians, the vault, landmarks, and you, blinking. On NASARUS it also shows facilities and settled Aethren. In orbit or deep space it reads NO SIGNAL. |
+| 2 | **HEADQUARTERS** | The base: stages, the way home, the people, materials, facilities, research, workshop, restoration and records. *(The live map moved to the SYSTEM home panel as the live scanner, Creator 2026-10-09.)* |
 | 3 | **NAVIGATION** | The star map, laid out as in RP7D's telescope. Boarding the ship, arriving in orbit and booting the Navigation Center open here. |
 | 4 | **COMPANIONS** | Every Aethren card you've cloned, plus the battle team and the lead perk. |
 | 5 | **RESEARCH** | Everything else you collect. **In the pack · unredeemed**: materials, ship parts, and research cards scanned away from NASARUS. **Redeemed at NASARUS**: stores and parts at home. **Equipment and crafts**: the AstraNav, the air tank, flares, and your Aethren as weapons. **Research cards**: plants, minerals, places, peoples and bodies in the sky. **The Living Master Codex**: the lore. |

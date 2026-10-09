@@ -17,7 +17,7 @@
   'use strict';
   var ENV = {}; (window.AOV_ENV || []).forEach(function(e){ ENV[e.id] = e; });
   var FAUNA = window.AOV_FAUNA || { species:{}, peoples:{} };
-  var SOLID = { T:1, b:1, B:1, '~':1, A:1, S:1, M:1, X:1, '#':1, P:1, L:1 };
+  var SOLID = { T:1, b:1, B:1, '~':1, A:1, S:1, M:1, X:1, '#':1, P:1, L:1, F:1, w:1 };
 
   // ── seeded noise ──
   function hash(x, y, s){ var h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
@@ -74,7 +74,7 @@
       else y += dy > 0 ? 1 : -1;
       if (x < 1 || y < 1 || x >= m.W - 1 || y >= m.H - 1) continue;
       var c = m.at(x, y);
-      if ('SEXMLA*'.indexOf(c) >= 0) continue;
+      if ('SEXMLA*Fw'.indexOf(c) >= 0) continue;
       m.set(x, y, 'd'); delete m.props[y * m.W + x];
     }
   }
@@ -252,8 +252,65 @@
     return m;
   }
 
+  // ── NASARUS: the headquarters, rebuilt from the player's saved progress every time ──
+  //   st = { built:{id:1}, ruins:{id:{found,restored}}, regions:[], found:{tileKey:1}, stage:n }
+  function hqStructure(m, st, s){
+    var i0 = s.y * m.W + s.x;
+    for (var i = 0; i < s.w; i++) { m.set(s.x + i, s.y, 'F'); delete m.props[i0 + i]; m.sidx[i0 + i] = m.structs.length; }
+    for (var j = 1; j <= (s.clear || 1); j++) for (var k = -1; k <= s.w; k++) { var c = m.at(s.x + k, s.y - j); if (c !== 'F' && c !== 'S') { m.set(s.x + k, s.y - j, '.'); delete m.props[(s.y - j) * m.W + s.x + k]; } }
+    m.structs.push(s);
+  }
+  function buildNasarus(st){
+    var HQ = window.AOV_HQ; if (!HQ) return null;
+    st = st || {}; var built = st.built || {}, ruins = st.ruins || {}, regions = st.regions || [], found = st.found || {}, stage = st.stage || 1;
+    var W = HQ.size[0], H = HQ.size[1], m = new Map('nasarus', W, H), seed = 1936, r = rng(seed);
+    m.world = 'nasarus'; m.hq = true; m.name = 'nasarus'; m.envs = [HQ.env]; m.structs = []; m.sidx = {};
+    terrain(m, 0, 0, W, H, 0, seed, { high:.71, wet:.1 });
+    for (var q = 0; q < m.grid.length; q++) if (m.grid[q] === '~') m.grid[q] = ',';
+    border(m);
+    var reg = HQ.regions[0], open = regions.indexOf(reg.id) >= 0;
+    for (var y = 1; y < H - 1; y++) for (var x = reg.ridgeX; x <= reg.ridgeX + 1; x++) {
+      var inGap = y >= reg.gap[0] && y <= reg.gap[1];
+      m.set(x, y, inGap ? (open ? 'd' : 'X') : '#'); delete m.props[y * W + x];
+    }
+    clearRect(m, 25, 26, 12, 7);
+    // ancient streets between the ruin sites, broken unless the settlement is reclaimed
+    var sites = HQ.ruins.map(function(u){ return { x:u.at[0] + (u.w >> 1), y:u.at[1] + 1 }; });
+    var camp = { x:24, y:27 };
+    sites.forEach(function(a, i){ var b = i ? sites[i - 1] : camp; if (a.x < reg.ridgeX || open) road(m, b.x, b.y, a.x, a.y, r); });
+    if (stage < 4) for (q = 0; q < m.grid.length; q++) if (m.grid[q] === 'd' && (q % W) < reg.ridgeX && r() < .32) m.grid[q] = r() < .5 ? ',' : '.';
+    m.ship = { x:HQ.ship.x, y:HQ.ship.y }; clearRect(m, m.ship.x, m.ship.y, 3, 2); m.set(m.ship.x, m.ship.y, 'S');
+    // the camp's own paths, once it is an established headquarters
+    if (stage >= 3) HQ.facilities.forEach(function(f){ if (built[f.id]) road(m, camp.x, camp.y, f.at[0], f.at[1] + 1, r); });
+    // facilities: built, or a staked plot once its requirements are met
+    var have = function(id){ return !!built[id] || (id === 'drive' && st.drive) || (st.research && st.research[id]) || regions.indexOf(id) >= 0; };
+    HQ.facilities.forEach(function(f){
+      var ok = (f.requires || []).every(have);
+      if (built[f.id]) hqStructure(m, st, { id:f.id, kind:'fac', ref:f, x:f.at[0], y:f.at[1], w:f.w, spr:f.spr, clear:2 });
+      else if (f.future ? stage >= 3 : ok) hqStructure(m, st, { id:f.id, kind:'plot', ref:f, x:f.at[0], y:f.at[1], w:f.w, spr:'hq_plot', clear:1 });
+    });
+    HQ.ruins.forEach(function(u){
+      var rs = ruins[u.id] || {};
+      hqStructure(m, st, { id:u.id, kind:'ruin', ref:u, x:u.at[0], y:u.at[1], w:u.w, spr:(rs.restored ? 'rest_' : 'ruin_') + u.spr, clear:u.spr === 'obelisk' || u.spr === 'spire_old' ? 3 : 2 });
+    });
+    // wreckage from the crash, crystal outcrops, scrub: each can be taken once
+    var used = {};
+    function free(x, y){ var c = m.at(x, y); return (c === '.' || c === ',') && !used[x + ',' + y]; }
+    function put(x, y, ch){ used[x + ',' + y] = 1; if (!found['nasarus:' + x + ',' + y]) m.set(x, y, ch); }
+    for (var n = 0; n < 14; n++) {
+      var a2 = r() * 6.283, d2 = 3 + r() * 6, wx = Math.round(m.ship.x + Math.cos(a2) * d2), wy = Math.round(m.ship.y + Math.sin(a2) * d2 * .7);
+      if (free(wx, wy)) put(wx, wy, 'w');
+    }
+    function scatter(ch, count){ var made = 0, t = 0; while (made < count && t++ < 600) { var x2 = 2 + ((r() * (reg.ridgeX - 4)) | 0), y2 = 2 + ((r() * (H - 4)) | 0); if (Math.abs(x2 - camp.x) + Math.abs(y2 - camp.y) < 11 || !free(x2, y2)) continue; put(x2, y2, ch); made++; } }
+    scatter('A', 8); scatter('b', 12);
+    var basinMade = 0, t3 = 0; while (basinMade < 5 && t3++ < 300) { var bx = reg.ridgeX + 3 + ((r() * (W - reg.ridgeX - 5)) | 0), by = 2 + ((r() * (H - 4)) | 0); if (!free(bx, by)) continue; put(bx, by, basinMade % 2 ? 'A' : 'w'); basinMade++; }
+    if (stage >= 2) [[18, 28], [30, 28], [24, 20], [33, 24]].forEach(function(l){ if (free(l[0], l[1])) { m.set(l[0], l[1], 'P'); m.props[l[1] * W + l[0]] = ['hq_lamp', null]; used[l[0] + ',' + l[1]] = 1; } });
+    return finish(m);
+  }
+
   var cache = {};
-  function build(id){
+  function build(id, st){
+    if (id === 'nasarus') return buildNasarus(st);
     if (cache[id]) return cache[id];
     var m = id === 'w9' ? buildZyraxis() : /^w\d+$/.test(id) ? buildWorld(+id.slice(1)) : buildInterior(id);
     if (m) cache[id] = m;
@@ -266,5 +323,5 @@
     return null;
   }
 
-  window.AOV_WORLDGEN = { build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor };
+  window.AOV_WORLDGEN = { build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus };
 })();

@@ -63,9 +63,9 @@ window.AOV_UNLOCKS = {
     { id:'game-rp7b', kind:'game', name:'RP7B', title:'Rizing Power · Beta V7.5.16', status:'unlocked',
       since:'2026-10-06', href:'/rp7b.html', color:'#FFC83D', cta:'PLAY NOW',
       blurb:'The mainline open-world beta of Rizing Power. Playable in your browser today.' },
-    { id:'game-project1936', kind:'game', name:'The Living Master Codex', title:'Mainline · 1936 · The Expedition of Carl Nasaro', status:'unlocked',
+    { id:'game-project1936', kind:'game', name:'Aethryx Adventures: 1936', title:'Mainline · 1936 · The Expedition of Carl Nasaro', status:'unlocked',
       since:'2026-10-07', href:'/explorer/', color:'#E2C27D', cta:'BEGIN THE EXPEDITION',
-      blurb:'1936. You are Nasaro, the first person from Earth in the Aethryx Expanse. Scan its creatures into the AstraNav, battle them with your cards, meet its peoples. Collect the Expanse. Map the Expanse. Bring it home.' },
+      blurb:'1936. You are Carl Nasaro, crash-landed on NASARUS, an ancient drifting world of ruins. Build your headquarters, then set out across the Aethryx Expanse: scan its creatures into the AstraNav, battle them with your cards, meet its peoples. Collect the Expanse. Map the Expanse. Bring it home.' },
     { id:'game-rp7d', kind:'game', name:'RP7D', title:'Rizing Power · Deluxe 3D', status:'unlocked',
       since:'2026-10-08', href:'/play-rp7d/', color:'#3FA0FF', cta:'DEV PLAYTEST · PASSWORD',
       blurb:'The Deluxe 3D build of Rizing Power. A live dev playtest of Malezor, behind the dev password.' },
@@ -84,6 +84,15 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 8', title:'NASARUS, the Headquarters World',
+      notes:[
+        'The game is now Aethryx Adventures: 1936, and the Living Master Codex is its record of everything you find',
+        'Hyperspace ends in a crash landing on NASARUS, an ancient drifting world of ruins. Name it, make camp beside the wreck, repair the drive and get the AstraNav back online',
+        'Explore, extract, return, catalog, develop: bring scrap, crystal, fibre, relics and data home from every world',
+        'Build the headquarters one facility at a time, from a camp shelter to a research station, workshop, card archive and restoration terminal',
+        'Survey and restore the ruins of NASARUS, clear the rockfall to the far basin, and raise the headquarters through its stages',
+        'The AstraNav star chart now matches RP7D\u2019s telescope view'
+      ] },
     { date:'2026-10-08', build:'RP7D · FIELD TEST 02', title:'RP7D Opens for Dev Playtest',
       notes:[
         'The Deluxe 3D build of Rizing Power is live on the site behind the dev password: Malezor, District I',

@@ -1,4 +1,6 @@
-// ★ 2026-10-07 · THE LIVING MASTER CODEX · survey build 7 · THE ASTRANAV · OPEN EXPANSE
+// ★ 2026-10-09 · AETHRYX ADVENTURES: 1936 · survey build 8 · NASARUS
+// The Living Master Codex is the game's underlying lore and discovery schema (handoff §8);
+// AETHRYX ADVENTURES: 1936 is the title. NASARUS canon: docs/card-explorer/05_NASARUS_CANON.md
 // Canon: docs/card-explorer/02_CARL_NASARO_LIVING_MASTER_CODEX_CANON.md (locked)
 // Design: docs/card-explorer/01_EXPLORATION_DESIGN.md · 04_OPEN_EXPANSE.md
 // Content: data.js (story, Malezor) · environments.js (every world) · fauna.js (canon Aethren, type chart)
@@ -17,7 +19,7 @@
 (function(){
   'use strict';
   var D = window.EXP_DATA, STORY = D.story, ENVS = window.AOV_ENV || [], FAUNA = window.AOV_FAUNA, GEN = window.AOV_WORLDGEN, PAD = window.AOV_PAD;
-  var ART = window.AOV_ART;
+  var ART = window.AOV_ART, HQ = window.AOV_HQ, MATS = HQ.materials;
   var doc = document, ui = doc.getElementById('ui'), cv = doc.getElementById('view'), ctx = cv.getContext('2d');
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -99,6 +101,13 @@
       D.lexicon[id] = { unknown:'INHABITANTS, REGION ' + ['I','II','III','IV','V','VI','VII','VIII','IX','X'][i], canon:'HAEMEN OF ' + D.lexicon[d].canon };
     });
   }
+  // NASARUS's ground recolours the native tiles, like every other environment
+  (function(e){
+    var p = e.palette || {}, all = {};
+    ['ground','path','liquid','wall','special'].forEach(function(k){ if (p[k]) for (var c in p[k]) all[c] = p[k][c]; });
+    ['ground','path','liquid','wall','special'].forEach(function(k){ ART.recolour(e.id + '-' + k, Object.assign({}, all, p[k] || {})); });
+    Object.keys(e.prop_palette || {}).forEach(function(k){ ART.recolour(e.id + '-' + k, e.prop_palette[k]); });
+  })(HQ.env);
   registerContent();
 
   // ───────────────────────── save ─────────────────────────
@@ -106,9 +115,10 @@
   var LOOK = { skin:0, hair:0, style:0, hc:0, suit:0, helmet:0, visor:0 };
   function blank(){
     return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{}, archive:{}, cards:{}, lex:{},
-             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{},
+             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{},
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
+  function newHQ(){ return { id:'nasarus', name:HQ.canonicalName, built:{}, drive:false, ruins:{}, regions:[], store:{}, research:{}, records:[], stage:1 }; }
   var S = null, fresh = /[?&]newgame\b/.test(location.search);
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch(e){}
   if (S && S.v === 1) {          // carry an early-build save forward
@@ -130,9 +140,12 @@
     if (old2.pos && old2.pos.map === 'malezor') { nu.pos = { map:'w9', x:old2.pos.x + 3, y:old2.pos.y + 2, dir:old2.pos.dir }; nu.landed = true; }
     else if (old2.pos && old2.pos.map === 'firstden') { nu.pos = old2.pos; nu.landed = true; }
     Object.keys(nu.cards).forEach(function(id){ if (SP[id]) { nu.cards[id].lv = 4; nu.cards[id].xp = 0; } });
+    nu.hq.drive = true; nu.hq.built.nav = Date.now(); nu.flags.charted = true; nu.flags.hqNew = true;
     S = nu;
   }
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
+  // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
+  if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.flags.charted = true; S.flags.hqNew = true; }
   if (fresh || !S || S.v !== 3) S = null;
   function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ /* storage full or blocked: keep playing */ } }
   function opt(k){ return S && S.opts ? S.opts[k] : blank().opts[k]; }
@@ -354,7 +367,7 @@
   function aethrenCards(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp && S.cards[id].lv; }); }
   function autoTeam(){
     S.team = (S.team || []).filter(function(id){ return S.cards[id]; });
-    aethrenCards().sort(function(a, b){ return (S.cards[b].lv || 0) - (S.cards[a].lv || 0); }).forEach(function(id){ if (S.team.length < 3 && S.team.indexOf(id) < 0) S.team.push(id); });
+    aethrenCards().sort(function(a, b){ return (S.cards[b].lv || 0) - (S.cards[a].lv || 0); }).forEach(function(id){ if (S.team.length < teamMax() && S.team.indexOf(id) < 0) S.team.push(id); });
   }
   function teamReady(){ autoTeam(); return S.team.filter(function(id){ var c = S.cards[id]; return c.hp == null || c.hp > 0; }); }
   function healTeam(){ aethrenCards().forEach(function(id){ S.cards[id].hp = maxHp(id); }); }
@@ -362,7 +375,7 @@
   // ───────────────────────── objectives (Expedition Log) ─────────────────────────
   function goalLines(){
     return [
-      Object.keys(S.cards).length + ' cards · ' + totalCopies() + ' copies in the locker',
+      Object.keys(S.cards).length + ' cards · ' + totalCopies() + ' copies in the collection',
       mapPct() + '% charted · ' + identifiedCount() + ' of 27 bodies named',
       'Earth’s position: UNKNOWN'
     ];
@@ -385,7 +398,13 @@
     var F = S.flags, fauna = classifiedCount('aethren'), spec = classifiedCount('plant') + classifiedCount('mineral');
     var worlds = D.worlds.filter(function(w){ return S.visited[w.no]; }).length;
     return [
-      { t:'Choose a first landing from the AstraNav and land', done: worlds > 0 },
+      { t:'Make camp beside the wreck on ' + hqName(), done: !!S.hq.built.camp },
+      { t:'Survey the ruins of ' + hqName() + ' (' + Math.min(Object.keys(S.hq.ruins).length, 3) + '/3)', done: Object.keys(S.hq.ruins).length >= 3 },
+      { t:'Salvage SCRAP and CRYSTAL, and repair the drive at the wreck', done: !!S.hq.drive },
+      { t:'Build the Navigation Center', done: !!S.hq.built.nav },
+      { t:'Depart on your first expedition', done: worlds > 0 },
+      { t:'Return to ' + hqName() + ' and deposit what you extracted', done: !!S.flags.returned },
+      { t:'Reach STAGE 2 · EXPEDITION CAMP', done: hqStage() >= 2 },
       { t:'Make contact with an inhabitant', done: !!(S.archive.furtrader && S.archive.furtrader.talk) || peoplesMet() > 0 },
       { t:'Scan ' + (known('aethren') ? 'Aethren' : 'creatures') + ' into the AstraNav (' + Math.min(fauna, 3) + '/3)', done: fauna >= 3 },
       { t:'Win a card battle with one of your ' + (known('aethren') ? 'Aethren' : 'animal') + ' cards (' + Math.min(battlesWon(), 1) + '/1)', done: battlesWon() >= 1 },
@@ -426,15 +445,15 @@
     var s = screen('x-title',
       '<div class="x-title-in">' +
         '<p class="x-stamp">TOP SECRET · 1936</p>' +
-        '<h1>THE LIVING<br>MASTER CODEX</h1>' +
-        '<p class="x-tsub">THE AOV™ SAGA · THE EXPEDITION OF NASARO</p>' +
+        '<h1>AETHRYX<br>ADVENTURES</h1><p class="x-year">1936</p>' +
+        '<p class="x-tsub">THE AOV™ SAGA · THE EXPEDITION OF NASARO · THE LIVING MASTER CODEX</p>' +
         '<img class="x-title-ship x-pix" alt="" src="' + ART.url('ship', 5) + '">' +
         '<p class="x-press" data-nav tabindex="0" role="button">PRESS START</p>' +
         '<div class="x-btns" hidden>' +
           (S ? '<button class="x-btn" data-a="continue">CONTINUE</button>' : '') +
           '<button class="x-btn' + (S ? ' ghost' : '') + '" data-a="new">NEW GAME</button>' +
         '</div>' +
-        '<p class="x-fine">Survey build 7 · The AstraNav · progress is saved in this browser only<br>' + esc(STORY.rule) + '<br><a href="/games.html">← THE GAMES</a></p>' +
+        '<p class="x-fine">Survey build 8 · NASARUS · progress is saved in this browser only<br>' + esc(STORY.rule) + '<br><a href="/games.html">← THE GAMES</a></p>' +
       '</div>');
     var pressed = false;
     function start(){
@@ -461,6 +480,7 @@
     if (S.stage === 'surface' && S.pos && S.landed) surface(S.pos.map);
     else if (S.stage === 'nav' || S.stage === 'surface') ship();
     else if (S.stage === 'launch') launch();
+    else if (S.stage === 'crash') crash();
     else if (S.stage === 'dossier') dossier();
     else intro();
   }
@@ -511,7 +531,7 @@
       var presets = S.hero.gender === 'm' ? ['NEW NAME', 'CARL'] : ['NEW NAME'];
       var choice = presets.length > 1 ? await say(['Let’s begin with your name. What is it?'], presets) : 0;
       if (presets.length === 1) await say(['Let’s begin with your name. What is it?']);
-      var first = choice === 1 ? 'CARL' : await naming(S.hero.gender);
+      var first = choice === 1 ? 'CARL' : await naming({ gender:S.hero.gender });
       s = gbaScene(); por = $('.x-gba-por', s); prop = $('.x-gba-prop', s); drawDirector(por); por.classList.add('in', 'now');
       var ok = await say(['Right . . . so your name is ' + first + ' NASARO?'], ['YES', 'NO']);
       if (ok === 0) name = first;
@@ -536,23 +556,25 @@
   }
 
   // the naming screen: a letter grid, as on a handheld (type on a keyboard too)
-  function naming(gender){
+  function naming(o){
+    o = o || {}; var gender = o.gender || hero().gender, suffix = o.suffix == null ? 'NASARO' : o.suffix, max = o.max || 10;
     return new Promise(function(res){
-      var rows = ['ABCDEFGHI', 'JKLMNOPQR', 'STUVWXYZ-', "'.     "], v = '';
+      var rows = ['ABCDEFGHI', 'JKLMNOPQR', 'STUVWXYZ-', "'.     "], v = o.def || '';
       var s = screen('x-name',
-        '<div class="x-name-in"><div class="x-name-head"><canvas width="48" height="64" aria-hidden="true"></canvas><div><p>YOUR NAME?</p>' +
-          '<p class="x-name-v"><span class="x-name-slots"></span> <b>NASARO</b></p></div></div>' +
+        '<div class="x-name-in"><div class="x-name-head"><canvas width="48" height="64" aria-hidden="true"></canvas><div><p>' + esc(o.title || 'YOUR NAME?') + '</p>' +
+          '<p class="x-name-v"><span class="x-name-slots"></span> <b>' + esc(suffix) + '</b></p></div></div>' +
         '<div class="x-name-grid">' + rows.map(function(r){ return '<div>' + r.split('').map(function(ch){
           return ch === ' ' ? '<span></span>' : '<button data-k="' + esc(ch) + '">' + esc(ch) + '</button>'; }).join('') + '</div>'; }).join('') +
           '<div class="x-name-ctl"><button data-k="DEL">DEL</button><button data-k="OK" class="ok">OK</button></div></div></div>');
       var cnv = $('canvas', s), g2 = cnv.getContext('2d'); g2.imageSmoothingEnabled = false;
-      applyLook(S.hero.look); ART.draw(g2, withRc(ART.frame(gender === 'f' ? 'nasf' : 'carl', 'down', 0), 'player'), 24, 64, 3);
-      function paint(){ $('.x-name-slots', s).innerHTML = Array.from({ length:10 }, function(_, i){ return '<i>' + (v[i] ? esc(v[i]) : i === v.length ? '▁' : '·') + '</i>'; }).join(''); }
+      if (o.world) { g2.fillStyle = '#8a8272'; g2.beginPath(); g2.arc(24, 34, 18, 0, 7); g2.fill(); g2.fillStyle = '#5e574d'; g2.fillRect(14, 30, 8, 4); g2.fillRect(28, 38, 6, 3); g2.strokeStyle = '#6fd0c0'; g2.beginPath(); g2.arc(24, 34, 22, 0, 7); g2.stroke(); }
+      else { applyLook(S.hero.look); ART.draw(g2, withRc(ART.frame(gender === 'f' ? 'nasf' : 'carl', 'down', 0), 'player'), 24, 64, 3); }
+      function paint(){ $('.x-name-slots', s).innerHTML = Array.from({ length:max }, function(_, i){ return '<i>' + (v[i] ? esc(v[i]) : i === v.length ? '▁' : '·') + '</i>'; }).join(''); }
       paint();
       function key(k){
         if (k === 'DEL') v = v.slice(0, -1);
         else if (k === 'OK') { if (!v.trim()) { toast('Enter a name first', 'red'); sfx.bump(); return; } removeEventListener('keydown', kb); sfx.click(); res(v.trim()); return; }
-        else if (v.length < 10) v += k;
+        else if (v.length < max) v += k;
         sfx.key(); paint();
       }
       function kb(e){
@@ -673,9 +695,9 @@
       s.classList.add('white'); await wait(700);
       stopWorld(); s.classList.remove('white'); s.classList.add('black');
       var t = $('.x-hyper-t', s);
-      await typeInto(t, 'Silence.\n\nThe instruments are dead. The stars outside are wrong.\n\nOnly the AstraNav is still glowing.', 30);
+      await typeInto(t, 'Silence.\n\nThe instruments are dead. The stars outside are wrong.\n\nSomething below is pulling the ship down.', 30);
       await wait(1100);
-      navBoot();
+      crash();
     })();
   }
 
@@ -687,18 +709,18 @@
   //
   //   S.stage 'nav'      aboard the ship (S.landed: on the ground at S.at, or in orbit; S.at null: deep space)
   //   S.stage 'surface'  on foot, the AstraNav in hand
-  var NAV_TABS = [['system', 'SYSTEM'], ['field', 'FIELD'], ['cards', 'CARDS'], ['codex', 'CODEX'], ['log', 'LOG'], ['setup', 'SETUP']];
+  var NAV_TABS = [['system', 'SYSTEM'], ['hq', null], ['field', 'FIELD'], ['cards', 'CARDS'], ['codex', 'CODEX'], ['log', 'LOG'], ['setup', 'SETUP']];
   var navTab = 'system';
   function onFoot(){ return S.stage === 'surface'; }
   function whereLine(){
-    if (onFoot() && M) return 'ON FOOT · ' + zoneName() + (M.world ? ' · ' + term(WORLD[M.world].term) : '');
-    if (S.at && S.landed) return 'ABOARD · LANDED ON ' + term(WORLD[S.at].term);
-    if (S.at) return 'ABOARD · IN ORBIT · ' + term(WORLD[S.at].term);
+    if (onFoot() && M) return 'ON FOOT · ' + zoneName() + (M.world && !M.hq ? ' · ' + term(WORLD[M.world].term) : '');
+    if (S.at && S.landed) return 'ABOARD · LANDED ON ' + placeName(S.at);
+    if (S.at) return 'ABOARD · IN ORBIT · ' + placeName(S.at);
     return 'ABOARD · DEEP SPACE · ' + term('expanse');
   }
   // climbing aboard refills the suit and air and rests the card team
   function aboard(){
-    S.stage = 'nav'; S.suit = 100; S.air = 100; S.flares = Math.max(S.flares, 2); healTeam(); save();
+    S.stage = 'nav'; S.suit = 100; S.air = 100; S.flares = Math.max(S.flares, flaresMax()); healTeam(); save();
   }
   function ship(){ if (S.stage !== 'nav') aboard(); nav('system'); }
   function nav(tab, sel){
@@ -710,7 +732,7 @@
         '<header class="x-nav-top"><b class="x-nav-logo">ASTRANAV</b><span class="x-nav-mk">MK.I · U.S. EXPERIMENTAL ROCKET PROGRAM · 1936</span>' +
           '<span class="x-nav-where">' + esc(whereLine()) + '</span></header>' +
         '<nav class="x-nav-tabs" aria-label="AstraNav">' + tabs.map(function(t){
-          return '<button data-tab="' + t[0] + '" class="' + (t[0] === navTab ? 'on' : '') + '"' + (t[0] === navTab ? ' aria-current="page"' : '') + '>' + t[1] + '</button>';
+          return '<button data-tab="' + t[0] + '" class="' + (t[0] === navTab ? 'on' : '') + (t[0] === 'hq' ? ' x-tab-hq' : '') + '"' + (t[0] === navTab ? ' aria-current="page"' : '') + '>' + esc(t[1] || hqName()) + '</button>';
         }).join('') + (onFoot() ? '<button data-tab="close" class="x-nav-close">◀ FIELD</button>' : '') + '</nav>' +
         '<div class="x-nav-screen x-nav-' + navTab + '"></div>' +
       '</div>');
@@ -722,7 +744,7 @@
       nav(t.dataset.tab);
       setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
     });
-    ({ system:navSystem, field:navField, cards:navCards, codex:navCodex, log:navLog, setup:navSetup })[navTab](body, sel);
+    ({ system:navSystem, hq:navHQ, field:navField, cards:navCards, codex:navCodex, log:navLog, setup:navSetup })[navTab](body, sel);
     return s;
   }
   function backToField(){ if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else nav('system'); }
@@ -733,90 +755,104 @@
     setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
   }
 
-  // ── SYSTEM · the 28 bodies through the AstraNav telescope ──
-  // A natural spiral: the four canon spires become four arms winding out from
-  // Aenor, the worlds in canon order along them (world n on arm n mod 4, ring
-  // ceil(n/4)), seen at an angle as through a telescope. Positions are in one
-  // table below so the layout can be matched to RP7D's telescope view exactly.
-  var TILT = .4;
+  // ── SYSTEM · the bodies through the AstraNav telescope ──
+  // The layout is RP7D's telescope (rp7d/developer/astragraphy.js): each world on its zone's spire,
+  // zone = (n − 1) mod 4 → ALPHA north · OMEGA east · TRINITY south · DICHOTOMY west, at radius
+  // 22 + 8 × ring, fanned off the spire by a per-ring angle so the worlds read apart; AEP-28 on its own
+  // tilted drift orbit; all seen at RP7D's camera pitch. NASARUS, the headquarters, is not part of
+  // RP7D's chart: its place here is provisional, and it is kept apart from AEP-28.
+  var K = 4.6, PITCH = .98, TILT = Math.sin(PITCH), LIFT = Math.cos(PITCH);
+  var FAN = [-28, 17, -15, 29, -31, 13, 25], RING_R = function(n){ return 22 + n * 8; };
+  var ZONES = [['ALPHA', 'I', 0, '#e9b84a'], ['OMEGA', 'IV', 90, '#e2463c'], ['TRINITY', 'III', 180, '#3fd08a'], ['DICHOTOMY', 'II', 270, '#a45cf0']];
+  var ORBIT = { cx:-6, cz:-4, a:102, b:72, yaw:.62, tilt:.2, at:5.62 };
+  function flat(deg, r, y){ var a = deg * Math.PI / 180; return { x:Math.sin(a) * r * K, y:-Math.cos(a) * r * K, h:(y || 0) * K }; }
+  function driftAt(t){
+    var x = Math.cos(t) * ORBIT.a, z = Math.sin(t) * ORBIT.b;
+    var y2 = -z * Math.sin(ORBIT.tilt), z2 = z * Math.cos(ORBIT.tilt);
+    var x3 = x * Math.cos(ORBIT.yaw) + z2 * Math.sin(ORBIT.yaw), z3 = -x * Math.sin(ORBIT.yaw) + z2 * Math.cos(ORBIT.yaw);
+    return { x:(x3 + ORBIT.cx) * K, y:(z3 + ORBIT.cz) * K, h:y2 * K };
+  }
   var POS = (function(){
-    var out = {}, armA = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
-    for (var n = 1; n <= 27; n++) {
-      var arm = n % 4, ring = Math.ceil(n / 4), j = ((n * 7919) % 97) / 97 - .5, j2 = ((n * 104729) % 89) / 89 - .5;
-      var r = 92 + (ring - 1) * 64 + j * 22, th = armA[arm] + ring * .62 + j2 * .22;
-      out[n] = { x:Math.cos(th) * r, y:Math.sin(th) * r, h:j * 14 };
-    }
-    out[28] = { x:-500, y:-330, h:40 };        // AEP-28 on its drift orbit, off the plane
-    out.aenor = { x:0, y:0, h:0 }; out.zoryth = { x:34, y:-26, h:-6 };
+    var out = {};
+    for (var n = 1; n <= 27; n++) { var ring = Math.ceil(n / 4); out[n] = flat(ZONES[(n - 1) % 4][2] + FAN[ring - 1], RING_R(ring)); }
+    out[28] = driftAt(ORBIT.at);
+    out.aenor = { x:0, y:0, h:0 }; out.zoryth = flat(48, 13, 1);
+    out.nasarus = flat(214, RING_R(7) + 18, 4);
     return out;
   })();
-  function proj(p){ return { x:p.x, y:p.y * TILT - p.h, k:1 + p.y / 900 }; }
+  function proj(p){ return { x:p.x, y:p.y * TILT - p.h * LIFT, k:1 + p.y / 1400 }; }
   function bodies(){
     var list = D.worlds.map(function(w){ return { kind:'world', w:w, id:'w' + w.no, p:POS[w.no], set:w.no }; });
-    list.push({ kind:'aenor', id:'aenor', p:POS.aenor, set:29 }, { kind:'zoryth', id:'zoryth', p:POS.zoryth, set:30 });
+    list.push({ kind:'aenor', id:'aenor', p:POS.aenor, set:29 }, { kind:'zoryth', id:'zoryth', p:POS.zoryth, set:30 }, { kind:'hq', id:'nasarus', p:POS.nasarus });
     return list;
   }
   function bodyStatus(b){
+    if (b.kind === 'hq') return 'hq';
     if (b.kind !== 'world') return known(b.kind) ? 'identified' : 'unidentified';
     if (b.w.hidden) return 'sealed';
     return S.visited[b.w.no] ? 'visited' : known(b.w.term) ? 'identified' : 'unidentified';
   }
-  function hopDist(no){ var a = S.at ? POS[S.at] : { x:180, y:-260 }, b = POS[no]; return Math.hypot(a.x - b.x, a.y - b.y); }
+  function hopDist(to){ var a = S.at ? POS[S.at] : flat(30, 95), b = POS[to]; return Math.hypot(a.x - b.x, a.y - b.y); }
+  function au(to){ return (hopDist(to) / (8 * K) * 1.4).toFixed(1); }
   function spiralSvg(){
     var defs = '<defs>' +
       '<radialGradient id="core"><stop offset="0" stop-color="#fffdf0"/><stop offset=".12" stop-color="#ffe7a0"/><stop offset=".35" stop-color="#f0a850" stop-opacity=".45"/><stop offset="1" stop-color="#5b3c8c" stop-opacity="0"/></radialGradient>' +
-      '<radialGradient id="halo"><stop offset="0" stop-color="#3a2a5a" stop-opacity=".55"/><stop offset=".6" stop-color="#1a1430" stop-opacity=".35"/><stop offset="1" stop-color="#05040a" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="neb"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="orbUnk" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#6a6878"/><stop offset=".6" stop-color="#2a2832"/><stop offset="1" stop-color="#0c0b10"/></radialGradient>' +
+      '<radialGradient id="orbHQ" cx="34%" cy="30%" r="72%"><stop offset="0" stop-color="#e8e0cc"/><stop offset=".4" stop-color="#8a8272"/><stop offset="1" stop-color="#1e1c18"/></radialGradient>' +
       '<filter id="blur8" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="8"/></filter>' +
       '<filter id="blur3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>';
     D.worlds.forEach(function(w){
       defs += '<radialGradient id="orb' + w.no + '" cx="34%" cy="30%" r="72%"><stop offset="0" stop-color="#ffffff" stop-opacity=".9"/><stop offset=".2" stop-color="' + w.color + '"/><stop offset=".78" stop-color="' + w.color + '"/><stop offset="1" stop-color="#05040a"/></radialGradient>';
     });
     defs += '<radialGradient id="orbZ" cx="34%" cy="30%" r="72%"><stop offset="0" stop-color="#fff"/><stop offset=".3" stop-color="#d8d0e2"/><stop offset="1" stop-color="#3a3444"/></radialGradient></defs>';
-    var svg = '<svg class="x-spiral" viewBox="-620 -300 1240 600" role="group" aria-label="The Aethryx Expanse through the AstraNav telescope">' + defs;
+    var svg = '<svg class="x-spiral" viewBox="-560 -400 1120 800" role="group" aria-label="The Aethryx Expanse through the AstraNav telescope">' + defs;
     var r0 = rng(28);
-    for (var i = 0; i < 260; i++) svg += '<circle cx="' + ((r0() - .5) * 1800).toFixed(0) + '" cy="' + ((r0() - .5) * 1000).toFixed(0) + '" r="' + (r0() < .08 ? 1.6 : .8) + '" class="x-st" style="opacity:' + (.25 + r0() * .6).toFixed(2) + '"/>';
-    svg += '<ellipse cx="0" cy="0" rx="560" ry="' + (560 * TILT + 40) + '" fill="url(#halo)"/>';
-    // the dust of the four arms
-    var armA = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
-    svg += '<g filter="url(#blur8)">';
-    armA.forEach(function(a0, k){
-      for (var t = 0; t < 1; t += .025) {
-        var r = 40 + t * 500, th = a0 + .2 + t * 4.4, p = proj({ x:Math.cos(th) * r, y:Math.sin(th) * r, h:0 });
-        svg += '<ellipse cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" rx="' + (26 + t * 46).toFixed(0) + '" ry="' + ((26 + t * 46) * TILT).toFixed(0) + '" class="x-dust2" style="opacity:' + (.32 - t * .22).toFixed(2) + ';fill:' + ['#e8c9a0', '#b89ae8', '#9ac8e8', '#e8a0b8'][k] + '"/>';
-      }
+    for (var i = 0; i < 300; i++) svg += '<circle cx="' + ((r0() - .5) * 1700).toFixed(0) + '" cy="' + ((r0() - .5) * 1200).toFixed(0) + '" r="' + (r0() < .08 ? 1.6 : .8) + '" class="x-st" style="opacity:' + (.25 + r0() * .6).toFixed(2) + '"/>';
+    // the nebula glows of RP7D's Expanse
+    [[-380, -420, '#5a2ab0', 330, .28], [420, -300, '#2a4ab8', 300, .22], [300, 380, '#b0502a', 270, .16], [-420, 300, '#2a8a6a', 250, .14], [0, -80, '#c88a2a', 220, .2]].forEach(function(n){
+      var q = proj({ x:n[0], y:n[1], h:0 });
+      svg += '<ellipse cx="' + q.x.toFixed(0) + '" cy="' + q.y.toFixed(0) + '" rx="' + n[3] + '" ry="' + (n[3] * TILT).toFixed(0) + '" fill="url(#neb)" style="opacity:' + n[4] + ';fill:' + n[2] + '" filter="url(#blur8)"/>';
     });
-    svg += '</g><ellipse cx="0" cy="0" rx="120" ry="60" fill="url(#core)"/>';
-    // faint orbits, one per ring
-    for (var ring = 1; ring <= 7; ring++) { var rr0 = 92 + (ring - 1) * 64; svg += '<ellipse cx="0" cy="0" rx="' + rr0 + '" ry="' + (rr0 * TILT).toFixed(1) + '" class="x-orbit"/>'; }
-    svg += '<ellipse cx="-80" cy="10" rx="520" ry="130" transform="rotate(-14)" class="x-drift2"/>';
-    // bodies, far to near
+    svg += '<ellipse cx="0" cy="0" rx="150" ry="' + (150 * TILT).toFixed(0) + '" fill="url(#core)"/>';
+    // the four zones: spires and labels
+    ZONES.forEach(function(z){
+      var a = proj(flat(z[2], 8)), b = proj(flat(z[2], RING_R(7) + 6)), l = proj(flat(z[2], RING_R(7) + 13));
+      svg += '<line x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) + '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" stroke="' + z[3] + '" class="x-zspire"/>';
+      svg += '<text x="' + l.x.toFixed(1) + '" y="' + l.y.toFixed(1) + '" fill="' + z[3] + '" class="x-zone-l">' + z[1] + ' · ' + z[0] + ' ZONE</text>';
+    });
+    for (var ring = 1; ring <= 7; ring++) { var R = RING_R(ring) * K; svg += '<ellipse cx="0" cy="0" rx="' + R.toFixed(1) + '" ry="' + (R * TILT).toFixed(1) + '" class="x-orbit"/>'; }
+    // the drift world's own path: broken, tilted, crossing every zone
+    var dp = []; for (var t = 0; t <= 120; t++) { var q2 = proj(driftAt(t / 120 * 6.2832)); dp.push(q2.x.toFixed(1) + ',' + q2.y.toFixed(1)); }
+    svg += '<polyline points="' + dp.join(' ') + '" class="x-drift3"/>';
     bodies().sort(function(a, b){ return a.p.y - b.p.y; }).forEach(function(b){
-      var st = bodyStatus(b), lit = st === 'visited' || st === 'identified', q = proj(b.p);
-      var base = b.kind === 'aenor' ? 26 : b.kind === 'zoryth' ? 6 : (b.w.no === 9 || b.w.no === 27 ? 15 : 11), rr = base * q.k;
-      var label0 = b.kind === 'aenor' ? term('aenor') : b.kind === 'zoryth' ? term('zoryth') : b.w.hidden ? 'SEALED BODY' : term(b.w.term);
-      svg += '<g class="x-bd ' + st + (b.w && b.w.no === S.at ? ' here' : '') + '" data-id="' + b.id + '" data-nav tabindex="0" role="button" aria-label="' + esc(label0) + '" transform="translate(' + q.x.toFixed(1) + ' ' + q.y.toFixed(1) + ')">';
+      var st = bodyStatus(b), lit = st === 'visited' || st === 'identified' || st === 'hq', q = proj(b.p);
+      var base = b.kind === 'aenor' ? 24 : b.kind === 'zoryth' ? 5 : b.kind === 'hq' ? 10 : (b.w.no === 9 || b.w.no === 27 ? 13 : 9.5), rr = base * q.k;
+      var here = (b.w && b.w.no === S.at) || (b.kind === 'hq' && S.at === 'nasarus');
+      var label0 = b.kind === 'aenor' ? term('aenor') : b.kind === 'zoryth' ? term('zoryth') : b.kind === 'hq' ? hqName() + ', headquarters' : b.w.hidden ? 'Sealed body' : term(b.w.term);
+      svg += '<g class="x-bd ' + st + (here ? ' here' : '') + '" data-id="' + b.id + '" data-nav tabindex="0" role="button" aria-label="' + esc(label0) + '" transform="translate(' + q.x.toFixed(1) + ' ' + q.y.toFixed(1) + ')">';
       if (b.kind === 'aenor') {
         svg += '<circle r="60" fill="url(#core)" filter="url(#blur8)"/><circle r="' + rr + '" fill="#fffbe8" filter="url(#blur3)"/><circle r="' + (rr - 7) + '" fill="#fffef6"/>';
       } else {
-        var fill = st === 'sealed' ? 'url(#orbUnk)' : !lit ? 'url(#orbUnk)' : b.kind === 'zoryth' ? 'url(#orbZ)' : 'url(#orb' + b.w.no + ')';
-        if (lit && b.kind === 'world') svg += '<circle r="' + (rr + 7) + '" fill="' + b.w.color + '" opacity=".35" filter="url(#blur3)"/>';
-        if (b.w && b.w.ringed && lit) svg += '<ellipse rx="' + (rr + 10) + '" ry="' + (4 + rr * .2).toFixed(1) + '" transform="rotate(-12)" class="x-pring back"/>';
+        var fill = st === 'hq' ? 'url(#orbHQ)' : (st === 'sealed' || !lit) ? 'url(#orbUnk)' : b.kind === 'zoryth' ? 'url(#orbZ)' : 'url(#orb' + b.w.no + ')';
+        if (lit && b.kind === 'world') svg += '<circle r="' + (rr + 6) + '" fill="' + b.w.color + '" opacity=".35" filter="url(#blur3)"/>';
+        if (b.w && b.w.ringed && lit) svg += '<ellipse rx="' + (rr + 9) + '" ry="' + (3.5 + rr * .2).toFixed(1) + '" transform="rotate(-12)" class="x-pring back"/>';
         svg += '<circle r="' + rr.toFixed(1) + '" fill="' + fill + '" class="x-orb"/><circle r="' + rr.toFixed(1) + '" class="x-shade"/>';
-        if (b.w && b.w.ringed && lit) svg += '<path d="M' + -(rr + 10) + ' 0 A' + (rr + 10) + ' ' + (4 + rr * .2).toFixed(1) + ' 0 0 0 ' + (rr + 10) + ' 0" transform="rotate(-12)" class="x-pring"/>';
+        if (b.w && b.w.ringed && lit) svg += '<path d="M' + -(rr + 9) + ' 0 A' + (rr + 9) + ' ' + (3.5 + rr * .2).toFixed(1) + ' 0 0 0 ' + (rr + 9) + ' 0" transform="rotate(-12)" class="x-pring"/>';
+        if (st === 'hq') svg += '<circle r="' + (rr + 5).toFixed(1) + '" class="x-hqring"/><circle r="' + (rr + 9).toFixed(1) + '" class="x-hqring2"/>';
         if (st === 'sealed') svg += '<text y="4" class="x-q">✕</text>'; else if (!lit) svg += '<text y="4" class="x-q">?</text>';
       }
-      var label = b.kind === 'aenor' ? (known('aenor') ? 'AENOR' : '') : b.kind === 'zoryth' ? (known('zoryth') ? 'ZORYTH' : '') :
-        b.w.hidden ? 'No. 28 · SEALED' : (known(b.w.term) ? b.w.no + ' · ' + b.w.name : 'No. ' + b.w.no);
-      if (label) svg += '<g class="x-tag" transform="translate(0 ' + (rr + 13).toFixed(1) + ')"><rect x="' + (-label.length * 3.9 - 6) + '" y="-9" width="' + (label.length * 7.8 + 12) + '" height="15" rx="3"/><text y="2.5">' + esc(label) + '</text></g>';
-      if (b.w && b.w.no === S.at) svg += '<g class="x-vessel" transform="translate(0 ' + (-rr - 14).toFixed(1) + ')"><path d="M0 8 L-5 -2 L5 -2 Z"/><text y="-7">' + (S.landed ? 'SHIP' : 'ORBIT') + '</text></g>';
+      var label = b.kind === 'aenor' ? (known('aenor') ? 'AENOR' : '') : b.kind === 'zoryth' ? (known('zoryth') ? 'ZORYTH' : '') : b.kind === 'hq' ? hqName() + ' · HQ' :
+        b.w.hidden ? 'AEP-28 · SEALED' : (known(b.w.term) ? b.w.no + ' · ' + b.w.name : 'No. ' + b.w.no);
+      if (label) svg += '<g class="x-tag" transform="translate(0 ' + (rr + 12).toFixed(1) + ')"><rect x="' + (-label.length * 3.9 - 6) + '" y="-9" width="' + (label.length * 7.8 + 12) + '" height="15" rx="3"/><text y="2.5">' + esc(label) + '</text></g>';
+      if (here) svg += '<g class="x-vessel" transform="translate(0 ' + (-rr - 13).toFixed(1) + ')"><path d="M0 8 L-5 -2 L5 -2 Z"/><text y="-7">' + (S.landed ? 'SHIP' : 'ORBIT') + '</text></g>';
       svg += '</g>';
     });
-    if (!S.at) svg += '<g class="x-vessel" transform="translate(180 ' + (-260 * TILT - 40) + ')"><circle r="7" class="x-vring"/><path d="M-4 -4 L4 4 M4 -4 L-4 4"/><text y="-12">YOU ARE HERE</text></g>';
+    if (!S.at) { var v0 = proj(flat(30, 95)); svg += '<g class="x-vessel" transform="translate(' + v0.x.toFixed(1) + ' ' + v0.y.toFixed(1) + ')"><circle r="7" class="x-vring"/><path d="M-4 -4 L4 4 M4 -4 L-4 4"/><text y="-12">YOU ARE HERE</text></g>'; }
     return svg + '</svg>';
   }
-  var VIEW = { x:0, y:0, w:1240 };
-  function setView(svg){ var h = VIEW.w * 600 / 1240; svg.setAttribute('viewBox', (VIEW.x - VIEW.w / 2).toFixed(1) + ' ' + (VIEW.y - h / 2).toFixed(1) + ' ' + VIEW.w.toFixed(1) + ' ' + h.toFixed(1)); }
+  var VIEW = { x:0, y:0, w:1120 };
+  function setView(svg){ var h = VIEW.w * 800 / 1120; svg.setAttribute('viewBox', (VIEW.x - VIEW.w / 2).toFixed(1) + ' ' + (VIEW.y - h / 2).toFixed(1) + ' ' + VIEW.w.toFixed(1) + ' ' + h.toFixed(1)); }
   function navSystem(body, sel){
     body.innerHTML = '<div class="x-scope">' + spiralSvg() + '<div class="x-scope-ui"><button data-z="1" aria-label="Zoom in">+</button><button data-z="-1" aria-label="Zoom out">−</button><button data-z="0" aria-label="Whole system">◎</button></div>' +
       '<p class="x-scope-k">' + (known('expanse') ? 'THE AETHRYX EXPANSE' : 'AN UNCHARTED SYSTEM') + ' · ' + mapPct() + '% CHARTED</p></div>' +
@@ -831,13 +867,13 @@
       if (!pts[e.pointerId] || !startV) return;
       pts[e.pointerId] = { x:e.clientX, y:e.clientY };
       var k = Object.keys(pts), r = svg.getBoundingClientRect(), sc = VIEW.w / r.width;
-      if (k.length === 2 && pinch0) { var d = Math.hypot(pts[k[0]].x - pts[k[1]].x, pts[k[0]].y - pts[k[1]].y); VIEW.w = clamp(startV.w * pinch0 / d, 360, 1600); startV.moved = true; }
-      else { var dx = e.clientX - startV.cx, dy = e.clientY - startV.cy; if (Math.abs(dx) + Math.abs(dy) > 6) startV.moved = true; VIEW.x = clamp(startV.x - dx * sc, -600, 600); VIEW.y = clamp(startV.y - dy * sc, -300, 300); }
+      if (k.length === 2 && pinch0) { var d = Math.hypot(pts[k[0]].x - pts[k[1]].x, pts[k[0]].y - pts[k[1]].y); VIEW.w = clamp(startV.w * pinch0 / d, 320, 1500); startV.moved = true; }
+      else { var dx = e.clientX - startV.cx, dy = e.clientY - startV.cy; if (Math.abs(dx) + Math.abs(dy) > 6) startV.moved = true; VIEW.x = clamp(startV.x - dx * sc, -560, 560); VIEW.y = clamp(startV.y - dy * sc, -400, 400); }
       setView(svg);
     });
     function up(e){ delete pts[e.pointerId]; if (!Object.keys(pts).length) setTimeout(function(){ startV = null; }, 0); }
     svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
-    svg.addEventListener('wheel', function(e){ e.preventDefault(); VIEW.w = clamp(VIEW.w * (e.deltaY > 0 ? 1.12 : .89), 360, 1600); setView(svg); }, { passive:false });
+    svg.addEventListener('wheel', function(e){ e.preventDefault(); VIEW.w = clamp(VIEW.w * (e.deltaY > 0 ? 1.12 : .89), 320, 1500); setView(svg); }, { passive:false });
     svg.addEventListener('click', function(e){
       if (startV && startV.moved) return;
       var g = e.target.closest && e.target.closest('.x-bd'); if (!g) return;
@@ -846,10 +882,10 @@
     svg.addEventListener('keydown', function(e){ if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.x-bd')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles:true })); } });
     $('.x-scope-ui', body).addEventListener('click', function(e){
       var z = e.target.closest('[data-z]'); if (!z) return;
-      if (z.dataset.z === '0') { VIEW = { x:0, y:0, w:1240 }; } else VIEW.w = clamp(VIEW.w * (z.dataset.z === '1' ? .75 : 1.33), 360, 1600);
+      if (z.dataset.z === '0') { VIEW = { x:0, y:0, w:1120 }; } else VIEW.w = clamp(VIEW.w * (z.dataset.z === '1' ? .75 : 1.33), 320, 1500);
       setView(svg);
     });
-    var id = sel || (S.at ? 'w' + S.at : null);
+    var id = sel || (S.at === 'nasarus' ? 'nasarus' : S.at ? 'w' + S.at : null);
     if (id) { var b0 = bodies().filter(function(x){ return x.id === id; })[0]; if (b0) { openSheet(b0, sheet); var g0 = $('.x-bd[data-id="' + id + '"]', body); if (g0 && padOn) g0.focus(); } }
   }
   function scope(no){ var e = envOf(no); return e && !e.spoiler ? e.telescope || '' : ''; }
@@ -864,18 +900,28 @@
         '<dl><dt>STATUS</dt><dd>' + (got ? 'SCANNED' : 'IN VIEW') + '</dd><dt>CARDS</dt><dd>' + setCards(b.set) + ' / ???</dd></dl>' +
         '<p class="x-sh-note">' + (kn ? esc(subj(b.kind).canonNote) + ' ' : '') + 'Cannot be landed upon. The AstraNav can scan it from here.</p>' +
         '<div class="x-sh-btns">' + (got ? '' : '<button class="x-btn" data-a="scan">SCAN</button>') + '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';
+    } else if (b.kind === 'hq') {
+      var hereH = S.at === 'nasarus', stg = hqStage(), actH;
+      if (onFoot()) actH = hereH ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button>' : '<p class="x-sh-note">Board your ship to set course.</p>' + (S.flares ? '<button class="x-btn" data-a="flare">RECALL FLARE · BOARD (' + S.flares + ')</button>' : '');
+      else if (hereH) actH = '<button class="x-btn" data-a="landhq">' + (S.landed ? 'DISEMBARK' : 'LAND AT CAMP') + '</button>';
+      else actH = navOnline() ? '<button class="x-btn" data-a="gohq">RETURN TO ' + esc(hqName()) + '</button>' : '<p class="x-sh-note">NAVIGATION OFFLINE.</p>';
+      html = '<p class="x-sh-k">HEADQUARTERS</p><h3>' + esc(hqName()) + '</h3><p class="x-sh-sub">STAGE ' + stg + ' · ' + esc(stageName(stg)) + '</p>' +
+        '<dl><dt>' + (hereH ? 'POSITION' : 'COURSE') + '</dt><dd>' + (hereH ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : au('nasarus') + ' A.U.') + '</dd>' +
+          '<dt>PACK</dt><dd>' + packTotal() + ' materials to deposit</dd><dt>RUINS</dt><dd>' + Object.keys(S.hq.ruins).length + ' / ' + HQ.ruins.length + ' surveyed · ' + hqRestored() + ' restored</dd></dl>' +
+        '<p class="x-sh-note">An ancient drifting world. Haemen and Aethren lived here before the First Eternal War. Return here to deposit, build and restore.</p>' +
+        '<div class="x-sh-btns">' + actH + '<button class="x-btn ghost" data-a="hq">HQ PAGE</button><button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     } else if (b.w.hidden) {
-      html = '<p class="x-sh-k">CATALOGUE ENTRY</p><h3>BODY No. 28</h3><p class="x-sh-sub">SEALED</p>' +
-        '<p class="x-sh-note">A faint body on an orbit that matches nothing else. The AstraNav will not plot a course to it.</p>' +
+      html = '<p class="x-sh-k">CATALOGUE ENTRY · AEP-28</p><h3>THE DRIFT BODY</h3><p class="x-sh-sub">SEALED</p>' +
+        '<p class="x-sh-note">A body outside the ordered cycle, on a tilted path that crosses every zone. The AstraNav will not plot a course to it.</p>' +
         '<div class="x-sh-btns"><button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     } else {
       var w = b.w, no = w.no, kn2 = known(w.term), vis = S.visited[no], here = S.at === no, act;
       if (onFoot()) act = here ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button>' :
         '<p class="x-sh-note">Board your ship to set course.</p>' + (S.flares ? '<button class="x-btn" data-a="flare">RECALL FLARE · BOARD (' + S.flares + ')</button>' : '');
       else if (here) act = '<button class="x-btn" data-a="land">' + (S.landed ? 'DISEMBARK' : vis ? 'LAND' : 'ATTEMPT LANDING') + '</button>';
-      else act = '<button class="x-btn" data-a="go">' + (S.at || vis ? 'SET COURSE' : 'CHOOSE AS FIRST LANDING') + '</button>';
+      else act = navOnline() ? '<button class="x-btn" data-a="go">SET COURSE</button>' : '<p class="x-sh-note">NAVIGATION OFFLINE · repair the drive and build the Navigation Center on ' + esc(hqName()) + '.</p>';
       html = '<p class="x-sh-k">' + (kn2 || vis ? esc(setName(no)) : 'CATALOGUE ENTRY') + '</p><h3>' + esc(term(w.term)) + '</h3>' + (kn2 && w.title ? '<p class="x-sh-sub">' + esc(w.title.toUpperCase()) + '</p>' : '') +
-        '<dl><dt>' + (here ? 'POSITION' : 'COURSE') + '</dt><dd>' + (here ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : (hopDist(no) / 62 * 1.4).toFixed(1) + ' A.U.') + '</dd>' +
+        '<dl><dt>' + (here ? 'POSITION' : 'COURSE') + '</dt><dd>' + (here ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : au(no) + ' A.U.') + '</dd>' +
           '<dt>STATUS</dt><dd>' + (vis ? 'VISITED' : kn2 ? 'NAMED' : 'UNVISITED') + '</dd><dt>SURVEY</dt><dd>' + setPct(no) + '%</dd><dt>CARDS</dt><dd>' + setCards(no) + ' / ???</dd>' +
           '<dt>FAUNA SIGNALS</dt><dd>' + fauna(no) + '</dd>' +
           (scope(no) && !vis ? '<dt>TELESCOPE</dt><dd>' + esc(scope(no)) + '</dd>' : '') + '</dl>' +
@@ -892,6 +938,9 @@
       if (a.dataset.a === 'land') { if (S.landed) disembark(); else land(b.w.no); }
       if (a.dataset.a === 'field') backToField();
       if (a.dataset.a === 'flare') fireFlare();
+      if (a.dataset.a === 'gohq') travel('nasarus');
+      if (a.dataset.a === 'landhq') { if (S.landed) disembark(); else land('nasarus'); }
+      if (a.dataset.a === 'hq') nav('hq');
     };
     if (padOn) setTimeout(function(){ var f = sh.querySelector('.x-btn:not(.ghost)') || sh.querySelector('.x-btn'); if (f) f.focus(); }, 30);
   }
@@ -907,26 +956,28 @@
   function fireFlare(){
     if (!S.flares) { toast('NO FLARES LEFT · walk back to the ship', 'red'); return; }
     S.flares--; if (M && fogArr) S.fog[M.id] = fogEnc(fogArr);
-    if (M && M.ship) S.pos = { map:M.world ? 'w' + M.world : M.id, x:M.ship.x, y:M.ship.y + 1, dir:'down' };
+    if (M && M.ship) S.pos = { map:M.hq ? 'nasarus' : M.world ? 'w' + M.world : M.id, x:M.ship.x, y:M.ship.y + 1, dir:'down' };
     aboard(); toast('RECALL FLARE · the ship homed in on you'); nav('system');
   }
 
   // ── the drive ──
   function travel(no){
-    var from = S.at ? term(WORLD[S.at].term) : 'DEEP SPACE', d = hopDist(no);
+    if (!navOnline()) { toast('NAVIGATION OFFLINE', 'red'); return; }
+    var from = placeName(S.at), d = hopDist(no);
     var s = screen('x-hyper', '<p class="x-hyper-t x-travel"></p>');
     startWorld('hyper'); vibrate(700, .4);
     S.stage = 'nav'; S.landed = false; S.pos = null; save();
     (async function(){
-      await typeInto($('.x-hyper-t', s), 'COURSE SET\n' + from + ' → ' + term(WORLD[no].term), 18);
-      await wait(700 + Math.min(1600, d * 2.2));
+      await typeInto($('.x-hyper-t', s), 'COURSE SET\n' + from + ' → ' + placeName(no), 18);
+      await wait(700 + Math.min(1600, d * 1.4));
       stopWorld();
       S.at = no; save();
-      toast('IN ORBIT · ' + term(WORLD[no].term));
-      nav('system', 'w' + no);
+      toast('IN ORBIT · ' + placeName(no));
+      nav('system', no === 'nasarus' ? 'nasarus' : 'w' + no);
     })();
   }
   function land(no){
+    if (no === 'nasarus') return touchdown('nasarus');
     if (WORLD[no].hidden || !envOf(no)) { toast('The AstraNav will not plot a landing.', 'red'); return; }
     if (!S.visited[no]) return descent(no);
     touchdown(no);
@@ -934,7 +985,11 @@
   function touchdown(no){
     S.visited[no] = S.visited[no] || Date.now();
     S.at = no; S.landed = true;
-    var m = GEN.build('w' + no);
+    var m = no === 'nasarus' ? buildMap('nasarus') : GEN.build('w' + no);
+    if (no === 'nasarus') { S.pos = { map:'nasarus', x:m.ship.x + 2, y:m.ship.y + 1, dir:'down' }; S.stage = 'surface'; save();
+      if (S.hq.built.depot && packTotal()) setTimeout(function(){ deposit(); }, 600);
+      else if (packTotal()) setTimeout(function(){ toast('PACK · ' + packTotal() + ' materials · deposit them at the camp stores'); }, 600);
+      surface('nasarus'); return; }
     S.pos = { map:m.id, x:m.ship.x, y:m.ship.y + 1, dir:'down' }; save();
     surface(m.id);
   }
@@ -957,7 +1012,7 @@
 
   // ── FIELD · the sketch of where you stand ──
   function navField(body){
-    if (!M || (S.pos && M.id !== S.pos.map)) { var m0 = S.pos && GEN.build(S.pos.map); if (m0) { M = m0; fogArr = fogDec(S.fog[M.id], M.W * M.H); if (!P) P = { x:S.pos.x, y:S.pos.y }; } }
+    if (!M || (S.pos && M.id !== S.pos.map)) { var m0 = S.pos && buildMap(S.pos.map); if (m0) { M = m0; fogArr = fogDec(S.fog[M.id], M.W * M.H); if (!P) P = { x:S.pos.x, y:S.pos.y }; } }
     var team = S.team || [];
     body.innerHTML = '<div class="x-field2"><canvas class="x-sketch" width="640" height="400" aria-label="Field sketch map"></canvas>' +
       '<div class="x-field-side"><p class="x-crt">' + esc(zoneName()) + '<br><small>SUIT ' + Math.round(S.suit) + ' · AIR ' + Math.round(S.air) + ' · FLARES ' + S.flares + '</small></p>' +
@@ -994,7 +1049,7 @@
         var t = ev.target.closest('[data-t]');
         if (ev.target === m || (t && t.dataset.t === 'close')) { m.remove(); return; }
         if (!t) return;
-        if (t.dataset.t === 'on') { if (S.team.length >= 3) S.team.pop(); S.team.push(id); }
+        if (t.dataset.t === 'on') { if (S.team.length >= teamMax()) S.team.pop(); S.team.push(id); }
         if (t.dataset.t === 'off') S.team.splice(S.team.indexOf(id), 1);
         if (t.dataset.t === 'lead') { S.team.splice(S.team.indexOf(id), 1); S.team.unshift(id); }
         S.flags.teamSet = true; save(); m.remove(); nav('cards');
@@ -1027,7 +1082,11 @@
     body.innerHTML = (S.flags.copied && !S.flags.decoded ? '<section class="x-arc riv"><h3>DECODING</h3><p class="x-mono light">' +
         (canDecode() ? 'The carved markings can be cross-referenced against your scans.' : 'Markings copied. Classify at least 4 subjects to cross-reference them (' + classifiedCount() + '/4).') +
         '</p><button class="x-btn" data-a="dec"' + (canDecode() ? '' : ' disabled') + '>DECODE THE MARKINGS</button></section>' : '') +
-      '<p class="x-crt">' + esc(heroName()) + '’S LIVING MASTER CODEX · ' + esc(STORY.rule) + '</p>' + sets.map(function(n){
+      '<p class="x-crt">' + esc(heroName()) + '’S LIVING MASTER CODEX · ' + esc(STORY.rule) + '</p>' +
+      '<p class="x-mono light">PLAYER DISCOVERIES, drawn from the MASTER CANON. Cards are kept in CARDS; the planetary survey is on SYSTEM; restoration records are on the ' + esc(hqName()) + ' page.</p>' +
+      '<section class="x-arc riv"><h3>' + esc(hqName()) + ' · HEADQUARTERS <b>STAGE ' + hqStage() + '</b></h3><p class="x-mono light">An ancient drifting planet. Haemen and Aethren lived here before the First Eternal War. Why it was abandoned is not known.</p>' +
+        '<ul>' + HQ.ruins.filter(function(u){ return S.hq.ruins[u.id]; }).map(function(u){ return '<li class="done"><b>' + esc(u.label) + '</b><span>' + (S.hq.ruins[u.id].restored ? 'RESTORED' : 'SURVEYED') + '</span><em>' + esc(u.survey) + '</em></li>'; }).join('') +
+        (Object.keys(S.hq.ruins).length ? '' : '<li><b>— no ruins surveyed yet —</b></li>') + '</ul></section>' + sets.map(function(n){
       var ids = setSubjects(n).filter(function(id){ return S.archive[id] || S.cards[id]; });
       var e = n <= 28 ? envOf(n) : null, learned = n === 9 ? GEN.DISTRICTS.filter(function(d){ return S.lore['z_' + d] || (d === 'malezor' && S.flags.taught); }) : (S.lore['w' + n] ? [true] : []);
       return '<section class="x-arc riv"><h3>' + esc(setName(n)) + ' <b>' + setPct(n) + '%</b></h3>' +
@@ -1085,13 +1144,16 @@
       row('hand', 'TOUCH CONTROLS', ['D-PAD LEFT', 'D-PAD RIGHT']) + row('alpha', 'CONTROL OPACITY', ['SOLID', 'SOFT', 'FAINT']) +
       '<p class="x-mono light">' + esc(padTxt) + '</p>' +
       '<p class="x-mono light">✕ examine · ○ back / stalk · □ scan · △ AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
-      '<div class="x-sh-btns"><button class="x-btn" data-a="kit">REFIT YOUR KIT</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
+      '<div class="x-sh-btns"><button class="x-btn" data-a="kit">REFIT YOUR KIT</button><button class="x-btn ghost" data-a="rename">RENAME ASTRONAUT</button><button class="x-btn ghost" data-a="renamehq">RENAME ' + esc(hqName()) + '</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
         '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>' +
-      '<p class="x-mono light">PILOT-OBSERVER: ' + esc(heroName()) + '</p></div>';
+      '<p class="x-mono light">PILOT-OBSERVER: ' + esc(heroName()) + ' · HEADQUARTERS: ' + esc(hqName()) + '</p>' +
+      '<p class="x-mono dim">Personal names live in this save only. The canon identities stay Carl Nasaro and NASARUS.</p></div>';
     body.onclick = function(e){
       var b = e.target.closest('button'); if (!b) return;
       if (b.dataset.a === 'kit') { kit(hero().gender, hero().look, function(){ nav('setup'); }).then(function(l){ S.hero.look = l; applyLook(); save(); toast('KIT REFITTED'); nav('setup'); }); return; }
       if (b.dataset.a === 'fs') { goLandscape(); return; }
+      if (b.dataset.a === 'rename') { naming({ def:hero().first }).then(function(n){ S.hero.first = n; save(); toast('ASTRONAUT · ' + heroName()); nav('setup'); }); return; }
+      if (b.dataset.a === 'renamehq') { naming({ title:'NAME THIS WORLD', suffix:'', def:hqName(), max:12, world:true }).then(function(n){ S.hq.name = n; hqRecord('The log renames this world ' + n + '.'); save(); toast('HEADQUARTERS · ' + n); nav('setup'); }); return; }
       if (b.dataset.a === 'reset') { if (!confirm('Erase this expedition and start over?')) return; try { localStorage.removeItem(KEY); } catch(err){} S = null; title(); return; }
       var r = b.closest('[data-o]'); if (!r) return;
       var k = r.dataset.o, d = +b.dataset.d;
@@ -1109,16 +1171,307 @@
     doc.body.style.setProperty('--ctl-alpha', S.opts.alpha || 1);
   }
 
-  // ── the AstraNav wakes: after hyperspace, the whole system in view ──
-  async function navBoot(){
-    aboard(); S.at = null; S.landed = false; save();
-    var s = screen('x-nav x-boot', '<div class="x-nav-dev"><header class="x-nav-top"><b class="x-nav-logo">ASTRANAV</b><span class="x-nav-mk">MK.I · U.S. EXPERIMENTAL ROCKET PROGRAM · 1936</span></header><pre class="x-crt x-bootlog"></pre></div>');
+
+
+  // ═════════════════════════ NASARUS · the headquarters ═════════════════════════
+  // Canon: docs/card-explorer/05_NASARUS_CANON.md. Data: nasarus.js. Loop:
+  //   EXPLORE → EXTRACT (materials into the pack) → RETURN → CATALOG (deposit) → DEVELOP → REPEAT
+  // Materials are carried in S.pack and only usable once deposited in S.hq.store at NASARUS.
+  // S.hq maps onto the handoff's suggested schema: name = display_name, built = constructed_facilities,
+  // ruins = discovered_ruins / restored_landmarks, regions = unlocked_regions, store = stored_resources,
+  // research = research_progress, stage = current_stage, built.camp = camp_established.
+  function hqName(){ return (S && S.hq && S.hq.name) || HQ.canonicalName; }
+  function placeName(at){ return at === 'nasarus' ? hqName() : at ? term(WORLD[at].term) : 'DEEP SPACE'; }
+  function onHQ(){ return S.at === 'nasarus' && (S.landed || S.stage === 'surface'); }
+  function nameOf(k){
+    if (k === 'drive') return 'REPAIRED DRIVE';
+    var f = HQ.facilities.filter(function(x){ return x.id === k; })[0], r = HQ.research.filter(function(x){ return x.id === k; })[0], g = HQ.regions.filter(function(x){ return x.id === k; })[0];
+    return f ? f.name : r ? r.name : g ? g.name : k.toUpperCase();
+  }
+  function hqHas(k){ var h = S.hq; return !!(h.built[k] || (k === 'drive' && h.drive) || h.research[k] || h.regions.indexOf(k) >= 0); }
+  function reqText(reqs){ return (reqs || []).filter(function(k){ return !hqHas(k); }).map(nameOf).join(' · '); }
+  function hqRestored(){ return Object.keys(S.hq.ruins).filter(function(k){ return S.hq.ruins[k].restored; }).length; }
+  function stageNeedMet(k){ var m = /^restored:(\d+)$/.exec(k); return m ? hqRestored() >= +m[1] : hqHas(k); }
+  function hqStage(){
+    var n = 1;
+    for (var i = 1; i < HQ.stages.length; i++) { var st = HQ.stages[i]; if (st.future || !st.needs.every(stageNeedMet)) break; n = i + 1; }
+    return n;
+  }
+  function stageName(n){ return HQ.stages[n - 1].name; }
+  function needLabel(k){ var m = /^restored:(\d+)$/.exec(k); return (stageNeedMet(k) ? '✓ ' : '') + (m ? m[1] + ' RUINS RESTORED (' + hqRestored() + ')' : nameOf(k)); }
+  function hqState(){ return { built:S.hq.built, ruins:S.hq.ruins, regions:S.hq.regions, found:S.found, stage:hqStage(), drive:S.hq.drive, research:S.hq.research }; }
+  function buildMap(id){ return id === 'nasarus' ? GEN.build('nasarus', hqState()) : GEN.build(id); }
+  function hqRecord(text){ S.hq.records.push({ t:Date.now(), text:text }); if (S.hq.records.length > 200) S.hq.records.shift(); }
+  function matName(k){ return (MATS.filter(function(m){ return m[0] === k; })[0] || [k, k.toUpperCase()])[1]; }
+  function costText(c){ return Object.keys(c || {}).map(function(k){ return matName(k) + ' ' + c[k]; }).join(' · ') || 'FREE'; }
+  function packTotal(){ return MATS.reduce(function(n, m){ return n + (S.pack[m[0]] || 0); }, 0); }
+  function gainAll(obj, quiet){
+    var parts = [];
+    Object.keys(obj || {}).forEach(function(k){ if (obj[k]) { S.pack[k] = (S.pack[k] || 0) + obj[k]; parts.push('+' + obj[k] + ' ' + matName(k)); } });
+    save(); if (parts.length && !quiet) toast(parts.join(' · ') + ' · in your pack');
+    return parts.join(' · ');
+  }
+  function gain(k, n, quiet){ var o = {}; o[k] = n; return gainAll(o, quiet); }
+  // take a tile's material once: the same spot never pays twice
+  function takeOnce(x, y, obj){ var key = M.id + ':' + x + ',' + y; if (S.found[key]) return ''; S.found[key] = 1; return gainAll(obj, true); }
+  function deposit(quiet){
+    var n = packTotal(); if (!n || !S.hq.built.stores) return 0;
+    MATS.forEach(function(m){ var k = m[0]; if (S.pack[k]) { S.hq.store[k] = (S.hq.store[k] || 0) + S.pack[k]; S.pack[k] = 0; } });
+    S.flags.deposited = true; if (D.worlds.some(function(w){ return S.visited[w.no]; })) S.flags.returned = true;
+    hqRecord('Deposited ' + n + ' materials in the ' + (S.hq.built.depot ? 'Resource Depot' : 'camp stores') + '.'); save();
+    if (!quiet) toast('DEPOSITED · ' + n + ' materials'); return n;
+  }
+  function canAfford(c){ return Object.keys(c || {}).every(function(k){ return (S.hq.store[k] || 0) >= c[k]; }); }
+  function pay(c){ Object.keys(c || {}).forEach(function(k){ S.hq.store[k] -= c[k]; }); }
+  function missing(c){ return Object.keys(c || {}).map(function(k){ return matName(k) + ' ' + (S.hq.store[k] || 0) + '/' + c[k]; }).join(' · '); }
+  function navOnline(){ return !!(S.hq.drive && S.hq.built.nav); }
+  function teamMax(){ return S && S.hq && S.hq.built.archive ? 4 : 3; }
+  function flaresMax(){ return S && S.hq && S.hq.research['r-pack'] ? 4 : 2; }
+  function suitDmg(n){ return Math.round(n * (S.hq.research['r-suit'] ? .65 : 1)); }
+  var DRIVE_COST = { scrap:6, crystal:2 };
+
+  // a change to the headquarters: record it, recheck the stage, redraw the camp if we are standing in it
+  function hqChanged(text){
+    var before = S.hq.stage || 1; if (text) hqRecord(text);
+    var now = hqStage(); S.hq.stage = now; save();
+    if (M && M.hq && mode === 'surface') { S.pos = { map:'nasarus', x:P.x, y:P.y, dir:P.dir }; S.fog.nasarus = fogEnc(fogArr); surface('nasarus'); }
+    if (now > before) { hqRecord('STAGE ' + now + ' · ' + stageName(now) + '.'); save(); setTimeout(function(){ stageReveal(now); }, 200); }
+  }
+  function stageReveal(n){
+    sfx.reveal(); vibrate(300, .5);
+    var m = el('div', 'x-modal x-reveal', '<div class="x-modal-in x-stagecard"><p class="x-man-k">' + esc(hqName()) + '</p><h2>STAGE ' + n + '</h2><p class="x-stage-nm">' + esc(stageName(n)) + '</p>' +
+      '<p class="x-mono light">' + esc({ 2:'Storage, research and navigation are running. The crash site is an expedition camp now.', 3:'More facilities stand, and some of the old buildings stand again.', 4:'Whole sections of the ancient ruins are restored. A long-term goal, reached.' }[n] || '') + '</p><button class="x-btn">CONTINUE</button></div>');
+    ui.appendChild(m); var b = $('.x-btn', m); setTimeout(function(){ b.focus(); }, 40);
+    b.addEventListener('click', function(){ m.remove(); });
+  }
+  function buildFac(id){
+    var f = HQ.facilities.filter(function(x){ return x.id === id; })[0]; if (!f || f.future || S.hq.built[id]) return false;
+    if (!(f.requires || []).every(hqHas) || (!f.free && !canAfford(f.cost))) return false;
+    pay(f.cost); S.hq.built[id] = Date.now();
+    if (id === 'camp') S.hq.built.stores = Date.now();
+    sfx.reveal(); vibrate(200, .4); toast('BUILT · ' + f.name);
+    hqChanged('Built: ' + f.name + '.');
+    if (id === 'nav' && navOnline()) setTimeout(navOnlineBoot, 400);
+    return true;
+  }
+  function restoreRuin(id){
+    var u = HQ.ruins.filter(function(x){ return x.id === id; })[0], rs = S.hq.ruins[id];
+    if (!u || !rs || rs.restored || !S.hq.built.terminal || !(u.requires || []).every(hqHas) || !canAfford(u.restore)) return false;
+    pay(u.restore); rs.restored = Date.now(); gain('data', 5, true);
+    sfx.reveal(); vibrate(300, .5); toast((u.dig ? 'EXCAVATED · ' : 'RESTORED · ') + u.label);
+    hqChanged((u.dig ? 'Excavated: ' : 'Restored: ') + u.label + '.');
+    return true;
+  }
+  function clearRegion(id){
+    var g = HQ.regions.filter(function(x){ return x.id === id; })[0];
+    if (!g || S.hq.regions.indexOf(id) >= 0 || !(g.requires || []).every(hqHas) || !canAfford(g.cost)) return false;
+    pay(g.cost); S.hq.regions.push(id); sfx.reveal(); vibrate(500, .9); toast(g.name + ' · OPEN');
+    hqChanged('Cleared the rockfall. ' + g.name + ' is open.');
+    return true;
+  }
+  function study(id){
+    var r = HQ.research.filter(function(x){ return x.id === id; })[0];
+    if (!r || S.hq.research[id] || !S.hq.built.research || !(r.requires || []).every(hqHas) || !canAfford(r.cost)) return false;
+    pay(r.cost); S.hq.research[id] = Date.now(); sfx.reveal(); toast('RESEARCH · ' + r.name);
+    hqChanged('Research complete: ' + r.name + '.');
+    return true;
+  }
+  function repairDrive(){
+    if (S.hq.drive || !canAfford(DRIVE_COST)) return false;
+    pay(DRIVE_COST); S.hq.drive = true; sfx.reveal(); vibrate(700, 1); toast('DRIVE REPAIRED');
+    hqChanged('The drive is repaired.');
+    if (S.hq.built.nav) setTimeout(navOnlineBoot, 400);
+    return true;
+  }
+  function craftFlare(){ var c = { fibre:2, scrap:1 }; if (!S.hq.built.workshop || !canAfford(c) || S.flares >= flaresMax()) return false; pay(c); S.flares++; hqRecord('Crafted a recall flare.'); save(); toast('FLARE CRAFTED · ' + S.flares + '/' + flaresMax()); return true; }
+  function exchange(from, to){ if (!S.hq.built.depot || from === to || (S.hq.store[from] || 0) < 3) return false; S.hq.store[from] -= 3; S.hq.store[to] = (S.hq.store[to] || 0) + 1; save(); return true; }
+
+  // the Navigation Center comes online: the AstraNav charts the Expanse for the first time
+  async function navOnlineBoot(){
+    if (!navOnline() || S.flags.charted) return;
+    S.flags.charted = true;
+    if (M && M.hq && P) { S.pos = { map:'nasarus', x:P.x, y:P.y, dir:P.dir }; S.fog.nasarus = fogEnc(fogArr); }
+    save();
+    var s = screen('x-nav x-boot', '<div class="x-nav-dev"><header class="x-nav-top"><b class="x-nav-logo">ASTRANAV</b><span class="x-nav-mk">MK.I · NAVIGATION CENTER LINK</span></header><pre class="x-crt x-bootlog"></pre></div>');
     var log = $('.x-bootlog', s);
-    var lines = ['ASTRANAV MK.I · SELF-TEST', 'VALVES ............ OK', 'GYROSCOPE ......... OK', 'SCANNER ........... OK', 'STAR CATALOGUE .... NO MATCH', 'EARTH .............. NOT FOUND', '', 'CHARTING THE BODIES IN VIEW . . .', '28 BODIES · 1 STAR · 1 SATELLITE', '', 'CHOOSE A FIRST LANDING.'];
-    for (var i = 0; i < lines.length; i++) { await typeInto(log.appendChild(el('span', '')), lines[i] + '\n', 14); await wait(90); }
+    var lines = ['NAVIGATION CENTER · ONLINE', 'DRIVE .............. REPAIRED', 'STAR CATALOGUE ..... NO MATCH', 'EARTH .............. NOT FOUND', '', 'CHARTING THE BODIES IN VIEW . . .', '28 BODIES · 1 STAR · 1 SATELLITE', 'HOME BASE .......... ' + hqName(), '', 'EXPEDITIONS MAY DEPART.'];
+    for (var i = 0; i < lines.length; i++) { await typeInto(log.appendChild(el('span', '')), lines[i] + '\n', 14); await wait(80); }
     await wait(700);
     nav('system');
-    toast('Every body is unidentified. Choose your first landing.');
+    toast('Choose a destination. Board your ship at the wreck to depart.');
+  }
+
+  // ── the crash, and the first page of the log ──
+  function crash(){
+    var s = screen('x-cockpit shake', '<div class="x-panel riv"><p class="x-plate">UNKNOWN BODY</p><p class="x-alt">ALT <b>0090000</b> FT</p><p class="x-readout">GRAVITY CAPTURE</p></div>');
+    S.stage = 'crash'; S.flags.crashed = true; save(); tone(48, 3.5, 'sawtooth', .06); vibrate(2000, .7);
+    var b = $('.x-alt b', s), r = $('.x-readout', s), t0 = performance.now();
+    (function tick(now){
+      var k = Math.min(1, (now - t0) / (reduced ? 200 : 3400));
+      b.textContent = String(Math.round(90000 * Math.pow(1 - k, 1.6))).padStart(7, '0');
+      r.textContent = k < .35 ? 'GRAVITY CAPTURE' : k < .7 ? 'DRIVE FAILURE' : 'BRACE FOR IMPACT';
+      if (k < 1) { requestAnimationFrame(tick); return; }
+      sfx.warn(); vibrate(700, 1); s.classList.add('impact');
+      setTimeout(function(){
+        S.at = 'nasarus'; S.landed = true; S.visited.nasarus = Date.now();
+        S.pos = { map:'nasarus', x:HQ.ship.x + 2, y:HQ.ship.y + 1, dir:'down' }; S.stage = 'surface'; save();
+        fade(function(){ surface('nasarus'); });
+      }, reduced ? 50 : 700);
+    })(t0);
+  }
+  async function crashIntro(){
+    var crashed = !!S.flags.crashed;
+    S.flags.crashIntro = 1; S.flags.tutorialPad = 1; save();
+    await say(crashed ? ['You come to in the wreck. The hull is split and the drive is dead. Only the AstraNav is still glowing.',
+      'Outside: grey ground under a black sky. On the horizon, shapes too regular to be rock.',
+      'This world is on no chart. The log needs a name for it.']
+      : ['A drifting world, scattered with ruins. Nothing on it moves.', 'A good place for a headquarters. The log needs a name for it.']);
+    var nm = await naming({ title:'NAME THIS WORLD', suffix:'', def:HQ.canonicalName, max:12, world:true });
+    S.hq.name = nm; hqRecord((crashed ? 'Crash landing. ' : 'First landing. ') + 'The log names this world ' + nm + '.'); save();
+    surface('nasarus');
+    await say([nm + '. You write it on the first page of the log.',
+      'Walk with the arrows (or the stick), or tap the ground. A examines what you face. B toggles a slow, quiet STALK. NAV opens the AstraNav.',
+      crashed ? 'First, a camp: there is a staked patch of flat ground beside the wreck.' : 'Make camp on the staked ground, and this world becomes your headquarters.']);
+  }
+
+  // ── NASARUS in the field: plots, facilities, ruins, rubble, wreckage, the ship ──
+  async function hqUse(s){
+    deposit(true); hudRefresh();
+    if (s.kind === 'plot') {
+      var f = s.ref;
+      if (f.future) { await say(['A plot marked out for the ' + f.name + '. ' + f.does, '(A future expansion. Not yet available.)']); return; }
+      if (f.id === 'camp') {
+        var a0 = await say([S.flags.crashed ? 'A patch of flat ground beside the wreck. Pitch the shelter and stack what you salvage beside it?' : 'Pitch a shelter here and make this world your headquarters?'], ['MAKE CAMP', 'NOT YET']);
+        if (a0 === 0 && buildFac('camp')) await say(['The shelter is up and the stores are stacked. Rest at the CAMP SHELTER; anything you carry goes into the CAMP STORES.',
+          S.hq.drive ? 'The ruins are waiting.' : 'The drive needs SCRAP and CRYSTAL. Search the wreckage, the outcrops, and the ruins on the horizon.']);
+        return;
+      }
+      if (!canAfford(f.cost)) { await say(['A plot for the ' + f.name + '. ' + f.does, 'Needs ' + costText(f.cost) + '. In the stores: ' + missing(f.cost) + '.']); return; }
+      var a = await say(['A plot for the ' + f.name + '. ' + f.does, 'Build it for ' + costText(f.cost) + '?'], ['BUILD', 'LATER']);
+      if (a === 0) buildFac(f.id);
+      return;
+    }
+    if (s.kind === 'fac') {
+      var id = s.id;
+      if (id === 'camp') return rest();
+      if (id === 'nav') { if (navOnline() && !S.flags.charted) return navOnlineBoot(); return openNav('system'); }
+      return openNav({ stores:'hq', depot:'hq', research:'hq', workshop:'hq', archive:'cards', terminal:'hq', history:'hq' }[id] || 'hq',
+        { research:'research', workshop:'workshop', terminal:'restore', history:'history', stores:'mats', depot:'mats' }[id]);
+    }
+    if (s.kind === 'ruin') return hqRuin(s.ref);
+  }
+  async function hqRuin(u){
+    var rs = S.hq.ruins[u.id];
+    if (!rs) {
+      S.hq.ruins[u.id] = { found:Date.now() };
+      var got = gainAll(u.found, true); sfx.reveal(); vibrate(120, .4);
+      hqChanged('Surveyed: ' + u.label + ' (' + u.cat + ').');
+      await say([u.survey, 'SURVEYED · ' + u.label + ' · ' + u.cat.toUpperCase() + (got ? '. Recovered: ' + got + '.' : '.')].concat(u.dig ? ['Something lies buried here. A Restoration Terminal could manage an excavation.'] : []));
+      return;
+    }
+    if (rs.restored) { await say([u.label + (u.dig ? ' · excavated.' : ' · restored.'), HQ.recordNote]); return; }
+    if (!S.hq.built.terminal) { await say([u.survey, (u.dig ? 'Excavating' : 'Restoring') + ' it needs a RESTORATION TERMINAL at camp.']); return; }
+    if (!(u.requires || []).every(hqHas)) { await say([u.survey, 'Restoring it needs research first: ' + reqText(u.requires) + '.']); return; }
+    if (!canAfford(u.restore)) { await say([u.label + '. ' + (u.dig ? 'Excavation' : 'Restoration') + ' needs ' + costText(u.restore) + '. In the stores: ' + missing(u.restore) + '.']); return; }
+    var a = await say([u.label + '. ' + (u.dig ? 'Excavate' : 'Restore') + ' it for ' + costText(u.restore) + '?'], [u.dig ? 'EXCAVATE' : 'RESTORE', 'LATER']);
+    if (a === 0) restoreRuin(u.id);
+  }
+  async function hqRubble(){
+    var g = HQ.regions[0]; deposit(true);
+    if (!S.hq.built.workshop) { await say(['A rockfall blocks the way east. Beyond it, ' + g.name.toLowerCase() + '.', 'Clearing it needs tools from a WORKSHOP.']); return; }
+    if (!canAfford(g.cost)) { await say(['Clearing the rockfall needs ' + costText(g.cost) + '. In the stores: ' + missing(g.cost) + '.']); return; }
+    var a = await say(['Clear the rockfall for ' + costText(g.cost) + '?'], ['CLEAR IT', 'LATER']);
+    if (a === 0) clearRegion(g.id);
+  }
+  async function hqShip(){
+    deposit(true); hudRefresh();
+    if (!S.hq.built.camp) { await say(['The wreck of your ship. The drive is dead, and there is nowhere yet to keep salvage.', 'Make camp first, on the staked ground beside the wreck.']); return; }
+    if (!S.hq.drive) {
+      if (!canAfford(DRIVE_COST)) { await say(['The drive is dead. Repairing it needs ' + costText(DRIVE_COST) + '.', 'In the stores: ' + missing(DRIVE_COST) + '. Salvage the wreckage, and look for crystal outcrops.']); return; }
+      var a = await say(['Repair the drive for ' + costText(DRIVE_COST) + '?'], ['REPAIR', 'LATER']);
+      if (a === 0 && repairDrive() && !S.hq.built.nav) await say(['The drive turns over. Now it needs a course: build a NAVIGATION CENTER at camp.']);
+      return;
+    }
+    return boardShip();
+  }
+  async function hqPick(ch, x, y){
+    var got = takeOnce(x, y, ch === 'w' ? { scrap:1 + ((x * 3 + y) % 3 === 0 ? 1 : 0) } : ch === 'A' ? { crystal:2 } : { fibre:1 });
+    M.set(x, y, '.'); sfx.click(); vibrate(60, .3); hudRefresh();
+    await say([(ch === 'w' ? 'Wreckage from the crash. Twisted, but useful.' : ch === 'A' ? 'A crystal outcrop. You break off what you can carry.' : 'Grey scrub with tough, stringy fibre.') + (got ? ' (' + got + ')' : '')]);
+  }
+  async function rest(){
+    S.suit = 100; S.air = 100; S.flares = Math.max(S.flares, flaresMax()); healTeam(); save(); hudRefresh(); sfx.meet();
+    await say(['You rest in the shelter. SUIT and AIR refilled, flares restocked, your card team rested. The expedition is saved.']);
+  }
+
+  // ── AstraNav · the headquarters page ──
+  var xFrom = 'scrap', xTo = 'crystal';
+  function navHQ(body, sec){
+    var h = S.hq, at = onHQ(), stg = hqStage(), next = HQ.stages[stg];
+    var html = '<section class="x-arc riv x-hqhead" id="hq-top"><h3>' + esc(hqName()) + ' <b>STAGE ' + stg + ' · ' + esc(stageName(stg)) + '</b></h3>' +
+      '<div class="x-stages">' + HQ.stages.map(function(s2){ return '<span class="' + (s2.n <= stg ? 'on' : '') + (s2.future ? ' fut' : '') + '"><b>' + s2.n + '</b><i>' + esc(s2.name) + '</i></span>'; }).join('') + '</div>' +
+      (next && !next.future ? '<p class="x-mono light">NEXT · STAGE ' + next.n + (next.longTerm ? ' (LONG-TERM)' : '') + ' · ' + esc(next.needs.map(needLabel).join(' · ')) + '</p>' :
+        next ? '<p class="x-mono light">STAGE 5 · EMERGING WORLD is a future expansion.</p>' : '') +
+      (h.name !== HQ.canonicalName ? '<p class="x-mono dim">Canon name: ' + HQ.canonicalName + '. Your name for it: ' + esc(h.name) + '.</p>' : '') +
+      (at ? '' : '<p class="x-crt">AWAY FROM ' + esc(hqName()) + ' · return to deposit, build and restore</p>') + '</section>';
+    html += '<section class="x-arc riv" id="hq-mats"><h3>MATERIALS <b>PACK ' + packTotal() + '</b></h3><table class="x-mats"><tr><th></th><th>PACK</th><th>STORES</th></tr>' +
+      MATS.map(function(m){ return '<tr><td><b>' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (S.pack[m[0]] || 0) + '</td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
+      '<div class="x-sh-btns">' + (at && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>DEPOSIT PACK</button>' : '') +
+      (at && h.built.depot ? '<span class="x-xch">EXCHANGE <button class="x-btn ghost small" data-h="xfrom">' + matName(xFrom) + ' ×3</button> → <button class="x-btn ghost small" data-h="xto">' + matName(xTo) + ' ×1</button><button class="x-btn small" data-h="xgo">TRADE</button></span>' : '') + '</div></section>';
+    html += '<section class="x-arc riv" id="hq-fac"><h3>FACILITIES</h3><ul class="x-hqlist">' +
+      '<li class="' + (h.drive ? 'done' : '') + '"><b>THE DRIVE</b><span>Your ship’s drive, repaired at the wreck.</span><div>' + (h.drive ? '<em class="ok">REPAIRED</em>' : '<em>' + costText(DRIVE_COST) + '</em><em class="dim">AT THE WRECK</em>') + '</div></li>' +
+      HQ.facilities.map(function(f){
+        var b = h.built[f.id], req = (f.requires || []).filter(function(k){ return !hqHas(k); }), act;
+        if (b) act = '<em class="ok">BUILT</em>';
+        else if (f.future) act = '<em class="dim">FUTURE EXPANSION</em>';
+        else if (req.length) act = '<em class="dim">NEEDS ' + esc(reqText(f.requires)) + '</em>';
+        else if (f.free) act = '<em class="dim">AT THE STAKED PLOT</em>';
+        else act = '<em>' + costText(f.cost) + '</em>' + (at ? '<button class="x-btn small" data-b="' + f.id + '"' + (canAfford(f.cost) ? '' : ' disabled') + '>BUILD</button>' : '');
+        return '<li class="' + (b ? 'done' : '') + '"><b>' + esc(f.name) + '</b><span>' + esc(f.does) + '</span><div>' + act + '</div></li>';
+      }).join('') + '</ul></section>';
+    if (h.built.research) html += '<section class="x-arc riv" id="hq-research"><h3>RESEARCH STATION</h3><ul class="x-hqlist">' + HQ.research.map(function(r){
+      var done = h.research[r.id], req = (r.requires || []).filter(function(k){ return !hqHas(k); });
+      return '<li class="' + (done ? 'done' : '') + '"><b>' + esc(r.name) + '</b><span>' + esc(r.effect) + '</span><div>' + (done ? '<em class="ok">DONE</em>' : req.length ? '<em class="dim">NEEDS ' + esc(reqText(r.requires)) + '</em>' :
+        '<em>' + costText(r.cost) + '</em>' + (at ? '<button class="x-btn small" data-r="' + r.id + '"' + (canAfford(r.cost) ? '' : ' disabled') + '>RESEARCH</button>' : '')) + '</div></li>';
+    }).join('') + '</ul></section>';
+    if (h.built.workshop) {
+      var g = HQ.regions[0], open = h.regions.indexOf(g.id) >= 0;
+      html += '<section class="x-arc riv" id="hq-workshop"><h3>WORKSHOP</h3><ul class="x-hqlist">' +
+        '<li><b>RECALL FLARE</b><span>Craft a flare. You carry ' + S.flares + ' of ' + flaresMax() + '.</span><div><em>FIBRE 2 · SCRAP 1</em>' + (at ? '<button class="x-btn small" data-w="flare"' + (canAfford({ fibre:2, scrap:1 }) && S.flares < flaresMax() ? '' : ' disabled') + '>CRAFT</button>' : '') + '</div></li>' +
+        '<li class="' + (open ? 'done' : '') + '"><b>' + esc(g.name) + '</b><span>' + esc(g.does) + '</span><div>' + (open ? '<em class="ok">OPEN</em>' : '<em>' + costText(g.cost) + '</em>' + (at ? '<button class="x-btn small" data-w="clear"' + (canAfford(g.cost) ? '' : ' disabled') + '>CLEAR</button>' : '')) + '</div></li></ul></section>';
+    }
+    html += '<section class="x-arc riv" id="hq-restore"><h3>' + (h.built.terminal ? 'RESTORATION TERMINAL' : 'THE RUINS') + ' <b>' + Object.keys(h.ruins).length + '/' + HQ.ruins.length + ' SURVEYED · ' + hqRestored() + ' RESTORED</b></h3><ul class="x-hqlist">' + HQ.ruins.map(function(u){
+      var rs = h.ruins[u.id];
+      if (!rs) return '<li><b>? · UNSURVEYED SITE</b><span>' + (h.research['r-survey'] ? esc(u.cat) + (u.region ? ' · beyond the rockfall' : '') : 'Somewhere on ' + esc(hqName()) + '.') + '</span><div></div></li>';
+      var act;
+      if (rs.restored) act = '<em class="ok">' + (u.dig ? 'EXCAVATED' : 'RESTORED') + '</em>';
+      else if (!h.built.terminal) act = '<em class="dim">NEEDS RESTORATION TERMINAL</em>';
+      else if (!(u.requires || []).every(hqHas)) act = '<em class="dim">NEEDS ' + esc(reqText(u.requires)) + '</em>';
+      else act = '<em>' + costText(u.restore) + '</em>' + (at ? '<button class="x-btn small" data-u="' + u.id + '"' + (canAfford(u.restore) ? '' : ' disabled') + '>' + (u.dig ? 'EXCAVATE' : 'RESTORE') + '</button>' : '');
+      return '<li class="' + (rs.restored ? 'done' : '') + '"><b>' + esc(u.label) + '</b><span>' + esc(u.cat) + ' · ' + esc(u.survey) + '</span><div>' + act + '</div></li>';
+    }).join('') + '</ul></section>';
+    if (h.built.history) html += '<section class="x-arc riv" id="hq-history"><h3>HISTORICAL ARCHIVE</h3><p class="x-mono light">Haemen and Aethren lived on ' + HQ.canonicalName + ' before the First Eternal War. Why it was abandoned is not known.</p><ul class="x-hqlist">' +
+      HQ.ruins.filter(function(u){ return h.ruins[u.id]; }).map(function(u){ return '<li class="done"><b>' + esc(u.label) + '</b><span>' + esc(u.cat.toUpperCase()) + '</span><em>' + esc(u.survey) + ' ' + esc(HQ.recordNote) + '</em></li>'; }).join('') + '</ul></section>';
+    html += '<section class="x-arc riv" id="hq-records"><h3>RESTORATION RECORDS</h3><ol class="x-records">' + h.records.slice().reverse().map(function(r){ return '<li>' + esc(r.text) + '</li>'; }).join('') + '</ol></section>';
+    body.innerHTML = html;
+    if (sec) { var t = $('#hq-' + sec, body); if (t) setTimeout(function(){ try { t.scrollIntoView({ block:'start' }); } catch(e){} }, 30); }
+    body.onclick = function(e){
+      var b = e.target.closest('button'); if (!b || b.disabled) return;
+      var d = b.dataset, keep = sec, ok = true;
+      if (d.h === 'deposit') { deposit(); keep = 'mats'; }
+      else if (d.h === 'xfrom') { xFrom = MATS[(MATS.map(function(m){ return m[0]; }).indexOf(xFrom) + 1) % MATS.length][0]; keep = 'mats'; }
+      else if (d.h === 'xto') { xTo = MATS[(MATS.map(function(m){ return m[0]; }).indexOf(xTo) + 1) % MATS.length][0]; keep = 'mats'; }
+      else if (d.h === 'xgo') { ok = exchange(xFrom, xTo); keep = 'mats'; }
+      else if (d.b) { ok = buildFac(d.b); keep = 'fac'; }
+      else if (d.r) { ok = study(d.r); keep = 'research'; }
+      else if (d.u) { ok = restoreRuin(d.u); keep = 'restore'; }
+      else if (d.w === 'flare') { ok = craftFlare(); keep = 'workshop'; }
+      else if (d.w === 'clear') { ok = clearRegion('basin'); keep = 'workshop'; }
+      else return;
+      if (!ok) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); }
+      else sfx.click();
+      setTimeout(function(){ if (doc.querySelector('.x-nav-hq')) nav('hq', keep); }, 30);
+    };
   }
 
   // ═════════════════════════ CANVAS LOOP ═════════════════════════
@@ -1181,7 +1534,7 @@
   function worldNo(){ return M.world; }
   function zoneOf(x, y){ var d = GEN.zoneAt(M, x, y); return d ? d.id : null; }
   function surface(mapId){
-    M = GEN.build(mapId);
+    M = buildMap(mapId);
     if (!M) { ship(); return; }
     specCache = {};
     S.stage = 'surface'; S.landed = true; if (M.world) S.at = M.world;
@@ -1195,12 +1548,14 @@
     });
     npcs = M.npcs.map(function(n){ return Object.assign({}, n); });
     fogArr = fogDec(S.fog[mapId], M.W * M.H);
+    if (M.hq && S.hq.research['r-survey']) fogArr.fill(1);
     dialogOpen = false; encounterOpen = false; path = []; held = null; dlg = null; zoneId = null;
     screen('x-surface',
       '<div class="x-hud riv"><div class="x-zone"><b class="x-zn"></b><span class="x-zw"></span></div>' +
         '<div class="x-gauges">' + gauge('SUIT','suit') + gauge('AIR','air') + '</div>' +
         '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
         '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
+      '<p class="x-objhint" aria-live="polite"></p>' +
       '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ STALK · □ SCAN · △ ASTRANAV</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
       '<div class="x-ab"><button class="x-b" aria-label="B: back, or stalk">B<small>STALK</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
@@ -1211,6 +1566,8 @@
     revealFog();
     checkZone(true);
     save();
+    if (M.hq && !S.flags.crashIntro) { setTimeout(crashIntro, 300); return; }
+    if (S.flags.hqNew) { S.flags.hqNew = false; save(); setTimeout(function(){ toast('A new body on the AstraNav: a drifting world with ruins. Set course for ' + hqName() + ' to make your headquarters.'); }, 800); }
     if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Walk with the arrows (or the stick), or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B toggles STALK, a slow and quiet walk.', 'NAV opens the AstraNav: the star map, your cards, the Codex and everything else.']); }
   }
   function gauge(label, id){
@@ -1218,6 +1575,7 @@
       '<line x1="30" y1="36" x2="30" y2="15" class="x-needle"/><circle cx="30" cy="36" r="3"/></svg><span>' + label + '</span></div>';
   }
   function zoneName(){
+    if (M.hq) return hqName();
     if (M.indoor) return term(M.location);
     if (M.world === 9) return term(zoneId || 'malezor');
     return term(WORLD[M.world].term);
@@ -1225,7 +1583,8 @@
   function hudRefresh(){
     var zn = $('.x-zn'); if (!zn || !M) return;
     zn.textContent = zoneName();
-    $('.x-zw').textContent = M.world === 9 ? term('zyraxis') : M.indoor ? term(M.name) : setName(M.world).replace(/ — .*/, '');
+    $('.x-zw').textContent = M.hq ? 'HEADQUARTERS · STAGE ' + hqStage() + ' · PACK ' + packTotal() : M.world === 9 ? term('zyraxis') : M.indoor ? term(M.name) : setName(M.world).replace(/ — .*/, '') + ' · PACK ' + packTotal();
+    var oh = $('.x-objhint'); if (oh) { var nx = objectives().filter(function(o){ return !o.done && !o.main; })[0]; oh.textContent = nx ? '▸ ' + nx.t : ''; }
     [['suit', S.suit], ['air', S.air]].forEach(function(g){
       var n = $('[data-g="' + g[0] + '"] .x-needle'); if (n) n.style.transform = 'rotate(' + (-80 + clamp(g[1], 0, 100) / 100 * 160) + 'deg)';
       var box = $('[data-g="' + g[0] + '"]'); if (box) box.classList.toggle('low', g[1] < 25);
@@ -1306,7 +1665,8 @@
   var saveTimer = 0, airTimer = 0;
   function hazardDrain(){
     var e = M.env(P.x, P.y), r = e && e.hazard && e.hazard.rule || '';
-    return { air:M.indoor ? 0 : .16 * (/AIR/.test(r) ? 1.8 : 1), suit:/SUIT/.test(r) ? .06 : 0 };
+    var k = S.hq.research['r-air'] ? .65 : 1;
+    return { air:M.indoor ? 0 : (M.hq ? .08 : .16 * (/AIR/.test(r) ? 1.8 : 1)) * k, suit:/SUIT/.test(r) ? .06 * (S.hq.research['r-suit'] ? .65 : 1) : 0 };
   }
   function updateSurface(dt, now){
     if (!P) return;
@@ -1420,7 +1780,15 @@
     var f = facing(), ch = at(f.x, f.y), c = critterAt(f.x, f.y), n = npcAt(f.x, f.y), i = f.y * M.W + f.x;
     if (c) { encounter(c, false); return; }
     if (n) { n.dir = { up:'down', down:'up', left:'right', right:'left' }[P.dir]; talkPeople(n); return; }
+    if (M.hq) {
+      if (ch === 'F' && M.sidx[i] != null) return hqUse(M.structs[M.sidx[i]]);
+      if (ch === 'S') return hqShip();
+      if (ch === 'X') return hqRubble();
+      if (ch === 'w' || ch === 'A' || ch === 'b') return hqPick(ch, f.x, f.y);
+    }
     var no = M.world;
+    if (ch === 'b' || ch === 'T') { takeOnce(f.x, f.y, { fibre:2 }); hudRefresh(); }
+    if (ch === 'A') { takeOnce(f.x, f.y, { crystal:2 }); hudRefresh(); }
     if (ch === 'b') return examineSpecimen(no === 9 ? 'shrub' : 'pl_' + no);
     if (ch === 'T') return examineSpecimen(no === 9 ? 'fruittree' : 'pl_' + no);
     if (ch === 'A') return examineSpecimen(no === 9 ? 'astralite' : 'mn_' + no, true);
@@ -1429,12 +1797,13 @@
     if (ch === 'S') return boardShip();
     if (ch === 'X') return say([M.signs[i] || 'A route marker.']);
     if (ch === 'B') return say(['A heavy boulder, streaked with something that glints.']);
-    if (ch === 'P') return say([propLine(M.props[i])]);
+    if (ch === 'P') { var pk = (M.props[i] || [])[0], pm = { pylon:{ scrap:1 }, vent:{ scrap:1 }, pillar:{ scrap:1 }, spire:{ crystal:1 }, deadtree:{ fibre:1 }, tree:{ fibre:1 }, shrub:{ fibre:1 } }[pk];
+      var pg = pm ? takeOnce(f.x, f.y, pm) : ''; hudRefresh(); return say([propLine(M.props[i])].concat(pg ? ['You take what you can carry: ' + pg + '.'] : [])); }
     if (ch === '#') return say([M.indoor ? 'Fitted stone. The joints are too fine for hand tools.' : 'Rock, too steep to climb without gear.']);
     if (ch === '~') return say([M.env(f.x, f.y).tiles.liquid === 'cloud' ? 'Cloud, far below the edge. Nothing to stand on.' : 'Cold, clear liquid. Something moves under the surface.']);
     var hid = M.id + ':' + f.x + ',' + f.y;
     if (ch === '*' && !S.found[hid]) {
-      S.found[hid] = 1; var k = Object.keys(S.found).length % 2; sfx.reveal(); vibrate(60, .3);
+      S.found[hid] = 1; var k = Object.keys(S.found).length % 2; sfx.reveal(); vibrate(60, .3); gain('scrap', 2);
       if (k === 1) { S.air = Math.min(100, S.air + 40); save(); hudRefresh(); return say(['A spare air cylinder from your own kit, lost on landing. Still charged.', 'AIR +40']); }
       S.flares++; save(); return say(['A signal flare, wrapped in oilcloth.', 'FLARES +1']);
     }
@@ -1515,6 +1884,7 @@
   }
   async function examineLandmark(lm){
     var first = mark(lm.id, 'reached'); S.notes[lm.id] = 1; save();
+    if (first) gainAll({ relic:1, data:4 });
     await say([known(lm.id) ? title1936(term(lm.id)) + '. ' + subj(lm.id).journal : subj(lm.id).journal,
       known(lm.id) ? 'The Codex has its name.' : 'Its name is not in your journal. The people of this world will know it.']);
     if (first) toast('NEW FIELD RECORD · ' + term(lm.id));
@@ -1553,6 +1923,14 @@
       if (ch === 'A') { g.fillStyle = '#3b5bd6'; g.fillRect(X + 1, Y + 1, s - 2, s - 2); }
     }
     npcs.forEach(function(n){ if (fogArr[n.y * M.W + n.x] && n.x >= vx && n.y >= vy && n.x < vx + VW && n.y < vy + VH) { g.fillStyle = '#7a3a8a'; g.beginPath(); g.arc(ox + (n.x - vx + .5) * s, oy + (n.y - vy + .5) * s, 3, 0, 7); g.fill(); } });
+    if (M.structs) M.structs.forEach(function(st){
+      var seen = fogArr[st.y * M.W + st.x] || S.hq.research['r-survey']; if (!seen) return;
+      var rs = st.kind === 'ruin' && S.hq.ruins[st.id];
+      g.fillStyle = st.kind === 'fac' ? '#3a6ab8' : st.kind === 'plot' ? '#9a9080' : rs && rs.restored ? '#3a9a5a' : rs ? '#e0a030' : '#b8862a';
+      g.fillRect(ox + (st.x - vx) * s - 1, oy + (st.y - vy) * s - s, st.w * s + 2, s + 2);
+      if (st.kind === 'ruin' && !rs) { g.fillStyle = '#2a2118'; g.font = 'bold 10px Courier Prime, monospace'; g.fillText('?', ox + (st.x - vx) * s, oy + (st.y - vy) * s); }
+    });
+    if (M.hq) for (var ry = vy; ry < vy + VH; ry++) for (var rx = vx; rx < vx + VW; rx++) if (at(rx, ry) === 'X' && fogArr[ry * M.W + rx]) { g.fillStyle = '#9b2a1f'; g.fillRect(ox + (rx - vx) * s, oy + (ry - vy) * s, s, s); }
     if (M.districts) M.districts.forEach(function(d){
       g.strokeStyle = 'rgba(90,60,30,.4)'; g.setLineDash([4, 4]); g.strokeRect(ox + (d.x - vx) * s, oy + (d.y - vy) * s, d.w * s, d.h * s); g.setLineDash([]);
       if (S.seen[d.id]) { g.fillStyle = '#5a4a36'; g.font = '11px Courier Prime, monospace'; g.fillText(term(d.id), ox + (d.x - vx) * s + 4, oy + (d.y - vy) * s + 13); }
@@ -1602,7 +1980,7 @@
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save();
     var pid = no === 9 ? 'ppl_z_' + district : 'ppl_w' + no;
     reclassify(teachTerms(no, district), intro, async function(){
-      S.lore[key] = Date.now(); save();
+      S.lore[key] = Date.now(); gain('data', 10, true); save();
       surface(mapId);
       if (subj(pid)) { mark(pid, 'talk'); var first = manifest(pid, null, false); await cardReveal(pid, first, 'RELATIONSHIP · CARD ACQUIRED'); }
       toast('THE CODEX · ' + term(no === 9 ? district : WORLD[no].term) + ' · new pages');
@@ -1635,7 +2013,7 @@
   async function examineRecord(rec){
     var no = M.world, key = rec.key, fid = 'rec:' + key + ':' + rec.n, pe = FAUNA.peoples[no] || {};
     if (!S.found[fid]) {
-      S.found[fid] = 1; save();
+      S.found[fid] = 1; gain('data', 3, true); save();
       await say(['Carved, grown or pressed into the surface: a record. ' + (pe.record || ''), 'You copy it into the field journal.']);
     } else await say(['A record you have already copied.']);
     var copied = M.records.filter(function(r){ return S.found['rec:' + key + ':' + r.n]; }).length;
@@ -1684,7 +2062,7 @@
       c.state = 'flee';
       toast('It bolted before you got close. Try STALKING (B).', 'red'); return;
     }
-    if (charged) { S.suit = Math.max(0, S.suit - 18); save(); hudRefresh(); sfx.warn(); vibrate(220, 1); if (S.suit <= 0) { recall('SUIT'); return; } }
+    if (charged) { S.suit = Math.max(0, S.suit - suitDmg(18)); save(); hudRefresh(); sfx.warn(); vibrate(220, 1); if (S.suit <= 0) { recall('SUIT'); return; } }
     if (charged && team.length) { battle(c, true); return; }
     encounterOpen = true; held = null; path = [];
     var dist = 2 + Math.round(Math.random() * 3), acted = 0, gone = false, tune = .5, t0 = performance.now();
@@ -1714,7 +2092,7 @@
     typeInto(msg, charged ? 'It charges! You throw yourself aside. SUIT damaged. No cards to battle with: scan it, or retreat.' :
       intro + (team.length ? '' : ' (Card battles open once you have scanned a creature.)'), 14);
 
-    function lockErr(){ return Math.abs(tune - needFor(dist)); }
+    function lockErr(){ return Math.abs(tune - needFor(dist)) * (S.hq.research['r-scan'] ? .74 : 1); }
     function wingOffset(){ var t = (performance.now() - t0) / 1000; return Math.sin(t * 2.6) * Math.sin(t * 1.3); }
     var raf3 = 0;
     (function tick(){
@@ -1730,7 +2108,7 @@
     function react(){
       acted++;
       if (s.temperament === 'territorial' && acted >= 2 && !gone) {
-        S.suit = Math.max(0, S.suit - 18); save(); hudRefresh(); sfx.warn(); vibrate(180, 1);
+        S.suit = Math.max(0, S.suit - suitDmg(18)); save(); hudRefresh(); sfx.warn(); vibrate(180, 1);
         o.classList.remove('hit'); void o.offsetWidth; o.classList.add('hit');
         typeInto(msg, 'It charges again! SUIT damaged. Time to go, or fight.', 14);
         if (S.suit <= 0) { end(); recall('SUIT'); return true; }
@@ -1793,7 +2171,7 @@
       sfx.shutter(); vibrate(160, .35);
       o.classList.remove('flash'); void o.offsetWidth; o.classList.add('flash');
       if (g === 'excellent' || g === 'good') {
-        var first = manifest(c.id, null, g === 'excellent', c.lv); S.notes[c.id] = 1; save();
+        var first = manifest(c.id, null, g === 'excellent', c.lv); S.notes[c.id] = 1; gain('data', first ? 4 : 1, true); save();
         await typeInto(msg, (g === 'excellent' ? 'PERFECT LOCK. ' : 'LOCKED. ') + 'Scanned into the AstraNav.', 10);
         await wait(500); end(); hudRefresh();
         c.calm = 60;
@@ -1887,7 +2265,7 @@
         await say2('The AstraNav sweeps it . . .');
         if (g !== 'fair') {
           over = true; mark(foe.sp, 'battled');
-          var first = manifest(foe.sp, null, g === 'excellent', foe.lv); S.notes[foe.sp] = 1; save();
+          var first = manifest(foe.sp, null, g === 'excellent', foe.lv); S.notes[foe.sp] = 1; gain('data', first ? 4 : 1, true); save();
           await say2((g === 'excellent' ? 'PERFECT LOCK! ' : 'LOCKED! ') + subjName(foe.sp) + ' is in the AstraNav. It slips away, unharmed.');
           c.calm = 120; c.state = 'idle'; await wait(400); close();
           await cardReveal(foe.sp, first, first ? 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED' : 'SCANNED AGAIN · QUANTITY +1');
@@ -1905,11 +2283,11 @@
     }
     async function win(){
       over = true; mark(foe.sp, 'battled'); S.notes[foe.sp] = 1;
-      var tier = SP[foe.sp].tier || 1, gain = Math.round(8 + foe.lv * 5 * Math.sqrt(tier));
+      var tier = SP[foe.sp].tier || 1, xp = Math.round((8 + foe.lv * 5 * Math.sqrt(tier)) * (S.hq.research['r-cards'] ? 1.3 : 1)); gain('data', 2, true);
       $('.x-bt-mon.foe', o).classList.add('calmed');
       await say2(subjName(foe.sp) + ' is calmed! It stops, and watches you.');
-      var cd = S.cards[me.id]; cd.xp = (cd.xp || 0) + gain; cd.hp = me.hp;
-      await say2(subjName(me.id) + ' gained ' + gain + ' experience.');
+      var cd = S.cards[me.id]; cd.xp = (cd.xp || 0) + xp; cd.hp = me.hp;
+      await say2(subjName(me.id) + ' gained ' + xp + ' experience. +2 DATA.');
       while (cd.xp >= cd.lv * 12 + 20 && cd.lv < 100) {
         cd.xp -= cd.lv * 12 + 20; var oldMax = maxHp(me.id); cd.lv++; cd.hp = Math.min(maxHp(me.id), cd.hp + maxHp(me.id) - oldMax);
         load(me.id); paint(); sfx.reveal(); vibrate(80, .4);
@@ -1923,7 +2301,7 @@
       subm.onclick = async function(ev){
         var b = ev.target.closest('[data-w]'); if (!b) return;
         if (b.dataset.w === 'photo') {
-          var first = manifest(foe.sp, null, true, foe.lv); S.notes[foe.sp] = 1; save(); sfx.shutter(); vibrate(160, .35);
+          var first = manifest(foe.sp, null, true, foe.lv); S.notes[foe.sp] = 1; gain('data', first ? 4 : 1, true); save(); sfx.shutter(); vibrate(160, .35);
           o.classList.remove('flash'); void o.offsetWidth; o.classList.add('flash');
           subm.hidden = true;
           await say2('It holds perfectly still. A perfect scan.');
@@ -1937,7 +2315,7 @@
     async function lose(){
       over = true;
       await say2('Your cards are spent! You fall back, and it lets you go.');
-      S.suit = Math.max(1, S.suit - 15); save(); c.cool = 10; c.calm = 30;
+      S.suit = Math.max(1, S.suit - suitDmg(15)); save(); c.cool = 10; c.calm = 30;
       await wait(500); close();
     }
     function close(){ o.remove(); encounterOpen = false; hudRefresh(); }
@@ -1998,7 +2376,7 @@
     else s = (t.ground === 'grass' && key.indexOf('v') > 0 ? 'grass2' : t.ground) + '@' + id + '-ground';
     return (specCache[key] = s);
   }
-  var OBJ = 'TbBAMXPLS';
+  var OBJ = 'TbBAMXPLSwF';
   function objSpec(ch, i, e, now){
     var no = M.world;
     if (ch === 'T') return 'tree';
@@ -2006,7 +2384,8 @@
     if (ch === 'B') return 'boulder@' + e.id + '-wall';
     if (ch === 'A') return no === 9 ? ART.frame('astralite', 'any', now / 500) : 'astralite@mn-' + no;
     if (ch === 'M') return M.indoor || no === 9 ? 'markings' : 'markings@' + e.id + '-wall';
-    if (ch === 'X') return 'sign';
+    if (ch === 'X') return M.hq ? 'hq_rubble' : 'sign';
+    if (ch === 'w') return 'hq_scrap';
     if (ch === 'L') return 'spire@lm-gold';
     if (ch === 'P') { var p = M.props[i]; return p ? p[0] + (p[1] ? '@' + e.id + '-' + p[1] : '') : 'boulder'; }
     return null;
@@ -2021,19 +2400,22 @@
     var fr = Math.floor(now / 650) % 2, list = [], x, y;
     for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
       var i = y * M.W + x, ch = M.grid[i], ri = M.region[i];
-      var under = OBJ.indexOf(ch) >= 0 || ch === '*' ? '.' : ch;
+      var under = OBJ.indexOf(ch) >= 0 || ch === '*' ? (ch === 'X' && M.hq ? 'd' : '.') : ch;
       var cnv = ART.canvas(tileSpec(ri, under, x, y, fr));
       if (cnv) ctx.drawImage(cnv, ox + x * TZ, oy + y * TZ, TZ, TZ);
-      if (OBJ.indexOf(ch) >= 0 && ch !== 'S') list.push({ k:ch, i:i, x:x, y:y, s:y, ri:ri });
+      if (OBJ.indexOf(ch) >= 0 && ch !== 'S' && ch !== 'F') list.push({ k:ch, i:i, x:x, y:y, s:y, ri:ri });
     }
     if (M.ship) { ctx.fillStyle = 'rgba(40,24,12,.35)'; ctx.beginPath(); ctx.ellipse(ox + (M.ship.x + .5) * TZ, oy + (M.ship.y + .85) * TZ, 1.2 * TZ, .4 * TZ, 0, 0, 7); ctx.fill(); list.push({ k:'ship', x:M.ship.x, y:M.ship.y, s:M.ship.y + .1 }); }
     npcs.forEach(function(n){ if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1) list.push({ k:'npc', n:n, x:n.x, y:n.y, s:n.y }); });
+    (M.structs || []).forEach(function(st){ if (st.x + st.w >= x0 - 2 && st.x <= x1 + 2 && st.y >= y0 - 1 && st.y <= y1 + 4) list.push({ k:'struct', st:st, x:st.x, y:st.y, s:st.y }); });
     critters.forEach(function(c){ if (c.x >= x0 - 1 && c.x <= x1 + 1 && c.y >= y0 - 1 && c.y <= y1 + 1) list.push({ k:'critter', c:c, s:c.fy + (c.flies ? .5 : 0) }); });
     list.push({ k:'player', s:P.fy + .01 });
     list.sort(function(a, b){ return a.s - b.s; });
     list.forEach(function(o){
       var X = ox + ((o.c ? o.c.fx : o.k === 'player' ? P.fx : o.x) + .5) * TZ, Y = oy + ((o.c ? o.c.fy : o.k === 'player' ? P.fy : o.y) + 1) * TZ;
-      if (o.k === 'ship') ART.draw(ctx, 'ship', X, Y + 2 * z, z);
+      if (o.k === 'struct') { ART.draw(ctx, o.st.spr, ox + (o.st.x + o.st.w / 2) * TZ, Y, z); return; }
+      if (o.k === 'ship') { ART.draw(ctx, 'ship', X, Y + 2 * z, z);
+        if (M.hq && !S.hq.drive) for (var sm = 0; sm < 4; sm++) { var ph = ((now / 1600) + sm / 4) % 1; ctx.fillStyle = 'rgba(70,66,60,' + (.45 * (1 - ph)).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(X + Math.sin(ph * 6 + sm) * 6 * z, Y - (26 + ph * 26) * z, (3 + ph * 6) * z, 0, 7); ctx.fill(); } }
       else if (o.k === 'npc') { shadow(X, Y, z, 10); ART.draw(ctx, o.n.key === 'furtrader' ? ART.frame('haemen', o.n.dir, 0) : withRc(ART.frame('haemen', o.n.dir, 0), 'ppl-' + o.n.env), X, Y, z); }
       else if (o.k === 'critter') drawCritter(o.c, X, Y, z, now);
       else if (o.k === 'player') drawPlayer(X, Y, z);
@@ -2055,7 +2437,7 @@
     // facing marker: what A will examine (pocket-style corner brackets)
     if (!P.moving && !dialogOpen) {
       var f = facing(), fx = ox + f.x * TZ, fy = oy + f.y * TZ, fc = at(f.x, f.y);
-      var interesting = 'TbAMSXBLP'.indexOf(fc) >= 0 || critterAt(f.x, f.y) || npcAt(f.x, f.y);
+      var interesting = 'TbAMSXBLPwF'.indexOf(fc) >= 0 || critterAt(f.x, f.y) || npcAt(f.x, f.y);
       if (interesting && Math.floor(now / 400) % 2) {
         ctx.fillStyle = '#ffe08a';
         [[0,0],[T-3,0],[0,T-3],[T-3,T-3]].forEach(function(c){ ctx.fillRect(fx + c[0] * z, fy + c[1] * z, 3 * z, z); ctx.fillRect(fx + c[0] * z + (c[0] ? 2 * z : 0), fy + c[1] * z, z, 3 * z); });
@@ -2220,7 +2602,9 @@
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },
-    nav:navFocus, activate:activate, back:goBack, btnA:function(){ btnA(); } };
+    nav:navFocus, activate:activate, back:goBack, btnA:function(){ btnA(); },
+    hq:function(){ return S.hq; }, pack:function(){ return S.pack; }, give2:function(o){ gainAll(o, true); }, store:function(o){ Object.keys(o).forEach(function(k){ S.hq.store[k] = (S.hq.store[k] || 0) + o[k]; }); save(); },
+    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash };
   applyOpts();
   if (S) applyLook();
   title();

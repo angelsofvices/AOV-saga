@@ -103,6 +103,14 @@ window.AOV_HQ = {
     { id: 'r-cards',   name: 'CARD CONDITIONING',     cost: { data: 15, fibre: 3 },   requires: ['archive'],  effect: 'Your cards gain 30% more experience.' },
     { id: 'r-pack',    name: 'EXPEDITION PACK',       cost: { data: 10, fibre: 4 },   requires: ['workshop'], effect: 'Carry four recall flares instead of two.' }
   ],
+  // AIR TANKS (Workshop). Only NASARUS holds an oxygen supply: the tank refills at the base and nowhere else.
+  // cap is the tank's capacity in AIR units (the stock tank holds 100).
+  airTanks: [
+    { id: 'tank2', name: 'AIR TANK MK II',  cap: 150, cost: { scrap: 6, crystal: 4, data: 8 },            requires: ['workshop'],
+      does: 'A second cylinder strapped beside the first. Half again as much air on every expedition.' },
+    { id: 'tank3', name: 'AIR TANK MK III', cap: 220, cost: { scrap: 10, crystal: 8, relic: 2, data: 16 }, requires: ['tank2', 'r-air'],
+      does: 'Pressurised cylinders, refitted with what the Air Recycler taught. More than twice the stock tank.' }
+  ],
   // STAGES (handoff §7). 4 and 5 are long-term; 5 is a future expansion and never completes here.
   stages: [
     { n: 1, name: 'CRASH SITE',             needs: [] },

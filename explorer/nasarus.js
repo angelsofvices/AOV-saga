@@ -22,6 +22,16 @@ window.AOV_HQ = {
     ['relic',   'RELICS',  'Recovered artifacts from ruins and landmarks'],
     ['data',    'DATA',    'Survey data from scans, peoples and records']
   ],
+  // Developer-room machines. These are canonical machine IDs before they are
+  // assigned to ordinary worlds and crafting recipes.
+  machines: [
+    { id:'rocketship',   name:'ROCKETSHIP',    sprite:'machine_rocketship',   use:'rocketship',   does:'A flying vehicle test platform.' },
+    { id:'astranav',    name:'ASTRANAV',      sprite:'machine_astranav',    use:'astranav',    does:'Opens navigation, survey and the living record.' },
+    { id:'workstation', name:'WORKSTATION',   sprite:'machine_workstation', use:'workstation', does:'The general machine test bench for recipes and item logic.' },
+    { id:'cloning_pod', name:'CLONING POD',   sprite:'machine_cloning_pod', use:'cloning_pod', does:'The machine test for making a scanned creature available as a companion.' },
+    { id:'generator',   name:'GENERATOR',     sprite:'machine_generator',   use:'generator',   does:'Supplies developer power to machines in the test room.' },
+    { id:'jetpack',     name:'JETPACK',       sprite:'machine_jetpack',     use:'jetpack',     does:'A movement modification test for the player.' }
+  ],
   // the ground of NASARUS: desolate, grey-ochre, split by drift fissures (palettes recolour art.js tiles)
   env: {
     id: 'nasarus', kind: 'hq', name: 'NASARUS', title: 'The headquarters world',

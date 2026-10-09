@@ -260,6 +260,20 @@
       "kNNnNNNN",
       ".kkkkkkk",
       "........"] },
+    dev_chest: { group:"machines", sym:true, note:"Developer room supply chest.",
+      rows:["........","..kkkk..",".kYYYYk.","kYooooYk","kYoyyoYk","kYooooYk","kYYYYYYk",".kkkkkk.","..kyyk..","..kyyk..","..kkkk..","........","........","........","........","........"] },
+    machine_rocketship: { group:"machines", sym:true, note:"AOV Saga rocketship test machine.",
+      rows:["....kk....","...kCCk...","..kCccCk..",".kCccccCk.","kcccccccck",".kccYYcck.","..kYYYYk..","...kYYk...","...kyyk...","..kYYYYk..",".kYooooYk.","kYooooooYk",".kkkkkkkk.","....kk....","....kk....","............"] },
+    machine_astranav: { group:"machines", sym:true, note:"AstraNav developer machine.",
+      rows:["..kkkkkk..",".kCccccCk.","kCccYcccCk","kccYYYccck","kccYyYcck.","kccYYYcck.","kCccYcccCk",".kCccccCk.","..kkkkkk..","...kyyk...","...kyyk...","..kYYYYk..",".kkkkkkkk.","............","............","............"] },
+    machine_workstation: { group:"machines", sym:true, note:"AOV Saga workstation.",
+      rows:["....kkkk....","...kmmmmk...","..kmmmmmmk..",".kmmCCCCmmk.","kmmCCCCCCmmk","kmmmmmmmmmmk","kmmmmmmmmmmk",".kmmmmmmmmk.","..kkkkkkkk..","...kbbbbk...","..kbbbbbbk..",".kbbbbbbbbk.","kbbbbbbbbbbk","..kkkkkkkk..","............","............"] },
+    machine_cloning_pod: { group:"machines", sym:true, note:"Cloning pod developer machine.",
+      rows:["...kkkkkk...","..kCccccCk..",".kCccccccCk.","kCccccccccCk","kccYYccYYck","kccYyyYycck","kccYYccYYck","kCccccccccCk",".kCccccccCk.","..kCccccCk..","...kkkkkk...","...kYYYYk...","..kYYYYYYk..",".kkkkkkkkkk.","............","............"] },
+    machine_generator: { group:"machines", sym:true, note:"Generator developer machine.",
+      rows:["....kkkk....","...krrrrk...","..kRrrrrRk..",".kRrYYrrRk.","kRrYYYYrrRk","kRrYyyYrRk.","kRrYYYYrrRk",".kRrYYrrRk.","..kRrrrrRk..","...krrrrk...","....kkkk....","...kbbbbk...","..kbbbbbbk..",".kkkkkkkkkk.","............","............"] },
+    machine_jetpack: { group:"machines", sym:true, note:"Jetpack developer machine.",
+      rows:["..kkkkkkkk..",".kmmMMMMmmk.","kmmMMMMMMmmk","kmmMMMMMMmmk",".kmmMMMMmmk.","..kmmmmmmk..","...kmmmmk...","...kyyyyk...","..kYYYYYYk..","..kYooooYk..",".kYooooooYk.","kYooooooook",".kkkkkkkkkk.","..krrrrrrk..","...krrrrk...","....kkkk...."] },
     markings: { group:"props",
       rows:["................",
       "................",
@@ -1965,6 +1979,43 @@
     var list = a[dir] || a.any || a.down;
     return list[(n | 0) % list.length];
   }
+  function registerBodyPlan(id, data){
+    if (!data || !data.rows) return null;
+    SPRITES[id] = { group:'creatures', rows:data.rows.slice(), pal:data.pal || {}, note:data.note || 'Native Aethren body plan' };
+    ANIM[id] = { down:[id], up:[id], right:[id], left:[id] };
+    return id;
+  }
+  // Create a native pixel creature from an existing canon body plan. Features
+  // are drawn into the same pixel grid, so variants remain crisp and cheap.
+  function registerVariant(id, base, cfg){
+    cfg = cfg || {};
+    var src = rows(base) || rows('otterlin'), out = src.map(function(r){ return r.split(''); });
+    var h = out.length, w = out[0].length;
+    function put(x,y,ch){ if (x >= 0 && x < w && y >= 0 && y < h && out[y][x] === '.') out[y][x] = ch; }
+    function pair(y, ch, spread){ for (var i=0;i<=spread;i++){ put(Math.floor(w/2)-i,y,ch); put(Math.floor(w/2)+i,y,ch); } }
+    var f = cfg.feature || 'crest', ac = cfg.accent || '#ffe08a';
+    var featureChar = '!';
+    var pal = Object.assign({}, cfg.pal || {}, {'!':ac});
+    if (f === 'horns') { put(3,2,featureChar); put(w-4,2,featureChar); put(4,1,featureChar); put(w-5,1,featureChar); }
+    else if (f === 'crest') { pair(1,featureChar,2); pair(2,featureChar,1); }
+    else if (f === 'fins') { put(1,7,featureChar); put(w-2,7,featureChar); put(0,8,featureChar); put(w-1,8,featureChar); }
+    else if (f === 'antennae') { put(3,1,featureChar); put(w-4,1,featureChar); put(2,0,featureChar); put(w-3,0,featureChar); }
+    else if (f === 'quills') { pair(4,featureChar,3); pair(5,featureChar,3); }
+    else if (f === 'tail') { put(w-2,h-4,featureChar); put(w-1,h-5,featureChar); put(w-1,h-6,featureChar); }
+    else if (f === 'mask') { for (var mx=3;mx<w-3;mx+=2) put(mx,5,featureChar); }
+    else if (f === 'rings') { for (var rx=2;rx<w-2;rx+=3) put(rx,h-5,featureChar); }
+    else if (f === 'frill') { pair(3,featureChar,3); pair(4,featureChar,3); }
+    else if (f === 'glow') { put(Math.floor(w/2),3,featureChar); put(Math.floor(w/2),4,featureChar); }
+    else if (f === 'crown') { pair(0,featureChar,2); pair(1,featureChar,1); }
+    else if (f === 'vents') { put(2,8,featureChar); put(w-3,8,featureChar); put(3,9,featureChar); put(w-4,9,featureChar); }
+    else if (f === 'scar') { for (var sy=3;sy<8;sy++) put(4+sy%2,sy,featureChar); }
+    else if (f === 'beak') { put(Math.floor(w/2),6,featureChar); put(Math.floor(w/2)+1,6,featureChar); }
+    else if (f === 'webbing') { put(1,4,featureChar); put(2,3,featureChar); put(w-2,3,featureChar); put(w-1,4,featureChar); }
+    var full = out.map(function(r){ return r.join(''); });
+    SPRITES[id] = { group:'creatures', rows:full, pal:pal, note:cfg.note || 'Native Aethren variant' };
+    ANIM[id] = { down:[id], up:[id], right:[id], left:[id] };
+    return id;
+  }
   function saveOverride(name, data){
     if (name === '__palette') overrides.__palette = data; else overrides[name] = data;
     try { localStorage.setItem(OVERRIDE_KEY, JSON.stringify(overrides)); } catch(e){}
@@ -1980,6 +2031,6 @@
     PALETTE:PALETTE, SPRITES:SPRITES, ANIM:ANIM,
     names:function(){ return Object.keys(SPRITES); },
     def:def, rows:rows, colour:colour, canvas:canvas, draw:draw, url:url, frame:frame, recolour:recolour,
-    overrides:function(){ return overrides; }, saveOverride:saveOverride, clearOverride:clearOverride
+    overrides:function(){ return overrides; }, saveOverride:saveOverride, clearOverride:clearOverride, registerBodyPlan:registerBodyPlan, registerVariant:registerVariant
   };
 })();

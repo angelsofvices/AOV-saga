@@ -17,6 +17,12 @@
   'use strict';
   var ENV = {}; (window.AOV_ENV || []).forEach(function(e){ ENV[e.id] = e; });
   var FAUNA = window.AOV_FAUNA || { species:{}, peoples:{} };
+  // Authored biome levels are available to future selectors without changing
+  // the current seeded map behavior.
+  var AOV_BIOME_MANIFEST = window.AOV_BIOMES || {};
+  function biomesForWorld(worldId){
+    return AOV_BIOME_MANIFEST.byWorld ? AOV_BIOME_MANIFEST.byWorld(worldId) : [];
+  }
   var SOLID = { T:1, b:1, B:1, '~':1, A:1, S:1, M:1, X:1, '#':1, P:1, L:1, F:1, w:1, K:1 };
 
   // ── seeded noise ──
@@ -364,5 +370,5 @@
     return null;
   }
 
-  window.AOV_WORLDGEN = { build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus };
+  window.AOV_WORLDGEN = { build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus, biomesForWorld:biomesForWorld };
 })();

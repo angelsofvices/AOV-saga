@@ -19,7 +19,7 @@
 (function(){
   'use strict';
   var D = window.EXP_DATA, STORY = D.story, ENVS = window.AOV_ENV || [], FAUNA = window.AOV_FAUNA, GEN = window.AOV_WORLDGEN, PAD = window.AOV_PAD;
-  var ART = window.AOV_ART, HQ = window.AOV_HQ, MATS = HQ.materials;
+  var ART = window.AOV_ART, HQ = window.AOV_HQ, MATS = HQ.materials, MACHINES = HQ.machines || [];
   var doc = document, ui = doc.getElementById('ui'), cv = doc.getElementById('view'), ctx = cv.getContext('2d');
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -116,7 +116,7 @@
   var KEY = 'aov.explorer.v1';
   var LOOK = { skin:0, hair:0, style:0, hc:0, suit:0, helmet:0, visor:0 };
   function blank(){
-    return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{}, archive:{}, cards:{}, lex:{},
+    return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{}, archive:{}, cards:{}, lex:{}, machines:{}, dev:{ access:false, chests:{} },
              suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(),
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
@@ -148,8 +148,8 @@
   }
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
   // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
-  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); }
-  if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.flags.charted = true; S.flags.hqNew = true; }
+  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
+  if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; S.flags.charted = true; S.flags.hqNew = true; }
   if (fresh || !S || S.v !== 3) S = null;
   function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ /* storage full or blocked: keep playing */ } }
   function opt(k){ return S && S.opts ? S.opts[k] : blank().opts[k]; }
@@ -1164,6 +1164,39 @@
       }).join('') : '<li><b>— no expeditions yet —</b><span>Set a course in NAVIGATION.</span><div></div></li>') + '</ul></section>';
   }
 
+  function machineDef(id){ return MACHINES.filter(function(m){ return m.id === id; })[0]; }
+  function developerRoom(){
+    if (!S.dev.access) {
+      var code = window.prompt('AOV DEVELOPER ROOM · PASSWORD');
+      if (code !== 'aovdev') { toast('DEVELOPER ACCESS DENIED', 'red'); return; }
+      S.dev.access = true; save();
+    }
+    showDeveloperRoom();
+  }
+  function showDeveloperRoom(){
+    var s = screen('x-devroom', '<div class="x-devroom-in"><p class="x-stamp">AOV™ DEVELOPMENT ANNEX</p><h1>STARTING ROOM</h1><p class="x-mono">Developer machines are staged in chests. Claim one to add it to the machine inventory, then press TEST to run its current logic.</p><div class="x-devchests">' +
+      MACHINES.map(function(m){ var owned = !!S.machines[m.id]; return '<section class="x-devchest ' + (owned ? 'claimed' : '') + '"><div class="x-devchest-art"><img class="x-chest-sprite" src="' + ART.url('dev_chest', 8) + '" alt=""><img class="x-devsprite" src="' + ART.url(m.sprite, 8) + '" alt=""></div><h3>' + esc(m.name) + '</h3><p>' + esc(m.does) + '</p><button class="x-btn" data-machine="' + m.id + '">' + (owned ? 'TEST MACHINE' : 'OPEN CHEST') + '</button></section>'; }).join('') +
+      '</div><div class="x-sh-btns"><button class="x-btn ghost" data-dev="back">RETURN TO ASTRA NAV</button></div></div>');
+    s.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.dev === 'back') { nav('setup'); return; }
+      if (!b.dataset.machine) return;
+      var id = b.dataset.machine;
+      if (!S.machines[id]) { S.machines[id] = { claimed:Date.now() }; S.dev.chests[id] = Date.now(); save(); toast(machineDef(id).name + ' ACQUIRED'); showDeveloperRoom(); return; }
+      useMachine(id);
+    });
+  }
+  function useMachine(id){
+    var m = machineDef(id); if (!m || !S.machines[id]) return;
+    if (id === 'astranav') { nav('system'); return; }
+    if (id === 'cloning_pod') { S.flags.cloningPodOnline = Date.now(); save(); nav('companions'); return; }
+    if (id === 'generator') { S.flags.generatorOnline = Date.now(); save(); toast('GENERATOR ONLINE · developer power available'); return; }
+    if (id === 'jetpack') { S.flags.jetpackOnline = Date.now(); save(); toast('JETPACK TEST ONLINE · movement hook enabled'); return; }
+    if (id === 'workstation') { S.flags.workstationOnline = Date.now(); save(); toast('WORKSTATION ONLINE · machine test bench ready'); return; }
+    if (id === 'rocketship') { S.flags.rocketshipOnline = Date.now(); save(); toast('ROCKETSHIP TEST ONLINE · vehicle hook enabled'); return; }
+    toast(m.name + ' TEST COMPLETE');
+  }
+
   // ── CARDS · the collection and the battle team ──
   function navCards(body){
     autoTeam();
@@ -1276,14 +1309,15 @@
       row('sound', 'SOUND', ['OFF', 'ON']) + row('haptics', 'HAPTICS', ['OFF', 'ON']) + row('text', 'TEXT SPEED', ['SLOW', 'NORMAL', 'FAST']) +
       row('hand', 'TOUCH CONTROLS', ['D-PAD LEFT', 'D-PAD RIGHT']) + row('alpha', 'CONTROL OPACITY', ['SOLID', 'SOFT', 'FAINT']) +
       '<p class="x-mono light">' + esc(padTxt) + '</p>' +
-      '<p class="x-mono light">✕ examine · ○ back / gait (stalk · steady · sprint) · □ scan · △ AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
-      '<div class="x-sh-btns"><button class="x-btn" data-a="kit">REFIT YOUR KIT</button><button class="x-btn ghost" data-a="rename">RENAME ASTRONAUT</button><button class="x-btn ghost" data-a="renamehq">RENAME ' + esc(hqName()) + '</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
+      '<p class="x-mono light">✕ examine · ○ back / gait (stalk · steady · sprint) · □ scan · TOUCHPAD AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
+      '<div class="x-sh-btns"><button class="x-btn" data-a="kit">REFIT YOUR KIT</button><button class="x-btn ghost" data-a="devroom">DEVELOPER ROOM</button><button class="x-btn ghost" data-a="rename">RENAME ASTRONAUT</button><button class="x-btn ghost" data-a="renamehq">RENAME ' + esc(hqName()) + '</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
         '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>' +
       '<p class="x-mono light">PILOT-OBSERVER: ' + esc(heroName()) + ' · HEADQUARTERS: ' + esc(hqName()) + '</p>' +
       '<p class="x-mono dim">Personal names live in this save only. The canon identities stay Carl Nasaro and NASARUS.</p></div>';
     body.onclick = function(e){
       var b = e.target.closest('button'); if (!b) return;
       if (b.dataset.a === 'kit') { kit(hero().gender, hero().look, function(){ nav('setup'); }).then(function(l){ S.hero.look = l; applyLook(); save(); toast('KIT REFITTED'); nav('setup'); }); return; }
+      if (b.dataset.a === 'devroom') { developerRoom(); return; }
       if (b.dataset.a === 'fs') { goLandscape(); return; }
       if (b.dataset.a === 'rename') { naming({ def:hero().first }).then(function(n){ S.hero.first = n; save(); toast('ASTRONAUT · ' + heroName()); nav('setup'); }); return; }
       if (b.dataset.a === 'renamehq') { naming({ title:'NAME THIS WORLD', suffix:'', def:hqName(), max:12, world:true }).then(function(n){ S.hq.name = n; hqRecord('The log renames this world ' + n + '.'); save(); toast('HEADQUARTERS · ' + n); nav('setup'); }); return; }
@@ -1519,7 +1553,7 @@
     S.hq.name = nm; hqRecord((crashed ? 'Crash landing. ' : 'First landing. ') + 'The log names this world ' + nm + '.'); save();
     surface('nasarus');
     await say([nm + '. You write it on the first page of the log.',
-      'Walk with the arrows (or the stick), or tap the ground. A examines what you face. B changes your gait: STALK, STEADY or SPRINT. NAV opens the AstraNav.',
+      'Walk with the arrows (or the stick), or tap the ground. A examines what you face. B changes your gait: STALK, STEADY or SPRINT. The touchpad opens the AstraNav.',
       crashed ? 'First, a camp: there is a staked patch of flat ground beside the wreck.' : 'Make camp on the staked ground, and this world becomes your headquarters.']);
   }
 
@@ -1793,7 +1827,7 @@
         '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
         '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
       '<p class="x-objhint" aria-live="polite"></p>' +
-      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ SCAN · △ ASTRANAV</p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ SCAN · TOUCHPAD ASTRANAV</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
       '<div class="x-ab"><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
@@ -1807,7 +1841,7 @@
     if (M.vault && !M.hq && (hasClue(M.world) || perk('sense')) && !S.hq.installed[M.world] && !S.hq.parts[M.world] && !S.exp.vault[M.world])
       setTimeout(function(){ toast((hasClue(M.world) ? 'THE CLUE' : 'VAULT SENSE') + ' · the sealed vault lies ' + compass(M.vault.x - P.x, M.vault.y - P.y)); }, 1600);
     if (S.flags.hqNew) { S.flags.hqNew = false; save(); setTimeout(function(){ toast('A new body on the AstraNav: a drifting world with ruins. Set course for ' + hqName() + ' to make your headquarters.'); }, 800); }
-    if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Walk with the arrows (or the stick), or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B changes your gait: STALK (slow and quiet), STEADY or SPRINT (fast and loud).', 'NAV opens the AstraNav: the star map, your cards, the Codex and everything else.']); }
+    if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Walk with the arrows (or the stick), or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B changes your gait: STALK (slow and quiet), STEADY or SPRINT (fast and loud).', 'The touchpad opens the AstraNav: the star map, your cards, the Codex and everything else.']); }
   }
   function gauge(label, id){
     return '<div class="x-g" data-g="' + id + '"><svg viewBox="0 0 60 40" aria-hidden="true"><path d="M6 36 A24 24 0 0 1 54 36" class="x-arc"/><path d="M6 36 A24 24 0 0 1 14 18" class="x-arc red"/>' +

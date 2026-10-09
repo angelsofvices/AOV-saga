@@ -437,9 +437,37 @@ function chestCollider(world, x, z, y, face, mesh) { world.addMesh?.(mesh); }
 // Where Rizer stands to open a chest: square in front of the lock, facing it.
 export function chestFront(C) { const f = C.root.rotation.y, p = C.root.position; return { x: p.x + Math.sin(f) * 1.15, z: p.z + Math.cos(f) * 1.15, face: f + Math.PI, around: { x: p.x, z: p.z, r: 0.66 } }; }
 
+// ── playtest layout: every silver and gold chest in two arcs in front of Rizer's porch ──
+// PLAYTEST_PORCH_CHESTS on: the six silver chests (weapons, rides) stand in an inner arc and the six gold Lightbulb
+// chests (focus-moves.js) in an outer one, all facing the porch, on clear ground (no walls, water, slopes, nor the
+// West Lake bus parked beside the porch). Off: each chest goes back to its own place in the world. Chest progress is
+// saved by chest id, so moving them never resets what was opened or collected.
+export const PLAYTEST_PORCH_CHESTS = true;
+let porchCache = null;
+export function porchChestSpots(W, world) {
+  if (porchCache) return porchCache;
+  const s = W.playerStart, chosen = [], avoid = [{ x: s.x + 14, z: s.z + 8, r: 8 }]; // the bus
+  const clear = (cx, cz, r) => { const probe = new THREE.Vector3(cx, world.groundAt(cx, cz), cz); return !world.resolve(probe, r) && world.waterAt(cx, cz) < world.heightAt(cx, cz) - 0.2 && Math.abs(world.heightAt(cx + 1.5, cz) - world.heightAt(cx - 1.5, cz)) < 0.7 && Math.abs(world.heightAt(cx, cz + 1.5) - world.heightAt(cx, cz - 1.5)) < 0.7; };
+  const ring = (r0, n) => {
+    const out = [];
+    for (const r of [r0, r0 + 1.5, r0 + 3, r0 + 4.5]) {
+      for (let k = 0; k <= 26 && out.length < n; k++) { // fan out from straight ahead of the porch, alternating sides
+        const da = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.19, a = s.facing + da, x = s.x + Math.sin(a) * r, z = s.z + Math.cos(a) * r;
+        if (Math.abs(da) > 1.75 || !clear(x, z, 1.4) || avoid.some(o => Math.hypot(o.x - x, o.z - z) < o.r) || chosen.some(c => Math.hypot(c.x - x, c.z - z) < 3.3)) continue;
+        const spot = { x, z, face: Math.atan2(s.x - x, s.z - z) }; out.push(spot); chosen.push(spot);
+      }
+      if (out.length >= n) break;
+    }
+    return out.sort((a, b) => Math.atan2(a.x - s.x, a.z - s.z) - Math.atan2(b.x - s.x, b.z - s.z));
+  };
+  const silver = ring(7.5, 6), gold = ring(12, 6);
+  return (porchCache = { silver, gold });
+}
+
 // ── the silver weapon chests by Rizer's home ─────────────────────────
 // Three near the doorstep, with clear walk-up space and lids toward Rizer's home.
 export function createLoot(scene, world, fx, W) {
+  const porch = PLAYTEST_PORCH_CHESTS ? porchChestSpots(W, world).silver : null, atPorch = (i, o) => porch?.[i] ? { ...o, ...porch[i] } : o;
   const s = W.playerStart; let x = s.x, z = s.z, face = 0, side = 1;
   const clear = (cx, cz, r) => { const probe = new THREE.Vector3(cx, world.groundAt(cx, cz), cz); return !world.resolve(probe, r) && world.waterAt(cx, cz) < world.heightAt(cx, cz) - 0.2 && Math.abs(world.heightAt(cx + 1.5, cz) - world.heightAt(cx - 1.5, cz)) < 0.35 && Math.abs(world.heightAt(cx, cz + 1.5) - world.heightAt(cx, cz - 1.5)) < 0.35; };
   // Near Rizer's front door, in the first open spot with room for both chests, a few steps off the way he faces at the start.
@@ -448,9 +476,9 @@ export function createLoot(scene, world, fx, W) {
     if (!clear(cx, cz, 2.2)) continue;
     for (const sd of [1, -1]) { const ox = cx + Math.cos(f) * 3.6 * sd, oz = cz - Math.sin(f) * 3.6 * sd; if (clear(ox, oz, 1.6)) { x = cx; z = cz; face = f; side = sd; break search; } }
   }
-  const sword = itemChest(scene, world, fx, { id: 'rizer-chest', item: 'sword', x, z, face, isOpen: () => !!inventory.chestOpen, setOpen: () => { inventory.chestOpen = true; } });
+  const sword = itemChest(scene, world, fx, atPorch(0, { id: 'rizer-chest', item: 'sword', x, z, face, isOpen: () => !!inventory.chestOpen, setOpen: () => { inventory.chestOpen = true; } }));
   const ax = x + Math.cos(face) * 3.6 * side, az = z - Math.sin(face) * 3.6 * side;
-  const axe = itemChest(scene, world, fx, { id: 'emeralix-chest', item: 'axe', x: ax, z: az, face, isOpen: () => !!inventory.chests?.['emeralix-chest'], setOpen: () => { (inventory.chests ||= {})['emeralix-chest'] = 1; } });
+  const axe = itemChest(scene, world, fx, atPorch(1, { id: 'emeralix-chest', item: 'axe', x: ax, z: az, face, isOpen: () => !!inventory.chests?.['emeralix-chest'], setOpen: () => { (inventory.chests ||= {})['emeralix-chest'] = 1; } }));
   let bx = x - Math.cos(face) * 3.6 * side, bz = z + Math.sin(face) * 3.6 * side;
   if (!clear(bx, bz, 1.6)) {
     bowSpot: for (const r of [3.8, 4.6, 5.6, 7]) for (let i = 0; i < 12; i++) {
@@ -458,7 +486,7 @@ export function createLoot(scene, world, fx, W) {
       if (Math.hypot(tx - ax, tz - az) > 3.4 && Math.hypot(tx - x, tz - z) > 3.4 && clear(tx, tz, 1.6)) { bx = tx; bz = tz; break bowSpot; }
     }
   }
-  const bow = itemChest(scene, world, fx, { id: 'ivirium-chest', item: 'bow', x: bx, z: bz, face, isOpen: () => !!inventory.chests?.['ivirium-chest'], setOpen: () => { (inventory.chests ||= {})['ivirium-chest'] = 1; } });
+  const bow = itemChest(scene, world, fx, atPorch(2, { id: 'ivirium-chest', item: 'bow', x: bx, z: bz, face, isOpen: () => !!inventory.chests?.['ivirium-chest'], setOpen: () => { (inventory.chests ||= {})['ivirium-chest'] = 1; } }));
   // Rubypaw Sword's chest: a fourth silver chest in the same home cluster, tucked wherever there's still
   // room around the sword/axe/bow trio.
   let rx = x, rz = z + 2.5;
@@ -467,7 +495,7 @@ export function createLoot(scene, world, fx, W) {
     if (Math.hypot(tx - ax, tz - az) > 3.4 && Math.hypot(tx - bx, tz - bz) > 3.4 && Math.hypot(tx - x, tz - z) > 3.4 && clear(tx, tz, 1.6)) { rx = tx; rz = tz; break rubySpot; }
   }
   const rface = Math.atan2(x - rx, z - rz);
-  const rubypaw = itemChest(scene, world, fx, { id: 'rubypaw-chest', item: 'rubypaw', x: rx, z: rz, face: rface, isOpen: () => !!inventory.chests?.['rubypaw-chest'], setOpen: () => { (inventory.chests ||= {})['rubypaw-chest'] = 1; } });
+  const rubypaw = itemChest(scene, world, fx, atPorch(3, { id: 'rubypaw-chest', item: 'rubypaw', x: rx, z: rz, face: rface, isOpen: () => !!inventory.chests?.['rubypaw-chest'], setOpen: () => { (inventory.chests ||= {})['rubypaw-chest'] = 1; } }));
   // The spot on the west side of Malezor Square's fountain anchors the Astralboard and Telescope chests. (Psychosyd's guitar
   // used to wait in a chest here; it now lies on the floor of Rizer's room, home-interior.js.)
   const P = W.plaza; let gx = P.x - (P.r - 3), gz = P.z, gFace = Math.PI / 2;
@@ -478,11 +506,11 @@ export function createLoot(scene, world, fx, W) {
   // Astralboard chest sits beside that spot in Malezor Square.
   let qx = gx + Math.cos(gFace) * 3.6, qz = gz - Math.sin(gFace) * 3.6;
   if (!clear(qx, qz, 1.6)) { qx = gx - Math.cos(gFace) * 3.6; qz = gz + Math.sin(gFace) * 3.6; }
-  const astralboard = itemChest(scene, world, fx, { id: 'astralboard-chest', item: 'astralboard', ride: true, x: qx, z: qz, face: gFace, isOpen: () => !!inventory.chests?.['astralboard-chest'], setOpen: () => { (inventory.chests ||= {})['astralboard-chest'] = 1; } });
+  const astralboard = itemChest(scene, world, fx, atPorch(4, { id: 'astralboard-chest', item: 'astralboard', ride: true, x: qx, z: qz, face: gFace, isOpen: () => !!inventory.chests?.['astralboard-chest'], setOpen: () => { (inventory.chests ||= {})['astralboard-chest'] = 1; } }));
   // Stargazer Telescope chest: on the spot's other side from the Astralboard, so the two face each other across it.
   let sx = 2 * gx - qx, sz = 2 * gz - qz;
   if (!clear(sx, sz, 1.6)) { sx = qx + (qx - gx); sz = qz + (qz - gz); }
-  const telescope = itemChest(scene, world, fx, { id: 'stargazer-chest', item: 'telescope', x: sx, z: sz, face: gFace, isOpen: () => !!inventory.chests?.['stargazer-chest'], setOpen: () => { (inventory.chests ||= {})['stargazer-chest'] = 1; } });
+  const telescope = itemChest(scene, world, fx, atPorch(5, { id: 'stargazer-chest', item: 'telescope', x: sx, z: sz, face: gFace, isOpen: () => !!inventory.chests?.['stargazer-chest'], setOpen: () => { (inventory.chests ||= {})['stargazer-chest'] = 1; } }));
   const all = [sword, axe, bow, rubypaw, astralboard, telescope];
   return { all, sword, axe, bow, rubypaw, astralboard, telescope, update: (dt, t) => all.forEach(c => c.update(dt, t)), get spot() { return sword.spot; } };
 }

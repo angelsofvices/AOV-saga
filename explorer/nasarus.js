@@ -20,7 +20,9 @@ window.AOV_HQ = {
     ['crystal', 'CRYSTAL', 'Mineral crystal from outcrops'],
     ['fibre',   'FIBRE',   'Plant fibre: cordage, canvas, padding'],
     ['relic',   'RELICS',  'Recovered artifacts from ruins and landmarks'],
-    ['data',    'DATA',    'Survey data from scans, peoples and records']
+    ['data',    'DATA',    'Survey data from scans, peoples and records'],
+    // AA:1936 Complete Gameplay Handoff: a starting foundational resource beside Scrap and Fibre
+    ['terra',   'TERRA',   'Terraform: ground matter and loose stone from boulders and broken ground']
   ],
   // Developer-room machines. These are canonical machine IDs before they are
   // assigned to ordinary worlds and crafting recipes.

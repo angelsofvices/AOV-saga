@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.5', title:'The item catalog',
+      notes:[
+        'Every planet has its own resources: gather its plants and outcrops for materials found nowhere else',
+        'The ITEM CATALOG in the AstraNav: 891 materials, machines and modifications, each with its own icon',
+        'Your BAG and the STORES at NASARUS, side by side in the inventory',
+        'Terra joins Scrap and Fibre, and every person you meet now has a look of their own',
+        'Beyond the AstroNav’s safe radius the screen fills with static. Run out of Oil out there and you are stranded'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.4', title:'The art pass',
       notes:[
         'Every world has its own ground, roads, cliffs, waters and plants: crystal plains, lava crust, coral reefs, frozen tableaux, iron plate and more',

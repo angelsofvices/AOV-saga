@@ -20,6 +20,24 @@
   'use strict';
   var D = window.EXP_DATA, STORY = D.story, ENVS = window.AOV_ENV || [], FAUNA = window.AOV_FAUNA, GEN = window.AOV_WORLDGEN, PAD = window.AOV_PAD;
   var WA = window.AOV_WORLD_ART || { env:{}, landmarks:{}, items:{} };
+  // ── THE ITEM CATALOG (explorer/items.js, from data/catalog/items_catalog_1963.xlsx), loaded in the background ──
+  var ITEMS = { byId:{}, mats:{}, ready:false }, RARITY = ['COMMON','UNCOMMON','RARE','VERY RARE','MYTHIC'], CATNAME = { mat:'MATERIAL', mac:'MACHINE', mod:'MODIFICATION' };
+  function planetNo(name){ var n = String(name || '').toLowerCase(); if (n === 'quorana') n = 'quorauna'; var w = (window.EXP_DATA.worlds || []).filter(function(x){ return String(x.name).toLowerCase() === n; })[0]; return w ? w.no : null; }
+  function indexItems(){
+    if (ITEMS.ready || !window.AOV_ITEMS) return;
+    window.AOV_ITEMS.items.forEach(function(t){ ITEMS.byId[t.id] = t; t.no = t.p ? planetNo(t.p) : 0; if (t.c === 'mat' && t.no && !t.sealed) (ITEMS.mats[t.no] = ITEMS.mats[t.no] || []).push(t); });
+    ITEMS.ready = true;
+  }
+  function loadItems(cb){
+    if (window.AOV_ITEMS) { indexItems(); if (cb) cb(); return; }
+    if (loadItems.q) { if (cb) loadItems.q.push(cb); return; }
+    loadItems.q = cb ? [cb] : [];
+    var sc = doc.createElement('script'); sc.src = '/explorer/items.js';
+    sc.onload = function(){ indexItems(); var q = loadItems.q; loadItems.q = null; q.forEach(function(f){ f(); }); };
+    sc.onerror = function(){ loadItems.q = null; };
+    doc.head.appendChild(sc);
+  }
+  function itemName(t){ return String(t.n).toUpperCase(); }
   var ART = window.AOV_ART, HQ = window.AOV_HQ, CORE = window.AOV_CORE || { starter:[], recipes:[], classes:[] }, MATS = HQ.materials, MACHINES = HQ.machines || [];
   var COMPANIONS = CORE.companions || { enabled:true, clone:true, follow:true, battle:true, partySize:9 };
   var doc = document, ui = doc.getElementById('ui'), cv = doc.getElementById('view'), ctx = cv.getContext('2d');
@@ -184,6 +202,19 @@
     ART.recolour(id || 'player', { t:sk[0], T:sk[1], Z:hc[0], X:hc[1], s:su[0], S:su[1], d:su[2], o:he[0], O:he[1], e:vi[0], E:vi[1] });
   }
   ART.recolour('director', { t:SKIN[1][0], T:SKIN[1][1], Z:'#a8a8a8', X:'#dcdcdc', s:'#2a2a34', S:'#3a3a48', d:'#1a1a22', y:'#9a2a2a', W:'#efe6d0' });
+  // every person their own figure (explorer/people_art.js); a people shares its colours
+  var PEOPLE = window.AOV_PEOPLE_ART;
+  function npcSprite(n){
+    if (n.key === 'furtrader' || !PEOPLE) return n.key === 'furtrader' ? ART.frame('haemen', n.dir, 0) : withRc(ART.frame('haemen', n.dir, 0), 'ppl-' + n.env);
+    if (!n.look) {
+      var b = n.codex && CXB[n.codex], no = M && M.world, pe = FAUNA.peoples && FAUNA.peoples[no] || {};
+      if (b) n.look = ['cx_' + b.id, [b.cls, b.name, b.tierName, (b.types || []).join(' '), b.blurb].join(' '), (b.home && b.home.region) || b.cls || 'person'];
+      else if (n.folk || n.figure) { var w = n.folk || n.figure; n.look = [n.key + '_' + n.n, w.name + ' ' + w.text, w.name]; }
+      else if (n.refugee || n.resident) n.look = [n.key + '_' + n.n, (pe.race || 'people') + ' refugee', pe.race || n.key];
+      else n.look = [n.key + '_' + (n.n || 0), (no === 9 ? 'Haemen ' + n.env : (pe.race || 'people')) + (n.warden ? ' warden guard' : ''), no === 9 ? 'haemen-' + n.env : pe.race || n.key];
+    }
+    return PEOPLE.person(n.look[0], n.look[1], n.look[2], n.dir);
+  }
   function withRc(spec, rc){ var p = spec.split('|'); return p[0] + '@' + rc + (p[1] ? '|' + p[1] : ''); }
   function heroSpec(dir, n){ return withRc(ART.frame(heroSet(), dir, n), 'player'); }
   function portraitDraw(c, look, gender, scale){
@@ -392,7 +423,7 @@
     if (s.sp && c.lv) rows.push(['LEVEL', String(c.lv)], ['VIGOUR', Math.max(0, c.hp == null ? maxHp(id) : c.hp) + ' / ' + maxHp(id)]);
     rows.push(['RARITY', rarity(s)], ['QUANTITY', String(c.qty)]);
     return '<div class="x-card' + (c.foil ? ' foil' : '') + (big ? ' big' : '') + (c.pend ? ' pend' : '') + '" data-card="' + id + '">' +
-      (c.pend ? '<div class="x-card-pend">IN PACK · BRING HOME</div>' : s.sp && !c.clone ? '<div class="x-card-pend prof">PROFILE · CLONE AT ' + esc(hqName()) + '</div>' : '') +
+      (c.pend ? '<div class="x-card-pend">IN BAG · BRING HOME</div>' : s.sp && !c.clone ? '<div class="x-card-pend prof">PROFILE · CLONE AT ' + esc(hqName()) + '</div>' : '') +
       '<div class="x-card-band">' + esc(setName(s.set)) + '</div>' +
       '<div class="x-card-art">' + artHtml(s, c, id) + '</div>' +
       '<div class="x-card-nm">' + esc(subjName(id)) + '</div>' +
@@ -819,7 +850,7 @@
     navTab = tab || navTab || 'system';
     navTab = { field:'system', cards:'companions', codex:'research', log:'journal' }[navTab] || navTab;   // old section names
     var tabs = NAV_TABS;
-    var s = screen('x-nav',
+    var s = screen('x-nav' + (outOfRange() ? ' x-static' : ''),
       '<div class="x-nav-dev">' +
         '<header class="x-nav-top"><b class="x-nav-logo">ASTRANAV</b><span class="x-nav-mk">MK.I · U.S. EXPERIMENTAL ROCKET PROGRAM · 1936</span>' +
           '<span class="x-nav-where">' + esc(whereLine()) + '</span></header>' +
@@ -999,7 +1030,7 @@
       else actH = navOnline() ? '<button class="x-btn" data-a="gohq">RETURN TO ' + esc(hqName()) + '</button>' : '<p class="x-sh-note">NAVIGATION OFFLINE.</p>';
       html = '<p class="x-sh-k">HEADQUARTERS</p><h3>' + esc(hqName()) + '</h3><p class="x-sh-sub">STAGE ' + stg + ' · ' + esc(stageName(stg)) + '</p>' +
         '<dl><dt>' + (hereH ? 'POSITION' : 'COURSE') + '</dt><dd>' + (hereH ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : au('nasarus') + ' A.U.') + '</dd>' +
-          '<dt>PACK</dt><dd>' + packTotal() + ' materials to deposit</dd><dt>RUINS</dt><dd>' + Object.keys(S.hq.ruins).length + ' / ' + HQ.ruins.length + ' surveyed · ' + hqRestored() + ' restored</dd></dl>' +
+          '<dt>BAG</dt><dd>' + packTotal() + ' materials to deposit</dd><dt>RUINS</dt><dd>' + Object.keys(S.hq.ruins).length + ' / ' + HQ.ruins.length + ' surveyed · ' + hqRestored() + ' restored</dd></dl>' +
         '<p class="x-sh-note">An ancient drifting world. Haemen and Aethren lived here before the First Eternal War. Return here to deposit, build and restore.</p>' +
         '<div class="x-sh-btns">' + actH + '<button class="x-btn ghost" data-a="hq">HQ PAGE</button><button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     } else if (b.w.hidden) {
@@ -1057,8 +1088,10 @@
   function travel(no){
     if (!navOnline()) { toast('NAVIGATION OFFLINE', 'red'); return; }
     if (S.core && S.core.enabled && no !== 'nasarus') {
-      var fuel = coreOilCost(no);
-      if (!coreReady() || S.core.oil < fuel) { toast('INSUFFICIENT OIL · produce fuel at NASARUS before departure', 'red'); return; }
+      var fuel = coreOilCost(no), beyond = coreHomeDistance(no) > coreNavRadius() * 70;
+      // inside the safe radius the AstroNav knows the cost and will not launch short; beyond it the reading is static
+      if (!coreReady() || (!beyond && S.core.oil < fuel)) { toast('INSUFFICIENT OIL · produce fuel at NASARUS before departure', 'red'); return; }
+      if (beyond && S.core.oil < fuel) return stranded(no);
       S.core.oil -= fuel; hqRecord('Spent ' + fuel + ' OIL on the course to ' + placeName(no) + '.'); save();
       if (coreHomeDistance(no) > coreNavRadius() * 70) toast('ASTRONAV INTERFERENCE · out-of-range course · OIL ' + fuel, 'red');
     }
@@ -1091,7 +1124,7 @@
       save();
       if (S.hq.built.depot && (packTotal() || packParts() || pendingCards())) setTimeout(function(){ deposit(); }, 600);
       else if ((packParts() || pendingCards()) && S.hq.built.stores) setTimeout(function(){ deposit(); }, 600);
-      else if (packTotal()) setTimeout(function(){ toast('PACK · ' + packTotal() + ' materials · deposit them at the camp stores'); }, 600);
+      else if (packTotal()) setTimeout(function(){ toast('BAG · ' + packTotal() + ' materials · deposit them at the camp stores'); }, 600);
       surface('nasarus'); return; }
     S.pos = { map:m.id, x:m.ship.x, y:m.ship.y + 1, dir:'down' }; save();
     surface(m.id);
@@ -1126,7 +1159,7 @@
     body.innerHTML = '<div class="x-home">' +
       '<section class="x-wd x-wd-status riv"><h4>STATUS</h4><p class="x-crt">' + esc(whereLine()) + '</p>' +
         '<div class="x-meters">' + meter('SUIT', S.suit, 100) + meter('AIR', S.air, airMax()) + '</div>' +
-        '<p class="x-mono light">FLARES ' + S.flares + '/' + flaresMax() + ' · PACK ' + (packTotal() + packParts() + pend) + (packParts() ? ' · ' + packParts() + ' SHIP PART' + (packParts() > 1 ? 'S' : '') : '') + '</p>' +
+        '<p class="x-mono light">FLARES ' + S.flares + '/' + flaresMax() + ' · BAG ' + (packTotal() + packParts() + pend) + (packParts() ? ' · ' + packParts() + ' SHIP PART' + (packParts() > 1 ? 'S' : '') : '') + '</p>' +
         '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
           landed ? '<button class="x-btn" data-a="out">DISEMBARK</button>' : '<button class="x-btn" data-go="stars">SET A COURSE</button>') + '</div></section>' +
       invPanel() +
@@ -1134,7 +1167,7 @@
       w('hq', 'HEADQUARTERS', '<p class="x-crt">' + esc(hqName()) + ' · STAGE ' + hqStage() + '</p><p class="x-mono light">' + esc(stageName(hqStage())) + ' · SHIP ' + shipPct() + '% · ' + Object.keys(S.hq.residents).length + ' groups · ' + Object.keys(S.hq.settled).length + ' species</p><i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i>') +
       w('stars', 'NAVIGATION', '<p class="x-crt">' + (navOnline() ? 'DRIVE ONLINE' : 'NAVIGATION OFFLINE') + '</p><p class="x-mono light">' + visited + ' / 27 worlds visited · ' + Object.keys(S.hq.installed).length + ' parts home</p>') +
       w('companions', 'COMPANIONS', team.length ? '<div class="x-wd-team">' + team.map(function(id){ return '<img class="x-pix" alt="" src="' + ART.url(subjArt(id), 2) + '" title="' + esc(subjName(id)) + '">'; }).join('') + '</div><p class="x-mono light">' + (lp ? 'LEAD PERK · ' + esc(lp.name) : 'PARTY READY') + '</p>' : '<p class="x-mono light">Scan an Aethren, bring the profile home, and clone it to deploy it.' + (profileIds().length ? ' ' + profileIds().length + ' profile(s) waiting.' : '') + '</p>') +
-      w('research', 'RESEARCH', '<p class="x-crt">' + researchCount() + ' records · ' + Object.keys(S.hq.store).reduce(function(n, k){ return n + (S.hq.store[k] || 0); }, 0) + ' in stores</p><p class="x-mono light">' + (packTotal() + packParts() + pend ? (packTotal() + packParts() + pend) + ' unredeemed in the pack · bring them home' : 'Nothing waiting in the pack') + '</p>') +
+      w('research', 'RESEARCH', '<p class="x-crt">' + researchCount() + ' records · ' + Object.keys(S.hq.store).reduce(function(n, k){ return n + (S.hq.store[k] || 0); }, 0) + ' in stores</p><p class="x-mono light">' + (packTotal() + packParts() + pend ? (packTotal() + packParts() + pend) + ' unredeemed in the bag · bring them home' : 'Nothing waiting in the bag') + '</p>') +
       w('journal', 'JOURNAL', '<p class="x-crt">MISSION</p><p class="x-mono light">' + esc(next ? next.t : 'Every mission in the log is done.') + '</p>') +
       w('setup', 'SETUP', '<p class="x-mono light">' + (PAD && PAD.connected() ? (PAD.dualsense() ? 'DUALSENSE CONNECTED' : 'CONTROLLER CONNECTED') : 'Sound, controls, text, controller') + '</p>', 'x-wd-small') +
       '</div>';
@@ -1152,15 +1185,26 @@
   var FIND_ICON = [[/crown/i,'crown'],[/key/i,'key'],[/prism|matrix|astralite/i,'prism'],[/gem|ruby|sapphire|emerald|amethyst|citrine|onyx|amber|pearl/i,'gem'],[/orb|sphere|eye/i,'orb'],
     [/scroll|tome|book|codex|chart|verse/i,'scroll'],[/vial|potion|elixir|serum/i,'vial'],[/sword|blade|spear/i,'blade'],[/shard|fragment/i,'shard'],[/core|heart/i,'core'],[/seed|bloom/i,'seed']];
   function findIcon(term){ for (var i = 0; i < FIND_ICON.length; i++) if (FIND_ICON[i][0].test(term)) return 'it_' + FIND_ICON[i][1]; return 'it_relic'; }
-  function invItems(){
+  var invMode = 'bag';
+  function invItems(mode){
     var out = [];
+    if ((mode || invMode) === 'stores') {
+      MATS.forEach(function(m){ if (S.hq.store[m[0]]) out.push({ key:'smat:' + m[0], art:'it_' + m[0], name:m[1], n:S.hq.store[m[0]], desc:m[2] + '. In the stores at ' + hqName() + '.' }); });
+      Object.keys(S.hq.items || {}).forEach(function(id){ var t = ITEMS.byId[id], k = S.hq.items[id]; if (!k) return;
+        out.push({ key:'sitem:' + id, art:t && t.icon || 'it_relic', name:t ? itemName(t) : id, n:k, desc:t ? itemDesc(t) : 'A catalog item.' }); });
+      (HQ.airTanks || []).forEach(function(t){ if ((S.hq.equip || {})[t.id]) out.push({ key:'equip:' + t.id, art:'it_air', name:t.name, n:'', desc:'Air tank · ' + t.cap + ' AIR.' }); });
+      if (S.core && S.core.oil) out.push({ key:'oil', art:'it_oil', name:'OIL', n:S.core.oil, desc:'Fuel for the drive, refined from fibre.' });
+      var so = S.storeOrder || [];
+      return out.sort(function(a, b){ var ia = so.indexOf(a.key), ib = so.indexOf(b.key); return (ia < 0 ? 1e4 : ia) - (ib < 0 ? 1e4 : ib); });
+    }
     MATS.forEach(function(m){ if (S.pack[m[0]]) out.push({ key:'mat:' + m[0], art:'it_' + m[0], name:m[1], n:S.pack[m[0]], desc:m[2] + '. In your pack: deposit it at ' + hqName() + '.' }); });
     (S.pack.parts || []).forEach(function(no){ var sy = sysOf(no); out.push({ key:'part:' + no, art:'it_part_' + sy.id, name:sy.part, n:1, desc:'Ship part from ' + placeName(no) + ', for the ' + sy.name + '. Bring it home.' }); });
-    var pend = pendingCards(); if (pend) out.push({ key:'profiles', art:'it_card', name:'PROFILES', n:pend, desc:'Scanned Aethren profiles in your pack. Bring them home to clone them.' });
+    var pend = pendingCards(); if (pend) out.push({ key:'profiles', art:'it_card', name:'PROFILES', n:pend, desc:'Scanned Aethren profiles in your bag. Bring them home to clone them.' });
     out.push({ key:'flare', art:'it_flare', name:'FLARES', n:S.flares, desc:'A recall flare: fire it to be hauled back to your ship.' });
     out.push({ key:'air', art:'it_air', name:'AIR', n:Math.round(S.air / airMax() * 100) + '%', desc:'Your suit’s air. Only ' + hqName() + ' holds oxygen.' });
     (HQ.airTanks || []).forEach(function(t){ if ((S.hq.equip || {})[t.id]) out.push({ key:'equip:' + t.id, art:'it_air', name:t.name, n:'', desc:'Equipped air tank · ' + t.cap + ' AIR.' }); });
-    if (S.core && S.core.oil) out.push({ key:'oil', art:'it_oil', name:'OIL', n:S.core.oil, desc:'Fuel for the drive, refined from fibre.' });
+    Object.keys(S.pack.items || {}).forEach(function(id){ var t = ITEMS.byId[id], k = S.pack.items[id]; if (!k) return;
+      out.push({ key:'item:' + id, art:t && t.icon || 'it_relic', name:t ? itemName(t) : id, n:k, desc:t ? itemDesc(t) : 'A catalog item.' }); });
     Object.keys(S.codexIdx || {}).filter(function(k){ return S.codexIdx[k].how === 'found'; }).forEach(function(k){
       var t = ((window.AOV_CODEX || {}).placements || []).filter(function(p){ return p.t === 'find' && ixKey(p.term) === k; })[0];
       if (t) out.push({ key:'find:' + k, art:findIcon(t.term), name:t.term.toUpperCase(), n:'', desc:'A relic named in the Master Codex, found in the field.' });
@@ -1168,19 +1212,24 @@
     var ord = S.invOrder || [];
     return out.sort(function(a, b){ var ia = ord.indexOf(a.key), ib = ord.indexOf(b.key); return (ia < 0 ? 1e4 : ia) - (ib < 0 ? 1e4 : ib); });
   }
+  function itemDesc(t){ return CATNAME[t.c] + ' · ' + RARITY[t.r] + (t.p ? ' · ' + (S.visited[t.no] ? placeName(t.no) : 'an uncharted world') : ' · core catalog') + '. ' + (t.fn || ''); }
   function invPanel(){
     var items = invItems();
-    return '<section class="x-wd x-wd-inv riv"><h4>INVENTORY <small>drag to arrange · tap for details</small></h4><div class="x-inv" role="list">' +
+    return '<section class="x-wd x-wd-inv riv"><h4>INVENTORY <small>drag to arrange · tap for details</small></h4>' +
+      '<div class="x-inv-tabs"><button class="x-btn small' + (invMode === 'bag' ? '' : ' ghost') + '" data-im="bag">BAG</button><button class="x-btn small' + (invMode === 'stores' ? '' : ' ghost') + '" data-im="stores">STORES · ' + esc(hqName()) + '</button></div>' +
+      '<div class="x-inv" role="list">' +
       items.map(function(it){ return '<button class="x-slot" role="listitem" data-inv="' + esc(it.key) + '" title="' + esc(it.name) + '"><img class="x-pix" alt="" src="' + ART.url(it.art, 3) + '"><b>' + esc(String(it.n)) + '</b><span>' + esc(it.name) + '</span></button>'; }).join('') +
-      '</div><p class="x-inv-detail x-mono light">Tap an item to read it.</p></section>';
+      '</div><p class="x-inv-detail x-mono light">' + (items.length ? 'Tap an item to read it.' : invMode === 'bag' ? 'Your bag is empty.' : 'Nothing in the stores yet.') + '</p></section>';
   }
   function invWire(body){
     var box = $('.x-inv', body); if (!box) return;
     var byKey = {}; invItems().forEach(function(it){ byKey[it.key] = it; });
+    if (!ITEMS.ready && window.AOV_ITEMS === undefined) loadItems(function(){ var sec = $('.x-wd-inv', body); if (sec && sec.isConnected) { var t = el('div', null, invPanel()); sec.replaceWith(t.firstChild); invWire(body); } });
     box.addEventListener('click', function(e){ var b = e.target.closest('[data-inv]'); if (!b) return; e.stopPropagation(); var it = byKey[b.dataset.inv]; if (!it) return;
       $$('.x-slot.on', box).forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on'); sfx.click();
       $('.x-inv-detail', body).innerHTML = '<b>' + esc(it.name) + (it.n !== '' ? ' × ' + esc(String(it.n)) : '') + '</b> · ' + esc(it.desc); });
-    sortable([box], '.x-slot', 'data-inv', function(keys){ S.invOrder = keys[0]; save(); });
+    sortable([box], '.x-slot', 'data-inv', function(keys){ if (invMode === 'stores') S.storeOrder = keys[0]; else S.invOrder = keys[0]; save(); });
+    $$('[data-im]', body).forEach(function(b){ b.addEventListener('click', function(e){ e.stopPropagation(); invMode = b.dataset.im; sfx.click(); var sec = $('.x-wd-inv', body); var t = el('div', null, invPanel()); sec.replaceWith(t.firstChild); invWire(body); }); });
   }
   function meter(label, v, max){ var k = clamp(v / max, 0, 1); return '<div class="x-meter' + (k < .25 ? ' low' : '') + '"><span>' + label + '</span><i><i style="width:' + Math.round(k * 100) + '%"></i></i><b>' + Math.round(v) + '/' + max + '</b></div>'; }
   function navSketchReady(){
@@ -1252,11 +1301,39 @@
     hqRecord('Cloned ' + subjName(id) + ' from its profile. A new companion.'); save(); sfx.reveal(); vibrate(200, .5);
     toast('CLONED · ' + subjName(id) + ' is a companion now · LV ' + c.lv); return true;
   }
+  // ── ITEM CATALOG · every item of the catalog. Materials open when you gather them; machines and modifications
+  //    open as plans when you reach their world (they are built in Build Mode, still to come) ──
+  var catTab = 'mat', catWorld = 'all';
+  function itemKnown(t){ if (t.sealed) return false; if (t.c === 'mat') return !!(S.itemSeen || {})[t.id]; return !t.p || !!S.visited[t.no]; }
+  function catalogPanel(host){
+    if (!ITEMS.ready) { host.innerHTML = '<p class="x-mono light">Reading the catalog…</p>'; loadItems(function(){ if (host.isConnected) catalogPanel(host); }); return; }
+    var all = window.AOV_ITEMS.items, seen = all.filter(itemKnown).length;
+    var worlds = [['all','ALL'],['core','CORE']].concat((window.EXP_DATA.worlds || []).filter(function(w){ return w.no <= 27 && S.visited[w.no]; }).map(function(w){ return [String(w.no), placeName(w.no)]; }));
+    var list = all.filter(function(t){ return t.c === catTab && !t.sealed && (catWorld === 'all' || (catWorld === 'core' ? !t.p : String(t.no) === catWorld)); });
+    host.innerHTML = '<p class="x-mono light">' + seen + ' / ' + all.filter(function(t){ return !t.sealed; }).length + ' items known. Gather materials on each world (every planet has its own); machines and modifications open as plans when you reach their world.</p>' +
+      '<div class="x-canon-tabs">' + [['mat','MATERIALS'],['mac','MACHINES'],['mod','MODIFICATIONS']].map(function(c){ return '<button class="x-btn small' + (c[0] === catTab ? '' : ' ghost') + '" data-cat="' + c[0] + '">' + c[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="x-canon-letters">' + worlds.map(function(w){ return '<button data-cw="' + w[0] + '" class="' + (w[0] === catWorld ? 'on' : '') + '">' + esc(w[1]) + '</button>'; }).join('') + '</div>' +
+      '<div class="x-inv x-catalog">' + list.map(function(t){ var k = itemKnown(t);
+        return '<button class="x-slot' + (k ? '' : ' unknown') + '" data-item="' + t.id + '" title="' + (k ? esc(t.n) : 'UNKNOWN') + '"><img class="x-pix" alt="" src="' + ART.url(t.icon, 3) + '"><b>' + (k && (S.hq.items || {})[t.id] ? S.hq.items[t.id] : '') + '</b><span>' + (k ? esc(itemName(t)) : '?????') + '</span></button>'; }).join('') + '</div>';
+    host.onclick = function(e){
+      var c = e.target.closest('[data-cat]'); if (c) { catTab = c.dataset.cat; catalogPanel(host); return; }
+      var w = e.target.closest('[data-cw]'); if (w) { catWorld = w.dataset.cw; catalogPanel(host); return; }
+      var it = e.target.closest('[data-item]'); if (!it) return;
+      var t = ITEMS.byId[it.dataset.item]; if (!t) return;
+      if (!itemKnown(t)) { toast(t.c === 'mat' ? 'Not yet gathered' + (t.p && S.visited[t.no] ? ' · found on ' + placeName(t.no) : '') : 'Reach its world to read the plan'); return; }
+      var m = el('div', 'x-modal', '<div class="x-modal-in x-canon-page"><p class="x-man-k">ITEM CATALOG · ' + CATNAME[t.c] + ' · ' + RARITY[t.r] + '</p>' +
+        '<h2><img class="x-pix x-ico big" alt="" src="' + ART.url(t.icon, 4) + '"> ' + esc(t.n) + '</h2><p class="x-mono">' + esc([t.id, t.p ? (S.visited[t.no] ? placeName(t.no) : t.p) : 'CORE CATALOG', t.reg, t.anchor].filter(Boolean).join(' · ')) + '</p>' +
+        '<div class="x-canon-text"><p><b>FUNCTION</b> ' + esc(t.fn || '') + '</p><p><b>ROLE</b> ' + esc(t.role || '') + '</p><p><b>WHERE</b> ' + esc(t.acq || '') + '</p><p><b>NOTE</b> ' + esc(t.note || '') + '</p>' +
+        (t.c !== 'mat' ? '<p class="dim">Proposed in the item catalog. Machines and modifications are set up in Build Mode, which is still to come.</p>' : '') +
+        ((S.hq.items || {})[t.id] ? '<p><b>IN THE STORES</b> ' + S.hq.items[t.id] + '</p>' : '') + '</div><div class="x-sh-btns"><button class="x-btn ghost" data-t="close">CLOSE</button></div></div>');
+      ui.appendChild(m); m.addEventListener('click', function(ev){ if (ev.target === m || ev.target.closest('[data-t]')) m.remove(); });
+    };
+  }
   function navResearch(body){
     var ids = researchIds(), h = S.hq, eq = (HQ.airTanks || []).filter(function(t){ return (h.equip || {})[t.id]; });
     var pendIds = ids.filter(function(id){ return S.cards[id].pend; });
     body.innerHTML = '<p class="x-crt">RESEARCH · what you carry counts only once it is home at ' + esc(hqName()) + '</p>' +
-      '<section class="x-arc riv" id="rs-pack"><h3>IN THE PACK · UNREDEEMED <b>' + (packTotal() + packParts() + pendingCards()) + '</b></h3>' +
+      '<section class="x-arc riv" id="rs-pack"><h3>IN THE BAG · UNREDEEMED <b>' + (packTotal() + packParts() + pendingCards()) + '</b></h3>' +
         '<p class="x-mono light">Lost if you die out there. Bring it home to ' + esc(hqName()) + ' to redeem it.</p><ul class="x-hqlist">' +
         MATS.filter(function(m){ return S.pack[m[0]]; }).map(function(m){ return '<li><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_' + m[0], 2) + '">' + m[1] + ' × ' + S.pack[m[0]] + '</b><span>' + esc(m[2]) + '</span><div></div></li>'; }).join('') +
         (S.pack.parts || []).map(function(no){ return '<li><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_part_' + sysOf(no).id, 2) + '">' + esc(sysOf(no).part) + '</b><span>Ship part from ' + esc(placeName(no)) + ', for the ' + esc(sysOf(no).name) + '.</span><div><em>SHIP PART</em></div></li>'; }).join('') +
@@ -1273,9 +1350,11 @@
         '</ul></section>' +
       '<section class="x-arc riv" id="rs-cards"><h3>RESEARCH CARDS <b>' + ids.length + '</b></h3>' +
         (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>' : '<p class="x-mono light">Scan plants, minerals, places, peoples and bodies in the sky.</p>') + '</section>' +
+      '<section class="x-arc riv" id="rs-items"><h3>ITEM CATALOG</h3><div class="x-itemcat"></div></section>' +
       '<section class="x-arc riv" id="rs-canon"><h3>MASTER CANON <b class="x-canon-count"></b></h3><div class="x-canon"></div></section>' +
       '<section class="x-arc riv" id="rs-codex"><h3>THE LIVING MASTER CODEX · PLAYER DISCOVERIES</h3><div class="x-codex-in"></div></section>';
     navCodex($('.x-codex-in', body));
+    catalogPanel($('.x-itemcat', body));
     canonPanel($('.x-canon', body), $('.x-canon-count', body));
     body.onclick = function(e){
       var g = e.target.closest('[data-go]'); if (g) { nav(g.dataset.go); return; }
@@ -1403,7 +1482,7 @@
       '<section class="x-arc riv"><h3>EXPEDITIONS <b>' + vis.length + ' / 27</b></h3><ul class="x-hqlist">' +
       (vis.length ? vis.map(function(w){
         var no = w.no, steps = [hasClue(no) ? '✓ CLUE' : '· CLUE', S.exp.beaten[no] ? '✓ ' + (hasWarden(no) ? 'WARDEN' : 'GUARDIAN') : '· ' + (hasWarden(no) ? 'WARDEN' : 'GUARDIAN'),
-          S.hq.installed[no] || S.hq.parts[no] ? '✓ PART HOME' : S.exp.vault[no] ? '… PART IN PACK' : '· PART'];
+          S.hq.installed[no] || S.hq.parts[no] ? '✓ PART HOME' : S.exp.vault[no] ? '… PART IN BAG' : '· PART'];
         if (hasWarden(no)) steps.push(S.hq.residents[no] ? '✓ REFUGEES' : '· REFUGEES');
         return '<li class="' + (S.hq.installed[no] || S.hq.parts[no] ? 'done' : '') + '"><b>' + esc(placeName(no)) + '</b><span>' + steps.join(' · ') + '</span><div><em>' + esc(vaultState(no)) + '</em></div></li>';
       }).join('') : '<li><b>— no expeditions yet —</b><span>Set a course in NAVIGATION.</span><div></div></li>') + '</ul></section>';
@@ -1455,7 +1534,7 @@
           (onHQ() ? (S.hq.built.research ? '' : 'Build the RESEARCH STATION first.') : 'You are away from ' + esc(hqName()) + '.') + '</p>' +
         (prof.length ? '<ul class="x-hqlist">' + prof.map(function(id){
           var c = S.cards[id], home = c.qty - (c.pend || 0) > 0, act;
-          if (!home) act = '<em class="dim">IN THE PACK · BRING IT HOME</em>';
+          if (!home) act = '<em class="dim">IN THE BAG · BRING IT HOME</em>';
           else if (!onHQ()) act = '<em class="dim">CLONE AT ' + esc(hqName()) + '</em>';
           else if (!S.hq.built.research) act = '<em class="dim">NEEDS RESEARCH STATION</em>';
           else act = '<em>' + costText(cloneCost(id)) + '</em><button class="x-btn small" data-clone="' + id + '"' + (canAfford(cloneCost(id)) ? '' : ' disabled') + '>CLONE</button>';
@@ -1649,7 +1728,7 @@
     return EXP.perks.filter(function(p){ return p.types.indexOf(t) >= 0; })[0] || null;
   }
   function perk(id){ var p = leadPerk(); return !!(p && p.id === id); }
-  function vaultState(no){ return S.hq.installed[no] ? 'INSTALLED' : S.hq.parts[no] ? 'AT ' + hqName() : S.exp.vault[no] ? 'IN YOUR PACK' : S.exp.beaten[no] && hasClue(no) ? 'OPEN TO YOU' : hasClue(no) ? 'CLUE FOUND' : 'SEALED'; }
+  function vaultState(no){ return S.hq.installed[no] ? 'INSTALLED' : S.hq.parts[no] ? 'AT ' + hqName() : S.exp.vault[no] ? 'IN YOUR BAG' : S.exp.beaten[no] && hasClue(no) ? 'OPEN TO YOU' : hasClue(no) ? 'CLUE FOUND' : 'SEALED'; }
   function packParts(){ return (S.pack.parts || []).length; }
   function installPart(no){
     var sy = sysOf(no);
@@ -1694,10 +1773,33 @@
   function gainAll(obj, quiet){
     var parts = [];
     Object.keys(obj || {}).forEach(function(k){ if (obj[k]) { S.pack[k] = (S.pack[k] || 0) + obj[k]; parts.push('+' + obj[k] + ' ' + matName(k)); } });
-    save(); if (parts.length && !quiet) toast(parts.join(' · ') + ' · in your pack');
+    save(); if (parts.length && !quiet) toast(parts.join(' · ') + ' · in your bag');
     return parts.join(' · ');
   }
   function gain(k, n, quiet){ var o = {}; o[k] = n; return gainAll(o, quiet); }
+  // every planet's own materials (the catalog's ten per world): plants give the growing ones, outcrops the rest
+  var PLANT_FAM = /bundle|leaf|feather|orb|bottle/;
+  function tileMaterial(i, kind){
+    if (!ITEMS.ready || !M || M.hq || M.indoor || !M.world) return null;
+    var list = ITEMS.mats[M.world]; if (!list) return null;
+    var pool = list.filter(function(t){ return t.r <= 1 && (kind === 'plant' ? PLANT_FAM.test(t.fam) : kind === 'mineral' ? !PLANT_FAM.test(t.fam) : true); });
+    if (!pool.length) pool = list.filter(function(t){ return t.r <= 1; });
+    return pool.length ? pool[((i * 2654435761) >>> 0) % pool.length] : null;
+  }
+  function gainItem(id, n, quiet){
+    var t = ITEMS.byId[id]; if (!t) return '';
+    S.pack.items = S.pack.items || {}; S.pack.items[id] = (S.pack.items[id] || 0) + (n || 1);
+    S.itemSeen = S.itemSeen || {}; var first = !S.itemSeen[id]; if (first) S.itemSeen[id] = Date.now();
+    save(); if (!quiet) toast('+' + (n || 1) + ' ' + itemName(t) + (first ? ' · NEW TO THE CATALOG' : '') + ' · in your bag');
+    return itemName(t);
+  }
+  function harvest(i, kind){ var t = tileMaterial(i, kind); if (t) gainItem(t.id, 1); }
+  // a rarer find of this world (landmarks, vaults): rarity r and up
+  function rareFind(r){
+    if (!ITEMS.ready || !M || !M.world) return;
+    var list = (ITEMS.mats[M.world] || []).filter(function(t){ return t.r === r; }); if (!list.length) return;
+    gainItem(list[((M.world * 7 + Object.keys(S.itemSeen || {}).length) >>> 0) % list.length].id, 1);
+  }
   // take a tile's material once: the same spot never pays twice
   function takeOnce(x, y, obj){ var key = M.id + ':' + x + ',' + y; if (S.found[key]) return ''; S.found[key] = 1; return gainAll(obj, true); }
   // ── CORE GAMEPLAY SYSTEMS · the five-machine departure chain ──
@@ -1712,6 +1814,16 @@
   function coreBuiltCount(){ return (CORE.starter || []).filter(function(m){ return coreMachine(m.id); }).length; }
   function coreReady(){ return (CORE.starter || []).every(function(m){ return coreMachine(m.id); }) && S.core.oil > 0; }
   function coreHomeDistance(no){ var a = POS.nasarus, b = POS[no]; return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0; }
+  // AA:1936 handoff: beyond the AstroNav's safe connection radius the interface fills with static
+  function outOfRange(){ return !!(S.core && S.core.enabled && typeof S.at === 'number' && coreHomeDistance(S.at) > coreNavRadius() * 70); }
+  function stranded(no){
+    // not saved: the save keeps the moment before this launch (the Creator has not yet ruled on Game Over saves)
+    stopWorld && stopWorld(); vibrate(600, 1);
+    var s = screen('x-recall x-death x-static', '<div class="x-paper"><p class="x-stamp red">GAME OVER</p><h2 class="x-death-h">STRANDED IN DEEP SPACE</h2>' +
+      '<p class="x-mono">Beyond the AstroNav’s safe radius the course to ' + esc(placeName(no)) + ' burned OIL faster than the gauge could read. The tanks ran dry between the stars, and the ship dropped out of hyperspace with nowhere to land.</p>' +
+      '<p class="x-mono light">Your last record is from before this launch.</p><button class="x-btn">RETURN TO THE LAST RECORD</button></div>');
+    $('.x-btn', s).addEventListener('click', function(){ location.reload(); });
+  }
   function coreNavRadius(){ return (CORE.navigation.baseRadius || 2) + (S.core.machines.astranav_terminal ? CORE.navigation.upgradeStep : 0); }
   function coreOilCost(no){
     var distance = hopDist(no), outside = coreHomeDistance(no) > coreNavRadius() * 70;
@@ -1737,6 +1849,13 @@
       Object.keys(S.cards).forEach(function(id){ S.cards[id].pend = 0; });
       S.hq.store.data = (S.hq.store.data || 0) + pc * 2; hqRecord('Redeemed ' + pc + ' research card' + (pc > 1 ? 's' : '') + ' (+' + (pc * 2) + ' DATA).'); save();
       if (!quiet) toast('REDEEMED · ' + pc + ' research card' + (pc > 1 ? 's' : '') + ' · +' + (pc * 2) + ' DATA');
+    }
+    var pit = S.pack.items || {}, pik = Object.keys(pit).filter(function(k){ return pit[k]; });
+    if (pik.length && S.hq.built.stores) {
+      S.hq.items = S.hq.items || {}; var ni = 0;
+      pik.forEach(function(k){ S.hq.items[k] = (S.hq.items[k] || 0) + pit[k]; ni += pit[k]; }); S.pack.items = {};
+      hqRecord('Stored ' + ni + ' catalog item' + (ni > 1 ? 's' : '') + ' from the bag.'); save();
+      if (!quiet) toast('STORED · ' + ni + ' catalog item' + (ni > 1 ? 's' : '') + ' from the bag');
     }
     var n = packTotal(); if (!n || !S.hq.built.stores) return 0;
     MATS.forEach(function(m){ var k = m[0]; if (S.pack[k]) { S.hq.store[k] = (S.hq.store[k] || 0) + S.pack[k]; S.pack[k] = 0; } });
@@ -1958,9 +2077,9 @@
           return '<li class="' + (h.settled[id] ? 'done' : '') + '"><b>' + esc(subjName(id)) + '</b><span>' + (h.settled[id] ? 'Lives on ' + esc(hqName()) + '.' : 'You hold ' + S.cards[id].qty + ' copies.') + '</span><div>' +
             (h.settled[id] ? '<em class="ok">SETTLED</em>' : at ? '<button class="x-btn small" data-settle="' + id + '">SETTLE</button>' : '<em class="dim">AT ' + esc(hqName()) + '</em>') + '</div></li>';
         }).join('') + '</ul>' : '<p class="x-mono light">Build the AETHREN SANCTUARY to settle Aethren on ' + esc(hqName()) + '.</p>') + '</section>';
-    html += '<section class="x-arc riv" id="hq-mats"><h3>MATERIALS <b>PACK ' + packTotal() + '</b></h3><table class="x-mats"><tr><th></th><th>PACK</th><th>STORES</th></tr>' +
+    html += '<section class="x-arc riv" id="hq-mats"><h3>MATERIALS <b>BAG ' + packTotal() + '</b></h3><table class="x-mats"><tr><th></th><th>BAG</th><th>STORES</th></tr>' +
       MATS.map(function(m){ return '<tr><td><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_' + m[0], 2) + '">' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (S.pack[m[0]] || 0) + '</td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
-      '<div class="x-sh-btns">' + (at && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>DEPOSIT PACK</button>' : '') +
+      '<div class="x-sh-btns">' + (at && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>EMPTY THE BAG</button>' : '') +
       (at && h.built.depot ? '<span class="x-xch">EXCHANGE <button class="x-btn ghost small" data-h="xfrom">' + matName(xFrom) + ' ×3</button> → <button class="x-btn ghost small" data-h="xto">' + matName(xTo) + ' ×1</button><button class="x-btn small" data-h="xgo">TRADE</button></span>' : '') + '</div></section>';
     html += '<section class="x-arc riv" id="hq-core"><h3>CORE SYSTEMS <b>' + coreBuiltCount() + '/' + CORE.starter.length + ' STARTER MACHINES · OIL ' + (S.core.oil || 0) + '</b></h3>' +
       '<p class="x-mono light">NASARUS carries the opening departure sequence. Recover each physical recipe paper, build the machine, then produce OIL from FIBRE in the FUEL GENERATOR.</p>' +
@@ -2175,7 +2294,7 @@
   function hudRefresh(){
     var zn = $('.x-zn'); if (!zn || !M) return;
     zn.textContent = zoneName();
-    $('.x-zw').textContent = M.hq ? 'HEADQUARTERS · STAGE ' + hqStage() + ' · PACK ' + packTotal() : M.world === 9 ? term('zyraxis') : M.indoor ? term(M.name) : setName(M.world).replace(/ — .*/, '') + ' · PACK ' + packTotal();
+    $('.x-zw').textContent = M.hq ? 'HEADQUARTERS · STAGE ' + hqStage() + ' · BAG ' + packTotal() : M.world === 9 ? term('zyraxis') : M.indoor ? term(M.name) : setName(M.world).replace(/ — .*/, '') + ' · BAG ' + packTotal();
     var oh = $('.x-objhint'); if (oh) { var nx = objectives().filter(function(o){ return !o.done && !o.main; })[0]; oh.textContent = nx ? '▸ ' + nx.t : ''; }
     [['suit', S.suit], ['air', airPct()]].forEach(function(g){
       var n = $('[data-g="' + g[0] + '"] .x-needle'); if (n) n.style.transform = 'rotate(' + (-80 + clamp(g[1], 0, 100) / 100 * 160) + 'deg)';
@@ -2406,8 +2525,8 @@
       if (ch === 'w' || ch === 'A' || ch === 'b') return hqPick(ch, f.x, f.y);
     }
     var no = M.world;
-    if (ch === 'b' || ch === 'T') { takeOnce(f.x, f.y, { fibre:2 }); hudRefresh(); }
-    if (ch === 'A') { takeOnce(f.x, f.y, { crystal:2 }); hudRefresh(); }
+    if (ch === 'b' || ch === 'T') { if (takeOnce(f.x, f.y, { fibre:2 })) harvest(i, 'plant'); hudRefresh(); }
+    if (ch === 'A') { if (takeOnce(f.x, f.y, { crystal:2 })) harvest(i, 'mineral'); hudRefresh(); }
     if (ch === 'b') return examineSpecimen(no === 9 ? 'shrub' : 'pl_' + no);
     if (ch === 'T') return examineSpecimen(no === 9 ? 'fruittree' : 'pl_' + no);
     if (ch === 'A') return examineSpecimen(no === 9 ? 'astralite' : 'mn_' + no, true);
@@ -2415,9 +2534,9 @@
     if (ch === 'L') { var lm = M.landmarks.filter(function(l){ return l.x === f.x && l.y === f.y; })[0]; if (lm) return examineLandmark(lm); }
     if (ch === 'S') return boardShip();
     if (ch === 'X') return say([M.signs[i] || 'A route marker.']);
-    if (ch === 'B') return say(['A heavy boulder, streaked with something that glints.']);
+    if (ch === 'B') { var tg = takeOnce(f.x, f.y, { terra:2 }); hudRefresh(); return say(['A heavy boulder, streaked with something that glints.'].concat(tg ? ['You break off loose ground and stone: ' + tg + '.'] : [])); }
     if (ch === 'P') { var pk = (M.props[i] || [])[0], pm = { pylon:{ scrap:1 }, vent:{ scrap:1 }, pillar:{ scrap:1 }, spire:{ crystal:1 }, deadtree:{ fibre:1 }, tree:{ fibre:1 }, shrub:{ fibre:1 } }[pk];
-      var pg = pm ? takeOnce(f.x, f.y, pm) : ''; hudRefresh(); return say([propLine(M.props[i])].concat(pg ? ['You take what you can carry: ' + pg + '.'] : [])); }
+      var pg = pm ? takeOnce(f.x, f.y, pm) : ''; if (pg) harvest(i, 'any'); hudRefresh(); return say([propLine(M.props[i])].concat(pg ? ['You take what you can carry: ' + pg + '.'] : [])); }
     if (ch === '#') return say([M.indoor ? 'Fitted stone. The joints are too fine for hand tools.' : 'Rock, too steep to climb without gear.']);
     if (ch === '~') return say([M.env(f.x, f.y).tiles.liquid === 'cloud' ? 'Cloud, far below the edge. Nothing to stand on.' : 'Cold, clear liquid. Something moves under the surface.']);
     var hid = M.id + ':' + f.x + ',' + f.y;
@@ -2513,7 +2632,7 @@
   async function examineLandmark(lm){
     if (lm.codexTerm) return examineCodexLandmark(lm);
     var first = mark(lm.id, 'reached'); S.notes[lm.id] = 1; save();
-    if (first) gainAll({ relic:1, data:4 });
+    if (first) { gainAll({ relic:1, data:4 }); rareFind(2); }
     await say([known(lm.id) ? title1936(term(lm.id)) + '. ' + subj(lm.id).journal : subj(lm.id).journal,
       known(lm.id) ? 'The Codex has its name.' : 'Its name is not in your journal. The people of this world will know it.']);
     if (first) toast('NEW FIELD RECORD · ' + term(lm.id));
@@ -2585,14 +2704,14 @@
   // ── the vault, the warden, the refugees, the residents, the allies ──
   async function openVault(){
     var no = M.world, sy = sysOf(no);
-    if (S.hq.installed[no] || S.hq.parts[no] || S.exp.vault[no]) return say(['The vault stands open and empty. Its ' + sy.part + ' is ' + (S.exp.vault[no] ? 'in your pack.' : 'already home.')]);
+    if (S.hq.installed[no] || S.hq.parts[no] || S.exp.vault[no]) return say(['The vault stands open and empty. Its ' + sy.part + ' is ' + (S.exp.vault[no] ? 'in your bag.' : 'already home.')]);
     if (!hasClue(no)) return say(['A sealed vault, older than anything around it. Its lock is a puzzle of marks you cannot read.',
       no === 9 ? '(The clue is with the people of the far end of the Z. Learn their words.)' : hasWarden(no) ? '(The clue is with this world’s people. Show them your scans and learn their words.)' : '(The clue is in this world’s records. Find and read them.)']);
     if (!S.exp.beaten[no]) return say([hasWarden(no) ? 'The ' + wardenName(no) + ' guards this vault. Beat the warden first.' : 'Something guards this vault. It will not let you open it.']);
     var a = await say(['You know the marks now. The lock turns. Inside, packed in something like wax: a ' + sy.part + '.', 'It is exactly what the ' + sy.name + ' needs. Take it home to ' + hqName() + '?'], ['TAKE IT', 'LEAVE IT']);
     if (a !== 0) return;
-    S.pack.parts = S.pack.parts || []; S.pack.parts.push(no); S.exp.vault[no] = Date.now(); gain('relic', 1, true); save(); sfx.reveal(); vibrate(200, .6); hudRefresh();
-    await say(['The ' + sy.part + ' is in your pack (+1 RELIC). It only counts once it is home: get back to ' + hqName() + ' alive.']);
+    S.pack.parts = S.pack.parts || []; S.pack.parts.push(no); S.exp.vault[no] = Date.now(); gain('relic', 1, true); rareFind(3); save(); sfx.reveal(); vibrate(200, .6); hudRefresh();
+    await say(['The ' + sy.part + ' is in your bag (+1 RELIC). It only counts once it is home: get back to ' + hqName() + ' alive.']);
   }
   function wardenTeam(no){
     var ids = Object.keys(SP).filter(function(id){ var x = SP[id]; return x.world === no && !x.retired && !x.hidden; })
@@ -2754,7 +2873,7 @@
     if (lm.shrine) return visitShrine(lm);
     if (lm.text) { var f0 = ixUnlock(lm.codexTerm, 'reached'), f1 = !S.seen['lm:' + lm.id]; S.seen['lm:' + lm.id] = Date.now(); if (f1) { gainAll({ relic:1, data:4 }); toast('FIELD RECORD · ' + lm.name); } save(); await say([lm.text]); return; }
     var first = ixUnlock(lm.codexTerm, 'reached'); save();
-    if (first) { gainAll({ relic:1, data:4 }); toast('MASTER CODEX · ' + lm.codexTerm); }
+    if (first) { gainAll({ relic:1, data:4 }); toast('MASTER CODEX · ' + lm.codexTerm); rareFind(2); }
     await new Promise(function(res){ loadCanon(res); });
     var d = ixDesc(lm.codexTerm);
     await say([lm.codexTerm.toUpperCase() + '.', d ? d.slice(0, 420) : 'A place the Master Codex names.'].concat(first ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON · INDEX.)'] : []));
@@ -3240,7 +3359,7 @@
       if (ch === 'T') return (wa.props.tree || 'tree');
       if (ch === 'b') return wa.shrub;
       if (ch === 'B') return wa.boulder;
-      if (ch === 'A') return wa.mineral;
+      if (ch === 'A') { var tmA = tileMaterial(i, 'mineral'); return tmA && tmA.node ? tmA.node : wa.mineral; }
       if (ch === 'M') return wa.stone;
       if (ch === 'P') { var pw = M.props[i]; if (pw) return pw[1] === '__x' && wa.extra ? wa.extra.sprite : wa.props[pw[0]] || (wa.extra && wa.extra.key === pw[0] ? wa.extra.sprite : wa.boulder); }
     }
@@ -3289,11 +3408,11 @@
       if (o.k === 'ship') { ART.draw(ctx, 'ship', X, Y + 2 * z, z);
         if (M.hq && !S.hq.drive) for (var sm = 0; sm < 4; sm++) { var ph = ((now / 1600) + sm / 4) % 1; ctx.fillStyle = 'rgba(70,66,60,' + (.45 * (1 - ph)).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(X + Math.sin(ph * 6 + sm) * 6 * z, Y - (26 + ph * 26) * z, (3 + ph * 6) * z, 0, 7); ctx.fill(); } }
       else if (o.k === 'npc' && o.n.warden) {
-        shadow(X, Y, z, 12); ART.draw(ctx, withRc(ART.frame('haemen', o.n.dir, 0), 'ppl-' + o.n.env), X, Y, z);
+        shadow(X, Y, z, 12); ART.draw(ctx, npcSprite(o.n), X, Y, z);
         var wy = Y - 21 * z + Math.sin(now / 200) * z; ctx.fillStyle = '#1c0a08'; ctx.fillRect(X - 4 * z, wy - z, 8 * z, 10 * z);
         ctx.fillStyle = '#ff4a2a'; ctx.fillRect(X - z, wy, 2 * z, 5 * z); ctx.fillRect(X - z, wy + 6 * z, 2 * z, 2 * z);
       }
-      else if (o.k === 'npc') { shadow(X, Y, z, 10); ART.draw(ctx, o.n.key === 'furtrader' ? ART.frame('haemen', o.n.dir, 0) : withRc(ART.frame('haemen', o.n.dir, 0), 'ppl-' + o.n.env), X, Y, z); }
+      else if (o.k === 'npc') { shadow(X, Y, z, 10); ART.draw(ctx, npcSprite(o.n), X, Y, z); }
       else if (o.k === 'critter') drawCritter(o.c, X, Y, z, now);
       else if (o.k === 'companion') drawCompanion(o.id, X, Y, z, now);
       else if (o.k === 'player') drawPlayer(X, Y, z);
@@ -3499,7 +3618,8 @@
 
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
-  if (/[?&]debug\b/.test(location.search)) window.__x = { S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, npcs:function(){ return npcs; },
+  setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
+  if (/[?&]debug\b/.test(location.search)) window.__x = { S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

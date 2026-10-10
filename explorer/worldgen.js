@@ -188,15 +188,14 @@
       if (g) m.spawns.push({ x:best.x + 1, y:best.y + 1, id:g, lv:lvl + 8, guardian:true });
     }
   }
-  // THE MASTER CODEX on the ground: people you can meet, and inscribed records of historical figures
-  // (explorer/codex_beings.js). Records are grouped, several names to a stone, so every figure is placed.
+  // THE MASTER CODEX on the ground (explorer/codex_beings.js): every person lives on their home world, and every
+  // other Codex entry (index terms, pages, the timeline) is a landmark, a find or a record stone there.
   function codexPlace(m, r, area, no, district, envId, pts){
     var CX = window.AOV_CODEX; if (!CX) return;
     var here = CX.beings.filter(function(b){
       if (b.kind !== 'humanoid' || !b.home || b.home.world !== no) return false;
       if (no !== 9) return true;
-      var h9 = 0; for (var c = 0; c < b.id.length; c++) h9 = (h9 * 31 + b.id.charCodeAt(c)) >>> 0;
-      var d = b.home.district && b.home.district !== 'malezor' ? b.home.district : ['zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'][h9 % 9];   // Malezor is the hand-built opening district
+      var d = b.home.district && b.home.district !== 'malezor' ? b.home.district : ZD9[hashStr(b.id) % 9];   // Malezor is the hand-built opening district
       return d === district;
     });
     pts = pts || [{ x:area.sx, y:area.sy }];
@@ -205,13 +204,37 @@
       clearRect(m, p.x, p.y, 1, 1, 'd'); road(m, area.sx, area.sy, p.x, p.y + 1, r);
       m.npcs.push({ x:p.x, y:p.y, dir:'down', key:'cx_' + b.id, codex:b.id, env:envId, n:i, person:true });
     });
-    var recs = here.filter(function(b){ return b.place === 'record'; });
-    for (var k = 0; k < recs.length; k += 4) {
-      var q = spot(m, r, area.x, area.y, area.w, area.h, pts, 8); pts.push(q);
-      clearRect(m, q.x, q.y, 1, 1); m.set(q.x, q.y, 'M');
-      m.records.push({ x:q.x, y:q.y, key:'cxr_' + no + '_' + (district || '') + k, codex:recs.slice(k, k + 4).map(function(b){ return b.id; }), n:k });
+    // everything else the Codex names (places, relics, concepts, books, games, the timeline) stands here too:
+    // landmarks to reach, finds to pick up, and record stones to read once you know this world's words
+    codexLore(here9(no, district), function(pl){
+      var q = spot(m, r, area.x, area.y, area.w, area.h, pts, pl.t === 'lm' ? 8 : 5); pts.push(q);
+      if (pl.t === 'lm') {
+        clearRect(m, q.x, q.y, 2, 2); m.set(q.x, q.y, 'L');
+        m.landmarks.push({ x:q.x, y:q.y, name:pl.term, id:'cxl_' + pl.i, env:'codex', codexTerm:pl.term });
+      } else if (pl.t === 'find') {
+        clearRect(m, q.x, q.y, 1, 1); m.set(q.x, q.y, '*');
+        (m.codexFinds = m.codexFinds || {})[q.y * m.W + q.x] = pl.term;
+      } else {
+        clearRect(m, q.x, q.y, 1, 1); m.set(q.x, q.y, 'M');
+        m.records.push({ x:q.x, y:q.y, key:'cxs_' + pl.i, n:0, codexTerms:pl.terms || [], codexPages:pl.pages || [] });
+      }
       road(m, area.sx, area.sy, q.x, q.y + 1, r);
-    }
+    });
+  }
+  // Zyraxis: entries with no district (or Malezor, the hand-built opening) are spread across the other nine
+  var ZD9 = ['zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+  function hashStr(s){ var h = 0; for (var c = 0; c < s.length; c++) h = (h * 31 + s.charCodeAt(c)) >>> 0; return h; }
+  function here9(no, district){
+    return function(pl){
+      if (!pl.home || pl.home.world !== no) return false;
+      if (no !== 9) return true;
+      var d = pl.home.district && pl.home.district !== 'malezor' ? pl.home.district : ZD9[hashStr(pl.term || (pl.terms || []).concat(pl.pages || []).join('|')) % 9];
+      return d === district;
+    };
+  }
+  function codexLore(test, fn){
+    var PL = (window.AOV_CODEX || {}).placements || [];
+    PL.forEach(function(pl, i){ if (test(pl)) { pl.i = i; fn(pl); } });
   }
   function finish(m){
     // the ship stands three tiles wide and two tall around its anchor
@@ -229,6 +252,7 @@
     if (!e) return null;
     // worlds with many Codex people grow to fit them (Viridia holds most of the saga's humanoids)
     var pop = ((window.AOV_CODEX || {}).beings || []).filter(function(b){ return b.kind === 'humanoid' && b.home && b.home.world === no; }).length;
+    pop += ((window.AOV_CODEX || {}).placements || []).filter(function(p){ return p.home && p.home.world === no; }).length * .6;
     var grow = pop > 20 ? Math.min(2.2, Math.sqrt(pop / 20)) : 1;
     var W = Math.round(84 * grow), H = Math.round(64 * grow), m = new Map('w' + no, W, H), seed = no * 7919 + 17, r = rng(seed);
     m.world = no; m.envs = [e]; m.name = e.id;

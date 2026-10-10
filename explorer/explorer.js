@@ -119,7 +119,7 @@
   function blank(){
     return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{ cloneRule:1 }, archive:{}, cards:{}, lex:{}, machines:{}, dev:{ access:false, chests:{} },
              core:{ enabled:true, recipes:{}, machines:{}, oil:0, astralites:{}, automation:{}, gameOver:false },
-             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(), codex:{}, codexPages:{},
+             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(), codex:{}, codexPages:{}, codexIdx:{},
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
   function newHQ(){ return { id:'nasarus', name:HQ.canonicalName, built:{}, drive:false, ruins:{}, regions:[], store:{}, research:{}, records:[], stage:1, equip:{}, parts:{}, installed:{}, residents:{}, settled:{} }; }
@@ -150,7 +150,7 @@
   }
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
   // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
-  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.codex = S.codex || {}; S.codexPages = S.codexPages || {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
+  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.codex = S.codex || {}; S.codexPages = S.codexPages || {}; S.codexIdx = S.codexIdx || {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
   if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; S.flags.charted = true; S.flags.hqNew = true; }
   if (S && S.v === 3) {
     S.core = S.core || { enabled:false, recipes:{}, machines:{}, oil:0, astralites:{}, automation:{}, gameOver:false };
@@ -1192,7 +1192,7 @@
   // Beings unlock when scanned, met or read on a record; WORLDS rows when the world is visited;
   // INDEX entries when their subject is unlocked; COSMIC THEORIES, BOOKS and GAMES pages are decoded
   // with DATA at NASARUS's Research Station. AEP-28, Ovauron and Mealux stay sealed (canon).
-  var canonTab = 'beings', canonLetter = 'A', SEALED_RX = /(ovauron|aep[- ]?28|\bae-28\b)/i, PAGE_COST = 4;
+  var canonTab = 'beings', canonLetter = 'A', SEALED_RX = /(ovauron|primalutonia|drift planet|aep[- ]?28|\bae-28\b)/i, PAGE_COST = 4;
   function spIdByName(){ if (spIdByName.m) return spIdByName.m; var m = {}; Object.keys(SP).forEach(function(id){ var n = (SP[id].name || '').toLowerCase().replace(/[^a-z0-9]/g, ''); if (n && !m[n]) m[n] = id; }); return (spIdByName.m = m); }
   function beingOpen(b){
     if (SEALED_RX.test(b.name)) return false;
@@ -1208,7 +1208,7 @@
   function canonPanel(host, countEl){
     var all = CODEX.beings, open = all.filter(beingOpen);
     countEl.textContent = open.length + ' / ' + all.length + ' BEINGS UNLOCKED';
-    var tabs = [['beings','BEINGS'],['worlds','WORLDS'],['cosmic','COSMIC THEORIES'],['books','BOOKS'],['games','GAMES'],['index','INDEX']];
+    var tabs = [['beings','BEINGS'],['worlds','WORLDS'],['cosmic','COSMIC THEORIES'],['books','BOOKS'],['games','GAMES'],['timeline','TIMELINE'],['index','INDEX']];
     host.innerHTML = '<div class="x-canon-tabs">' + tabs.map(function(t){ return '<button class="x-btn small' + (t[0] === canonTab ? '' : ' ghost') + '" data-ct="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="x-canon-body"><p class="x-mono light">Reading the Master Canon…</p></div>';
     host.onclick = function(e){
       var t = e.target.closest('[data-ct]'); if (t) { canonTab = t.dataset.ct; canonPanel(host, countEl); return; }
@@ -1253,7 +1253,7 @@
   function renderPages(el, sec){
     var S2 = window.AOV_CODEX_REF.sections.filter(function(x){ return x.key === sec; })[0]; if (!S2) return;
     var canDecode = onHQ() && S.hq.built.research;
-    el.innerHTML = '<p class="x-mono light">' + (sec === 'worlds' ? 'Pages open as you visit their worlds.' : 'Encrypted pages. Decode them at ' + esc(hqName()) + '’s Research Station for ' + PAGE_COST + ' DATA each.' + (canDecode ? '' : ' (You must be at the Research Station.)')) + '</p>' +
+    el.innerHTML = '<p class="x-mono light">' + (sec === 'worlds' ? 'Pages open as you visit their worlds.' : 'Encrypted pages. Find them on record stones out in the worlds, or decode them at ' + esc(hqName()) + '’s Research Station for ' + PAGE_COST + ' DATA each.' + (canDecode ? '' : ' (You must be at the Research Station.)')) + '</p>' +
       '<ul class="x-hqlist x-canon-list">' + S2.pages.map(function(pg, i){
         var o = pageOpen(sec, i, pg), restricted = SEALED_RX.test(pg.title);
         if (o) return '<li class="done"><b>' + esc(pg.title) + '</b><span>' + pg.rows.length + ' lines</span><div><button class="x-btn small" data-cp="' + sec + ':' + i + '">READ</button></div></li>';
@@ -1281,14 +1281,20 @@
     var k = term.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (CODEX.beings.some(function(b){ return b.name.toLowerCase().replace(/[^a-z0-9]/g, '') === k && beingOpen(b); })) return true;
     if (worldOpenByName(term)) return true;
+    if (S.codexIdx[k]) return true;
     return Object.keys(S.lex || {}).some(function(t){ var L = D.lexicon[t]; return L && L.canon && L.canon.toLowerCase().replace(/[^a-z0-9]/g, '') === k; });
+  }
+  function ixWhere(term){
+    if (!ixWhere.m) { ixWhere.m = {}; (CODEX.placements || []).forEach(function(p){ (p.term ? [p.term] : p.terms || []).forEach(function(t){ ixWhere.m[ixKey(t)] = p.home.world; }); }); }
+    var no = ixWhere.m[ixKey(term)], w = no && D.worlds.filter(function(x){ return x.no === no; })[0];
+    return w && S.visited[no] ? String(w.name).toUpperCase() : '';
   }
   function renderIndex(el){
     var IX = window.AOV_CODEX_REF.index, ls = letters(IX, function(r){ return r[1]; });
     var rows = IX.filter(function(r){ var c = (r[1][0] || '#').toUpperCase(); return (/[A-Z]/.test(c) ? c : '#') === canonLetter; });
     var open = IX.filter(function(r){ return indexOpen(r[1]); }).length;
     el.innerHTML = '<p class="x-mono light">' + open + ' / ' + IX.length + ' entries readable. Entries open as you discover their subjects.</p>' + letterBar(ls) +
-      '<ul class="x-hqlist x-canon-list">' + rows.map(function(r){ return indexOpen(r[1]) ? '<li class="done"><b>' + esc(r[1]) + '</b><span>' + esc(r[2]).slice(0, 600) + '</span><div></div></li>' : '<li class="sealed"><b>' + esc(r[1][0]) + '█████████</b><span>SEALED</span><div></div></li>'; }).join('') + '</ul>';
+      '<ul class="x-hqlist x-canon-list">' + rows.map(function(r){ return indexOpen(r[1]) ? '<li class="done"><b>' + esc(r[1]) + '</b><span>' + esc(redact(r[2])).slice(0, 600) + '</span><div></div></li>' : '<li class="sealed"><b>' + esc(r[1][0]) + '█████████</b><span>SEALED' + (ixWhere(r[1]) ? ' · somewhere on ' + esc(ixWhere(r[1])) : '') + '</span><div></div></li>'; }).join('') + '</ul>';
   }
 
   // ── 6 · JOURNAL · the missions ──
@@ -2292,6 +2298,7 @@
     if (ch === '#') return say([M.indoor ? 'Fitted stone. The joints are too fine for hand tools.' : 'Rock, too steep to climb without gear.']);
     if (ch === '~') return say([M.env(f.x, f.y).tiles.liquid === 'cloud' ? 'Cloud, far below the edge. Nothing to stand on.' : 'Cold, clear liquid. Something moves under the surface.']);
     var hid = M.id + ':' + f.x + ',' + f.y;
+    if (ch === '*' && !S.found[hid] && M.codexFinds && M.codexFinds[i]) return pickCodexFind(hid, M.codexFinds[i]);
     if (ch === '*' && !S.found[hid]) {
       S.found[hid] = 1; var k = Object.keys(S.found).length % 2; sfx.reveal(); vibrate(60, .3); gain('scrap', 2);
       if (k === 1) { S.air = Math.min(airMax(), S.air + 40); save(); hudRefresh(); return say(['A spare air cylinder from your own kit, lost on landing. Still charged.', 'AIR +40']); }
@@ -2381,6 +2388,7 @@
     if (!S.cards.firstden) { var ok = await say(['Scan the cave into the AstraNav?'], ['SCAN', 'NOT NOW']); if (ok === 0) scanPlace('firstden'); }
   }
   async function examineLandmark(lm){
+    if (lm.codexTerm) return examineCodexLandmark(lm);
     var first = mark(lm.id, 'reached'); S.notes[lm.id] = 1; save();
     if (first) gainAll({ relic:1, data:4 });
     await say([known(lm.id) ? title1936(term(lm.id)) + '. ' + subj(lm.id).journal : subj(lm.id).journal,
@@ -2612,6 +2620,35 @@
     if (fresh.length) { gain('data', 2 * fresh.length, true); toast('MASTER CODEX · ' + fresh.length + ' historical ' + (fresh.length > 1 ? 'figures' : 'figure') + ' recorded'); }
     await say(['A record stone, carved with the names of people long gone.'].concat(bs.map(function(b){ return cxHeader(b) + (b.blurb ? ': ' + b.blurb : '.'); })));
   }
+  // places, relics and record stones from the Master Codex index, pages and timeline
+  function ixKey(t){ return String(t || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function ixUnlock(term, how){ var k = ixKey(term); if (S.codexIdx[k]) return false; S.codexIdx[k] = { how:how, at:Date.now() }; return true; }
+  function ixDesc(term){ var R = window.AOV_CODEX_REF, k = ixKey(term), r = R && R.index.filter(function(x){ return ixKey(x[1]) === k; })[0]; return r ? redact(r[2]) : ''; }
+  // AEP-28 stays sealed: any clause that names it is blacked out
+  function redact(t){ return String(t || '').split(/( · |\. |; )/).map(function(c){ return SEALED_RX.test(c) ? '██████' : c; }).join(''); }
+  function worldLearned(no){ return no === 9 ? Object.keys(S.lore).some(function(k){ return /^z_/.test(k); }) || S.flags.taught : !!S.lore['w' + no]; }
+  async function examineCodexLandmark(lm){
+    var first = ixUnlock(lm.codexTerm, 'reached'); save();
+    if (first) { gainAll({ relic:1, data:4 }); toast('MASTER CODEX · ' + lm.codexTerm); }
+    await new Promise(function(res){ loadCanon(res); });
+    var d = ixDesc(lm.codexTerm);
+    await say([lm.codexTerm.toUpperCase() + '.', d ? d.slice(0, 420) : 'A place the Master Codex names.'].concat(first ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON · INDEX.)'] : []));
+  }
+  async function pickCodexFind(hid, term){
+    S.found[hid] = 1; var first = ixUnlock(term, 'found'); sfx.reveal(); vibrate(60, .3); gain('relic', 1); save(); hudRefresh();
+    await new Promise(function(res){ loadCanon(res); });
+    var d = ixDesc(term);
+    await say(['You find something half buried: ' + term + '.', d ? d.slice(0, 420) : 'The Master Codex knows it.', 'RELICS +1'].concat(first ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON · INDEX.)'] : []));
+  }
+  async function readCodexStone(rec){
+    if (!worldLearned(M.world)) { await say(['A tall stone, densely inscribed. The script is this world’s, and you cannot read it yet.', '(Learn this world’s words first, from its people or its records.)']); return; }
+    await new Promise(function(res){ loadCanon(res); });
+    var R = window.AOV_CODEX_REF, terms = rec.codexTerms.filter(function(t){ return ixUnlock(t, 'record'); }), pages = rec.codexPages.filter(function(k){ if (S.codexPages[k]) return false; S.codexPages[k] = Date.now(); return true; });
+    var n = terms.length + pages.length; if (n) { gain('data', 2 * n, true); toast('MASTER CODEX · ' + n + ' ' + (n > 1 ? 'entries' : 'entry') + ' recorded'); }
+    save();
+    var titles = rec.codexPages.map(function(k){ var p = k.split(':'), sec = R.sections.filter(function(x){ return x.key === p[0]; })[0], pg = sec && sec.pages[+p[1]]; return pg ? sec.title + ': ' + pg.title : null; }).filter(Boolean);
+    await say(['A record stone. You read it against the words you have learned.'].concat(rec.codexTerms.map(function(t){ var d = ixDesc(t); return t + (d ? ': ' + d.slice(0, 200) : '.'); }), titles.length ? ['It carries ' + (titles.length > 1 ? 'pages' : 'a page') + ' of the Master Canon: ' + titles.join(' · ') + '.'] : [], n ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON. +' + (2 * n) + ' DATA)'] : ['You have copied this stone before.']));
+  }
   async function talkPeople(n){
     if (n.key === 'furtrader') return talkHaemen();
     sfx.meet();
@@ -2641,6 +2678,7 @@
   }
   async function examineRecord(rec){
     if (rec.codex) return examineCodexRecord(rec);
+    if (rec.codexTerms) return readCodexStone(rec);
     var no = M.world, key = rec.key, fid = 'rec:' + key + ':' + rec.n, pe = FAUNA.peoples[no] || {};
     if (!S.found[fid]) {
       S.found[fid] = 1; gain('data', 3, true); save();
@@ -3057,6 +3095,7 @@
       var under = OBJ.indexOf(ch) >= 0 || ch === '*' ? (ch === 'X' && M.hq ? 'd' : '.') : ch;
       var cnv = ART.canvas(tileSpec(ri, under, x, y, fr));
       if (cnv) ctx.drawImage(cnv, ox + x * TZ, oy + y * TZ, TZ, TZ);
+      if (ch === '*' && M.codexFinds && M.codexFinds[i] && !S.found[M.id + ':' + x + ',' + y]) { ctx.fillStyle = fr ? '#ffe9a0' : '#d9a441'; var gs = TZ / 8; ctx.fillRect(ox + x * TZ + TZ / 2 - gs / 2, oy + y * TZ + TZ / 2 - gs * 1.5, gs, gs * 3); ctx.fillRect(ox + x * TZ + TZ / 2 - gs * 1.5, oy + y * TZ + TZ / 2 - gs / 2, gs * 3, gs); }   // a Codex relic glints
       if (OBJ.indexOf(ch) >= 0 && ch !== 'S' && ch !== 'F') list.push({ k:ch, i:i, x:x, y:y, s:y, ri:ri });
     }
     if (M.ship) { ctx.fillStyle = 'rgba(40,24,12,.35)'; ctx.beginPath(); ctx.ellipse(ox + (M.ship.x + .5) * TZ, oy + (M.ship.y + .85) * TZ, 1.2 * TZ, .4 * TZ, 0, 0, 7); ctx.fill(); list.push({ k:'ship', x:M.ship.x, y:M.ship.y, s:M.ship.y + .1 }); }

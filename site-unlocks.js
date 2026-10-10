@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.1', title:'The whole Codex, out in the worlds',
+      notes:[
+        'Every entry in the Master Codex now has a place in the worlds, from Anciuxor down to scrap',
+        'Reach the Codex’s landmarks: Ashen Fields, the Temple of Anciuxor, the Tree of Elyssia and dozens more',
+        'Pick up glinting relics: the Phoenaris Crown, the Key of Anciuxor, the Astralite Prisms',
+        'Read record stones once you know a world’s words: concepts, events, book and game pages, and the saga’s timeline',
+        'A new TIMELINE tab in the Master Canon, and the Index tells you which world a sealed entry is on'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10', title:'The Master Codex',
       notes:[
         'The full Master Codex is in the game: 582 beings, the Worlds, Cosmic Theories, Books, Games and a 1,017-entry Index',

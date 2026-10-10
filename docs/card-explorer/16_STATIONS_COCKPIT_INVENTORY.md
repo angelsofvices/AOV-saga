@@ -30,7 +30,7 @@ INVENTORY has six chapters:
 | Material Processor | refine: three of one material → one of another |
 | Fuel Generator | fibre → oil (×1, ×5) |
 | Rocketship Repair Station | install ship parts; building it restores the drive |
-| AstroNav Terminal | the safe radius and the oil cost of every charted course |
+| AstraNav Terminal | the safe radius and the oil cost of every charted course |
 
 ## Every structure has its own screen
 

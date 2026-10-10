@@ -43,17 +43,17 @@ Sources kept in the repository:
 
 ## The Complete Gameplay Handoff, merged
 
-Already in the game from earlier passes: the ten item classes and the Aethren (`explorer/core_systems.js`); the five starter machines built from physical recipe papers (Workstation, Material Processor, Fuel Generator, Rocketship Repair Station, AstroNav Terminal); Fibre → Fuel Generator → Oil; the scan → clone → nine companions loop; and the Oil-and-radius travel model.
+Already in the game from earlier passes: the ten item classes and the Aethren (`explorer/core_systems.js`); the five starter machines built from physical recipe papers (Workstation, Material Processor, Fuel Generator, Rocketship Repair Station, AstraNav Terminal); Fibre → Fuel Generator → Oil; the scan → clone → nine companions loop; and the Oil-and-radius travel model.
 
 New in this pass:
 - **Terra** (Terraform) joins Scrap and Fibre as a starting foundational resource. Boulders give it, and it has its own icon (a block of ground).
 - **The Bag:** the portable inventory is called the Bag throughout, as in the handoff.
-- **Static beyond the safe radius:** when you are on a world beyond the AstroNav's connection radius, the AstraNav fills with static and reads INTERFERENCE.
+- **Static beyond the safe radius:** when you are on a world beyond the AstraNav's connection radius, the AstraNav fills with static and reads INTERFERENCE.
 - **Stranded is GAME OVER.**
-  - Inside the radius, the AstroNav knows a course's Oil cost and will not launch short.
+  - Inside the radius, the AstraNav knows a course's Oil cost and will not launch short.
   - Beyond it the reading is static: you can launch, and if the faster out-of-range drain empties the tanks, the ship is stranded and the game is over.
   - The save is not written on that launch, so the last record is from before it. The handoff leaves Game Over saves undecided, so this is provisional and there is no rescue.
-- **AstroNav vs AstraNav:** the handoff spells the device AstroNav; the game has said AstraNav since build 7. The starter machine is already the ASTRONAV TERMINAL. Say which spelling to use everywhere.
+- **AstraNav vs AstraNav:** the handoff spells the device AstraNav; the game has said AstraNav since build 7. The starter machine is already the ASTRANAV TERMINAL. Say which spelling to use everywhere.
 
 ## Beings: everyone has a face
 
@@ -69,7 +69,7 @@ All 281 Codex people, 248 folk, the camps, wardens and refugees now look like th
 - Build Mode.
 - Machine recipes and costs beyond the five starters.
 - The fuel-to-distance formula: the out-of-range multiplier in `core_systems.js` is a proposal.
-- AstroNav radius tiers.
+- AstraNav radius tiers.
 - Game Over saves.
 - The 63 Astralite serum abilities.
 - Scan thresholds and the Cloning Machine recipe.

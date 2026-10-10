@@ -24,7 +24,7 @@ window.AOV_CORE = {
     { id:'material_processor', name:'MATERIAL PROCESSOR', classId:'machines', does:'Refines eligible raw materials.', cost:{scrap:6,crystal:2}, recipe:'recipe-material-processor', at:[12, 21], w:1, spr:'core_processor' },
     { id:'fuel_generator', name:'FUEL GENERATOR', classId:'machines', does:'Converts Fibre into Oil.', cost:{scrap:8,crystal:3,fibre:2}, recipe:'recipe-fuel-generator', at:[9, 28], w:2, spr:'machine_generator' },
     { id:'rocketship_repair', name:'ROCKETSHIP REPAIR STATION', classId:'machines', does:'Restores the damaged spacecraft.', cost:{scrap:10,crystal:4,relic:1}, recipe:'recipe-rocketship-repair', at:[12, 25], w:1, spr:'core_repair' },
-    { id:'astranav_terminal', name:'ASTRONAV TERMINAL', classId:'machines', does:'Establishes reliable planetary connections.', cost:{scrap:8,crystal:5,data:4}, recipe:'recipe-astranav-terminal', at:[21, 20], w:1, spr:'machine_astranav' }
+    { id:'astranav_terminal', name:'ASTRANAV TERMINAL', classId:'machines', does:'Establishes reliable planetary connections.', cost:{scrap:8,crystal:5,data:4}, recipe:'recipe-astranav-terminal', at:[21, 20], w:1, spr:'machine_astranav' }
   ],
   // The papers are physical: sheets lying on the ground of their world (at: the spot they are dropped near; the
   // engine settles each on the nearest open floor tile). Walk over one, or face it and press A, to pick it up.
@@ -33,7 +33,7 @@ window.AOV_CORE = {
     { id:'recipe-material-processor', name:'MATERIAL PROCESSOR PAPER', source:'NASARUS ruin papers', machine:'material_processor', world:'nasarus', at:[20, 13], where:'among the Ruined Residences, to the north' },
     { id:'recipe-fuel-generator', name:'FUEL GENERATOR PAPER', source:'NASARUS service papers', machine:'fuel_generator', world:'nasarus', at:[36, 39], where:'out on the southern flats, east of the old monument' },
     { id:'recipe-rocketship-repair', name:'ROCKETSHIP REPAIR PAPER', source:'NASARUS flight papers', machine:'rocketship_repair', world:'nasarus', at:[5, 22], where:'blown west on the crash, toward the Damaged Inscriptions' },
-    { id:'recipe-astranav-terminal', name:'ASTRONAV TERMINAL PAPER', source:'NASARUS navigation papers', machine:'astranav_terminal', world:'nasarus', at:[43, 18], where:'north-east, below the Collapsed Civic Building' }
+    { id:'recipe-astranav-terminal', name:'ASTRANAV TERMINAL PAPER', source:'NASARUS navigation papers', machine:'astranav_terminal', world:'nasarus', at:[43, 18], where:'north-east, below the Collapsed Civic Building' }
   ],
   oil: { id:'oil', name:'OIL', source:'FIBRE → FUEL GENERATOR → OIL', normalPerDistance:1, outOfRangeMultiplier:2.5 },
   navigation: { baseRadius:2, upgradeStep:2, outOfRange: { label:'INTERFERENCE', risk:'Navigation static and accelerated Oil consumption.' } },

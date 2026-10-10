@@ -84,6 +84,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.11', title:'AstraNav, and the composite gems',
+      notes:[
+        'One spelling everywhere: the AstraNav',
+        'Thardin’s Haemen carry the World Gem (red, blue, yellow, green); Korathen’s carry the Space Gem (white, orange, purple, black)',
+        'Composite gem badges are drawn quartered in their four colours'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.10', title:'Tightened up',
       notes:[
         'On touch screens the NAV button is the touchpad; the cockpit has one too',
@@ -99,7 +105,7 @@ window.AOV_UNLOCKS = {
       notes:[
         'A new AstraNav tab: INVENTORY. All items, bag, stores, ship parts and machine papers, each with its icon',
         'Simpler crafting: craft the WORKSTATION from materials in INVENTORY · CRAFT, then build every other machine at the Workstation',
-        'Machines stand on NASARUS as stations: Workstation, Material Processor, Fuel Generator, Rocketship Repair Station, AstroNav Terminal',
+        'Machines stand on NASARUS as stations: Workstation, Material Processor, Fuel Generator, Rocketship Repair Station, AstraNav Terminal',
         'Every structure and machine has its own screen: walk up to it and press A',
         'The rocket has its own screen: FLY it, or read the STAR MAP. Aboard, the cockpit is your console',
         'The AstraNav opens only from the touchpad'
@@ -134,7 +140,7 @@ window.AOV_UNLOCKS = {
         'The ITEM CATALOG in the AstraNav: 891 materials, machines and modifications, each with its own icon',
         'Your BAG and the STORES at NASARUS, side by side in the inventory',
         'Terra joins Scrap and Fibre, and every person you meet now has a look of their own',
-        'Beyond the AstroNav’s safe radius the screen fills with static. Run out of Oil out there and you are stranded'
+        'Beyond the AstraNav’s safe radius the screen fills with static. Run out of Oil out there and you are stranded'
       ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.4', title:'The art pass',
       notes:[

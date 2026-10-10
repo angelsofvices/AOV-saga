@@ -38,7 +38,7 @@ The five NASARUS recipe papers are physical sheets lying on the ground of NASARU
 | Material Processor | among the Ruined Residences, to the north |
 | Fuel Generator | out on the southern flats, east of the old monument |
 | Rocketship Repair | blown west on the crash, toward the Damaged Inscriptions |
-| AstroNav Terminal | north-east, below the Collapsed Civic Building |
+| AstraNav Terminal | north-east, below the Collapsed Civic Building |
 
 - Each recipe in `core_systems.js` carries `world`, `at` and `where`. The engine settles each paper on the nearest open floor tile.
 - Each sheet is a small rectangle drawn flat on the floor, smaller than the pilot.

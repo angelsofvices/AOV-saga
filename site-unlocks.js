@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.14', title:'Aethren where they belong',
+      notes:[
+        'Every body plan lives in the environments that suit it: fish in water, drakes in heat and sky, owls in the canopy and the ruins',
+        'Every world from 1 to 27 has Aethren that fit its habitats; worlds 7, 13, 18 and 21 have their own now',
+        '51 new habitats named from each world’s canon biomes: 89 habitats, 1,919 Aethren variants that live where they fit',
+        'Zyraxis holds the most of all: 405 kinds across its districts',
+        'AEP-28 stays sealed'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.13', title:'42 body plans, 1,638 Aethren variants',
       notes:[
         '26 new native body plans: stag, hound, feline, bear, ape, hopper, frog, ray, eel, jellyfish, urchin, snail, wasp, dragonfly, owl, wading bird, drake, turtle, scorpion, spider, mantis, worm, wisp, drone, mushroom, hydra',

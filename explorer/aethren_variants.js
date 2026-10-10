@@ -1,6 +1,7 @@
 // ★ 2026-10-09 · AETHREN VARIANTS
 // 39 habitat families × 42 native body plans (4 canon bodies + 38 native silhouettes) = 1,638 habitat variants.
 // Each variant also wears a body pattern and a second feature, picked from its habitat and body together.
+// Only bodies that suit a habitat's environments live there; Zyraxis's district habitats are the broadest of all.
 // Each variant is a sprite phenotype, not a new claim about the canon roster:
 // the source body remains a canon Aethren body and the habitat supplies its
 // coloration, feature, and encounter ecology.
@@ -100,50 +101,117 @@
     { key:'mushroom', sprite:'mushroom', types:['Verdant','Unknown'], source:'amph' },
     { key:'hydra', sprite:'hydra', types:['Draconic','Aquatic'], source:'spine' }
   ];
+  // ★ HABITAT COMPATIBILITY (Creator 2026-10-10: "zyraxis has the most diversity of aethren but all worlds have aethren
+  // that match habitat compatibility"). Each body lives in some environments; a variant spawns only where its body
+  // shares an environment with its habitat. The other pairings stay registered (old saves keep their cards) but never spawn.
+  var BODY_ENV = {
+    quad:['land','wild','ruin','arid','cold'], amph:['water','wild','land'], wing:['sky','land','wild'], spine:['land','heat','arid','under'],
+    crawler:['land','under','wild','arid'], serpent:['land','water','wild','heat'], beetle:['land','wild','arid','ruin'], avian:['sky','land','wild','cold'],
+    bat:['under','sky','ruin'], fish:['water'], moth:['sky','wild','arcane'], crab:['water','arid'], blob:['water','under','wild','arcane'],
+    golem:['under','ruin','arcane','heat','arid'], flora:['wild','land'], cephalopod:['water','under'],
+    stag:['land','wild','cold'], hound:['land','ruin','arid','cold'], feline:['land','wild','arid'], bear:['land','wild','cold','under'], ape:['wild','land','ruin'],
+    hopper:['land','arid','wild'], frog:['water','wild'], ray:['water','sky'], eel:['water','under'], jelly:['water','sky','arcane'], urchin:['water','arcane'],
+    snail:['wild','water','ruin'], wasp:['wild','sky','arid'], dragonfly:['water','wild','sky'], owl:['sky','wild','ruin','cold'], wader:['water','wild'],
+    drake:['sky','heat','land'], turtle:['water','land','arid'], scorpion:['arid','heat','under'], spider:['under','wild','ruin'], mantis:['wild','ruin'],
+    worm:['under','wild','arid'], wisp:['arcane','sky','cold'], drone:['ruin','arcane'], mushroom:['under','wild'], hydra:['water','heat','under']
+  };
+  function compatible(bodyKey, habTags){ var e = BODY_ENV[bodyKey] || ['land']; return (habTags || ['land']).some(function(t){ return e.indexOf(t) >= 0; }); }
   // per-variant differentiation: a body pattern and a second feature, chosen from the habitat and the body together
   var PATTERNS = ['spots', 'stripes', 'bands', 'speckle', 'mottle', 'belly', 'none'];
   var FEATURES2 = ['spikes', 'mane', 'tendrils', 'aura', 'tusks', 'plates', 'halo', 'whiskers', 'horns', 'crest', 'fins', 'antennae', 'quills', 'tail', 'rings', 'glow'];
   function darken(hex, k){ var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; return '#' + [r, g, b].map(function(c){ return Math.round(c * (1 - k)).toString(16).padStart(2, '0'); }).join(''); }
   var habitats = [
-    ['sky','Cloudstep Aerie',3,'crest','#5c8aff','#e8c8a8','#fff28a'],
-    ['forest','Rootshadow Forest',4,'frill','#2fe6a8','#3aa66e','#d8f8a8'],
-    ['water','Firstwater Shelf',5,'fins','#4a78c2','#7ad0d8','#a8e8ff'],
-    ['dry','Glasswind Flats',14,'mask','#c8843c','#e8b830','#fff0b0'],
-    ['volcanic','Fangfire Caldera',6,'horns','#e05a2a','#7a1a5c','#ffe08a'],
-    ['marsh','Mirelight Marsh',27,'antennae','#3a7a58','#7ad0d8','#b87cff'],
-    ['swamp','Blackroot Swamp',16,'webbing','#244a3a','#3aa66e','#c8e868'],
-    ['city','Haemen Ruin Ward',9,'vents','#c95c5c','#7d4bb0','#e8c878'],
-    ['cavern','Malezor Gem Caverns',9,'glow','#7d4bb0','#b0e0ff','#fff28a'],
-    ['floodworks','Andrannor Floodworks',9,'fins','#22457c','#4a78c2','#a8e8ff'],
-    ['terrace','Veridan Violet Terraces',9,'frill','#7d4bb0','#3aa66e','#e8c8a8'],
-    ['gallery','Netharion Crystal Gallery',9,'antennae','#24304a','#b0e0ff','#c8b8ff'],
-    ['basin','Vorashil Deep Basin',9,'webbing','#22457c','#7ad0d8','#b87cff'],
-    ['scar','Xilnar Corruption Scar',9,'scar','#7a1a5c','#c8402c','#ff8a3a'],
-    ['forge','Baelgor Golden Forge',9,'vents','#b0904a','#c8402c','#fff28a'],
-    ['well','Thardin Gravity Well',9,'quills','#2e2540','#ff8c1a','#9878ff'],
-    ['vault','Korathen Astralite Vault',9,'crown','#1c1626','#e8c46a','#ffffff'],
-    ['farm','Viridian Farmbelt',27,'tail','#3f8f5f','#e8b830','#fff5db'],
-    ['plains','Astrum Plain',2,'glow','#efe2b8','#9878ff','#fff28a'],
-    ['mountains','Giantland Steps',17,'quills','#5e1c24','#8a8270','#e8c8a8'],
-    ['canyons','Zarvane Canyon',9,'scar','#7d4bb0','#c8843c','#ff8a3a'],
-    ['clouds','Elyther Liftfield',23,'crown','#2f7a6a','#d8e8f4','#fff5db'],
-    ['storms','Worldender Stormline',28,'glow','#4a5c98','#8a52b0','#a8e8ff'],
-    ['ruins','Firsts Ruinway',1,'mask','#1c1626','#e8c46a','#dff4fb'],
-    ['temple','Anciuxor Temple Road',1,'crown','#2a2632','#e8c46a','#fff3c8'],
-    ['reef','Pearlward Reef',5,'fins','#2a8a96','#b0e0ff','#fff5db'],
-    ['ice','Yvoris Blue Hour',12,'crest','#b8d4e0','#4a78c2','#dff4fb'],
-    ['crystal','Xylos Ray Shelf',24,'rings','#b0e0ff','#fff28a','#ffffff'],
-    ['machine','Ferros Rail Foundry',26,'vents','#5cd0ff','#e07a2a','#e8e8e8'],
-    ['gravity','Gravaron Forcewell',25,'quills','#2e2540','#ff8c1a','#9878ff'],
-    ['time','Jynaera Pulse Valley',15,'rings','#9b3fa8','#c8b8ff','#fff28a'],
-    ['resonance','Rhyzor Echo Basin',22,'antennae','#6c80a0','#5cd0ff','#b87cff'],
-    ['harmony','Halcyra Sharedwater',20,'frill','#2a8a96','#e8c8a8','#fff5db'],
-    ['perception','Uralyx Blindside',19,'scar','#7a6aa8','#1c1626','#d8cfa8'],
-    ['dominion','Myraclese Causeway',10,'crown','#b0904a','#c95c5c','#fff5db'],
-    ['war','Bellatora Warplain',11,'horns','#7a2424','#8a8270','#ff8a3a'],
-    ['consumption','Velkryn Hunger Basin',17,'quills','#5e1c24','#c8402c','#e8b830'],
-    ['grid','Cytherion Outer Grid',8,'vents','#24304a','#5cd0ff','#b0e0ff'],
-    ['origin','Origon Blackglass',1,'glow','#16141c','#e8c46a','#ffffff']
+    ['sky','Cloudstep Aerie',3,'crest','#5c8aff','#e8c8a8','#fff28a',['heat', 'sky']],
+    ['forest','Rootshadow Forest',4,'frill','#2fe6a8','#3aa66e','#d8f8a8',['wild']],
+    ['water','Firstwater Shelf',5,'fins','#4a78c2','#7ad0d8','#a8e8ff',['water']],
+    ['dry','Glasswind Flats',14,'mask','#c8843c','#e8b830','#fff0b0',['arid', 'ruin']],
+    ['volcanic','Fangfire Caldera',6,'horns','#e05a2a','#7a1a5c','#ffe08a',['arid', 'heat']],
+    ['marsh','Mirelight Marsh',27,'antennae','#3a7a58','#7ad0d8','#b87cff',['land', 'water', 'wild']],
+    ['swamp','Blackroot Swamp',16,'webbing','#244a3a','#3aa66e','#c8e868',['under', 'water', 'wild']],
+    ['city','Haemen Ruin Ward',9,'vents','#c95c5c','#7d4bb0','#e8c878',['arcane', 'land', 'ruin', 'under']],
+    ['cavern','Malezor Gem Caverns',9,'glow','#7d4bb0','#b0e0ff','#fff28a',['arcane', 'land', 'ruin', 'under']],
+    ['floodworks','Andrannor Floodworks',9,'fins','#22457c','#4a78c2','#a8e8ff',['arcane', 'land', 'ruin', 'under', 'water']],
+    ['terrace','Veridan Violet Terraces',9,'frill','#7d4bb0','#3aa66e','#e8c8a8',['arcane', 'land', 'ruin', 'under', 'wild']],
+    ['gallery','Netharion Crystal Gallery',9,'antennae','#24304a','#b0e0ff','#c8b8ff',['arcane', 'land', 'ruin', 'under']],
+    ['basin','Vorashil Deep Basin',9,'webbing','#22457c','#7ad0d8','#b87cff',['arcane', 'land', 'ruin', 'under', 'water']],
+    ['scar','Xilnar Corruption Scar',9,'scar','#7a1a5c','#c8402c','#ff8a3a',['arcane', 'arid', 'heat', 'land', 'ruin', 'under']],
+    ['forge','Baelgor Golden Forge',9,'vents','#b0904a','#c8402c','#fff28a',['arcane', 'heat', 'land', 'ruin', 'under']],
+    ['well','Thardin Gravity Well',9,'quills','#2e2540','#ff8c1a','#9878ff',['arcane', 'land', 'ruin', 'under']],
+    ['vault','Korathen Astralite Vault',9,'crown','#1c1626','#e8c46a','#ffffff',['arcane', 'land', 'ruin', 'under']],
+    ['farm','Viridian Farmbelt',27,'tail','#3f8f5f','#e8b830','#fff5db',['land', 'water', 'wild']],
+    ['plains','Astrum Plain',2,'glow','#efe2b8','#9878ff','#fff28a',['arcane', 'arid', 'land']],
+    ['mountains','Giantland Steps',17,'quills','#5e1c24','#8a8270','#e8c8a8',['arid', 'cold', 'under']],
+    ['canyons','Zarvane Canyon',9,'scar','#7d4bb0','#c8843c','#ff8a3a',['arcane', 'arid', 'land', 'ruin', 'under']],
+    ['clouds','Elyther Liftfield',23,'crown','#2f7a6a','#d8e8f4','#fff5db',['sky']],
+    ['storms','Worldender Stormline',28,'glow','#4a5c98','#8a52b0','#a8e8ff',['arcane', 'sky']],
+    ['ruins','Firsts Ruinway',1,'mask','#1c1626','#e8c46a','#dff4fb',['arcane', 'arid', 'ruin']],
+    ['temple','Anciuxor Temple Road',1,'crown','#2a2632','#e8c46a','#fff3c8',['arcane', 'arid', 'ruin']],
+    ['reef','Pearlward Reef',5,'fins','#2a8a96','#b0e0ff','#fff5db',['water']],
+    ['ice','Yvoris Blue Hour',12,'crest','#b8d4e0','#4a78c2','#dff4fb',['cold']],
+    ['crystal','Xylos Ray Shelf',24,'rings','#b0e0ff','#fff28a','#ffffff',['arcane', 'under']],
+    ['machine','Ferros Rail Foundry',26,'vents','#5cd0ff','#e07a2a','#e8e8e8',['ruin']],
+    ['gravity','Gravaron Forcewell',25,'quills','#2e2540','#ff8c1a','#9878ff',['arcane']],
+    ['time','Jynaera Pulse Valley',15,'rings','#9b3fa8','#c8b8ff','#fff28a',['arcane']],
+    ['resonance','Rhyzor Echo Basin',22,'antennae','#6c80a0','#5cd0ff','#b87cff',['arcane', 'ruin']],
+    ['harmony','Halcyra Sharedwater',20,'frill','#2a8a96','#e8c8a8','#fff5db',['water']],
+    ['perception','Uralyx Blindside',19,'scar','#7a6aa8','#1c1626','#d8cfa8',['arcane']],
+    ['dominion','Myraclese Causeway',10,'crown','#b0904a','#c95c5c','#fff5db',['ruin']],
+    ['war','Bellatora Warplain',11,'horns','#7a2424','#8a8270','#ff8a3a',['arid', 'ruin']],
+    ['consumption','Velkryn Hunger Basin',17,'quills','#5e1c24','#c8402c','#e8b830',['arid', 'under']],
+    ['grid','Cytherion Outer Grid',8,'vents','#24304a','#5cd0ff','#b0e0ff',['ruin']],
+    ['origin','Origon Blackglass',1,'glow','#16141c','#e8c46a','#ffffff',['arcane', 'arid']],
+    // ★ 2026-10-10 · every world 1–27 holds at least three habitats, named from its canon biome manifest (biomes.js)
+    ['lightglassplai','Lightglass Plains',2,'glow','#6930a6','#c653b4','#c1ec93',['arcane', 'arid']],
+    ['prismaticshall','Prismatic Shallows',2,'vents','#a64030','#c6af53','#93e0ec',['arcane', 'ruin', 'water']],
+    ['dragonlands','Dragonlands',3,'tail','#69a630','#53c668','#c193ec',['heat', 'sky']],
+    ['skyforgecliffs','Sky-Forge Cliffs',3,'crest','#306da6','#6453c6','#ecbe93',['heat', 'sky']],
+    ['rootsea','Rootsea',4,'fins','#30a650','#53c6be','#ec93d4',['water', 'wild']],
+    ['canopylibrarie','Canopy Libraries',4,'frill','#30a63e','#53c6ad','#ec93e1',['wild']],
+    ['surfacecathedr','Surface Cathedral',5,'fins','#a6303a','#c69653','#93ece4',['ruin', 'water']],
+    ['greathide','Great Hide',6,'frill','#30a654','#53c6c2','#ec93d1',['arid', 'heat', 'wild']],
+    ['emberexpansion','Ember Expansion Fields',6,'horns','#a65730','#c6c653','#93ceec',['arid', 'heat']],
+    ['greatscaleslop','Great Scale Slopes',7,'mask','#30a654','#53c6c2','#ec93d1',['arid', 'under', 'wild']],
+    ['fleshstoneravi','Fleshstone Ravines',7,'antennae','#7730a6','#c653a7','#b6ec93',['arid', 'under']],
+    ['collapsebasin','Collapse Basin',7,'antennae','#4e30a6','#bc53c6','#d6ec93',['arid', 'under']],
+    ['outergrid','Outer Grid',8,'vents','#a63a30','#c6a953','#93e4ec',['ruin']],
+    ['mantiscommons','Mantis Commons',8,'frill','#30a659','#53c4c6','#ec93cd',['ruin', 'wild']],
+    ['dominioncausew','Dominion Causeway',10,'vents','#a6303e','#c69253','#93ece1',['ruin']],
+    ['enforceddevoti','Enforced Devotion Citadel',10,'glow','#a6303a','#c69653','#93ece4',['arcane', 'ruin']],
+    ['queenswarplain','Queen’s Warplain',11,'mask','#a68130','#9dc653','#93afec',['arid', 'ruin']],
+    ['clanarenabelt','Clan Arena Belt',11,'vents','#a69030','#8ec653','#93a3ec',['arid', 'ruin']],
+    ['frozencity','Frozen City',12,'quills','#a63032','#c69d53','#93ecea',['cold', 'ruin']],
+    ['stillwatershel','Stillwater Shelf',12,'fins','#3083a6','#5357c6','#ecad93',['arid', 'cold', 'water']],
+    ['carbidedusk','Carbide Dusk',13,'mask','#7730a6','#c653a7','#b6ec93',['arcane', 'arid']],
+    ['observerhalls','Observer Halls',13,'vents','#9830a6','#c65387','#9dec93',['arcane', 'ruin']],
+    ['hiddenawarenes','Hidden Awareness Corridors',13,'antennae','#6930a6','#c653b4','#c1ec93',['arcane', 'under']],
+    ['dispersalplain','Dispersal Plain',14,'vents','#a66130','#bcc653','#93c7ec',['arid', 'ruin']],
+    ['fourkingsruins','Four Kings Ruins',14,'vents','#a6303e','#c69253','#93ece1',['arid', 'ruin']],
+    ['flickersettlem','Flicker Settlements',15,'vents','#a63038','#c69853','#93ece6',['arcane', 'ruin']],
+    ['acceleratedgra','Accelerated Grasslands',15,'frill','#6530a6','#c653b8','#c4ec93',['arcane', 'wild']],
+    ['consciousfores','Conscious Forest',16,'frill','#30a63e','#53c6ad','#ec93e1',['wild']],
+    ['rootmindcanopy','Rootmind Canopy',16,'glow','#30a63a','#53c6a9','#ec93e4',['arcane', 'wild']],
+    ['crimsoniantita','Crimsonian Titanlands',17,'mask','#a67730','#a7c653','#93b6ec',['arid', 'under']],
+    ['perpetualignit','Perpetual Ignition',18,'horns','#a65030','#c6be53','#93d4ec',['heat']],
+    ['serpentforges','Serpent Forges',18,'horns','#a66730','#b6c653','#93c2ec',['heat']],
+    ['warflareplains','Warflare Plains',18,'horns','#a64c30','#c6ba53','#93d7ec',['arid', 'heat']],
+    ['softcathedral','Soft Cathedral',19,'glow','#8330a6','#c6539c','#adec93',['arcane', 'ruin']],
+    ['attentionplain','Attention Plains',19,'glow','#6730a6','#c653b6','#c2ec93',['arcane', 'arid']],
+    ['devotionalsea','Devotional Sea',20,'fins','#306da6','#6453c6','#ecbe93',['water']],
+    ['concordharbors','Concord Harbors',20,'vents','#a63052','#c67f53','#93ecd3',['ruin', 'water']],
+    ['predatoraeries','Predator Aeries',21,'crest','#3089a6','#535cc6','#eca993',['sky']],
+    ['rebirthcliffs','Rebirth Cliffs',21,'glow','#9030a6','#c6538e','#a3ec93',['arcane', 'sky']],
+    ['phoenixshell','Phoenix Shell',21,'crest','#3079a6','#5953c6','#ecb593',['sky']],
+    ['soundbridges','Sound Bridges',22,'glow','#6530a6','#c653b8','#c4ec93',['arcane', 'ruin']],
+    ['vibrationmines','Vibration Mines',22,'antennae','#6f30a6','#c653af','#bcec93',['arcane', 'ruin', 'under']],
+    ['floatingcontin','Floating Continents',23,'crest','#3083a6','#5357c6','#ecad93',['sky']],
+    ['skypriestroads','Sky Priest Roads',23,'crest','#3094a6','#5368c6','#eca093',['ruin', 'sky']],
+    ['frequencyplain','Frequency Plains',24,'glow','#a65b30','#c2c653','#93cbec',['arcane', 'arid', 'under']],
+    ['whitecrystalca','White Crystal Caves',24,'antennae','#5430a6','#c253c6','#d1ec93',['arcane', 'under']],
+    ['gravityarenas','Gravity Arenas',25,'glow','#a64030','#c6af53','#93e0ec',['arcane', 'ruin']],
+    ['stabilizationb','Stabilization Belt',25,'glow','#9630a6','#c65388','#9fec93',['arcane', 'arid']],
+    ['irondynasties','Iron Dynasties',26,'vents','#a63054','#c67d53','#93ecd1',['ruin']],
+    ['railfoundries','Rail Foundries',26,'vents','#a6304e','#c68353','#93ecd6',['ruin']],
+    ['northernregion','Northern Region',27,'tail','#54a630','#53c67d','#d193ec',['water', 'wild']]
   ];
   var variants = [], byWorld = {};
   var zdistrict = { city:'malezor',cavern:'malezor',floodworks:'andrannor',terrace:'veridan',gallery:'netharion',basin:'vorashil',scar:'xilnar',forge:'baelgor',well:'thardin',vault:'korathen' };
@@ -156,23 +224,25 @@
     return fallback[body];
   }
   habitats.forEach(function(h, hi){
+    if (h[2] === 28) return;   // AEP-28 is sealed: nothing of the drift world is landable or described
     bodies.forEach(function(b, bi){
+      var fits = compatible(b.key, h[7]);
       var id='zyrex-'+slug(h[1])+'-'+b.key, source=sourceFor(h[2], b.source), tier=Math.min(10, 1 + ((hi + bi) % 8));
       var pattern = PATTERNS[(hi * 5 + bi * 3) % PATTERNS.length], feature2 = FEATURES2[(hi * 7 + bi * 11) % FEATURES2.length];
       ART.registerVariant(id, b.sprite, { feature:h[3], feature2:feature2, pattern:pattern, primary:h[4], secondary:h[5], accent:h[6], accent2:darken(h[6], .25), patternColor:darken(h[4], .38),
         pal:{ i:h[4],j:h[4],I:h[5],x:h[4],q:h[4],Q:h[5],h:h[5],V:h[4],c:h[4],C:h[5],r:h[4],R:h[5],u:h[4],y:h[5], B:h[4],P:h[6],M:h[5],N:darken(h[5], .3),v:h[5] }, note:'Habitat phenotype · '+h[1] });
-      var v={id:id,name:h[1]+' '+b.key.toUpperCase(),sprite:id,body:b.key,sourceSpecies:source,worldNo:h[2],habitat:h[0],habitatName:h[1],feature:h[3],feature2:feature2,pattern:pattern,colors:{primary:h[4],secondary:h[5],accent:h[6]},tier:tier,types:b.types.slice(),canonBasis:'Native '+b.key+' body plan adapted to Codex habitat '+h[1]+'.'};
+      var v={id:id,name:h[1]+' '+b.key.toUpperCase(),sprite:id,body:b.key,sourceSpecies:source,worldNo:h[2],habitat:h[0],habitatName:h[1],feature:h[3],feature2:feature2,pattern:pattern,compatible:fits,environments:(h[7] || []).slice(),colors:{primary:h[4],secondary:h[5],accent:h[6]},tier:tier,types:b.types.slice(),canonBasis:'Native '+b.key+' body plan adapted to Codex habitat '+h[1]+'.'};
       var district = h[2] === 9 ? (zdistrict[h[0]] || 'zarvane') : null;
       // battle stats and moves come from the canon body the variant is built on, scaled to its tier
       var src = (FAUNA.species || {})[source] || {}, sb = src.base || { hp:66, atk:66, def:66, spd:66, spc:66 }, tot = 0, base = {};
       Object.keys(sb).forEach(function(k){ tot += sb[k]; });
       Object.keys(sb).forEach(function(k){ base[k] = Math.max(10, Math.round(sb[k] / tot * tier * 333)); });
       var mv = (src.moves || [{ n:'Strike', p:40, s:'A1' }, { n:'Lunge', p:60, s:'A2' }, { n:'Surge', p:90, s:'A3' }]).map(function(m, i){ return { n:m.n, t:b.types[i === 1 ? 1 : 0], p:m.p, s:m.s }; });
-      FAUNA.species[id] = { name:v.name, tier:tier, types:b.types.slice(), base:base, moves:mv, body:b.key, col:h[4], col2:h[5], world:h[2], district:district, temperament:src.temperament || 'curious', habitat:'adapted', canon:false, provisional:true, note:v.canonBasis, journal:'A distinct Aethren phenotype recorded in '+h[1]+'.', unknown:'UNCLASSIFIED AETHREN' };
-      variants.push(v); (byWorld[h[2]]||(byWorld[h[2]]=[])).push(v);
-      if (D && D.subjects && !D.subjects[id]) { D.subjects[id]={kind:'aethren',set:h[2],term:id,art:id,tier:tier,types:b.types.join(' / '),temperament:FAUNA.species[id].temperament,canonNote:v.canonBasis,journal:'A distinct Aethren phenotype recorded in '+h[1]+'.'}; }
+      FAUNA.species[id] = { name:v.name, tier:tier, types:b.types.slice(), base:base, moves:mv, body:b.key, col:h[4], col2:h[5], world:h[2], district:district, temperament:src.temperament || 'curious', habitat:'adapted', canon:false, provisional:true, note:v.canonBasis, journal:'A distinct Aethren phenotype recorded in '+h[1]+'.', unknown:'UNCLASSIFIED AETHREN', hidden:!fits, incompatible:!fits || undefined };
+      variants.push(v); if (fits) (byWorld[h[2]]||(byWorld[h[2]]=[])).push(v);
+      if (D && D.subjects && !D.subjects[id]) { D.subjects[id]={kind:'aethren',set:h[2],term:id,art:id,tier:tier,types:b.types.join(' / '),temperament:FAUNA.species[id].temperament,canonNote:v.canonBasis,journal:'A distinct Aethren phenotype recorded in '+h[1]+'.',hidden:!fits || undefined}; }
       if (D && D.lexicon && !D.lexicon[id]) D.lexicon[id]={unknown:'UNCLASSIFIED AETHREN · '+h[1].toUpperCase(),canon:null};
     });
   });
-  window.AOV_AETHREN_VARIANTS={count:variants.length,rows:variants,byWorld:function(no){return (byWorld[no]||[]).slice();},get:function(id){return variants.find(function(v){return v.id===id;})||null;},spawnPool:function(worldNo,habitat){return variants.filter(function(v){return v.worldNo===worldNo&&(!habitat||v.habitat===habitat);});}};
+  window.AOV_AETHREN_VARIANTS={count:variants.filter(function(v){return v.compatible;}).length,total:variants.length,bodyEnv:BODY_ENV,compatible:compatible,rows:variants,byWorld:function(no){return (byWorld[no]||[]).slice();},get:function(id){return variants.find(function(v){return v.id===id;})||null;},spawnPool:function(worldNo,habitat){return variants.filter(function(v){return v.compatible&&v.worldNo===worldNo&&(!habitat||v.habitat===habitat);});}};
 })();

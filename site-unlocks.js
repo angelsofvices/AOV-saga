@@ -84,6 +84,15 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.9', title:'Stations, the cockpit and the inventory',
+      notes:[
+        'A new AstraNav tab: INVENTORY. All items, bag, stores, ship parts and machine papers, each with its icon',
+        'Simpler crafting: craft the WORKSTATION from materials in INVENTORY · CRAFT, then build every other machine at the Workstation',
+        'Machines stand on NASARUS as stations: Workstation, Material Processor, Fuel Generator, Rocketship Repair Station, AstroNav Terminal',
+        'Every structure and machine has its own screen: walk up to it and press A',
+        'The rocket has its own screen: FLY it, or read the STAR MAP. Aboard, the cockpit is your console',
+        'The AstraNav opens only from the touchpad'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.8', title:'Chapters, papers and the sandbox',
       notes:[
         'The Journal reads in chapters: MISSION, THE STORY, three logs of objectives, and EXPEDITIONS',

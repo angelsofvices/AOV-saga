@@ -862,7 +862,7 @@
   //   S.stage 'nav'      aboard the ship (S.landed: on the ground at S.at, or in orbit; S.at null: deep space)
   //   S.stage 'surface'  on foot, the AstraNav in hand
   // the seven sections, in order: 1 SYSTEM (home) · 2 HEADQUARTERS · 3 NAVIGATION · 4 COMPANIONS · 5 RESEARCH · 6 JOURNAL · 7 SETUP
-  var NAV_TABS = [['system', 'SYSTEM'], ['hq', 'HEADQUARTERS'], ['stars', 'NAVIGATION'], ['companions', 'COMPANIONS'], ['research', 'RESEARCH'], ['journal', 'JOURNAL'], ['setup', 'SETUP']];
+  var NAV_TABS = [['system', 'SYSTEM'], ['inventory', 'INVENTORY'], ['hq', 'HEADQUARTERS'], ['stars', 'NAVIGATION'], ['companions', 'COMPANIONS'], ['research', 'RESEARCH'], ['journal', 'JOURNAL'], ['setup', 'SETUP']];
   var navTab = 'system';
   function onFoot(){ return S.stage === 'surface'; }
   function whereLine(){
@@ -877,7 +877,7 @@
     if (S.at === 'nasarus') refillAir();         // the ship carries no oxygen of its own: only the base refills it
     save();
   }
-  function ship(){ if (S.stage !== 'nav') aboard(); nav('system'); }
+  function ship(){ if (S.stage !== 'nav') aboard(); cockpit(); }
   // ── CHAPTER TABS · long AstraNav panels read as clickable chapters, one at a time ──
   // chapterize(host, key, want, dflt): the host's direct <section>s with an <h3> become tabs. Sections that share a
   // data-chap label share one tab (the party and its roster). The open tab is remembered per panel for the session;
@@ -930,6 +930,7 @@
   }
 
   function nav(tab, sel){
+    closeStation(true);
     navTab = tab || navTab || 'system';
     navTab = { field:'system', cards:'companions', codex:'research', log:'journal' }[navTab] || navTab;   // old section names
     var tabs = NAV_TABS;
@@ -939,7 +940,7 @@
           '<span class="x-nav-where">' + esc(whereLine()) + '</span></header>' +
         '<nav class="x-nav-tabs" aria-label="AstraNav">' + tabs.map(function(t){
           return '<button data-tab="' + t[0] + '" class="' + (t[0] === navTab ? 'on' : '') + (t[0] === 'hq' ? ' x-tab-hq' : '') + '"' + (t[0] === navTab ? ' aria-current="page"' : '') + '><i class="x-tab-n">' + (NAV_TABS.indexOf(t) + 1) + '</i>' + esc(t[1]) + '</button>';
-        }).join('') + (onFoot() ? '<button data-tab="close" class="x-nav-close">◀ FIELD</button>' : '') + '</nav>' +
+        }).join('') + (onFoot() ? '<button data-tab="close" class="x-nav-close">◀ FIELD</button>' : S.stage === 'nav' ? '<button data-tab="cockpit" class="x-nav-close">◀ COCKPIT</button>' : '') + '</nav>' +
         '<div class="x-nav-screen x-nav-' + navTab + '"></div>' +
       '</div>');
     var body = $('.x-nav-screen', s);
@@ -947,13 +948,15 @@
       var t = e.target.closest('[data-tab]'); if (!t) return;
       sfx.click();
       if (t.dataset.tab === 'close') { backToField(); return; }
+      if (t.dataset.tab === 'cockpit') { cockpit(); return; }
       nav(t.dataset.tab);
       setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
     });
-    ({ system:navHome, hq:navHQ, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
+    helmCtx = 'nav';
+    ({ system:navHome, inventory:navInventory, hq:navHQ, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
     return s;
   }
-  function backToField(){ if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else nav('system'); }
+  function backToField(){ closeStation(true); if (S.stage === 'nav') { cockpit(); return; } if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else cockpit(); }
   function navCycle(d){
     var tabs = $$('.x-nav-tabs [data-tab]').filter(function(b){ return b.dataset.tab !== 'close'; }).map(function(b){ return b.dataset.tab; });
     var i = tabs.indexOf(navTab); if (i < 0) return;
@@ -1108,21 +1111,23 @@
         '<div class="x-sh-btns">' + (got ? '' : '<button class="x-btn" data-a="scan">SCAN</button>') + '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     } else if (b.kind === 'hq') {
       var hereH = S.at === 'nasarus', stg = hqStage(), actH;
-      if (onFoot()) actH = hereH ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button>' : '<p class="x-sh-note">Board your ship to set course.</p>' + (S.flares ? '<button class="x-btn" data-a="flare">RECALL FLARE · BOARD (' + S.flares + ')</button>' : '');
+      if (onFoot() && helmCtx === 'rocket') actH = '<button class="x-btn" data-a="board">BOARD AND FLY</button>';
+      else if (onFoot()) actH = hereH ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button>' : '<p class="x-sh-note">Board your ship to set course.</p>' + (S.flares ? '<button class="x-btn" data-a="flare">RECALL FLARE · BOARD (' + S.flares + ')</button>' : '');
       else if (hereH) actH = '<button class="x-btn" data-a="landhq">' + (S.landed ? 'DISEMBARK' : 'LAND AT CAMP') + '</button>';
       else actH = navOnline() ? '<button class="x-btn" data-a="gohq">RETURN TO ' + esc(hqName()) + '</button>' : '<p class="x-sh-note">NAVIGATION OFFLINE.</p>';
       html = '<p class="x-sh-k">HEADQUARTERS</p><h3>' + esc(hqName()) + '</h3><p class="x-sh-sub">STAGE ' + stg + ' · ' + esc(stageName(stg)) + '</p>' +
         '<dl><dt>' + (hereH ? 'POSITION' : 'COURSE') + '</dt><dd>' + (hereH ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : au('nasarus') + ' A.U.') + '</dd>' +
           '<dt>BAG</dt><dd>' + packTotal() + ' materials to deposit</dd><dt>RUINS</dt><dd>' + Object.keys(S.hq.ruins).length + ' / ' + HQ.ruins.length + ' surveyed · ' + hqRestored() + ' restored</dd></dl>' +
         '<p class="x-sh-note">An ancient drifting world. Haemen and Aethren lived here before the First Eternal War. Return here to deposit, build and restore.</p>' +
-        '<div class="x-sh-btns">' + actH + '<button class="x-btn ghost" data-a="hq">HQ PAGE</button><button class="x-btn ghost" data-a="close">CLOSE</button></div>';
+        '<div class="x-sh-btns">' + actH + (helmCtx === 'nav' ? '<button class="x-btn ghost" data-a="hq">HQ PAGE</button>' : '') + '<button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     } else if (b.w.hidden) {
       html = '<p class="x-sh-k">CATALOGUE ENTRY · AEP-28</p><h3>THE DRIFT BODY</h3><p class="x-sh-sub">SEALED</p>' +
         '<p class="x-sh-note">A body outside the ordered cycle, on a tilted path that crosses every zone. The AstraNav will not plot a course to it.</p>' +
         '<div class="x-sh-btns"><button class="x-btn ghost" data-a="close">CLOSE</button></div>';
     } else {
       var w = b.w, no = w.no, kn2 = known(w.term), vis = S.visited[no], here = S.at === no, act;
-      if (onFoot()) act = here ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button>' :
+      if (onFoot() && helmCtx === 'rocket') act = '<button class="x-btn" data-a="board">BOARD AND FLY</button>';
+      else if (onFoot()) act = here ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button>' :
         '<p class="x-sh-note">Board your ship to set course.</p>' + (S.flares ? '<button class="x-btn" data-a="flare">RECALL FLARE · BOARD (' + S.flares + ')</button>' : '');
       else if (here) act = '<button class="x-btn" data-a="land">' + (S.landed ? 'DISEMBARK' : vis ? 'LAND' : 'ATTEMPT LANDING') + '</button>';
       else act = navOnline() ? '<button class="x-btn" data-a="go">SET COURSE</button>' : '<p class="x-sh-note">NAVIGATION OFFLINE · repair the drive and build the Navigation Center on ' + esc(hqName()) + '.</p>';
@@ -1148,6 +1153,7 @@
       if (a.dataset.a === 'gohq') travel('nasarus');
       if (a.dataset.a === 'landhq') { if (S.landed) disembark(); else land('nasarus'); }
       if (a.dataset.a === 'hq') nav('hq');
+      if (a.dataset.a === 'board') flyFromRocket();
     };
     if (padOn) setTimeout(function(){ var f = sh.querySelector('.x-btn:not(.ghost)') || sh.querySelector('.x-btn'); if (f) f.focus(); }, 30);
   }
@@ -1158,13 +1164,13 @@
     S.flags[id === 'aenor' ? 'shotAenor' : 'shotZoryth'] = true;
     var first = manifest(id, null, true); S.notes[id] = 1; save();
     await cardReveal(id, first, 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED');
-    nav('stars', id);
+    helm(id);
   }
   function fireFlare(){
     if (!S.flares) { toast('NO FLARES LEFT · walk back to the ship', 'red'); return; }
     S.flares--; if (M && fogArr) S.fog[M.id] = fogEnc(fogArr);
     if (M && M.ship) S.pos = { map:M.hq ? 'nasarus' : M.world ? 'w' + M.world : M.id, x:M.ship.x, y:M.ship.y + 1, dir:'down' };
-    aboard(); toast('RECALL FLARE · the ship homed in on you'); nav('stars');
+    aboard(); toast('RECALL FLARE · the ship homed in on you'); cockpit();
   }
 
   // ── the drive ──
@@ -1189,7 +1195,7 @@
       stopWorld();
       S.at = no; save();
       toast('IN ORBIT · ' + placeName(no));
-      nav('stars', no === 'nasarus' ? 'nasarus' : 'w' + no);
+      cockpit(no === 'nasarus' ? 'nasarus' : 'w' + no);
     })();
   }
   function land(no){
@@ -1765,6 +1771,7 @@
           if (!home) act = '<em class="dim">IN THE BAG · BRING IT HOME</em>';
           else if (!onHQ()) act = '<em class="dim">CLONE AT ' + esc(hqName()) + '</em>';
           else if (!S.hq.built.research) act = '<em class="dim">NEEDS RESEARCH STATION</em>';
+          else if (!stationNow) act = '<em class="dim">CLONE AT THE RESEARCH STATION</em>';
           else act = '<em>' + costText(cloneCost(id)) + '</em><button class="x-btn small" data-clone="' + id + '"' + (canAfford(cloneCost(id)) ? '' : ' disabled') + '>CLONE</button>';
           return '<li><b>' + esc(subjName(id)) + ' · LV ' + c.lv + '</b><span>' + esc(subj(id).types) + ' · tier ' + ((SP[subj(id).sp] || {}).tier || '?') + '</span><div>' + act + '</div></li>';
         }).join('') + '</ul>' : '<p class="x-mono light">No profiles waiting. Scan Aethren in the field.</p>') + '</section>' +
@@ -1785,11 +1792,11 @@
       if (team.length > teamMax()) { toast('The party holds ' + teamMax() + '. ' + subjName(team[teamMax()]) + ' stays in the roster.'); team = team.slice(0, teamMax()); }
       S.benched = {}; (lists[1] || []).forEach(function(id){ if (team.indexOf(id) < 0) S.benched[id] = 1; });
       S.team = team; S.cardOrder = (lists[1] || []).slice();
-      S.flags.teamSet = true; save(); nav('companions');
+      S.flags.teamSet = true; save(); refreshUI('companions');
     });
     body.onclick = function(e){
       var cl = e.target.closest('[data-clone]');
-      if (cl) { if (!cloneCard(cl.dataset.clone)) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); } nav('companions'); return; }
+      if (cl) { if (!cloneCard(cl.dataset.clone)) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); } refreshUI('companions'); return; }
       var c = e.target.closest('.x-grid [data-card], .x-teamrow [data-card]'); if (!c) return;
       var id = c.dataset.card, isA = !!(subj(id).sp && S.cards[id].lv && S.cards[id].clone), on = S.team.indexOf(id);
       var m = el('div', 'x-modal', '<div class="x-modal-in">' + cardHtml(id, true) + '<div class="x-sh-btns">' +
@@ -1805,7 +1812,7 @@
         if (t.dataset.t === 'on') { if (S.team.length >= teamMax()) S.benched[S.team.pop()] = 1; S.team.push(id); delete S.benched[id]; }
         if (t.dataset.t === 'off') { S.team.splice(S.team.indexOf(id), 1); S.benched[id] = 1; }
         if (t.dataset.t === 'lead') { S.team.splice(S.team.indexOf(id), 1); S.team.unshift(id); }
-        S.flags.teamSet = true; save(); m.remove(); nav('companions');
+        S.flags.teamSet = true; save(); m.remove(); refreshUI('companions');
       });
     };
   }
@@ -1965,7 +1972,7 @@
   function packParts(){ return (S.pack.parts || []).length; }
   function installPart(no){
     var sy = sysOf(no);
-    if (!S.hq.parts[no] || S.hq.installed[no] || !S.hq.built.workshop || !canAfford(sy.cost)) return false;
+    if (!S.hq.parts[no] || S.hq.installed[no] || !(S.hq.built.workshop || coreMachine('rocketship_repair')) || !canAfford(sy.cost)) return false;
     pay(sy.cost); delete S.hq.parts[no]; S.hq.installed[no] = Date.now();
     hqRecord('Installed the ' + sy.part + ' from ' + placeName(no) + ' in the ' + sy.name + '. The ship is ' + shipPct() + '% restored.'); save();
     toast(sy.part + ' INSTALLED · SHIP ' + shipPct() + '%');
@@ -1997,7 +2004,7 @@
   function stageName(n){ return HQ.stages[n - 1].name; }
   function needLabel(k){ var m = /^(restored|residents|settled):(\d+)$/.exec(k), L = { restored:'RUINS RESTORED', residents:'REFUGEE GROUPS HOME', settled:'AETHREN SPECIES SETTLED' };
     return (stageNeedMet(k) ? '✓ ' : '') + (m ? m[2] + ' ' + L[m[1]] + ' (' + (m[1] === 'restored' ? hqRestored() : Object.keys(S.hq[m[1]] || {}).length) + ')' : nameOf(k)); }
-  function hqState(){ return { built:S.hq.built, ruins:S.hq.ruins, regions:S.hq.regions, found:S.found, stage:hqStage(), drive:S.hq.drive, research:S.hq.research, residents:residentsList(), settled:Object.keys(S.hq.settled) }; }
+  function hqState(){ return { core:S.core.machines, built:S.hq.built, ruins:S.hq.ruins, regions:S.hq.regions, found:S.found, stage:hqStage(), drive:S.hq.drive, research:S.hq.research, residents:residentsList(), settled:Object.keys(S.hq.settled) }; }
   function buildMap(id){ var m = id === 'nasarus' ? GEN.build('nasarus', hqState()) : GEN.build(id); if (m) { placePapers(m); applyMoves(m); } return m; }
   // ── SANDBOX · GRAB, DRAG, SET ──
   // □ (C on a keyboard, MOVE on touch) lifts the movable thing you face: a prop, boulder, plant, crystal, wreckage or a
@@ -2197,8 +2204,10 @@
     S.hq.store.fibre--; S.core.oil += 1; hqRecord('Produced 1 OIL from 1 FIBRE in the FUEL GENERATOR.'); save(); toast('OIL +1 · FUEL RESERVE ' + S.core.oil); return true;
   }
   function coreBuild(id){
-    var m = coreStarter(id); if (!onHQ() || !m || coreMachine(id) || !S.core.recipes[m.recipe] || !canAfford(m.cost)) return false;
-    pay(m.cost); S.core.machines[id] = Date.now();
+    var m = coreStarter(id); if (!onHQ() || !m || coreMachine(id)) return false;
+    if (id === 'workstation') { if (!canAffordAny(m.cost)) return false; payAny(m.cost); }   // crafted straight from materials, bag or stores
+    else { if (!coreMachine('workstation') || !S.core.recipes[m.recipe] || !canAfford(m.cost)) return false; pay(m.cost); }   // built at the Workstation
+    S.core.machines[id] = Date.now();
     if (id === 'rocketship_repair') { S.hq.drive = true; hqRecord('The ROCKETSHIP REPAIR STATION restored the damaged drive.'); }
     hqRecord('Built the ' + m.name + '.'); save(); toast('BUILT · ' + m.name); hqChanged('Built: ' + m.name + '.'); return true;
   }
@@ -2227,6 +2236,9 @@
     if (!quiet) toast('DEPOSITED · ' + n + ' materials'); return n;
   }
   function canAfford(c){ return Object.keys(c || {}).every(function(k){ return (S.hq.store[k] || 0) >= c[k]; }); }
+  // crafting from the inventory draws on everything you hold: the bag first, then the stores
+  function canAffordAny(c){ return Object.keys(c || {}).every(function(k){ return (S.pack[k] || 0) + (S.hq.store[k] || 0) >= c[k]; }); }
+  function payAny(c){ Object.keys(c || {}).forEach(function(k){ var fromBag = Math.min(S.pack[k] || 0, c[k]); S.pack[k] = (S.pack[k] || 0) - fromBag; S.hq.store[k] = (S.hq.store[k] || 0) - (c[k] - fromBag); }); }
   function pay(c){ Object.keys(c || {}).forEach(function(k){ S.hq.store[k] -= c[k]; }); }
   function missing(c){ return Object.keys(c || {}).map(function(k){ return matName(k) + ' ' + (S.hq.store[k] || 0) + '/' + c[k]; }).join(' · '); }
   function navOnline(){ return !!(S.hq.drive && S.hq.built.nav); }
@@ -2289,8 +2301,8 @@
     if (S.hq.built.nav) setTimeout(navOnlineBoot, 400);
     return true;
   }
-  function craftFlare(){ var c = { fibre:2, scrap:1 }; if (!S.hq.built.workshop || !canAfford(c) || S.flares >= flaresMax()) return false; pay(c); S.flares++; hqRecord('Crafted a recall flare.'); save(); toast('FLARE CRAFTED · ' + S.flares + '/' + flaresMax()); return true; }
-  function exchange(from, to){ if (!S.hq.built.depot || from === to || (S.hq.store[from] || 0) < 3) return false; S.hq.store[from] -= 3; S.hq.store[to] = (S.hq.store[to] || 0) + 1; save(); return true; }
+  function craftFlare(){ var c = { fibre:2, scrap:1 }; if (!(S.hq.built.workshop || coreMachine('workstation')) || !canAfford(c) || S.flares >= flaresMax()) return false; pay(c); S.flares++; hqRecord('Crafted a recall flare.'); save(); toast('FLARE CRAFTED · ' + S.flares + '/' + flaresMax()); return true; }
+  function exchange(from, to){ if (!(S.hq.built.depot || coreMachine('material_processor')) || from === to || (S.hq.store[from] || 0) < 3) return false; S.hq.store[from] -= 3; S.hq.store[to] = (S.hq.store[to] || 0) + 1; save(); return true; }
 
   // the Navigation Center comes online: the AstraNav charts the Expanse for the first time
   async function navOnlineBoot(){
@@ -2303,7 +2315,8 @@
     var lines = ['NAVIGATION CENTER · ONLINE', 'DRIVE .............. ' + (S.hq.drive ? 'REPAIRED' : 'OFFLINE'), 'STAR CATALOGUE ..... NO MATCH', 'EARTH .............. NOT FOUND', '', 'CHARTING THE BODIES IN VIEW . . .', '28 BODIES · 1 STAR · 1 SATELLITE', 'HOME BASE .......... ' + hqName(), '', coreReady() ? 'EXPEDITIONS MAY DEPART.' : 'DEPARTURE LOCKED · COMPLETE THE FIVE-MACHINE CHAIN.'];
     for (var i = 0; i < lines.length; i++) { await typeInto(log.appendChild(el('span', '')), lines[i] + '\n', 14); await wait(80); }
     await wait(700);
-    nav('stars');
+    backToField();
+    setTimeout(function(){ openStation('nav'); }, 350);
     toast('Choose a destination. Board your ship at the wreck to depart.');
   }
 
@@ -2361,10 +2374,10 @@
     if (s.kind === 'fac') {
       var id = s.id;
       if (id === 'camp') return rest();
-      if (id === 'nav') { if (navOnline() && !S.flags.charted) return navOnlineBoot(); return openNav('stars'); }
-      return openNav({ stores:'hq', depot:'hq', research:'hq', workshop:'hq', archive:'companions', terminal:'hq', history:'hq' }[id] || 'hq',
-        { research:'research', workshop:'workshop', terminal:'restore', history:'history', stores:'mats', depot:'mats' }[id]);
+      if (id === 'nav' && navOnline() && !S.flags.charted) return navOnlineBoot();
+      return openStation(id);
     }
+    if (s.kind === 'core') return openStation(s.id);
     if (s.kind === 'ruin') return hqRuin(s.ref);
   }
   async function hqRuin(u){
@@ -2394,13 +2407,13 @@
     deposit(true); hudRefresh();
     if (!S.hq.built.camp) { await say(['The wreck of your ship. The drive is dead, and there is nowhere yet to keep salvage.', 'Make camp first, on the staked ground beside the wreck.']); return; }
     if (!S.hq.drive) {
-      if (S.core.enabled && !coreMachine('rocketship_repair')) { await say(['The drive is dead. The hand tools are not enough for this repair.', 'Recover the ROCKETSHIP REPAIR STATION paper, build the station, and let the machine restore the ship.']); return; }
+      if (S.core.enabled) return rocketUI();   // the ship's own screen: status, and the star map; the Repair Station restores the drive
       if (!canAfford(DRIVE_COST)) { await say(['The drive is dead. Repairing it needs ' + costText(DRIVE_COST) + '.', 'In the stores: ' + missing(DRIVE_COST) + '. Salvage the wreckage, and look for crystal outcrops.']); return; }
       var a = await say(['Repair the drive for ' + costText(DRIVE_COST) + '?'], ['REPAIR', 'LATER']);
       if (a === 0 && repairDrive() && !S.hq.built.nav) await say(['The drive turns over. Now it needs a course: build a NAVIGATION CENTER at camp.']);
       return;
     }
-    return boardShip();
+    return rocketUI();
   }
   async function hqPick(ch, x, y){
     var got = takeOnce(x, y, ch === 'w' ? { scrap:1 + ((x * 3 + y) % 3 === 0 ? 1 : 0) } : ch === 'A' ? { crystal:2 } : { fibre:1 });
@@ -2415,20 +2428,21 @@
   // ── AstraNav · the headquarters page ──
   var xFrom = 'scrap', xTo = 'crystal';
   function navHQ(body, sec){
-    var h = S.hq, at = onHQ(), stg = hqStage(), next = HQ.stages[stg];
+    var h = S.hq, at = onHQ(), live = at && !!stationNow, stg = hqStage(), next = HQ.stages[stg];
     var html = '<section class="x-arc riv x-hqhead" id="hq-top"><h3>' + esc(hqName()) + ' <b>STAGE ' + stg + ' · ' + esc(stageName(stg)) + '</b></h3>' +
       '<div class="x-stages">' + HQ.stages.map(function(s2){ return '<span class="' + (s2.n <= stg ? 'on' : '') + (s2.future ? ' fut' : '') + '"><b>' + s2.n + '</b><i>' + esc(s2.name) + '</i></span>'; }).join('') + '</div>' +
       (next && !next.future ? '<p class="x-mono light">NEXT · STAGE ' + next.n + (next.longTerm ? ' (LONG-TERM)' : '') + ' · ' + esc(next.needs.map(needLabel).join(' · ')) + '</p>' :
         '') +
       (h.name !== HQ.canonicalName ? '<p class="x-mono dim">Canon name: ' + HQ.canonicalName + '. Your name for it: ' + esc(h.name) + '.</p>' : '') +
-      (at ? '' : '<p class="x-crt">AWAY FROM ' + esc(hqName()) + ' · return to deposit, build and restore</p>') + '</section>';
+      (at ? '' : '<p class="x-crt">AWAY FROM ' + esc(hqName()) + ' · return to deposit, build and restore</p>') +
+      (stationNow ? '' : '<p class="x-mono light x-hq-record">THE RECORD · the work itself happens at each station: walk up to it on ' + esc(hqName()) + ' and press A.</p>') + '</section>';
     html += '<section class="x-arc riv" id="hq-ship"><h3>THE WAY HOME <b>SHIP ' + shipPct() + '%</b></h3>' +
       '<p class="x-mono light">The ship is too damaged to reach hyperspace. Every world holds one sealed vault with one part. Find the world’s clue, beat its warden or guardian, and bring the part home. A perfect ship needs every world.</p>' +
       '<i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i><ul class="x-hqlist">' +
       EXP.ship.systems.map(function(sy){
         var need = sysNeed(sy.id), done = sysDone(sy.id), ready = Object.keys(h.parts).filter(function(w){ return sysOf(+w).id === sy.id; });
         var act = done >= need ? '<em class="ok">RESTORED</em>' : '<em>' + done + ' / ' + need + '</em>' +
-          ready.map(function(w){ return at && h.built.workshop ? '<button class="x-btn small" data-i="' + w + '"' + (canAfford(sy.cost) ? '' : ' disabled') + '>INSTALL · ' + esc(placeName(+w)) + '</button>' : '<em class="dim">' + esc(sy.part) + ' READY</em>'; }).join('');
+          ready.map(function(w){ return live && (h.built.workshop || coreMachine('rocketship_repair')) ? '<button class="x-btn small" data-i="' + w + '"' + (canAfford(sy.cost) ? '' : ' disabled') + '>INSTALL · ' + esc(placeName(+w)) + '</button>' : '<em class="dim">' + esc(sy.part) + ' READY</em>'; }).join('');
         return '<li class="' + (done >= need ? 'done' : '') + '"><b>' + esc(sy.name) + '</b><span>' + esc(sy.part) + ' × ' + need + ' · each installs for ' + costText(sy.cost) + (h.built.workshop ? '' : ' · needs the WORKSHOP') + '</span><div>' + act + '</div></li>';
       }).join('') + '</ul>' + (shipPct() >= 100 ? '<p class="x-crt">' + esc(EXP.ship.done) + '</p>' : '') + '</section>';
     var resN = Object.keys(h.residents).length, setN = Object.keys(h.settled).length;
@@ -2438,20 +2452,24 @@
       (h.built.sanctuary ? '<p class="x-mono light">AETHREN SANCTUARY · settle a species from a spare copy (2 or more of the card).</p><ul class="x-hqlist">' +
         aethrenCards().filter(function(id){ return h.settled[id] || (S.cards[id].qty >= 2); }).map(function(id){
           return '<li class="' + (h.settled[id] ? 'done' : '') + '"><b>' + esc(subjName(id)) + '</b><span>' + (h.settled[id] ? 'Lives on ' + esc(hqName()) + '.' : 'You hold ' + S.cards[id].qty + ' copies.') + '</span><div>' +
-            (h.settled[id] ? '<em class="ok">SETTLED</em>' : at ? '<button class="x-btn small" data-settle="' + id + '">SETTLE</button>' : '<em class="dim">AT ' + esc(hqName()) + '</em>') + '</div></li>';
+            (h.settled[id] ? '<em class="ok">SETTLED</em>' : live ? '<button class="x-btn small" data-settle="' + id + '">SETTLE</button>' : '<em class="dim">AT ' + esc(hqName()) + '</em>') + '</div></li>';
         }).join('') + '</ul>' : '<p class="x-mono light">Build the AETHREN SANCTUARY to settle Aethren on ' + esc(hqName()) + '.</p>') + '</section>';
     html += '<section class="x-arc riv" id="hq-mats"><h3>MATERIALS <b>BAG ' + packTotal() + '</b></h3><table class="x-mats"><tr><th></th><th>BAG</th><th>STORES</th></tr>' +
       MATS.map(function(m){ return '<tr><td><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_' + m[0], 2) + '">' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (S.pack[m[0]] || 0) + '</td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
-      '<div class="x-sh-btns">' + (at && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>EMPTY THE BAG</button>' : '') +
-      (at && h.built.depot ? '<span class="x-xch">EXCHANGE <button class="x-btn ghost small" data-h="xfrom">' + matName(xFrom) + ' ×3</button> → <button class="x-btn ghost small" data-h="xto">' + matName(xTo) + ' ×1</button><button class="x-btn small" data-h="xgo">TRADE</button></span>' : '') + '</div></section>';
+      '<div class="x-sh-btns">' + (live && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>EMPTY THE BAG</button>' : '') +
+      (live && (h.built.depot || coreMachine('material_processor')) ? '<span class="x-xch">EXCHANGE <button class="x-btn ghost small" data-h="xfrom">' + matName(xFrom) + ' ×3</button> → <button class="x-btn ghost small" data-h="xto">' + matName(xTo) + ' ×1</button><button class="x-btn small" data-h="xgo">TRADE</button></span>' : '') + '</div></section>';
     html += '<section class="x-arc riv" id="hq-core"><h3>CORE SYSTEMS <b>' + coreBuiltCount() + '/' + CORE.starter.length + ' STARTER MACHINES · OIL ' + (S.core.oil || 0) + '</b></h3>' +
-      '<p class="x-mono light">NASARUS carries the opening departure sequence. Each recipe paper is a sheet lying somewhere on the ground of ' + esc(hqName()) + ': walk over it to pick it up, build the machine, then produce OIL from FIBRE in the FUEL GENERATOR.</p>' +
+      '<p class="x-mono light">NASARUS carries the opening departure sequence. Craft the WORKSTATION from materials (INVENTORY · CRAFT). At the Workstation, build each machine from its recovered paper. Then produce OIL from FIBRE at the FUEL GENERATOR.</p>' +
       '<ul class="x-hqlist">' + CORE.starter.map(function(m){
-        var built=coreMachine(m.id), learned=!!S.core.recipes[m.recipe], r=coreRecipe(m.recipe), can=learned && canAfford(m.cost);
-        return '<li class="' + (built ? 'done' : '') + '"><b>' + esc(m.name) + '</b><span>' + esc(m.does) + ' · ' + (built ? 'operational' : learned ? costText(m.cost) : 'recipe paper not recovered') + '</span><div>' +
-          (built ? '<em class="ok">BUILT</em>' : (!learned ? (r && r.at ? '<em class="dim">ON THE GROUND · ' + esc(r.where || 'somewhere on ' + hqName()) + '</em>' : '<button class="x-btn small" data-core-recipe="' + m.recipe + '">RECOVER PAPER</button>') : '<button class="x-btn small" data-core-build="' + m.id + '"' + (can ? '' : ' disabled') + '>BUILD</button>')) + '</div></li>';
+        var built = coreMachine(m.id), learned = !!S.core.recipes[m.recipe], r = coreRecipe(m.recipe), act;
+        if (built) act = '<em class="ok">BUILT</em>';
+        else if (m.id === 'workstation') act = '<em>' + costText(m.cost) + '</em><em class="dim">CRAFT IT · INVENTORY · CRAFT</em>';
+        else if (!coreMachine('workstation')) act = '<em class="dim">NEEDS THE WORKSTATION</em>';
+        else if (!learned) act = r && r.at ? '<em class="dim">PAPER ON THE GROUND · ' + esc(r.where || 'somewhere on ' + hqName()) + '</em>' : (live ? '<button class="x-btn small" data-core-recipe="' + m.recipe + '">RECOVER PAPER</button>' : '<em class="dim">PAPER NOT RECOVERED</em>');
+        else act = '<em>' + costText(m.cost) + '</em>' + (live ? '<button class="x-btn small" data-core-build="' + m.id + '"' + (canAfford(m.cost) ? '' : ' disabled') + '>BUILD</button>' : '<em class="dim">BUILD AT THE WORKSTATION</em>');
+        return '<li class="' + (built ? 'done' : '') + '"><b>' + esc(m.name) + '</b><span>' + esc(m.does) + ' · ' + (built ? 'operational' : m.id === 'workstation' ? 'crafted from materials' : learned ? 'paper recovered' : 'recipe paper not recovered') + '</span><div>' + act + '</div></li>';
       }).join('') +
-      (coreMachine('fuel_generator') ? '<li><b>FUEL RESERVE</b><span>FIBRE → FUEL GENERATOR → OIL · safe navigation radius ' + coreNavRadius() + '</span><div><em>FIBRE 1</em><button class="x-btn small" data-core-oil="1"' + ((h.store.fibre || 0) ? '' : ' disabled') + '>PRODUCE OIL</button></div></li>' : '') +
+      (coreMachine('fuel_generator') ? '<li><b>FUEL RESERVE</b><span>FIBRE → FUEL GENERATOR → OIL · safe navigation radius ' + coreNavRadius() + '</span><div><em>FIBRE 1</em>' + (live ? '<button class="x-btn small" data-core-oil="1"' + ((h.store.fibre || 0) ? '' : ' disabled') + '>PRODUCE OIL</button>' : '<em class="dim">AT THE FUEL GENERATOR</em>') + '</div></li>' : '') +
       '</ul></section>';
     html += '<section class="x-arc riv" id="hq-fac"><h3>FACILITIES</h3><ul class="x-hqlist">' +
       '<li class="' + (h.drive ? 'done' : '') + '"><b>THE DRIVE</b><span>Your ship’s drive, repaired at the wreck.</span><div>' + (h.drive ? '<em class="ok">REPAIRED</em>' : '<em>' + costText(DRIVE_COST) + '</em><em class="dim">AT THE WRECK</em>') + '</div></li>' +
@@ -2461,13 +2479,13 @@
         else if (f.future) act = '<em class="dim">FUTURE EXPANSION</em>';
         else if (req.length) act = '<em class="dim">NEEDS ' + esc(reqText(f.requires)) + '</em>';
         else if (f.free) act = '<em class="dim">AT THE STAKED PLOT</em>';
-        else act = '<em>' + costText(f.cost) + '</em>' + (at ? '<button class="x-btn small" data-b="' + f.id + '"' + (canAfford(f.cost) ? '' : ' disabled') + '>BUILD</button>' : '');
+        else act = '<em>' + costText(f.cost) + '</em>' + (live ? '<button class="x-btn small" data-b="' + f.id + '"' + (canAfford(f.cost) ? '' : ' disabled') + '>BUILD</button>' : '');
         return '<li class="' + (b ? 'done' : '') + '"><b>' + esc(f.name) + '</b><span>' + esc(f.does) + '</span><div>' + act + '</div></li>';
       }).join('') + '</ul></section>';
     if (h.built.research) html += '<section class="x-arc riv" id="hq-research"><h3>RESEARCH STATION</h3><ul class="x-hqlist">' + HQ.research.map(function(r){
       var done = h.research[r.id], req = (r.requires || []).filter(function(k){ return !hqHas(k); });
       return '<li class="' + (done ? 'done' : '') + '"><b>' + esc(r.name) + '</b><span>' + esc(r.effect) + '</span><div>' + (done ? '<em class="ok">DONE</em>' : req.length ? '<em class="dim">NEEDS ' + esc(reqText(r.requires)) + '</em>' :
-        '<em>' + costText(r.cost) + '</em>' + (at ? '<button class="x-btn small" data-r="' + r.id + '"' + (canAfford(r.cost) ? '' : ' disabled') + '>RESEARCH</button>' : '')) + '</div></li>';
+        '<em>' + costText(r.cost) + '</em>' + (live ? '<button class="x-btn small" data-r="' + r.id + '"' + (canAfford(r.cost) ? '' : ' disabled') + '>RESEARCH</button>' : '')) + '</div></li>';
     }).join('') + '</ul></section>';
     if (h.built.workshop) {
       var g = HQ.regions[0], open = h.regions.indexOf(g.id) >= 0;
@@ -2476,11 +2494,11 @@
           var have = (h.equip || {})[t.id], req = (t.requires || []).filter(function(k){ return !hqHas(k); }), act;
           if (have) act = '<em class="ok">FITTED</em>';
           else if (req.length) act = '<em class="dim">NEEDS ' + esc(reqText(t.requires)) + '</em>';
-          else act = '<em>' + costText(t.cost) + '</em>' + (at ? '<button class="x-btn small" data-w="' + t.id + '"' + (canAfford(t.cost) ? '' : ' disabled') + '>FIT</button>' : '');
+          else act = '<em>' + costText(t.cost) + '</em>' + (live ? '<button class="x-btn small" data-w="' + t.id + '"' + (canAfford(t.cost) ? '' : ' disabled') + '>FIT</button>' : '');
           return '<li class="' + (have ? 'done' : '') + '"><b>' + esc(t.name) + ' · ' + t.cap + ' AIR</b><span>' + esc(t.does) + '</span><div>' + act + '</div></li>';
         }).join('') +
-        '<li><b>RECALL FLARE</b><span>Craft a flare. You carry ' + S.flares + ' of ' + flaresMax() + '.</span><div><em>FIBRE 2 · SCRAP 1</em>' + (at ? '<button class="x-btn small" data-w="flare"' + (canAfford({ fibre:2, scrap:1 }) && S.flares < flaresMax() ? '' : ' disabled') + '>CRAFT</button>' : '') + '</div></li>' +
-        '<li class="' + (open ? 'done' : '') + '"><b>' + esc(g.name) + '</b><span>' + esc(g.does) + '</span><div>' + (open ? '<em class="ok">OPEN</em>' : '<em>' + costText(g.cost) + '</em>' + (at ? '<button class="x-btn small" data-w="clear"' + (canAfford(g.cost) ? '' : ' disabled') + '>CLEAR</button>' : '')) + '</div></li></ul></section>';
+        '<li><b>RECALL FLARE</b><span>Craft a flare. You carry ' + S.flares + ' of ' + flaresMax() + '.</span><div><em>FIBRE 2 · SCRAP 1</em>' + (live ? '<button class="x-btn small" data-w="flare"' + (canAfford({ fibre:2, scrap:1 }) && S.flares < flaresMax() ? '' : ' disabled') + '>CRAFT</button>' : '') + '</div></li>' +
+        '<li class="' + (open ? 'done' : '') + '"><b>' + esc(g.name) + '</b><span>' + esc(g.does) + '</span><div>' + (open ? '<em class="ok">OPEN</em>' : '<em>' + costText(g.cost) + '</em>' + (live ? '<button class="x-btn small" data-w="clear"' + (canAfford(g.cost) ? '' : ' disabled') + '>CLEAR</button>' : '')) + '</div></li></ul></section>';
     }
     html += '<section class="x-arc riv" id="hq-restore"><h3>' + (h.built.terminal ? 'RESTORATION TERMINAL' : 'THE RUINS') + ' <b>' + Object.keys(h.ruins).length + '/' + HQ.ruins.length + ' SURVEYED · ' + hqRestored() + ' RESTORED</b></h3><ul class="x-hqlist">' + HQ.ruins.map(function(u){
       var rs = h.ruins[u.id];
@@ -2489,7 +2507,7 @@
       if (rs.restored) act = '<em class="ok">' + (u.dig ? 'EXCAVATED' : 'RESTORED') + '</em>';
       else if (!h.built.terminal) act = '<em class="dim">NEEDS RESTORATION TERMINAL</em>';
       else if (!(u.requires || []).every(hqHas)) act = '<em class="dim">NEEDS ' + esc(reqText(u.requires)) + '</em>';
-      else act = '<em>' + costText(u.restore) + '</em>' + (at ? '<button class="x-btn small" data-u="' + u.id + '"' + (canAfford(u.restore) ? '' : ' disabled') + '>' + (u.dig ? 'EXCAVATE' : 'RESTORE') + '</button>' : '');
+      else act = '<em>' + costText(u.restore) + '</em>' + (live ? '<button class="x-btn small" data-u="' + u.id + '"' + (canAfford(u.restore) ? '' : ' disabled') + '>' + (u.dig ? 'EXCAVATE' : 'RESTORE') + '</button>' : '');
       return '<li class="' + (rs.restored ? 'done' : '') + '"><b>' + esc(u.label) + '</b><span>' + esc(u.cat) + ' · ' + esc(u.survey) + '</span><div>' + act + '</div></li>';
     }).join('') + '</ul></section>';
     if (h.built.history) html += '<section class="x-arc riv" id="hq-history"><h3>HISTORICAL ARCHIVE</h3><p class="x-mono light">Haemen and Aethren lived on ' + HQ.canonicalName + ' before the First Eternal War. Why it was abandoned is not known.</p><ul class="x-hqlist">' +
@@ -2531,7 +2549,7 @@
       else return;
       if (!ok) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); }
       else sfx.click();
-      setTimeout(function(){ if (doc.querySelector('.x-nav-hq')) nav('hq', keep); }, 30);
+      setTimeout(function(){ refreshUI('hq', keep); }, 30);
     };
   }
 
@@ -3031,12 +3049,229 @@
     var first = manifest(id, null, false); mark(id, 'reached'); S.notes[id] = 1; save(); hudRefresh();
     await cardReveal(id, first, 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED');
   }
-  async function boardShip(){
-    var a = await say(['Your ship. Board?'], ['BOARD', 'STAY']);
-    if (a !== 0) return;
+  async function boardShip(){ rocketUI(); }
+  function flyFromRocket(){
+    if (!M || !P) return;
+    closeStation(true);
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); S.landed = true; save(); sfx.click();
-    aboard(); nav('stars');
+    aboard(); cockpit(S.at === 'nasarus' ? 'nasarus' : typeof S.at === 'number' ? 'w' + S.at : null);
   }
+  // ── THE TOUCHPAD · the one way into the AstraNav (keyboard Tab/J/M and the on-screen NAV button stand in for it) ──
+  function touchpad(){
+    if (doc.querySelector('.x-nav-tabs:not(.x-cockpit-tabs)')) { if (doc.querySelector('.x-modal')) return; if (onFoot()) backToField(); else if (S.stage === 'nav') cockpit(); return; }
+    if (doc.querySelector('.x-cockpit') && !doc.querySelector('.x-modal')) { sfx.click(); nav('system'); return; }
+    if (surfaceFree()) openNav('system');
+  }
+
+  // ── THE ROCKET · its own screen: fly it, or read the star map ──
+  var helmCtx = 'nav';
+  function helm(sel){ if (helmCtx === 'cockpit') cockpit(sel); else if (helmCtx === 'rocket' || helmCtx === 'station') { if (stationNow) stationNow.refresh(sel); } else nav('stars', sel); }
+  function shipStatusHtml(){
+    return '<ul class="x-hqlist x-shipstat">' +
+      '<li class="' + (S.hq.drive ? 'done' : '') + '"><b>DRIVE</b><span>' + (S.hq.drive ? 'Repaired. The ship can lift.' : 'Dead. The Rocketship Repair Station can restore it.') + '</span><div>' + (S.hq.drive ? '<em class="ok">READY</em>' : '<em class="dim">OFFLINE</em>') + '</div></li>' +
+      '<li class="' + (navOnline() ? 'done' : '') + '"><b>NAVIGATION</b><span>' + (navOnline() ? 'Courses can be plotted.' : 'Build the Navigation Center on ' + esc(hqName()) + '.') + '</span><div>' + (navOnline() ? '<em class="ok">ONLINE</em>' : '<em class="dim">OFFLINE</em>') + '</div></li>' +
+      (S.core && S.core.enabled ? '<li><b>OIL</b><span>Fuel for each course. Safe radius ' + coreNavRadius() + '.</span><div><em>' + (S.core.oil || 0) + '</em></div></li>' : '') +
+      '<li><b>AIR</b><span>Only ' + esc(hqName()) + ' refills it.</span><div><em>' + Math.round(airPct()) + '%</em></div></li>' +
+      '<li><b>THE WAY HOME</b><span>Ship restored for hyperspace.</span><div><em>' + shipPct() + '%</em></div></li>' +
+      '<li><b>RECALL FLARES</b><span>Fire one to be hauled back aboard.</span><div><em>' + S.flares + ' / ' + flaresMax() + '</em></div></li></ul>';
+  }
+  function rocketUI(){
+    openStation('rocket');
+  }
+  // aboard: the cockpit is the screen. The AstraNav opens from it only by the touchpad.
+  var cockpitTab = 'map';
+  function cockpit(sel){
+    closeStation(true); helmCtx = 'cockpit';
+    var where = S.at ? placeName(S.at) : 'IN TRANSIT', landed = S.landed && S.pos && S.pos.map;
+    var s = screen('x-nav x-cockpit' + (outOfRange() ? ' x-static' : ''),
+      '<div class="x-nav-dev x-cockpit-dev">' +
+        '<header class="x-nav-top"><b class="x-nav-logo">ROCKETSHIP</b><span class="x-nav-mk">COCKPIT · ' + esc(where) + (S.landed ? ' · LANDED' : ' · IN ORBIT') + '</span>' +
+          '<span class="x-nav-where">TOUCHPAD · ASTRANAV</span></header>' +
+        '<nav class="x-nav-tabs x-cockpit-tabs" aria-label="Cockpit">' +
+          '<button data-ck="map" class="' + (cockpitTab === 'map' ? 'on' : '') + '">STAR MAP</button>' +
+          '<button data-ck="ship" class="' + (cockpitTab === 'ship' ? 'on' : '') + '">SHIP</button>' +
+          (landed ? '<button data-ck="out" class="x-nav-close x-back">◀ DISEMBARK</button>' : '') + '</nav>' +
+        '<div class="x-nav-screen x-nav-stars x-cockpit-screen"></div>' +
+      '</div>');
+    var body = $('.x-cockpit-screen', s);
+    if (cockpitTab === 'ship') body.innerHTML = '<section class="x-arc riv"><h3>SHIP STATUS</h3>' + shipStatusHtml() + '</section>';
+    else navSystem(body, sel || (S.at === 'nasarus' ? 'nasarus' : typeof S.at === 'number' ? 'w' + S.at : null));
+    s.addEventListener('click', function(e){
+      var t = e.target.closest('[data-ck]'); if (!t) return;
+      sfx.click();
+      if (t.dataset.ck === 'out') { disembark(); return; }
+      cockpitTab = t.dataset.ck; cockpit();
+    });
+    if (padOn) setTimeout(focusFirst, 30);
+    return s;
+  }
+
+  // ── STATIONS · every structure and machine has its own screen, opened by walking up to it and pressing A ──
+  var stationNow = null;
+  var STATION_HQ = {   // which record sections each facility works with
+    stores:['mats'], depot:['mats'], research:['research'], workshop:['workshop', 'ship'], terminal:['restore'], history:['history', 'records'],
+    habitation:['pop'], sanctuary:['pop'], 'core:rocketship_repair':['ship'], 'core:material_processor':['mats']
+  };
+  var STATION_CP = { research:['cp-clone'], archive:['cp-party', 'cp-roster'] };
+  function stationInfo(id){
+    if (id === 'rocket') return { name:'YOUR ROCKETSHIP', spr:'ship', does:'Fly it, or read the star map.' };
+    if (/^core:/.test(id)) { var cm = coreStarter(id.slice(5)) || {}; return { name:cm.name || id, spr:cm.spr || 'machine_workstation', does:cm.does || '' }; }
+    var f = (HQ.facilities || []).filter(function(x){ return x.id === id; })[0] || {};
+    return { name:f.name || id.toUpperCase(), spr:f.spr || 'hq_crate', does:f.does || '' };
+  }
+  function openStation(id, sel){
+    if (!M || !P) return;
+    closeStation(true);
+    held = null; path = [];
+    var info = stationInfo(id);
+    var m = el('div', 'x-modal x-station', '<div class="x-station-in" role="dialog" aria-label="' + esc(info.name) + '">' +
+      '<header class="x-station-top"><img class="x-pix" alt="" src="' + ART.url(info.spr, 3) + '"><div><p class="x-man-k">' + (id === 'rocket' ? 'THE SHIP' : /^core:/.test(id) ? 'MACHINE' : 'STATION') + ' · ' + esc(hqName()) + '</p><h2>' + esc(info.name) + '</h2><p class="x-mono light">' + esc(info.does) + '</p></div>' +
+      '<button class="x-btn ghost small" data-t="close" aria-label="Leave">✕ LEAVE</button></header><div class="x-station-body"></div></div>');
+    ui.appendChild(m);
+    stationNow = { id:id, el:m, refresh:function(s2){ if (!m.isConnected) { openStation(id, s2); return; } renderStation(id, $('.x-station-body', m), s2); } };
+    m.addEventListener('click', function(e){ if (e.target === m || e.target.closest('[data-t="close"]')) { if (e.target.closest('.x-station-body') && !e.target.closest('.x-station-top')) return; closeStation(); } });
+    renderStation(id, $('.x-station-body', m), sel);
+    sfx.click(); if (padOn) setTimeout(focusFirst, 30);
+  }
+  function closeStation(quiet){
+    if (!stationNow) return;
+    var m = stationNow.el; stationNow = null; helmCtx = 'nav';
+    if (m && m.isConnected) m.remove();
+    if (!quiet) { sfx.click(); hudRefresh(); }
+  }
+  function refreshUI(tab, sel){
+    if (stationNow) { stationNow.refresh(); return; }
+    if (doc.querySelector('.x-nav-' + tab)) nav(tab, sel);
+  }
+  function stationSections(body, render, keep){
+    var tmp = el('div', ''); render(tmp);
+    keep.forEach(function(k){
+      var n = tmp.querySelector('#' + k); if (!n) return;
+      n.classList.remove('x-ch-off'); if (n.tagName === 'DETAILS') n.open = true;
+      body.appendChild(n);
+    });
+    return tmp.onclick;
+  }
+  function renderStation(id, body, sel){
+    deposit(true);
+    body.innerHTML = ''; body.onclick = null; helmCtx = 'station';
+    var handlers = [];
+    if (id === 'rocket') {
+      helmCtx = 'rocket';
+      body.innerHTML = '<div class="x-sh-btns x-rocket-btns">' + (S.hq.drive || !M.hq ? '<button class="x-btn" data-st="fly"' + (navOnline() ? '' : ' disabled') + '>FLY</button>' : '') +
+        '<button class="x-btn ghost" data-st="map">STAR MAP</button></div>' +
+        (navOnline() ? '' : '<p class="x-mono light">NAVIGATION OFFLINE · ' + (S.hq.drive ? 'build the Navigation Center at camp.' : 'the drive is dead. Restore it at the Rocketship Repair Station.') + '</p>') +
+        '<section class="x-arc riv"><h3>SHIP STATUS</h3>' + shipStatusHtml() + '</section><div class="x-rocket-map"></div>';
+      if (sel || stationNow && stationNow.map) { var mp = $('.x-rocket-map', body); stationNow.map = true; navSystem(mp, sel); }
+      body.onclick = function(e){
+        var b = e.target.closest('[data-st]'); if (!b || b.disabled) return;
+        if (b.dataset.st === 'fly') { flyFromRocket(); return; }
+        if (b.dataset.st === 'map') { stationNow.map = true; sfx.click(); renderStation(id, body); }
+      };
+      return;
+    }
+    if (id === 'nav') {
+      body.innerHTML = '<p class="x-mono light">The Navigation Center reads the star map and plots courses. Board your ship at the wreck to fly one.</p><div class="x-rocket-map"></div>';
+      navSystem($('.x-rocket-map', body), sel);
+      return;
+    }
+    if (id === 'core:workstation') {
+      var list = CORE.starter.filter(function(cm){ return cm.id !== 'workstation'; });
+      body.innerHTML = '<section class="x-arc riv"><h3>BUILD MACHINES <b>' + list.filter(function(cm){ return coreMachine(cm.id); }).length + ' / ' + list.length + '</b></h3>' +
+        '<p class="x-mono light">Each machine needs its recipe paper, recovered from the ground of ' + esc(hqName()) + ', and materials from the stores. Built machines stand beside the camp.</p><ul class="x-hqlist">' +
+        list.map(function(cm){
+          var built = coreMachine(cm.id), learned = !!S.core.recipes[cm.recipe], r = coreRecipe(cm.recipe), act;
+          if (built) act = '<em class="ok">BUILT</em>';
+          else if (!learned) act = '<em class="dim">PAPER ON THE GROUND · ' + esc(r && r.where || 'somewhere on ' + hqName()) + '</em>';
+          else act = '<em>' + costText(cm.cost) + '</em><button class="x-btn small" data-core-build="' + cm.id + '"' + (canAfford(cm.cost) ? '' : ' disabled') + '>BUILD</button>';
+          return '<li class="' + (built ? 'done' : '') + '"><img class="x-pix x-ico" alt="" src="' + ART.url(cm.spr || 'machine_workstation', 2) + '"><b>' + esc(cm.name) + '</b><span>' + esc(cm.does) + '</span><div>' + act + '</div></li>';
+        }).join('') + '</ul></section>' +
+        '<section class="x-arc riv"><h3>TOOLS</h3><ul class="x-hqlist"><li><b>RECALL FLARE</b><span>You carry ' + S.flares + ' of ' + flaresMax() + '.</span><div><em>FIBRE 2 · SCRAP 1</em><button class="x-btn small" data-ws="flare"' + (canAfford({ fibre:2, scrap:1 }) && S.flares < flaresMax() ? '' : ' disabled') + '>CRAFT</button></div></li></ul></section>';
+      body.onclick = function(e){
+        var b = e.target.closest('button'); if (!b || b.disabled) return;
+        var ok = b.dataset.coreBuild ? coreBuild(b.dataset.coreBuild) : b.dataset.ws === 'flare' ? craftFlare() : null;
+        if (ok === null) return;
+        if (!ok) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); } else sfx.click();
+        setTimeout(function(){ refreshUI('hq'); }, 30);
+      };
+      return;
+    }
+    if (id === 'core:fuel_generator') {
+      body.innerHTML = '<section class="x-arc riv"><h3>FUEL <b>OIL ' + (S.core.oil || 0) + '</b></h3><p class="x-mono light">FIBRE → OIL, one for one. Every course the drive flies burns oil.</p>' +
+        '<ul class="x-hqlist"><li><b>PRODUCE OIL</b><span>Fibre in the stores: ' + (S.hq.store.fibre || 0) + '.</span><div><em>FIBRE 1</em><button class="x-btn small" data-fg="1"' + ((S.hq.store.fibre || 0) ? '' : ' disabled') + '>PRODUCE ×1</button><button class="x-btn small" data-fg="5"' + ((S.hq.store.fibre || 0) >= 5 ? '' : ' disabled') + '>×5</button></div></li></ul></section>';
+      body.onclick = function(e){
+        var b = e.target.closest('[data-fg]'); if (!b || b.disabled) return;
+        var n = +b.dataset.fg, made = 0; while (made < n && coreProduceOil()) made++;
+        if (!made) { toast('No fibre in the stores', 'red'); sfx.bump(); } else sfx.click();
+        stationNow.refresh();
+      };
+      return;
+    }
+    if (id === 'core:astranav_terminal') {
+      var vis = D.worlds.filter(function(w){ return !w.hidden && (S.visited[w.no] || known(w.term)); });
+      body.innerHTML = '<section class="x-arc riv"><h3>CONNECTIONS <b>SAFE RADIUS ' + coreNavRadius() + '</b></h3><p class="x-mono light">Inside the safe radius the AstraNav reads the true oil cost of a course. Beyond it the reading is static.</p>' +
+        '<ul class="x-hqlist">' + (vis.length ? vis.map(function(w){ var out = coreHomeDistance(w.no) > coreNavRadius() * 70;
+          return '<li class="' + (out ? '' : 'done') + '"><b>' + esc(placeName(w.no)) + '</b><span>' + (out ? 'OUT OF RANGE · static on the reading' : 'In range') + '</span><div><em>' + (out ? '≈ ' : '') + coreOilCost(w.no) + ' OIL</em></div></li>'; }).join('')
+          : '<li><b>— no worlds charted yet —</b><span>Chart the Expanse from the Navigation Center.</span><div></div></li>') + '</ul></section>';
+      return;
+    }
+    if (STATION_HQ[id]) handlers.push(stationSections(body, function(t){ navHQ(t, null); }, STATION_HQ[id].map(function(k){ return 'hq-' + k; })));
+    if (id === 'core:material_processor' && !S.hq.built.depot) body.insertAdjacentHTML('afterbegin', '<p class="x-mono light">REFINE · three of one material become one of another.</p>');
+    if (STATION_CP[id]) handlers.push(stationSections(body, function(t){ navCards(t); }, STATION_CP[id]));
+    if (!body.children.length) body.innerHTML = '<p class="x-mono light">' + esc(stationInfo(id).does) + '</p>';
+    body.onclick = function(e){ handlers.forEach(function(h){ if (h) h.call(body, e); }); };
+  }
+
+  // ── INVENTORY · every item, in its own AstraNav tab ──
+  function invGrid(items, kind){
+    return '<div class="x-inv x-inv-' + kind + '" role="list" data-kind="' + kind + '">' + items.map(function(it){ return '<button class="x-slot" role="listitem" data-inv="' + esc(it.key) + '" title="' + esc(it.name) + '"><img class="x-pix" alt="" src="' + ART.url(it.art, 3) + '"><b>' + esc(String(it.n)) + '</b><span>' + esc(it.name) + '</span></button>'; }).join('') + '</div>' +
+      '<p class="x-inv-detail x-mono light">' + (items.length ? 'Tap an item to read it. Drag to arrange.' : 'Nothing here yet.') + '</p>';
+  }
+  function navInventory(body, sel){
+    if (!ITEMS.ready && window.AOV_ITEMS === undefined) loadItems(function(){ if (body.isConnected) navInventory(body, sel); });
+    var bag = invItems('bag'), store = invItems('stores');
+    var parts = [];
+    (S.pack.parts || []).forEach(function(no){ var sy = sysOf(no); parts.push({ key:'part:' + no, art:'it_part_' + sy.id, name:sy.part, n:'BAG', desc:'From ' + placeName(no) + ', for the ' + sy.name + '. Bring it home.' }); });
+    Object.keys(S.hq.parts || {}).forEach(function(no){ var sy = sysOf(+no); parts.push({ key:'hpart:' + no, art:'it_part_' + sy.id, name:sy.part, n:'HOME', desc:'From ' + placeName(+no) + '. Install it at the Workshop or the Rocketship Repair Station.' }); });
+    Object.keys(S.hq.installed || {}).forEach(function(no){ var sy = sysOf(+no); parts.push({ key:'ipart:' + no, art:'it_part_' + sy.id, name:sy.part, n:'✓', desc:'Installed in the ' + sy.name + '. From ' + placeName(+no) + '.' }); });
+    var papers = (CORE.recipes || []).map(function(r){ var got = !!(S.core.recipes || {})[r.id]; return { key:'paper:' + r.id, art:'it_scroll', name:r.name, n:got ? '✓' : '?', desc:got ? 'Recovered: ' + r.source + '. Build its machine at the Workstation.' : 'Not yet recovered. It lies ' + (r.where || 'somewhere on ' + hqName()) + '.' }; });
+    // ALL ITEMS: one slot per item, bag and stores counted together
+    var all = [], byName = {};
+    bag.concat(store).forEach(function(it){
+      var k = it.art + '|' + it.name, cur = byName[k];
+      if (cur && typeof cur.n === 'number' && typeof it.n === 'number') { cur.n += it.n; cur.desc = it.desc.split('. ')[0] + '. ' + cur.bagN + ' in the bag, ' + (cur.n - cur.bagN) + ' in the stores.'; return; }
+      if (cur) return;
+      var inBag = bag.indexOf(it) >= 0;
+      byName[k] = Object.assign({}, it, { key:'all-' + it.key, bagN:inBag && typeof it.n === 'number' ? it.n : 0 }); all.push(byName[k]);
+    });
+    var ws = coreStarter('workstation'), wsBuilt = coreMachine('workstation');
+    var craftable = wsBuilt ? '<em class="ok">BUILT · it stands beside the camp</em>' : !onHQ() ? '<em class="dim">CRAFT IT ON ' + esc(hqName()) + '</em>' :
+      '<button class="x-btn" data-craft="workstation"' + (canAffordAny(ws.cost) ? '' : ' disabled') + '>CRAFT</button>';
+    body.innerHTML = '<p class="x-crt">INVENTORY · everything you carry, and everything stored at ' + esc(hqName()) + '</p>' +
+      '<section class="x-arc riv" id="inv-all"><h3>ALL ITEMS <b>' + all.length + '</b></h3>' + invGrid(all, 'all') + '</section>' +
+      '<section class="x-arc riv" id="inv-bag"><h3>BAG <b>' + bag.length + '</b></h3><p class="x-mono light">Lost if you die out there. Deposited at the Camp Stores.</p>' + invGrid(bag, 'bag') + '</section>' +
+      '<section class="x-arc riv" id="inv-stores"><h3>STORES <b>' + store.length + '</b></h3><p class="x-mono light">Kept safe at ' + esc(hqName()) + '.</p>' + invGrid(store, 'stores') + '</section>' +
+      '<section class="x-arc riv" id="inv-parts"><h3>SHIP PARTS <b>' + parts.length + '</b></h3>' + invGrid(parts, 'parts') + '</section>' +
+      '<section class="x-arc riv" id="inv-papers"><h3>MACHINE PAPERS <b>' + papers.filter(function(p2){ return p2.n === '✓'; }).length + ' / ' + papers.length + '</b></h3>' + invGrid(papers, 'papers') + '</section>' +
+      '<section class="x-arc riv" id="inv-craft"><h3>CRAFT</h3><p class="x-mono light">Craft from what you hold: the bag first, then the stores.</p><ul class="x-hqlist">' +
+        '<li class="' + (wsBuilt ? 'done' : '') + '"><img class="x-pix x-ico" alt="" src="' + ART.url('machine_workstation', 2) + '"><b>WORKSTATION</b><span>' + esc(ws.does) + ' Every other machine is built at the Workstation.</span><div><em>' + costText(ws.cost) + ' · have ' + Object.keys(ws.cost).map(function(k){ return matName(k) + ' ' + ((S.pack[k] || 0) + (S.hq.store[k] || 0)); }).join(' · ') + '</em>' + craftable + '</div></li>' +
+      '</ul></section>';
+    var byKey = {}; all.concat(bag, store, parts, papers).forEach(function(it){ byKey[it.key] = it; });
+    $$('.x-inv', body).forEach(function(box){
+      box.addEventListener('click', function(e){ var b = e.target.closest('[data-inv]'); if (!b) return; e.stopPropagation(); var it = byKey[b.dataset.inv]; if (!it) return;
+        $$('.x-slot.on', box).forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on'); sfx.click();
+        var d = box.parentNode.querySelector('.x-inv-detail'); if (d) d.innerHTML = '<b>' + esc(it.name) + (it.n !== '' ? ' × ' + esc(String(it.n)) : '') + '</b> · ' + esc(it.desc); });
+      var kind = box.dataset.kind;
+      if (kind === 'bag' || kind === 'stores') sortable([box], '.x-slot', 'data-inv', function(keys){ if (kind === 'stores') S.storeOrder = keys[0]; else S.invOrder = keys[0]; save(); });
+    });
+    body.onclick = function(e){
+      var c = e.target.closest('[data-craft]'); if (!c || c.disabled) return;
+      if (coreBuild(c.dataset.craft)) { sfx.reveal(); toast('CRAFTED · WORKSTATION · it stands beside the camp. Walk up to it and press A to build machines.'); } else { sfx.bump(); toast('Not enough materials', 'red'); }
+      nav('inventory', 'inv-craft');
+    };
+    chapterize(body, 'inv', sel, 'inv-all');
+  }
+
   // the AstraNav, opened in the field
   function openNav(tab){
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal, .x-battle')) return;
@@ -3086,7 +3321,7 @@
     S.pos = null; S.fog[M.id] = fogEnc(fogArr); save(); stopWorld(); vibrate(400, .8);
     var s = screen('x-recall', '<div class="x-paper"><p class="x-stamp red">EMERGENCY RECALL</p><p class="x-mono">' + why + ' gauge at zero. The suit\'s recall beacon fired, and the ship\'s winch hauled you back aboard.</p>' +
       '<p class="x-mono">Your AstraNav, cards and records are safe.</p><button class="x-btn">ABOARD SHIP</button></div>');
-    $('.x-btn', s).addEventListener('click', function(){ aboard(); nav('system'); });
+    $('.x-btn', s).addEventListener('click', function(){ aboard(); cockpit(); });
   }
 
   // ── the vault, the warden, the refugees, the residents, the allies ──
@@ -3946,9 +4181,10 @@
       if (k === 'z' || k === 'enter' || k === ' ') { e.preventDefault(); btnA(); }
       if (k === 'x' || k === 'escape' || k === 'backspace') { e.preventDefault(); btnB(); }
       if (k === 'c') { e.preventDefault(); btnMove(); }
-      if (k === 'j' || k === 'm' || k === 'tab') { e.preventDefault(); openNav(); }
+      if (k === 'j' || k === 'm' || k === 'tab') { e.preventDefault(); touchpad(); }
       return;
     }
+    if ((k === 'j' || k === 'm') && !doc.querySelector('.x-name') && !(e.target && /INPUT|SELECT/.test(e.target.tagName))) { e.preventDefault(); touchpad(); return; }
     if (e.target && e.target.matches && e.target.matches('input[type=range]') && (k === 'arrowleft' || k === 'arrowright')) return;
     if (k.indexOf('arrow') === 0) { e.preventDefault(); navFocus(d); return; }
     if (doc.querySelector('.x-nav-tabs') && !doc.querySelector('.x-modal') && (k === 'q' || k === 'e' || k === '[' || k === ']')) { navCycle(k === 'q' || k === '[' ? -1 : 1); return; }
@@ -3986,7 +4222,7 @@
       }
       else if (b === 'triangle') { if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
       else if (b === 'options') { if (!surfaceFree()) goBack(); }
-      else if (b === 'touchpad') { if (doc.querySelector('.x-nav-tabs')) { if (onFoot() && !doc.querySelector('.x-modal')) backToField(); } else if (surfaceFree()) openNav('system'); }
+      else if (b === 'touchpad') touchpad();
       else if ((b === 'l1' || b === 'r1') && doc.querySelector('.x-nav-tabs') && !doc.querySelector('.x-modal') && !(doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.x-kit-row'))) navCycle(b === 'l1' ? -1 : 1);
       else if (b === 'l1' || b === 'r1') {
         var row = doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.x-kit-row');
@@ -4010,7 +4246,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

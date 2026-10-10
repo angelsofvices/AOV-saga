@@ -16,12 +16,15 @@ window.AOV_CORE = {
     { id:'astralites', name:'ASTRALITES', does:'Enhance Carl directly through treated serums.' },
     { id:'aethren', name:'AETHREN', does:'Living creatures discovered, scanned, cloned, and settled.' }
   ],
+  // SIMPLIFIED CRAFTING (Creator, 2026-10-10): the WORKSTATION is crafted straight from materials (INVENTORY · CRAFT,
+  // on NASARUS, no paper needed). Every other machine is built AT the Workstation, from its recovered paper and
+  // materials. Each machine then stands on NASARUS as a physical station (at, w, spr) with its own screen.
   starter: [
-    { id:'workstation', name:'WORKSTATION', classId:'machines', does:'Manual crafting and assembly.', cost:{scrap:4,fibre:2}, recipe:'recipe-workstation' },
-    { id:'material_processor', name:'MATERIAL PROCESSOR', classId:'machines', does:'Refines eligible raw materials.', cost:{scrap:6,crystal:2}, recipe:'recipe-material-processor' },
-    { id:'fuel_generator', name:'FUEL GENERATOR', classId:'machines', does:'Converts Fibre into Oil.', cost:{scrap:8,crystal:3,fibre:2}, recipe:'recipe-fuel-generator' },
-    { id:'rocketship_repair', name:'ROCKETSHIP REPAIR STATION', classId:'machines', does:'Restores the damaged spacecraft.', cost:{scrap:10,crystal:4,relic:1}, recipe:'recipe-rocketship-repair' },
-    { id:'astranav_terminal', name:'ASTRONAV TERMINAL', classId:'machines', does:'Establishes reliable planetary connections.', cost:{scrap:8,crystal:5,data:4}, recipe:'recipe-astranav-terminal' }
+    { id:'workstation', name:'WORKSTATION', classId:'machines', does:'Manual crafting and assembly.', cost:{scrap:4,fibre:2}, recipe:'recipe-workstation', craft:'inventory', at:[15, 21], w:2, spr:'machine_workstation' },
+    { id:'material_processor', name:'MATERIAL PROCESSOR', classId:'machines', does:'Refines eligible raw materials.', cost:{scrap:6,crystal:2}, recipe:'recipe-material-processor', at:[12, 21], w:1, spr:'core_processor' },
+    { id:'fuel_generator', name:'FUEL GENERATOR', classId:'machines', does:'Converts Fibre into Oil.', cost:{scrap:8,crystal:3,fibre:2}, recipe:'recipe-fuel-generator', at:[9, 28], w:2, spr:'machine_generator' },
+    { id:'rocketship_repair', name:'ROCKETSHIP REPAIR STATION', classId:'machines', does:'Restores the damaged spacecraft.', cost:{scrap:10,crystal:4,relic:1}, recipe:'recipe-rocketship-repair', at:[12, 25], w:1, spr:'core_repair' },
+    { id:'astranav_terminal', name:'ASTRONAV TERMINAL', classId:'machines', does:'Establishes reliable planetary connections.', cost:{scrap:8,crystal:5,data:4}, recipe:'recipe-astranav-terminal', at:[21, 20], w:1, spr:'machine_astranav' }
   ],
   // The papers are physical: sheets lying on the ground of their world (at: the spot they are dropped near; the
   // engine settles each on the nearest open floor tile). Walk over one, or face it and press A, to pick it up.

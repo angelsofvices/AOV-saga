@@ -60,7 +60,7 @@ window.AOV_HQ = {
     { id: 'nav', name: 'NAVIGATION CENTER', spr: 'hq_nav', at: [24, 22], w: 2, cost: { scrap: 4, crystal: 3 }, requires: ['camp', 'drive'],
       does: 'Charts the Aethryx Expanse. With the drive repaired, expeditions can depart.' },
     { id: 'research', name: 'RESEARCH STATION', spr: 'hq_lab', at: [27, 26], w: 2, cost: { scrap: 4, fibre: 2 }, requires: ['camp'],
-      does: 'Turns survey DATA into research: better scanning, equipment and records.' },
+      does: 'Turns survey DATA into research, and clones Aethren from their scanned profiles into companions.' },
     { id: 'depot', name: 'RESOURCE DEPOT', spr: 'hq_depot', at: [19, 30], w: 2, cost: { scrap: 6, fibre: 3 }, requires: ['stores'],
       does: 'Larger stores. Lands deposit automatically, and materials can be exchanged three for one.' },
     { id: 'workshop', name: 'WORKSHOP', spr: 'hq_workshop', at: [23, 30], w: 2, cost: { scrap: 8, crystal: 4 }, requires: ['research'],

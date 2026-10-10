@@ -116,7 +116,11 @@
   var KEY = 'aov.explorer.v1';
   var LOOK = { skin:0, hair:0, style:0, hc:0, suit:0, helmet:0, visor:0 };
   function blank(){
+<<<<<<< HEAD
     return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{}, archive:{}, cards:{}, lex:{}, machines:{}, dev:{ access:false, chests:{} },
+=======
+    return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{ cloneRule:1 }, archive:{}, cards:{}, lex:{},
+>>>>>>> 4becc0b75f97583a2d7c0385a435b97465dbcd7d
              suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(),
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
@@ -148,8 +152,19 @@
   }
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
   // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
+<<<<<<< HEAD
   if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
   if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; S.flags.charted = true; S.flags.hqNew = true; }
+=======
+  // the cloning rule (Creator, 2026-10-09): a scan is only a profile; an Aethren fights for you only once
+  // its card is cloned at NASARUS. Saves from before the rule keep the companions they already use.
+  if (S && S.v === 3 && S.flags && !S.flags.cloneRule) {
+    Object.keys(S.cards || {}).forEach(function(id){ var c = S.cards[id]; if (c.lv && c.clone == null) c.clone = Date.now(); });
+    S.flags.cloneRule = 1;
+  }
+  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); }
+  if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.flags.charted = true; S.flags.hqNew = true; }
+>>>>>>> 4becc0b75f97583a2d7c0385a435b97465dbcd7d
   if (fresh || !S || S.v !== 3) S = null;
   function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ /* storage full or blocked: keep playing */ } }
   function opt(k){ return S && S.opts ? S.opts[k] : blank().opts[k]; }
@@ -287,7 +302,7 @@
     var c = S.cards[id], first = !c;
     if (!c) c = S.cards[id] = { qty:0, img:img || null, foil:false, at:Date.now() };
     c.qty++; if (foil) c.foil = true; if (!c.img && img) c.img = img;
-    if (!subj(id).sp && !(M && M.hq && mode === 'surface') && S.at !== 'nasarus') c.pend = (c.pend || 0) + 1;   // research: redeemed at home
+    if (!(M && M.hq && mode === 'surface') && S.at !== 'nasarus') c.pend = (c.pend || 0) + 1;   // redeemed at home
     if (subj(id).sp) { c.lv = Math.max(c.lv || 0, lv || 3); c.xp = c.xp || 0; if (c.hp == null) c.hp = maxHp(id); autoTeam(); }
     if (!arc(id).classified) arc(id).classified = Date.now();
     S.notes[id] = 1;
@@ -322,7 +337,7 @@
     if (s.sp && c.lv) rows.push(['LEVEL', String(c.lv)], ['VIGOUR', Math.max(0, c.hp == null ? maxHp(id) : c.hp) + ' / ' + maxHp(id)]);
     rows.push(['RARITY', rarity(s)], ['QUANTITY', String(c.qty)]);
     return '<div class="x-card' + (c.foil ? ' foil' : '') + (big ? ' big' : '') + (c.pend ? ' pend' : '') + '" data-card="' + id + '">' +
-      (c.pend ? '<div class="x-card-pend">IN PACK · BRING HOME</div>' : '') +
+      (c.pend ? '<div class="x-card-pend">IN PACK · BRING HOME</div>' : s.sp && !c.clone ? '<div class="x-card-pend prof">PROFILE · CLONE AT ' + esc(hqName()) + '</div>' : '') +
       '<div class="x-card-band">' + esc(setName(s.set)) + '</div>' +
       '<div class="x-card-art">' + artHtml(s, c, id) + '</div>' +
       '<div class="x-card-nm">' + esc(subjName(id)) + '</div>' +
@@ -372,9 +387,10 @@
     dmg = Math.max(1, Math.floor(dmg * mu * stab * (.85 + Math.random() * .15)));
     return { dmg:dmg, mult:mu };
   }
-  function aethrenCards(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp && S.cards[id].lv; }); }
+  function aethrenCards(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp && S.cards[id].lv && S.cards[id].clone; }); }
+  function profileIds(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp && !S.cards[id].clone; }); }
   function autoTeam(){
-    S.team = (S.team || []).filter(function(id){ return S.cards[id]; });
+    S.team = (S.team || []).filter(function(id){ return S.cards[id] && S.cards[id].clone; });
     aethrenCards().sort(function(a, b){ return (S.cards[b].lv || 0) - (S.cards[a].lv || 0); }).forEach(function(id){ if (S.team.length < teamMax() && S.team.indexOf(id) < 0) S.team.push(id); });
   }
   function teamReady(){ autoTeam(); return S.team.filter(function(id){ var c = S.cards[id]; return c.hp == null || c.hp > 0; }); }
@@ -420,6 +436,7 @@
       { t:'Settle an Aethren species on ' + hqName(), done: Object.keys(S.hq.settled).length > 0 },
       { t:'Make contact with an inhabitant', done: !!(S.archive.furtrader && S.archive.furtrader.talk) || peoplesMet() > 0 },
       { t:'Scan ' + (known('aethren') ? 'Aethren' : 'creatures') + ' into the AstraNav (' + Math.min(fauna, 3) + '/3)', done: fauna >= 3 },
+      { t:'Clone a scanned profile at ' + hqName() + '’s Research Station: your first companion', done: aethrenCards().length > 0 },
       { t:'Win a card battle with one of your ' + (known('aethren') ? 'Aethren' : 'animal') + ' cards (' + Math.min(battlesWon(), 1) + '/1)', done: battlesWon() >= 1 },
       { t:'Document botanical and mineral specimens (' + Math.min(spec, 3) + '/3)', done: spec >= 3 },
       { t:'Show an inhabitant your scans and learn their words', done: !!F.taught || peoplesMet() > 0 },
@@ -727,7 +744,7 @@
   var navTab = 'system';
   function onFoot(){ return S.stage === 'surface'; }
   function whereLine(){
-    if (onFoot() && M) return 'ON FOOT · ' + zoneName() + (M.world && !M.hq ? ' · ' + term(WORLD[M.world].term) : '');
+    if (onFoot() && M) return 'ON FOOT · ' + zoneName() + (M.world === 9 ? ' · ' + term(WORLD[9].term) : '');
     if (S.at && S.landed) return 'ABOARD · LANDED ON ' + placeName(S.at);
     if (S.at) return 'ABOARD · IN ORBIT · ' + placeName(S.at);
     return 'ABOARD · DEEP SPACE · ' + term('expanse');
@@ -760,7 +777,7 @@
       nav(t.dataset.tab);
       setTimeout(function(){ var b = $('[data-tab="' + navTab + '"]'); if (b && padOn) b.focus(); }, 20);
     });
-    ({ system:navHome, hq:navHQPanel, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
+    ({ system:navHome, hq:navHQ, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
     return s;
   }
   function backToField(){ if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else nav('system'); }
@@ -1050,7 +1067,7 @@
       ((landed || S.at) ? '<section class="x-wd x-wd-sketch riv"><h4>LIVE SCANNER · ' + esc(placeName(S.at || (M && M.world))) + ' <b class="x-scanner-clock"></b></h4><canvas class="x-live-scanner" width="640" height="400" aria-label="Live scanner of the current world"></canvas></section>' : '') +
       w('hq', 'HEADQUARTERS', '<p class="x-crt">' + esc(hqName()) + ' · STAGE ' + hqStage() + '</p><p class="x-mono light">' + esc(stageName(hqStage())) + ' · SHIP ' + shipPct() + '% · ' + Object.keys(S.hq.residents).length + ' groups · ' + Object.keys(S.hq.settled).length + ' species</p><i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i>') +
       w('stars', 'NAVIGATION', '<p class="x-crt">' + (navOnline() ? 'DRIVE ONLINE' : 'NAVIGATION OFFLINE') + '</p><p class="x-mono light">' + visited + ' / 27 worlds visited · ' + Object.keys(S.hq.installed).length + ' parts home</p>') +
-      w('companions', 'COMPANIONS', team.length ? '<div class="x-wd-team">' + team.map(function(id){ return '<img class="x-pix" alt="" src="' + ART.url(subjArt(id), 2) + '" title="' + esc(subjName(id)) + '">'; }).join('') + '</div><p class="x-mono light">' + (lp ? 'LEAD PERK · ' + esc(lp.name) : 'No lead perk') + '</p>' : '<p class="x-mono light">No companions yet. Scan an Aethren to clone it.</p>') +
+      w('companions', 'COMPANIONS', team.length ? '<div class="x-wd-team">' + team.map(function(id){ return '<img class="x-pix" alt="" src="' + ART.url(subjArt(id), 2) + '" title="' + esc(subjName(id)) + '">'; }).join('') + '</div><p class="x-mono light">' + (lp ? 'LEAD PERK · ' + esc(lp.name) : 'No lead perk') + '</p>' : '<p class="x-mono light">No companions yet. Scan an Aethren, bring the profile home, clone it.' + (profileIds().length ? ' ' + profileIds().length + ' profile(s) waiting.' : '') + '</p>') +
       w('research', 'RESEARCH', '<p class="x-crt">' + researchCount() + ' records · ' + Object.keys(S.hq.store).reduce(function(n, k){ return n + (S.hq.store[k] || 0); }, 0) + ' in stores</p><p class="x-mono light">' + (packTotal() + packParts() + pend ? (packTotal() + packParts() + pend) + ' unredeemed in the pack · bring them home' : 'Nothing waiting in the pack') + '</p>') +
       w('journal', 'JOURNAL', '<p class="x-crt">MISSION</p><p class="x-mono light">' + esc(next ? next.t : 'Every mission in the log is done.') + '</p>') +
       w('setup', 'SETUP', '<p class="x-mono light">' + (PAD && PAD.connected() ? (PAD.dualsense() ? 'DUALSENSE CONNECTED' : 'CONTROLLER CONNECTED') : 'Sound, controls, text, controller') + '</p>', 'x-wd-small') +
@@ -1069,7 +1086,8 @@
     if (!M || (S.pos && M.id !== S.pos.map)) { var m0 = S.pos && buildMap(S.pos.map); if (m0) { M = m0; fogArr = fogDec(S.fog[M.id], M.W * M.H); if (!P) P = { x:S.pos.x, y:S.pos.y }; } }
   }
   function liveScannerReady(cnv, clock){
-    var mapId = S.at || (M && M.world) || (M && M.id);
+    // on foot: the map you stand on; aboard: where the ship is (worlds are built as 'w' + number)
+    var mapId = onFoot() && M ? M.id : (S.pos && S.pos.map) || (S.at === 'nasarus' ? 'nasarus' : S.at ? 'w' + S.at : null);
     if (!mapId) return;
     var scanMap = M && M.id === mapId ? M : buildMap(mapId);
     if (!scanMap) return;
@@ -1115,9 +1133,18 @@
   function navCompanions(body){ navCards(body); }
 
   // ── 5 · RESEARCH · everything you collect. It counts once it is home at NASARUS. ──
-  function researchIds(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && !subj(id).sp; }).sort(function(a, b){ return subj(a).set - subj(b).set || (subj(a).kind > subj(b).kind ? 1 : -1); }); }
+  function researchIds(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && (!subj(id).sp || !S.cards[id].clone); }).sort(function(a, b){ return subj(a).set - subj(b).set || (subj(a).kind > subj(b).kind ? 1 : -1); }); }
   function researchCount(){ return researchIds().length; }
-  function pendingCards(){ return researchIds().reduce(function(n, id){ return n + (S.cards[id].pend || 0); }, 0); }
+  function pendingCards(){ return Object.keys(S.cards).reduce(function(n, id){ return n + (S.cards[id].pend || 0); }, 0); }
+  // CLONING · at NASARUS's Research Station, from a redeemed profile. The clone comes out at the scanned level.
+  function cloneCost(id){ var t = (SP[subj(id).sp] || {}).tier || 1; return { data:2 + t * 2, crystal:Math.max(1, Math.ceil(t / 2)) }; }
+  function canClone(id){ var c = S.cards[id]; return !!(c && subj(id).sp && !c.clone && c.qty - (c.pend || 0) > 0 && S.hq.built.research && onHQ()); }
+  function cloneCard(id){
+    if (!canClone(id) || !canAfford(cloneCost(id))) return false;
+    var c = S.cards[id]; pay(cloneCost(id)); c.clone = Date.now(); c.hp = maxHp(id); c.xp = c.xp || 0; autoTeam();
+    hqRecord('Cloned ' + subjName(id) + ' from its profile. A new companion.'); save(); sfx.reveal(); vibrate(200, .5);
+    toast('CLONED · ' + subjName(id) + ' is a companion now · LV ' + c.lv); return true;
+  }
   function navResearch(body){
     var ids = researchIds(), h = S.hq, eq = (HQ.airTanks || []).filter(function(t){ return (h.equip || {})[t.id]; });
     var pendIds = ids.filter(function(id){ return S.cards[id].pend; });
@@ -1201,16 +1228,31 @@
   function navCards(body){
     autoTeam();
     var ids = Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp; }).sort(function(a, b){ return subj(a).set - subj(b).set || (S.cards[b].lv || 0) - (S.cards[a].lv || 0); });
-    body.innerHTML = '<p class="x-crt">COMPANIONS · ' + ids.length + ' Aethren cloned into the AstraNav · they fight for you and keep you alive</p>' +
+    var prof = profileIds();
+    ids = ids.filter(function(id){ return S.cards[id].clone; });
+    body.innerHTML = '<p class="x-crt">COMPANIONS · ' + ids.length + ' Aethren cloned at ' + esc(hqName()) + ' · they fight for you and keep you alive</p>' +
+      '<section class="x-arc riv" id="cp-clone"><h3>PROFILES · READY TO CLONE <b>' + prof.length + '</b></h3>' +
+        '<p class="x-mono light">A scan is only a profile. Bring it home, then clone it at the Research Station on ' + esc(hqName()) + '. ' +
+          (onHQ() ? (S.hq.built.research ? '' : 'Build the RESEARCH STATION first.') : 'You are away from ' + esc(hqName()) + '.') + '</p>' +
+        (prof.length ? '<ul class="x-hqlist">' + prof.map(function(id){
+          var c = S.cards[id], home = c.qty - (c.pend || 0) > 0, act;
+          if (!home) act = '<em class="dim">IN THE PACK · BRING IT HOME</em>';
+          else if (!onHQ()) act = '<em class="dim">CLONE AT ' + esc(hqName()) + '</em>';
+          else if (!S.hq.built.research) act = '<em class="dim">NEEDS RESEARCH STATION</em>';
+          else act = '<em>' + costText(cloneCost(id)) + '</em><button class="x-btn small" data-clone="' + id + '"' + (canAfford(cloneCost(id)) ? '' : ' disabled') + '>CLONE</button>';
+          return '<li><b>' + esc(subjName(id)) + ' · LV ' + c.lv + '</b><span>' + esc(subj(id).types) + ' · tier ' + ((SP[subj(id).sp] || {}).tier || '?') + '</span><div>' + act + '</div></li>';
+        }).join('') + '</ul>' : '<p class="x-mono light">No profiles waiting. Scan Aethren in the field.</p>') + '</section>' +
       '<section class="x-team riv"><h3>BATTLE TEAM <small>up to ' + teamMax() + ' · the first leads</small></h3>' +
         (leadPerk() ? '<p class="x-perk"><b>LEAD PERK · ' + esc(leadPerk().name) + '</b> ' + esc(leadPerk().text) + '</p>' : '<p class="x-perk dim">The lead card’s first type gives a field perk.</p>') +
         '<div class="x-teamrow">' +
-        (S.team.length ? S.team.map(teamChip).join('') : '<p class="x-mono light">No ' + (known('aethren') ? 'Aethren' : 'creature') + ' cards yet. Scan one in the field.</p>') + '</div></section>' +
+        (S.team.length ? S.team.map(teamChip).join('') : '<p class="x-mono light">No companions yet. Clone a scanned profile at ' + esc(hqName()) + '.</p>') + '</div></section>' +
       (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>'
-      : '<p class="x-empty">No companions yet. Scan an Aethren in the field to clone it into the AstraNav.</p>');
+      : '<p class="x-empty">No companions yet. Scan an Aethren, bring the profile home, and clone it.</p>');
     body.onclick = function(e){
+      var cl = e.target.closest('[data-clone]');
+      if (cl) { if (!cloneCard(cl.dataset.clone)) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); } nav('companions'); return; }
       var c = e.target.closest('.x-grid [data-card], .x-teamrow [data-card]'); if (!c) return;
-      var id = c.dataset.card, isA = !!(subj(id).sp && S.cards[id].lv), on = S.team.indexOf(id);
+      var id = c.dataset.card, isA = !!(subj(id).sp && S.cards[id].lv && S.cards[id].clone), on = S.team.indexOf(id);
       var m = el('div', 'x-modal', '<div class="x-modal-in">' + cardHtml(id, true) + '<div class="x-sh-btns">' +
         (isA ? (on >= 0 ? (on > 0 ? '<button class="x-btn" data-t="lead">MAKE LEAD</button>' : '') + '<button class="x-btn ghost" data-t="off">REMOVE FROM TEAM</button>' :
           '<button class="x-btn" data-t="on">ADD TO TEAM</button>') : '') + '<button class="x-btn ghost" data-t="close">CLOSE</button></div></div>');
@@ -1434,7 +1476,7 @@
     }
     var pc = pendingCards();
     if (pc && S.hq.built.stores) {
-      researchIds().forEach(function(id){ S.cards[id].pend = 0; });
+      Object.keys(S.cards).forEach(function(id){ S.cards[id].pend = 0; });
       S.hq.store.data = (S.hq.store.data || 0) + pc * 2; hqRecord('Redeemed ' + pc + ' research card' + (pc > 1 ? 's' : '') + ' (+' + (pc * 2) + ' DATA).'); save();
       if (!quiet) toast('REDEEMED · ' + pc + ' research card' + (pc > 1 ? 's' : '') + ' · +' + (pc * 2) + ' DATA');
     }
@@ -2329,7 +2371,8 @@
     stopWorld(); vibrate(1200, 1); sfx.warn();
     (S.pack.parts || []).forEach(function(no){ delete S.exp.vault[no]; });
     var lostCards = pendingCards();
-    researchIds().forEach(function(id){ var c = S.cards[id]; if (!c.pend) return; c.qty -= c.pend; c.pend = 0; if (c.qty <= 0) delete S.cards[id]; });   // the part goes back to lie where you fell: its vault holds it again
+    Object.keys(S.cards).forEach(function(id){ var c = S.cards[id]; if (!c.pend) return; c.qty -= c.pend; c.pend = 0; if (c.qty <= 0 && !c.clone) delete S.cards[id]; });
+    S.team = (S.team || []).filter(function(id){ return S.cards[id]; });   // the part goes back to lie where you fell: its vault holds it again
     S.pack = {}; S.deaths = (S.deaths || 0) + 1;
     hqRecord(hero().first + ' NASARO ran out of air on ' + where + '.' + (lost ? ' ' + lost + ' materials were lost there.' : ''));
     var s = screen('x-recall x-death', '<div class="x-paper"><p class="x-stamp red">OUT OF AIR</p><h2 class="x-death-h">' + esc(hero().first) + ' NASARO DID NOT COME BACK</h2>' +
@@ -2579,7 +2622,7 @@
         await wait(500); end(); hudRefresh();
         c.calm = 60;
         await cardReveal(c.id, first, (first ? 'SCANNED INTO THE ASTRANAV · CARD ACQUIRED' : 'SCANNED AGAIN · QUANTITY +1') + (g === 'excellent' ? ' · FIRST EDITION' : ''));
-        if (first && aethrenCards().length === 1) toast('CARD BATTLES UNLOCKED · this card can now battle wild ' + (known('aethren') ? 'Aethren' : 'creatures'));
+        if (first) toast('PROFILE SCANNED · bring it home and CLONE it at ' + hqName() + ' to make it a companion');
         return;
       }
       mark(c.id, 'fair');
@@ -2674,7 +2717,7 @@
           var first = manifest(foe.sp, null, g === 'excellent', foe.lv); S.notes[foe.sp] = 1; gain('data', first ? 4 : 1, true); save();
           await say2((g === 'excellent' ? 'PERFECT LOCK! ' : 'LOCKED! ') + subjName(foe.sp) + ' is in the AstraNav. It slips away, unharmed.');
           c.calm = 120; c.state = 'idle'; await wait(400); close();
-          await cardReveal(foe.sp, first, first ? 'CLONED INTO THE ASTRANAV · NEW COMPANION' : 'CLONED AGAIN · QUANTITY +1');
+          await cardReveal(foe.sp, first, first ? 'PROFILE SCANNED INTO THE ASTRANAV' : 'PROFILE SCANNED AGAIN · QUANTITY +1');
           return;
         }
         await say2('Too much movement. Wear it down first.');
@@ -2730,7 +2773,7 @@
           subm.hidden = true;
           await say2('It holds perfectly still. A perfect scan.');
           await wait(400); close();
-          await cardReveal(foe.sp, first, first ? 'CLONED INTO THE ASTRANAV · NEW COMPANION · FIRST EDITION' : 'SCANNED AGAIN · QUANTITY +1');
+          await cardReveal(foe.sp, first, first ? 'PROFILE SCANNED · FIRST EDITION · CLONE IT AT HOME' : 'SCANNED AGAIN · QUANTITY +1');
           return;
         }
         close();
@@ -3051,7 +3094,7 @@
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },
     nav:navFocus, activate:activate, back:goBack, btnA:function(){ btnA(); },
     hq:function(){ return S.hq; }, pack:function(){ return S.pack; }, give2:function(o){ gainAll(o, true); }, store:function(o){ Object.keys(o).forEach(function(k){ S.hq.store[k] = (S.hq.store[k] || 0) + o[k]; }); save(); },
-    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash, buildTank:buildTank, airMax:function(){ return airMax(); }, exp:function(){ return S.exp; }, installPart:installPart, settle:settleAethren, wardenMeet:function(){ var w = npcs.filter(function(n){ return n.warden; })[0]; if (w) wardenMeet(w); }, openVault:openVault, perk:function(){ return leadPerk(); } };
+    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash, buildTank:buildTank, airMax:function(){ return airMax(); }, exp:function(){ return S.exp; }, installPart:installPart, settle:settleAethren, wardenMeet:function(){ var w = npcs.filter(function(n){ return n.warden; })[0]; if (w) wardenMeet(w); }, openVault:openVault, perk:function(){ return leadPerk(); }, clone:cloneCard, openNav:function(t){ openNav(t); }, giveClone:function(id, lv){ manifest(id, null, false, lv || 5); S.cards[id].pend = 0; S.cards[id].clone = Date.now(); S.cards[id].hp = maxHp(id); autoTeam(); save(); } };
   applyOpts();
   if (S) applyLook();
   title();

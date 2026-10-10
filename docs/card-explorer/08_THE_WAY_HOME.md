@@ -72,8 +72,8 @@ Creator ruling (2026-10-09): the AstraNav is restructured into seven sections, i
 
 | # | Section | What it holds |
 |---|---|---|
-| 1 | **SYSTEM** | The home panel. STATUS (location, SUIT and AIR meters, flares, pack, return / flare / disembark), the FIELD SKETCH when you're on the ground, and a widget for every other section. Tap a widget to open that section. |
-| 2 | **HEADQUARTERS** | A live digital map of NASARUS: facilities, plots, ruins (surveyed and restored), residents, settled Aethren, and you (blinking) when you're there. A running clock shows whether you're there or away. Below the map are the base's own pages: stages, the way home, the people, materials, facilities, research, workshop, restoration and records. |
+| 1 | **SYSTEM** | The home panel. STATUS (location, SUIT and AIR meters, flares, pack, return / flare / disembark), the **LIVE SCANNER**, and a widget for every other section. Tap a widget to open that section. The live scanner shows the world you're on (or orbiting) in real time: terrain, the ship, creatures and guardians, peoples and wardens, the vault, and you, blinking. On NASARUS it also shows facilities, ruins, residents and settled Aethren. |
+| 2 | **HEADQUARTERS** | The base: stages, the way home, the people, materials, facilities, research, workshop, restoration and records. *(The live map moved to the SYSTEM home panel as the live scanner, Creator 2026-10-09.)* |
 | 3 | **NAVIGATION** | The star map, laid out as in RP7D's telescope. Boarding the ship, arriving in orbit and booting the Navigation Center open here. |
 | 4 | **COMPANIONS** | Every Aethren card you've cloned, plus the battle team and the lead perk. |
 | 5 | **RESEARCH** | Everything else you collect. **In the pack · unredeemed**: materials, ship parts, and research cards scanned away from NASARUS. **Redeemed at NASARUS**: stores and parts at home. **Equipment and crafts**: the AstraNav, the air tank, flares, and your Aethren as weapons. **Research cards**: plants, minerals, places, peoples and bodies in the sky. **The Living Master Codex**: the lore. |
@@ -81,3 +81,13 @@ Creator ruling (2026-10-09): the AstraNav is restructured into seven sections, i
 | 7 | **SETUP** | The settings. |
 
 **Redeeming:** a research card scanned away from NASARUS is in your pack until you bring it home. Depositing at NASARUS redeems it, for +2 DATA per card. If you die out there, unredeemed cards are lost with the pack. Aethren companions are cloned straight into the AstraNav and never wait to be redeemed, because they fight for you in the field.
+
+## Cloning (survey build 9.2)
+
+Creator ruling (2026-10-09): "getting a card does not allow you to use the aethren. you must clone the card at nasarus first. the card is just the scanned profile."
+
+- **A scan makes a profile.** Scanning an Aethren adds its card (the scanned profile, at the level it was scanned) to the AstraNav. A profile can't battle and can't join the team.
+- **Profiles travel in the pack.** Like every card scanned away from NASARUS, a profile waits in the pack until it's redeemed at home, and it's lost with the pack if you die out there.
+- **Cloning happens at NASARUS.** At the **Research Station** (COMPANIONS · *Profiles · ready to clone*), a redeemed profile is cloned into a companion at its scanned level. The cost is DATA 2 + 2 × tier and CRYSTAL ⌈tier ÷ 2⌉. The clone joins the team.
+- **So the first expeditions are for scanning.** With no companions, you can't fight wild Aethren or wardens: you scan, survive and come home. Building the team happens at the base.
+- **Older saves** keep the companions they already used. The rule applies to everything scanned from now on.

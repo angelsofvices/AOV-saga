@@ -19,6 +19,7 @@
 (function(){
   'use strict';
   var D = window.EXP_DATA, STORY = D.story, ENVS = window.AOV_ENV || [], FAUNA = window.AOV_FAUNA, GEN = window.AOV_WORLDGEN, PAD = window.AOV_PAD;
+  var WA = window.AOV_WORLD_ART || { env:{}, landmarks:{}, items:{} };
   var ART = window.AOV_ART, HQ = window.AOV_HQ, CORE = window.AOV_CORE || { starter:[], recipes:[], classes:[] }, MATS = HQ.materials, MACHINES = HQ.machines || [];
   var COMPANIONS = CORE.companions || { enabled:true, clone:true, follow:true, battle:true, partySize:9 };
   var doc = document, ui = doc.getElementById('ui'), cv = doc.getElementById('view'), ctx = cv.getContext('2d');
@@ -198,6 +199,62 @@
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function $(sel, root){ return (root || ui).querySelector(sel); }
   function $$(sel, root){ return Array.prototype.slice.call((root || ui).querySelectorAll(sel)); }
+  // ── DRAG AND DROP · reorder anything: mouse, touch and pen. Items move within and between the containers of one
+  //    group; press and move to drag (on touch, hold a moment first, so a quick swipe still scrolls and a tap is a tap) ──
+  function sortable(containers, itemSel, keyAttr, onDrop){
+    containers = containers.filter(Boolean);
+    containers.forEach(function(box){
+      box.addEventListener('dragstart', function(e){ e.preventDefault(); });   // no native image drag: it would cancel ours
+      box.addEventListener('pointerdown', function(e){
+        var it = e.target.closest(itemSel); if (!it || !box.contains(it) || e.button > 0) return;
+        var sx = e.clientX, sy = e.clientY, drag = null, ghost = null, pid = e.pointerId, timer = null, home = it.parentNode, next = it.nextSibling, last = null, roll = null;
+        // near the top or bottom edge of the scrolling panel, the panel scrolls itself
+        var pane = box; while (pane && pane !== doc.body && !(pane.scrollHeight > pane.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(pane).overflowY))) pane = pane.parentElement;
+        function start(){
+          if (drag) return; drag = it; var r = it.getBoundingClientRect();
+          ghost = it.cloneNode(true); ghost.classList.add('x-dnd-ghost'); ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
+          ghost.style.left = r.left + 'px'; ghost.style.top = r.top + 'px';
+          ghost.dx = sx - r.left; ghost.dy = sy - r.top; doc.body.appendChild(ghost); it.classList.add('x-dnd-hole'); vibrate(30, .2); sfx.click();
+          roll = setInterval(function(){
+            if (!last || !pane || pane === doc.body) return;
+            var pr = pane.getBoundingClientRect(), v = last.clientY < pr.top + 48 ? -14 : last.clientY > pr.bottom - 48 ? 14 : 0;
+            if (v) { pane.scrollTop += v; place(last); }
+          }, 30);
+        }
+        if (e.pointerType !== 'mouse') timer = setTimeout(start, 260);
+        function move(ev){
+          if (ev.pointerId !== pid) return;
+          if (!drag) {
+            if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 8) { if (e.pointerType === 'mouse') start(); else { clearTimeout(timer); return end(); } }
+            if (!drag) return;
+          }
+          ev.preventDefault(); last = { clientX:ev.clientX, clientY:ev.clientY };
+          ghost.style.left = (ev.clientX - ghost.dx) + 'px'; ghost.style.top = (ev.clientY - ghost.dy) + 'px';
+          place(ev);
+        }
+        function place(ev){
+          var under = doc.elementFromPoint(ev.clientX, ev.clientY), box2 = under && containers.filter(function(c){ return c.contains(under); })[0];
+          if (!box2) return;
+          var over = under.closest(itemSel);
+          if (over && over !== drag && box2.contains(over)) {
+            var r = over.getBoundingClientRect(), after = (r.width > r.height * 1.6 ? ev.clientY > r.top + r.height / 2 : ev.clientX > r.left + r.width / 2);
+            box2.insertBefore(drag, after ? over.nextSibling : over);
+          } else if (!over && box2 !== drag.parentNode) box2.appendChild(drag);
+        }
+        function end(ev){
+          clearTimeout(timer); clearInterval(roll);
+          doc.removeEventListener('pointermove', move); doc.removeEventListener('pointerup', end); doc.removeEventListener('pointercancel', end);
+          if (!drag) return;
+          ghost.remove(); drag.classList.remove('x-dnd-hole');
+          if (ev && ev.type === 'pointercancel') { home.insertBefore(drag, next); return; }
+          var swallow = function(ce){ ce.stopPropagation(); ce.preventDefault(); };
+          doc.addEventListener('click', swallow, true); setTimeout(function(){ doc.removeEventListener('click', swallow, true); }, 60);
+          onDrop(containers.map(function(c){ return $$(itemSel, c).map(function(n){ return n.getAttribute(keyAttr); }); }), drag.getAttribute(keyAttr));
+        }
+        doc.addEventListener('pointermove', move, { passive:false }); doc.addEventListener('pointerup', end); doc.addEventListener('pointercancel', end);
+      });
+    });
+  }
   function clamp(v, a, b){ return v < a ? a : v > b ? b : v; }
   function known(t){ var L = D.lexicon[t]; return !!(L && L.canon && S.lex[t]); }
   function term(t){ var L = D.lexicon[t]; return L ? (known(t) ? L.canon : L.unknown) : t; }
@@ -390,7 +447,8 @@
   function autoTeam(){
     if (!COMPANIONS.follow) { S.team = []; return; }
     S.team = (S.team || []).filter(function(id){ return S.cards[id] && S.cards[id].clone; });
-    aethrenCards().sort(function(a, b){ return (S.cards[b].lv || 0) - (S.cards[a].lv || 0); }).forEach(function(id){ if (S.team.length < teamMax() && S.team.indexOf(id) < 0) S.team.push(id); });
+    var bench = S.benched || {};   // Aethren the player took out of the party stay out; new clones still join
+    aethrenCards().sort(function(a, b){ return (S.cards[b].lv || 0) - (S.cards[a].lv || 0); }).forEach(function(id){ if (S.team.length < teamMax() && S.team.indexOf(id) < 0 && !bench[id]) S.team.push(id); });
   }
   function teamReady(){ if (!COMPANIONS.follow || !COMPANIONS.battle) return []; autoTeam(); return S.team.filter(function(id){ var c = S.cards[id]; return c.hp == null || c.hp > 0; }); }
   function healTeam(){ if (!COMPANIONS.clone) return; aethrenCards().forEach(function(id){ S.cards[id].hp = maxHp(id); }); }
@@ -1071,6 +1129,7 @@
         '<p class="x-mono light">FLARES ' + S.flares + '/' + flaresMax() + ' · PACK ' + (packTotal() + packParts() + pend) + (packParts() ? ' · ' + packParts() + ' SHIP PART' + (packParts() > 1 ? 'S' : '') : '') + '</p>' +
         '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
           landed ? '<button class="x-btn" data-a="out">DISEMBARK</button>' : '<button class="x-btn" data-go="stars">SET A COURSE</button>') + '</div></section>' +
+      invPanel() +
       ((landed || S.at) ? '<section class="x-wd x-wd-sketch riv"><h4>LIVE SCANNER · ' + esc(placeName(S.at || (M && M.world))) + ' <b class="x-scanner-clock"></b></h4><canvas class="x-live-scanner" width="640" height="400" aria-label="Live scanner of the current world"></canvas></section>' : '') +
       w('hq', 'HEADQUARTERS', '<p class="x-crt">' + esc(hqName()) + ' · STAGE ' + hqStage() + '</p><p class="x-mono light">' + esc(stageName(hqStage())) + ' · SHIP ' + shipPct() + '% · ' + Object.keys(S.hq.residents).length + ' groups · ' + Object.keys(S.hq.settled).length + ' species</p><i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i>') +
       w('stars', 'NAVIGATION', '<p class="x-crt">' + (navOnline() ? 'DRIVE ONLINE' : 'NAVIGATION OFFLINE') + '</p><p class="x-mono light">' + visited + ' / 27 worlds visited · ' + Object.keys(S.hq.installed).length + ' parts home</p>') +
@@ -1082,11 +1141,46 @@
     if (landed) navSketchReady();
     var scanner = $('.x-live-scanner', body);
     if (scanner) liveScannerReady(scanner, $('.x-scanner-clock', body));
+    invWire(body);
     body.onclick = function(e){
       var a = e.target.closest('[data-a]');
       if (a) { if (a.dataset.a === 'field') backToField(); if (a.dataset.a === 'flare') fireFlare(); if (a.dataset.a === 'out') disembark(); return; }
       var g = e.target.closest('[data-go]'); if (g) { sfx.click(); nav(g.dataset.go); }
     };
+  }
+  // ── INVENTORY · everything you carry and hold, each with its own icon (explorer/world_art.js) ──
+  var FIND_ICON = [[/crown/i,'crown'],[/key/i,'key'],[/prism|matrix|astralite/i,'prism'],[/gem|ruby|sapphire|emerald|amethyst|citrine|onyx|amber|pearl/i,'gem'],[/orb|sphere|eye/i,'orb'],
+    [/scroll|tome|book|codex|chart|verse/i,'scroll'],[/vial|potion|elixir|serum/i,'vial'],[/sword|blade|spear/i,'blade'],[/shard|fragment/i,'shard'],[/core|heart/i,'core'],[/seed|bloom/i,'seed']];
+  function findIcon(term){ for (var i = 0; i < FIND_ICON.length; i++) if (FIND_ICON[i][0].test(term)) return 'it_' + FIND_ICON[i][1]; return 'it_relic'; }
+  function invItems(){
+    var out = [];
+    MATS.forEach(function(m){ if (S.pack[m[0]]) out.push({ key:'mat:' + m[0], art:'it_' + m[0], name:m[1], n:S.pack[m[0]], desc:m[2] + '. In your pack: deposit it at ' + hqName() + '.' }); });
+    (S.pack.parts || []).forEach(function(no){ var sy = sysOf(no); out.push({ key:'part:' + no, art:'it_part_' + sy.id, name:sy.part, n:1, desc:'Ship part from ' + placeName(no) + ', for the ' + sy.name + '. Bring it home.' }); });
+    var pend = pendingCards(); if (pend) out.push({ key:'profiles', art:'it_card', name:'PROFILES', n:pend, desc:'Scanned Aethren profiles in your pack. Bring them home to clone them.' });
+    out.push({ key:'flare', art:'it_flare', name:'FLARES', n:S.flares, desc:'A recall flare: fire it to be hauled back to your ship.' });
+    out.push({ key:'air', art:'it_air', name:'AIR', n:Math.round(S.air / airMax() * 100) + '%', desc:'Your suit’s air. Only ' + hqName() + ' holds oxygen.' });
+    (HQ.airTanks || []).forEach(function(t){ if ((S.hq.equip || {})[t.id]) out.push({ key:'equip:' + t.id, art:'it_air', name:t.name, n:'', desc:'Equipped air tank · ' + t.cap + ' AIR.' }); });
+    if (S.core && S.core.oil) out.push({ key:'oil', art:'it_oil', name:'OIL', n:S.core.oil, desc:'Fuel for the drive, refined from fibre.' });
+    Object.keys(S.codexIdx || {}).filter(function(k){ return S.codexIdx[k].how === 'found'; }).forEach(function(k){
+      var t = ((window.AOV_CODEX || {}).placements || []).filter(function(p){ return p.t === 'find' && ixKey(p.term) === k; })[0];
+      if (t) out.push({ key:'find:' + k, art:findIcon(t.term), name:t.term.toUpperCase(), n:'', desc:'A relic named in the Master Codex, found in the field.' });
+    });
+    var ord = S.invOrder || [];
+    return out.sort(function(a, b){ var ia = ord.indexOf(a.key), ib = ord.indexOf(b.key); return (ia < 0 ? 1e4 : ia) - (ib < 0 ? 1e4 : ib); });
+  }
+  function invPanel(){
+    var items = invItems();
+    return '<section class="x-wd x-wd-inv riv"><h4>INVENTORY <small>drag to arrange · tap for details</small></h4><div class="x-inv" role="list">' +
+      items.map(function(it){ return '<button class="x-slot" role="listitem" data-inv="' + esc(it.key) + '" title="' + esc(it.name) + '"><img class="x-pix" alt="" src="' + ART.url(it.art, 3) + '"><b>' + esc(String(it.n)) + '</b><span>' + esc(it.name) + '</span></button>'; }).join('') +
+      '</div><p class="x-inv-detail x-mono light">Tap an item to read it.</p></section>';
+  }
+  function invWire(body){
+    var box = $('.x-inv', body); if (!box) return;
+    var byKey = {}; invItems().forEach(function(it){ byKey[it.key] = it; });
+    box.addEventListener('click', function(e){ var b = e.target.closest('[data-inv]'); if (!b) return; e.stopPropagation(); var it = byKey[b.dataset.inv]; if (!it) return;
+      $$('.x-slot.on', box).forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on'); sfx.click();
+      $('.x-inv-detail', body).innerHTML = '<b>' + esc(it.name) + (it.n !== '' ? ' × ' + esc(String(it.n)) : '') + '</b> · ' + esc(it.desc); });
+    sortable([box], '.x-slot', 'data-inv', function(keys){ S.invOrder = keys[0]; save(); });
   }
   function meter(label, v, max){ var k = clamp(v / max, 0, 1); return '<div class="x-meter' + (k < .25 ? ' low' : '') + '"><span>' + label + '</span><i><i style="width:' + Math.round(k * 100) + '%"></i></i><b>' + Math.round(v) + '/' + max + '</b></div>'; }
   function navSketchReady(){
@@ -1164,12 +1258,12 @@
     body.innerHTML = '<p class="x-crt">RESEARCH · what you carry counts only once it is home at ' + esc(hqName()) + '</p>' +
       '<section class="x-arc riv" id="rs-pack"><h3>IN THE PACK · UNREDEEMED <b>' + (packTotal() + packParts() + pendingCards()) + '</b></h3>' +
         '<p class="x-mono light">Lost if you die out there. Bring it home to ' + esc(hqName()) + ' to redeem it.</p><ul class="x-hqlist">' +
-        MATS.filter(function(m){ return S.pack[m[0]]; }).map(function(m){ return '<li><b>' + m[1] + ' × ' + S.pack[m[0]] + '</b><span>' + esc(m[2]) + '</span><div></div></li>'; }).join('') +
-        (S.pack.parts || []).map(function(no){ return '<li><b>' + esc(sysOf(no).part) + '</b><span>Ship part from ' + esc(placeName(no)) + ', for the ' + esc(sysOf(no).name) + '.</span><div><em>SHIP PART</em></div></li>'; }).join('') +
+        MATS.filter(function(m){ return S.pack[m[0]]; }).map(function(m){ return '<li><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_' + m[0], 2) + '">' + m[1] + ' × ' + S.pack[m[0]] + '</b><span>' + esc(m[2]) + '</span><div></div></li>'; }).join('') +
+        (S.pack.parts || []).map(function(no){ return '<li><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_part_' + sysOf(no).id, 2) + '">' + esc(sysOf(no).part) + '</b><span>Ship part from ' + esc(placeName(no)) + ', for the ' + esc(sysOf(no).name) + '.</span><div><em>SHIP PART</em></div></li>'; }).join('') +
         pendIds.map(function(id){ return '<li><b>' + esc(subjName(id)) + (S.cards[id].pend > 1 ? ' × ' + S.cards[id].pend : '') + '</b><span>' + esc(classLine(subj(id))) + ' · ' + esc(setName(subj(id).set)) + '</span><div><em>CARD</em></div></li>'; }).join('') +
         (packTotal() + packParts() + pendingCards() ? '' : '<li><b>— the pack is empty —</b><span></span><div></div></li>') + '</ul></section>' +
       '<section class="x-arc riv" id="rs-stores"><h3>REDEEMED AT ' + esc(hqName()) + '</h3><table class="x-mats"><tr><th></th><th>STORES</th></tr>' +
-        MATS.map(function(m){ return '<tr><td><b>' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
+        MATS.map(function(m){ return '<tr><td><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_' + m[0], 2) + '">' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
         '<ul class="x-hqlist">' + Object.keys(h.parts).map(function(no){ return '<li class="done"><b>' + esc(sysOf(+no).part) + '</b><span>From ' + esc(placeName(+no)) + '. Ready to install (HEADQUARTERS).</span><div><em class="ok">HOME</em></div></li>'; }).join('') + '</ul></section>' +
       '<section class="x-arc riv" id="rs-kit"><h3>EQUIPMENT AND CRAFTS</h3><ul class="x-hqlist">' +
         '<li class="done"><b>THE ASTRANAV</b><span>Navigation, survey, cloning and the record of everything.</span><div><em class="ok">ISSUED</em></div></li>' +
@@ -1352,6 +1446,7 @@
   function navCards(body){
     autoTeam();
     var ids = Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp; }).sort(function(a, b){ return subj(a).set - subj(b).set || (S.cards[b].lv || 0) - (S.cards[a].lv || 0); });
+    if (S.cardOrder) { var co = S.cardOrder; ids.sort(function(a, b){ var ia = co.indexOf(a), ib = co.indexOf(b); return (ia < 0 ? 1e4 : ia) - (ib < 0 ? 1e4 : ib); }); }
     var prof = profileIds();
     ids = ids.filter(function(id){ return S.cards[id].clone; });
     body.innerHTML = '<p class="x-crt">AETHREN PARTY · ' + ids.length + ' cloned at ' + esc(hqName()) + ' · deployed companions follow you in the overworld</p>' +
@@ -1366,12 +1461,22 @@
           else act = '<em>' + costText(cloneCost(id)) + '</em><button class="x-btn small" data-clone="' + id + '"' + (canAfford(cloneCost(id)) ? '' : ' disabled') + '>CLONE</button>';
           return '<li><b>' + esc(subjName(id)) + ' · LV ' + c.lv + '</b><span>' + esc(subj(id).types) + ' · tier ' + ((SP[subj(id).sp] || {}).tier || '?') + '</span><div>' + act + '</div></li>';
         }).join('') + '</ul>' : '<p class="x-mono light">No profiles waiting. Scan Aethren in the field.</p>') + '</section>' +
-      '<section class="x-team riv"><h3>PARTY <small>up to ' + teamMax() + ' · the first leads</small></h3>' +
+      '<section class="x-team riv"><h3>PARTY <small>up to ' + teamMax() + ' · the first leads · drag to reorder, or drag an Aethren in from the roster</small></h3>' +
         (leadPerk() ? '<p class="x-perk"><b>LEAD PERK · ' + esc(leadPerk().name) + '</b> ' + esc(leadPerk().text) + '</p>' : '<p class="x-perk dim">The lead card’s first type gives a field perk.</p>') +
         '<div class="x-teamrow">' +
         (S.team.length ? S.team.map(teamChip).join('') : '<p class="x-mono light">No companions yet. Clone a scanned profile at ' + esc(hqName()) + '.</p>') + '</div></section>' +
-      (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>'
+      (ids.length ? '<p class="x-mono light x-dnd-hint">ROSTER · drag to arrange · drag into the party to deploy</p><div class="x-grid x-roster">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>'
       : '<p class="x-empty">No companions yet. Scan an Aethren, bring the profile home, and clone it.</p>');
+    sortable([$('.x-teamrow', body), $('.x-roster', body)], '[data-card]', 'data-card', function(lists){
+      // the roster lists every clone (party members too), so drops can repeat a key: keep the first of each
+      var uniq = function(l){ return (l || []).filter(function(id, i, all){ return all.indexOf(id) === i; }); };
+      lists = [uniq(lists[0]), uniq(lists[1])];
+      var team = lists[0].filter(function(id){ return S.cards[id] && S.cards[id].clone; });
+      if (team.length > teamMax()) { toast('The party holds ' + teamMax() + '. ' + subjName(team[teamMax()]) + ' stays in the roster.'); team = team.slice(0, teamMax()); }
+      S.benched = {}; (lists[1] || []).forEach(function(id){ if (team.indexOf(id) < 0) S.benched[id] = 1; });
+      S.team = team; S.cardOrder = (lists[1] || []).slice();
+      S.flags.teamSet = true; save(); nav('companions');
+    });
     body.onclick = function(e){
       var cl = e.target.closest('[data-clone]');
       if (cl) { if (!cloneCard(cl.dataset.clone)) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); } nav('companions'); return; }
@@ -1386,8 +1491,9 @@
         var t = ev.target.closest('[data-t]');
         if (ev.target === m || (t && t.dataset.t === 'close')) { m.remove(); return; }
         if (!t) return;
-        if (t.dataset.t === 'on') { if (S.team.length >= teamMax()) S.team.pop(); S.team.push(id); }
-        if (t.dataset.t === 'off') S.team.splice(S.team.indexOf(id), 1);
+        S.benched = S.benched || {};
+        if (t.dataset.t === 'on') { if (S.team.length >= teamMax()) S.benched[S.team.pop()] = 1; S.team.push(id); delete S.benched[id]; }
+        if (t.dataset.t === 'off') { S.team.splice(S.team.indexOf(id), 1); S.benched[id] = 1; }
         if (t.dataset.t === 'lead') { S.team.splice(S.team.indexOf(id), 1); S.team.unshift(id); }
         S.flags.teamSet = true; save(); m.remove(); nav('companions');
       });
@@ -1853,7 +1959,7 @@
             (h.settled[id] ? '<em class="ok">SETTLED</em>' : at ? '<button class="x-btn small" data-settle="' + id + '">SETTLE</button>' : '<em class="dim">AT ' + esc(hqName()) + '</em>') + '</div></li>';
         }).join('') + '</ul>' : '<p class="x-mono light">Build the AETHREN SANCTUARY to settle Aethren on ' + esc(hqName()) + '.</p>') + '</section>';
     html += '<section class="x-arc riv" id="hq-mats"><h3>MATERIALS <b>PACK ' + packTotal() + '</b></h3><table class="x-mats"><tr><th></th><th>PACK</th><th>STORES</th></tr>' +
-      MATS.map(function(m){ return '<tr><td><b>' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (S.pack[m[0]] || 0) + '</td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
+      MATS.map(function(m){ return '<tr><td><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_' + m[0], 2) + '">' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (S.pack[m[0]] || 0) + '</td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
       '<div class="x-sh-btns">' + (at && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>DEPOSIT PACK</button>' : '') +
       (at && h.built.depot ? '<span class="x-xch">EXCHANGE <button class="x-btn ghost small" data-h="xfrom">' + matName(xFrom) + ' ×3</button> → <button class="x-btn ghost small" data-h="xto">' + matName(xTo) + ' ×1</button><button class="x-btn small" data-h="xgo">TRADE</button></span>' : '') + '</div></section>';
     html += '<section class="x-arc riv" id="hq-core"><h3>CORE SYSTEMS <b>' + coreBuiltCount() + '/' + CORE.starter.length + ' STARTER MACHINES · OIL ' + (S.core.oil || 0) + '</b></h3>' +
@@ -3094,8 +3200,16 @@
   function tileSpec(ri, ch, x, y, fr){
     var key = ri + ch + ((x * 7 + y * 13) % 5 === 0 ? 'v' : '') + fr + (M.indoor ? 'i' : '');
     var c = specCache[key]; if (c) return c;
-    var e = M.envs[ri] || M.envs[0], t = e.tiles, id = e.id, s;
+    var e = M.envs[ri] || M.envs[0], t = e.tiles, id = e.id, s, wa = WA.env[id];
     if (M.indoor) s = ch === '#' ? 'rock' : 'den';
+    else if (wa && !M.hq) {   // the world's own native art (explorer/world_art.js)
+      if (ch === '~') s = wa.liquid[fr ? 1 : 0];
+      else if (ch === 'd' || ch === 'x') s = wa.path;
+      else if (ch === '#') s = wa.wall;
+      else if (ch === 'E') s = 'cave';
+      else if (ch === ',') s = wa.special;
+      else s = wa.ground[(x * 7 + y * 13) % 3 === 0 ? 1 : 0];
+    }
     else if (ch === '~') s = (t.liquid === 'water' && fr ? 'water1' : t.liquid) + '@' + id + '-liquid';
     else if (ch === 'd' || ch === 'x') s = t.path + '@' + id + '-path';
     else if (ch === '#') s = t.wall + '@' + id + '-wall';
@@ -3106,8 +3220,31 @@
     return (specCache[key] = s);
   }
   var OBJ = 'TbBAMXPLSwFK';
+  // a landmark's look, from what it is
+  function lmSprite(lm){
+    if (!lm) return WA.landmarks.monument ? 'lm_monument' : 'spire@lm-gold';
+    var id = lm.id || '', n = String(lm.name || '');
+    if (lm.shrine) return 'lm_shrine';
+    if (/^cave_/.test(id)) return 'lm_cave';
+    if (id === 'zx_throne') return 'lm_throne';
+    if (/^rgm_/.test(id) || /^zx_/.test(id)) return 'lm_region';
+    if (/^fig_/.test(id)) return 'lm_presence';
+    if (/prism|crystal|matrix|ray of|astralite/i.test(n)) return 'lm_prism';
+    if (/temple|shrine|cathedral|chapel|seat of|citadel|throne/i.test(n)) return 'lm_temple';
+    if (/^site_/.test(id) || /^lm_/.test(id)) return 'lm_site';
+    return 'lm_monument';
+  }
   function objSpec(ch, i, e, now){
-    var no = M.world;
+    var no = M.world, wa = !M.hq && !M.indoor && WA.env[e.id];
+    if (wa) {
+      if (ch === 'T') return (wa.props.tree || 'tree');
+      if (ch === 'b') return wa.shrub;
+      if (ch === 'B') return wa.boulder;
+      if (ch === 'A') return wa.mineral;
+      if (ch === 'M') return wa.stone;
+      if (ch === 'P') { var pw = M.props[i]; if (pw) return pw[1] === '__x' && wa.extra ? wa.extra.sprite : wa.props[pw[0]] || (wa.extra && wa.extra.key === pw[0] ? wa.extra.sprite : wa.boulder); }
+    }
+    if (ch === 'L' && WA.landmarks.monument) { M.lmAt = M.lmAt || (function(){ var o = {}; M.landmarks.forEach(function(l){ o[l.y * M.W + l.x] = l; }); return o; })(); return lmSprite(M.lmAt[i]); }
     if (ch === 'T') return 'tree';
     if (ch === 'b') return no === 9 ? 'shrub' : 'shrub@pl-' + no;
     if (ch === 'B') return 'boulder@' + e.id + '-wall';

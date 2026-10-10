@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.4', title:'The art pass',
+      notes:[
+        'Every world has its own ground, roads, cliffs, waters and plants: crystal plains, lava crust, coral reefs, frozen tableaux, iron plate and more',
+        'Landmarks look like what they are: shrines, Gemlord caves, temples, prisms, monuments and standing stones',
+        'A new INVENTORY in the AstraNav, with an icon for every item, ship part and Codex relic',
+        'Drag and drop: arrange your inventory, reorder your Aethren party, and drag Aethren in and out of it',
+        'The AstraNav fits every screen, from a phone held upright to a wide desktop'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.3', title:'Every world, from the Codex',
       notes:[
         'Every world now has its peoples, named figures and the places of its history, all from the Master Codex',

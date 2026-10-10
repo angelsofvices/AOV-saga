@@ -17,7 +17,7 @@ Rules:
     people (no humanoids, axis-beings, gone) get carved records instead.
 Run:  python3 tools/explorer/build_fauna.py
 """
-import json, re, os, hashlib
+import json, re, os, hashlib, unicodedata
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 R = json.load(open(os.path.join(ROOT, 'game_roster/roster.json')))
 
@@ -160,6 +160,37 @@ for line, shown in [(l, f) for l in OFF['roster'] for f in FORMS.get(l, [l])]:
     add_species(sid, shown, tier, types, d, base, mv, note, flags)
     official_ids.add(sid)
 
+# ── the Master Codex Aethren (Creator 2026-10-10: Codex Aethren spawn too) ──
+# Each Codex Aethren not on the official list joins the wild on its home world / district
+# (game_roster/codex_homes.json, built by build_codex.py), with the Codex's tier, types and stats.
+# A species an older roster already defined keeps its id, so cards already held still match.
+HOMES = json.load(open(os.path.join(ROOT, 'game_roster/codex_homes.json'), encoding='utf-8'))
+ROSTER = json.load(open(os.path.join(ROOT, 'game_roster/aa1936_roster.json'), encoding='utf-8'))
+ROMAN = {'I':1,'II':2,'III':3,'IV':4,'V':5,'VI':6,'VII':7,'VIII':8,'IX':9,'X':10}
+codex_ids = set()
+for e in ROSTER['entries']:
+    if e['kind'] != 'aethren' or not e['source'].startswith('Master'): continue
+    cx = e.get('codex') or {}
+    hid = re.sub(r'-+', '-', re.sub(r'[^a-z0-9]+', '-', unicodedata.normalize('NFKD', e['name']).encode('ascii', 'ignore').decode().lower())).strip('-')
+    hm = HOMES.get(hid) or {}
+    if hm.get('place') != 'wild': continue
+    tier = ROMAN.get(str(cx.get('tier') or '').strip()) or 1
+    types = [ct(t) for t in (cx.get('types') or [])]; types = [t for t in types if t in STRONG] or guess_types(e['name'])
+    stv = cx.get('stats') or {}
+    base = {k: int(stv[k]) for k in ('hp','atk','def','spd','spc') if stv.get(k)} if all(stv.get(k) for k in ('hp','atk','def','spd','spc')) else None
+    old = RJ.get(norm(e['name']))
+    sid = old['id'] if old else 'cx-' + hid
+    if sid in species: continue
+    hh = hm.get('home') or {}
+    world, d = hh.get('world') or 9, hh.get('district')
+    if world == 9 and d not in DISTRICTS: d = (old or {}).get('primaryDistrict') if (old or {}).get('primaryDistrict') in DISTRICTS else (TIER_HOME[min(10, tier)] if tier > 1 else ('malezor' if h(sid) % 2 else 'zarvane'))
+    flags = {'codex': True}
+    note = ''
+    add_species(sid, e['name'], tier, types, d if world == 9 else None, base or pool(sid, tier, types), moves(old, types) if old else moves({}, types), note, flags)
+    species[sid]['world'] = world
+    codex_ids.add(sid)
+official_ids |= codex_ids
+
 # species from older rosters that are NOT on the official list stay defined (cards already held keep
 # working) but are retired: never spawned, never counted toward a set.
 for v in sorted(R.values(), key=lambda v: (v['tier'], v['id'])):
@@ -238,6 +269,6 @@ open(p, 'w', encoding='utf-8').write(
   '// Canon: game_roster/roster.json (Zyraxis Zyrex) and the 20-type chart in rp7b.html.\n'
   '// Species with provisional:true are placeholders until the Creator supplies that world’s Aethren.\n'
   'window.AOV_FAUNA = ' + json.dumps(out, ensure_ascii=False, separators=(',', ':')) + ';\n')
-print(len(species), 'species ·', len(official_ids), 'official ·', sum(1 for s in species.values() if s.get('retired')), 'retired ·', len(STRONG), 'types')
+print(len(species), 'species ·', len(official_ids) - len(codex_ids), 'official ·', len(codex_ids), 'from the Codex ·', sum(1 for s in species.values() if s.get('retired')), 'retired ·', len(STRONG), 'types')
 print('PROVISIONAL DATA:', ', '.join(report['provisional']))
 print('READ FROM OLDER SPELLINGS:', ', '.join(report['aliased']))

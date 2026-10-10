@@ -188,6 +188,31 @@
       if (g) m.spawns.push({ x:best.x + 1, y:best.y + 1, id:g, lv:lvl + 8, guardian:true });
     }
   }
+  // THE MASTER CODEX on the ground: people you can meet, and inscribed records of historical figures
+  // (explorer/codex_beings.js). Records are grouped, several names to a stone, so every figure is placed.
+  function codexPlace(m, r, area, no, district, envId, pts){
+    var CX = window.AOV_CODEX; if (!CX) return;
+    var here = CX.beings.filter(function(b){
+      if (b.kind !== 'humanoid' || !b.home || b.home.world !== no) return false;
+      if (no !== 9) return true;
+      var h9 = 0; for (var c = 0; c < b.id.length; c++) h9 = (h9 * 31 + b.id.charCodeAt(c)) >>> 0;
+      var d = b.home.district && b.home.district !== 'malezor' ? b.home.district : ['zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'][h9 % 9];   // Malezor is the hand-built opening district
+      return d === district;
+    });
+    pts = pts || [{ x:area.sx, y:area.sy }];
+    here.filter(function(b){ return b.place === 'npc'; }).forEach(function(b, i){
+      var p = spot(m, r, area.x, area.y, area.w, area.h, pts, 7); pts.push(p);
+      clearRect(m, p.x, p.y, 1, 1, 'd'); road(m, area.sx, area.sy, p.x, p.y + 1, r);
+      m.npcs.push({ x:p.x, y:p.y, dir:'down', key:'cx_' + b.id, codex:b.id, env:envId, n:i, person:true });
+    });
+    var recs = here.filter(function(b){ return b.place === 'record'; });
+    for (var k = 0; k < recs.length; k += 4) {
+      var q = spot(m, r, area.x, area.y, area.w, area.h, pts, 8); pts.push(q);
+      clearRect(m, q.x, q.y, 1, 1); m.set(q.x, q.y, 'M');
+      m.records.push({ x:q.x, y:q.y, key:'cxr_' + no + '_' + (district || '') + k, codex:recs.slice(k, k + 4).map(function(b){ return b.id; }), n:k });
+      road(m, area.sx, area.sy, q.x, q.y + 1, r);
+    }
+  }
   function finish(m){
     // the ship stands three tiles wide and two tall around its anchor
     for (var j = -1; j <= 0; j++) for (var i = -1; i <= 1; i++) { var c = m.at(m.ship.x + i, m.ship.y + j); if (c !== '#' || j === 0) m.set(m.ship.x + i, m.ship.y + j, 'S'); delete m.props[(m.ship.y + j) * m.W + m.ship.x + i]; }
@@ -215,6 +240,7 @@
     for (var k = 0; k < 4; k++) { var a = spot(m, r, 0, 0, W, H, [area], 18); road(m, sx, sy + 1, a.x, a.y, r); }
     spawnFauna(m, r, area, speciesFor(no), 16, levelFor(no));
     vault(m, r, area, no, e.id, people, levelFor(no));
+    if (no !== 28) codexPlace(m, r, area, no, null, e.id);
     return finish(m);
   }
 
@@ -264,6 +290,7 @@
         clearRect(m, centres[i].x, centres[i].y, 1, 1, 'd');
         populate(m, r, area, i, { people:FAUNA.peoples[9], peopleKey:'z_' + id, camps:1, perCamp:2, landmarks:3, minerals:2, finds:2 });
       }
+      if (i > 0) codexPlace(m, r, area, 9, id, id);
       var ids = speciesFor(9, id).filter(function(s){ return i !== 0 || ['otterlin','verdanix','aetherwing','volcanut'].indexOf(s) < 0; });
       spawnFauna(m, r, i === 0 ? { x:a.x + 1, y:a.y + 1, w:a.w - 2, h:a.h - 2, sx:m.ship.x, sy:m.ship.y } : area, ids, i === 0 ? 4 : 9, levelFor(9, i));
     });

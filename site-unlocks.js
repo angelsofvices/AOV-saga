@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10', title:'The Master Codex',
+      notes:[
+        'The full Master Codex is in the game: 582 beings, the Worlds, Cosmic Theories, Books, Games and a 1,017-entry Index',
+        'Every entry is sealed until you discover it: scan Aethren, meet people, read record stones, visit worlds',
+        'Over a hundred Codex Aethren now live in the wild on their home worlds',
+        'Meet Codex characters on their worlds, and read carved records of the historical figures',
+        'Decode Cosmic Theories, Books and Games pages with DATA at the Research Station'
+      ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 9.2', title:'Cloning at NASARUS',
       notes:[
         'A scan is only a profile. To fight beside you, an Aethren must be cloned from its card at NASARUS',

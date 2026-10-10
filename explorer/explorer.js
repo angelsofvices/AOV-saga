@@ -119,7 +119,7 @@
   function blank(){
     return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{ cloneRule:1 }, archive:{}, cards:{}, lex:{}, machines:{}, dev:{ access:false, chests:{} },
              core:{ enabled:true, recipes:{}, machines:{}, oil:0, astralites:{}, automation:{}, gameOver:false },
-             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(),
+             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(), codex:{}, codexPages:{},
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
   function newHQ(){ return { id:'nasarus', name:HQ.canonicalName, built:{}, drive:false, ruins:{}, regions:[], store:{}, research:{}, records:[], stage:1, equip:{}, parts:{}, installed:{}, residents:{}, settled:{} }; }
@@ -150,7 +150,7 @@
   }
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
   // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
-  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
+  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.codex = S.codex || {}; S.codexPages = S.codexPages || {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
   if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; S.flags.charted = true; S.flags.hqNew = true; }
   if (S && S.v === 3) {
     S.core = S.core || { enabled:false, recipes:{}, machines:{}, oil:0, astralites:{}, automation:{}, gameOver:false };
@@ -1174,8 +1174,10 @@
         '</ul></section>' +
       '<section class="x-arc riv" id="rs-cards"><h3>RESEARCH CARDS <b>' + ids.length + '</b></h3>' +
         (ids.length ? '<div class="x-grid">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>' : '<p class="x-mono light">Scan plants, minerals, places, peoples and bodies in the sky.</p>') + '</section>' +
-      '<section class="x-arc riv" id="rs-codex"><h3>THE LIVING MASTER CODEX</h3><div class="x-codex-in"></div></section>';
+      '<section class="x-arc riv" id="rs-canon"><h3>MASTER CANON <b class="x-canon-count"></b></h3><div class="x-canon"></div></section>' +
+      '<section class="x-arc riv" id="rs-codex"><h3>THE LIVING MASTER CODEX · PLAYER DISCOVERIES</h3><div class="x-codex-in"></div></section>';
     navCodex($('.x-codex-in', body));
+    canonPanel($('.x-canon', body), $('.x-canon-count', body));
     body.onclick = function(e){
       var g = e.target.closest('[data-go]'); if (g) { nav(g.dataset.go); return; }
       var c = e.target.closest('.x-grid [data-card]'); if (!c) return;
@@ -1184,6 +1186,109 @@
       ui.appendChild(m); sfx.click(); setTimeout(function(){ if (padOn) focusFirst(); }, 30);
       m.addEventListener('click', function(ev){ if (ev.target === m || ev.target.closest('[data-t]')) m.remove(); });
     };
+  }
+
+  // ── MASTER CANON · the full Master Codex, sealed until discovered ──
+  // Beings unlock when scanned, met or read on a record; WORLDS rows when the world is visited;
+  // INDEX entries when their subject is unlocked; COSMIC THEORIES, BOOKS and GAMES pages are decoded
+  // with DATA at NASARUS's Research Station. AEP-28, Ovauron and Mealux stay sealed (canon).
+  var canonTab = 'beings', canonLetter = 'A', SEALED_RX = /(ovauron|aep[- ]?28|\bae-28\b|mealux)/i, PAGE_COST = 4;
+  function spIdByName(){ if (spIdByName.m) return spIdByName.m; var m = {}; Object.keys(SP).forEach(function(id){ var n = (SP[id].name || '').toLowerCase().replace(/[^a-z0-9]/g, ''); if (n && !m[n]) m[n] = id; }); return (spIdByName.m = m); }
+  function beingOpen(b){
+    if (SEALED_RX.test(b.name)) return false;
+    if (b.kind === 'humanoid') return !!S.codex[b.id];
+    var keys = [b.name].concat(b.aliases || []).map(function(n){ return n.toLowerCase().replace(/[^a-z0-9]/g, ''); });
+    return keys.some(function(k){ var id = spIdByName()[k]; return id && (S.cards[id] || (S.archive[id] && (S.archive[id].classified || S.archive[id].battled))); });
+  }
+  function loadCanon(cb){
+    if (window.AOV_CODEX_REF) return cb();
+    var sc = doc.createElement('script'); sc.src = '/explorer/codex_reference.js'; sc.onload = cb; sc.onerror = function(){ toast('The Master Canon could not be read', 'red'); };
+    doc.head.appendChild(sc);
+  }
+  function canonPanel(host, countEl){
+    var all = CODEX.beings, open = all.filter(beingOpen);
+    countEl.textContent = open.length + ' / ' + all.length + ' BEINGS UNLOCKED';
+    var tabs = [['beings','BEINGS'],['worlds','WORLDS'],['cosmic','COSMIC THEORIES'],['books','BOOKS'],['games','GAMES'],['index','INDEX']];
+    host.innerHTML = '<div class="x-canon-tabs">' + tabs.map(function(t){ return '<button class="x-btn small' + (t[0] === canonTab ? '' : ' ghost') + '" data-ct="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="x-canon-body"><p class="x-mono light">Reading the Master Canon…</p></div>';
+    host.onclick = function(e){
+      var t = e.target.closest('[data-ct]'); if (t) { canonTab = t.dataset.ct; canonPanel(host, countEl); return; }
+      var l = e.target.closest('[data-cl]'); if (l) { canonLetter = l.dataset.cl; canonPanel(host, countEl); return; }
+      var b = e.target.closest('[data-cb]'); if (b) { showBeing(CXB[b.dataset.cb]); return; }
+      var pg = e.target.closest('[data-cp]'); if (pg) { showPage(pg.dataset.cp); return; }
+      var dc = e.target.closest('[data-dec]'); if (dc) { decodePage(dc.dataset.dec, host, countEl); return; }
+    };
+    var bodyEl = $('.x-canon-body', host);
+    if (canonTab === 'beings') return renderBeings(bodyEl, all);
+    loadCanon(function(){ if (!bodyEl.isConnected) return; if (canonTab === 'index') renderIndex(bodyEl); else renderPages(bodyEl, canonTab); });
+  }
+  function letters(list, nameOf){ var ls = {}; list.forEach(function(x){ var c = (nameOf(x)[0] || '#').toUpperCase(); ls[/[A-Z]/.test(c) ? c : '#'] = 1; }); return Object.keys(ls).sort(); }
+  function letterBar(ls){ if (ls.indexOf(canonLetter) < 0) canonLetter = ls[0]; return '<div class="x-canon-letters">' + ls.map(function(c){ return '<button data-cl="' + c + '" class="' + (c === canonLetter ? 'on' : '') + '">' + c + '</button>'; }).join('') + '</div>'; }
+  function renderBeings(el, all){
+    var ls = letters(all, function(b){ return b.name; });
+    var rows = all.filter(function(b){ var c = (b.name[0] || '#').toUpperCase(); return (/[A-Z]/.test(c) ? c : '#') === canonLetter || ls.indexOf(canonLetter) < 0; });
+    el.innerHTML = letterBar(ls) + '<ul class="x-hqlist x-canon-list">' + rows.map(function(b){
+      var o = beingOpen(b);
+      if (!o) return '<li class="sealed"><b>' + b.name[0] + '█████████</b><span>' + (b.kind === 'humanoid' ? 'A person' : 'An Aethren') + ' · SEALED</span><div><em class="dim">' + (b.kind === 'humanoid' ? (b.place === 'npc' ? 'MEET THEM' : b.place === 'record' ? 'FIND THEIR RECORD' : 'NOT YET FOUND') : 'SCAN IT') + '</em></div></li>';
+      return '<li class="done"><b>' + esc(b.name) + '</b><span>' + esc([b.kind === 'humanoid' ? 'Humanoid' : 'Aethren', b.cls && b.cls !== '—' ? b.cls : null, b.tierName, (b.types || []).join(' / ')].filter(Boolean).join(' · ')) + '</span><div><button class="x-btn small" data-cb="' + b.id + '">READ</button></div></li>';
+    }).join('') + '</ul>';
+  }
+  function showBeing(b){
+    if (!b || !beingOpen(b)) return;
+    loadCanon(function(){
+      var lore = (window.AOV_CODEX_REF.lore || {})[b.id] || b.blurb || 'The Master Codex’s account of ' + b.name + ' is still being written.';
+      var st = b.stats && b.stats.total ? '<p class="x-mono">HP ' + b.stats.hp + ' · ATK ' + b.stats.atk + ' · DEF ' + b.stats.def + ' · SPD ' + b.stats.spd + ' · SPC ' + b.stats.spc + ' · TOTAL ' + b.stats.total + '</p>' : '';
+      var m = el('div', 'x-modal', '<div class="x-modal-in x-canon-page"><p class="x-man-k">MASTER CANON · ' + (b.kind === 'humanoid' ? 'HUMANOID' : 'AETHREN') + '</p><h2>' + esc(b.name) + '</h2>' +
+        '<p class="x-mono">' + esc([b.cls && b.cls !== '—' ? b.cls : null, b.tier ? 'Tier ' + b.tier : null, b.tierName, (b.types || []).join(' / '), b.arch].filter(Boolean).join(' · ')) + '</p>' + st +
+        '<div class="x-canon-text">' + esc(lore).replace(/\n/g, '<br>') + '</div><div class="x-sh-btns"><button class="x-btn ghost" data-t="close">CLOSE</button></div></div>');
+      ui.appendChild(m); m.addEventListener('click', function(ev){ if (ev.target === m || ev.target.closest('[data-t]')) m.remove(); });
+    });
+  }
+  function worldOpenByName(t){ var n = String(t || '').toLowerCase(); return D.worlds.some(function(w){ return S.visited[w.no] && n.indexOf(String(w.name || '').toLowerCase()) >= 0; }); }
+  function pageOpen(sec, i, pg){
+    var text = pg.title + ' ' + pg.rows.map(function(r){ return r.join(' '); }).join(' ');
+    if (SEALED_RX.test(pg.title)) return false;
+    if (sec === 'worlds') return pg.rows.some(function(r){ return worldOpenByName(r[1]); }) || (S.codexPages['worlds:' + i] && true);
+    return !!S.codexPages[sec + ':' + i];
+  }
+  function renderPages(el, sec){
+    var S2 = window.AOV_CODEX_REF.sections.filter(function(x){ return x.key === sec; })[0]; if (!S2) return;
+    var canDecode = onHQ() && S.hq.built.research;
+    el.innerHTML = '<p class="x-mono light">' + (sec === 'worlds' ? 'Pages open as you visit their worlds.' : 'Encrypted pages. Decode them at ' + esc(hqName()) + '’s Research Station for ' + PAGE_COST + ' DATA each.' + (canDecode ? '' : ' (You must be at the Research Station.)')) + '</p>' +
+      '<ul class="x-hqlist x-canon-list">' + S2.pages.map(function(pg, i){
+        var o = pageOpen(sec, i, pg), restricted = SEALED_RX.test(pg.title);
+        if (o) return '<li class="done"><b>' + esc(pg.title) + '</b><span>' + pg.rows.length + ' lines</span><div><button class="x-btn small" data-cp="' + sec + ':' + i + '">READ</button></div></li>';
+        return '<li class="sealed"><b>PAGE ' + (i + 1) + ' · ██████</b><span>' + (restricted ? 'RESTRICTED' : 'ENCRYPTED') + '</span><div>' +
+          (!restricted && sec !== 'worlds' && canDecode ? '<button class="x-btn small" data-dec="' + sec + ':' + i + '"' + ((S.hq.store.data || 0) >= PAGE_COST ? '' : ' disabled') + '>DECODE · ' + PAGE_COST + ' DATA</button>' : '') + '</div></li>';
+      }).join('') + '</ul>';
+  }
+  function decodePage(key, host, countEl){
+    if (!onHQ() || !S.hq.built.research || (S.hq.store.data || 0) < PAGE_COST) { toast('Decoding needs ' + PAGE_COST + ' DATA at the Research Station', 'red'); return; }
+    S.hq.store.data -= PAGE_COST; S.codexPages[key] = Date.now(); hqRecord('Decoded a Master Canon page (' + key + ').'); save(); sfx.reveal(); toast('MASTER CANON · page decoded');
+    canonPanel(host, countEl);
+  }
+  function showPage(key){
+    var p = key.split(':'), S2 = window.AOV_CODEX_REF.sections.filter(function(x){ return x.key === p[0]; })[0], pg = S2 && S2.pages[+p[1]];
+    if (!pg || !pageOpen(p[0], +p[1], pg)) return;
+    var m = el('div', 'x-modal', '<div class="x-modal-in x-canon-page"><p class="x-man-k">MASTER CANON · ' + esc(S2.title) + '</p><h2>' + esc(pg.title) + '</h2><div class="x-canon-text">' +
+      pg.rows.map(function(r){ if (p[0] === 'worlds' && r[1] && D.worlds.some(function(w){ return String(r[1]).toLowerCase().indexOf(String(w.name || '').toLowerCase()) >= 0; }) && !worldOpenByName(r[1])) return '<p class="dim">██████ · an unvisited world</p>';
+        if (SEALED_RX.test(r.join(' '))) return '<p class="dim">██████ · RESTRICTED</p>';
+        return r.length > 1 ? '<p><b>' + esc(r[0]) + '</b> ' + esc(r.slice(1).join(' · ')) + '</p>' : '<p>' + esc(r[0]) + '</p>'; }).join('') +
+      '</div><div class="x-sh-btns"><button class="x-btn ghost" data-t="close">CLOSE</button></div></div>');
+    ui.appendChild(m); m.addEventListener('click', function(ev){ if (ev.target === m || ev.target.closest('[data-t]')) m.remove(); });
+  }
+  function indexOpen(term){
+    if (SEALED_RX.test(term)) return false;
+    var k = term.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (CODEX.beings.some(function(b){ return b.name.toLowerCase().replace(/[^a-z0-9]/g, '') === k && beingOpen(b); })) return true;
+    if (worldOpenByName(term)) return true;
+    return Object.keys(S.lex || {}).some(function(t){ var L = D.lexicon[t]; return L && L.canon && L.canon.toLowerCase().replace(/[^a-z0-9]/g, '') === k; });
+  }
+  function renderIndex(el){
+    var IX = window.AOV_CODEX_REF.index, ls = letters(IX, function(r){ return r[1]; });
+    var rows = IX.filter(function(r){ var c = (r[1][0] || '#').toUpperCase(); return (/[A-Z]/.test(c) ? c : '#') === canonLetter; });
+    var open = IX.filter(function(r){ return indexOpen(r[1]); }).length;
+    el.innerHTML = '<p class="x-mono light">' + open + ' / ' + IX.length + ' entries readable. Entries open as you discover their subjects.</p>' + letterBar(ls) +
+      '<ul class="x-hqlist x-canon-list">' + rows.map(function(r){ return indexOpen(r[1]) ? '<li class="done"><b>' + esc(r[1]) + '</b><span>' + esc(r[2]).slice(0, 600) + '</span><div></div></li>' : '<li class="sealed"><b>' + esc(r[1][0]) + '█████████</b><span>SEALED</span><div></div></li>'; }).join('') + '</ul>';
   }
 
   // ── 6 · JOURNAL · the missions ──
@@ -2161,6 +2266,7 @@
       if (n.warden) return wardenMeet(n);
       if (n.refugee) return talkRefugee(n);
       if (n.resident) return talkResident(n);
+      if (n.codex) return talkCodexPerson(n);
       talkPeople(n); return;
     }
     if (ch === 'K' && M.vault) return openVault();
@@ -2481,6 +2587,30 @@
       toast('THE CODEX · ' + term(no === 9 ? district : WORLD[no].term) + ' · new pages');
     });
   }
+  // ── THE MASTER CODEX in the field ──
+  // People from the Codex live on their home worlds; dated historical figures are inscribed on records.
+  // Meeting or reading unlocks their Codex entries (AstraNav · RESEARCH · MASTER CANON).
+  var CODEX = window.AOV_CODEX || { beings:[] }, CXB = {};
+  CODEX.beings.forEach(function(b){ CXB[b.id] = b; });
+  function cxUnlock(id, how){ if (!S.codex[id]) { S.codex[id] = { how:how, at:Date.now() }; save(); return true; } return false; }
+  function cxHeader(b){ return b.name.toUpperCase() + (b.cls && b.cls !== '—' ? ' · ' + b.cls.toUpperCase() : '') + (b.tierName ? ' · ' + b.tierName.toUpperCase() : ''); }
+  async function talkCodexPerson(n){
+    var b = CXB[n.codex]; if (!b) return;
+    var no = M.world, learned = no === 9 ? Object.keys(S.lore).some(function(k){ return /^z_/.test(k); }) || S.flags.taught : !!S.lore['w' + no];
+    sfx.meet();
+    if (!learned) { await say(['A stranger. They watch you with open curiosity, and say something you cannot follow.', '(Learn this world’s words first, from its people or its records.)']); return; }
+    var first = cxUnlock(b.id, 'met');
+    if (first) { gain('data', 3, true); toast('MASTER CODEX · ' + b.name + ' · entry unlocked'); }
+    await say([cxHeader(b) + '.', b.blurb || 'They tell you a little about themselves.'].concat(first ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON. +3 DATA)'] : []));
+  }
+  async function examineCodexRecord(rec){
+    var bs = rec.codex.map(function(id){ return CXB[id]; }).filter(Boolean);
+    var no = M.world, learned = no === 9 ? Object.keys(S.lore).some(function(k){ return /^z_/.test(k); }) || S.flags.taught : !!S.lore['w' + no];
+    if (!learned) { await say(['A worn stone, carved with names and dates in a script you cannot read yet.', '(Learn this world’s words first, from its people or its records.)']); return; }
+    var fresh = bs.filter(function(b){ return cxUnlock(b.id, 'record'); });
+    if (fresh.length) { gain('data', 2 * fresh.length, true); toast('MASTER CODEX · ' + fresh.length + ' historical ' + (fresh.length > 1 ? 'figures' : 'figure') + ' recorded'); }
+    await say(['A record stone, carved with the names of people long gone.'].concat(bs.map(function(b){ return cxHeader(b) + (b.blurb ? ': ' + b.blurb : '.'); })));
+  }
   async function talkPeople(n){
     if (n.key === 'furtrader') return talkHaemen();
     sfx.meet();
@@ -2509,6 +2639,7 @@
     teach(key, no, null, 'First contact. The people of this world name it, its creatures, its places, and themselves.');
   }
   async function examineRecord(rec){
+    if (rec.codex) return examineCodexRecord(rec);
     var no = M.world, key = rec.key, fid = 'rec:' + key + ':' + rec.n, pe = FAUNA.peoples[no] || {};
     if (!S.found[fid]) {
       S.found[fid] = 1; gain('data', 3, true); save();
@@ -3159,7 +3290,7 @@
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },
     nav:navFocus, activate:activate, back:goBack, btnA:function(){ btnA(); },
     hq:function(){ return S.hq; }, pack:function(){ return S.pack; }, give2:function(o){ gainAll(o, true); }, store:function(o){ Object.keys(o).forEach(function(k){ S.hq.store[k] = (S.hq.store[k] || 0) + o[k]; }); save(); },
-    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash, buildTank:buildTank, airMax:function(){ return airMax(); }, exp:function(){ return S.exp; }, installPart:installPart, settle:settleAethren, wardenMeet:function(){ var w = npcs.filter(function(n){ return n.warden; })[0]; if (w) wardenMeet(w); }, openVault:openVault, perk:function(){ return leadPerk(); }, clone:function(id){ return COMPANIONS.clone ? cloneCard(id) : false; }, openNav:function(t){ openNav(t); }, giveClone:function(id, lv){ if (!COMPANIONS.clone) return false; manifest(id, null, false, lv || 5); S.cards[id].pend = 0; S.cards[id].clone = Date.now(); S.cards[id].hp = maxHp(id); autoTeam(); save(); return true; } };
+    buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash, buildTank:buildTank, airMax:function(){ return airMax(); }, exp:function(){ return S.exp; }, installPart:installPart, settle:settleAethren, wardenMeet:function(){ var w = npcs.filter(function(n){ return n.warden; })[0]; if (w) wardenMeet(w); }, openVault:openVault, perk:function(){ return leadPerk(); }, codex:function(){ return S.codex; }, codexUnlock:function(id){ cxUnlock(id, 'debug'); }, beingOpen:function(id){ return beingOpen(CXB[id]); }, clone:function(id){ return COMPANIONS.clone ? cloneCard(id) : false; }, openNav:function(t){ openNav(t); }, giveClone:function(id, lv){ if (!COMPANIONS.clone) return false; manifest(id, null, false, lv || 5); S.cards[id].pend = 0; S.cards[id].clone = Date.now(); S.cards[id].hp = maxHp(id); autoTeam(); save(); return true; } };
   applyOpts();
   if (S) applyLook();
   title();

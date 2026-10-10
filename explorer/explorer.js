@@ -199,7 +199,17 @@
   function applyLook(look, id){
     look = look || hero().look;
     var sk = SKIN[look.skin] || SKIN[1], hc = HAIRC[look.hc] || HAIRC[0], su = SUITS[look.suit] || SUITS[0], he = HELMS[look.helmet] || HELMS[0], vi = VISORS[look.visor] || VISORS[0];
-    ART.recolour(id || 'player', { t:sk[0], T:sk[1], Z:hc[0], X:hc[1], s:su[0], S:su[1], d:su[2], o:he[0], O:he[1], e:vi[0], E:vi[1] });
+    var map = { t:sk[0], T:sk[1], Z:hc[0], X:hc[1], s:su[0], S:su[1], d:su[2], o:he[0], O:he[1], e:vi[0], E:vi[1] };
+    // FULLY CUSTOMIZABLE SUIT: any colour for suit, trim and boots, helmet, visor and specs (look.cust)
+    var cu = look.cust || {}, sh = window.AOV_VICE ? window.AOV_VICE.shade : null;
+    if (sh) {
+      if (cu.suit) { map.s = cu.suit; map.S = sh(cu.suit, 12); map.d = sh(cu.suit, -16); }
+      if (cu.trim) { map.M = cu.trim; map.N = sh(cu.trim, -18); }
+      if (cu.helmet) { map.o = cu.helmet; map.O = sh(cu.helmet, 14); }
+      if (cu.visor) { map.e = cu.visor; map.E = sh(cu.visor, 18); }
+      if (cu.spec) map.y = cu.spec;
+    }
+    ART.recolour(id || 'player', map);
   }
   ART.recolour('director', { t:SKIN[1][0], T:SKIN[1][1], Z:'#a8a8a8', X:'#dcdcdc', s:'#2a2a34', S:'#3a3a48', d:'#1a1a22', y:'#9a2a2a', W:'#efe6d0' });
   // every person their own figure (explorer/people_art.js); a people shares its colours
@@ -1180,7 +1190,7 @@
     function w(tab, title, inner, cls){ return '<button class="x-wd' + (cls ? ' ' + cls : '') + '" data-go="' + tab + '"><h4><i>' + (NAV_TABS.map(function(t){ return t[0]; }).indexOf(tab) + 1) + '</i>' + title + '</h4>' + inner + '</button>'; }
     body.innerHTML = '<div class="x-home">' +
       '<section class="x-wd x-wd-status riv"><h4>STATUS</h4><p class="x-crt">' + esc(whereLine()) + '</p>' +
-        '<div class="x-meters">' + meter('SUIT', S.suit, 100) + meter('AIR', S.air, airMax()) + '</div>' +
+        '<div class="x-meters">' + meter('SUIT', S.suit, 100) + meter('AIR', S.air, airMax()) + '</div>' + atmoLine() +
         '<p class="x-mono light">FLARES ' + S.flares + '/' + flaresMax() + ' · BAG ' + (packTotal() + packParts() + pend) + (packParts() ? ' · ' + packParts() + ' SHIP PART' + (packParts() > 1 ? 'S' : '') : '') + '</p>' +
         '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
           landed ? '<button class="x-btn" data-a="out">DISEMBARK</button>' : '<button class="x-btn" data-go="stars">SET A COURSE</button>') + '</div></section>' +
@@ -1217,6 +1227,7 @@
       Object.keys(S.hq.items || {}).forEach(function(id){ var t = ITEMS.byId[id], k = S.hq.items[id]; if (!k) return;
         out.push({ key:'sitem:' + id, art:t && t.icon || 'it_relic', name:t ? itemName(t) : id, n:k, desc:t ? itemDesc(t) : 'A catalog item.' }); });
       (HQ.airTanks || []).forEach(function(t){ if ((S.hq.equip || {})[t.id]) out.push({ key:'equip:' + t.id, art:'it_air', name:t.name, n:'', desc:'Air tank · ' + t.cap + ' AIR.' }); });
+      SUITX.modules.forEach(function(m){ if ((S.hq.equip || {})[m.id]) out.push({ key:'equip:' + m.id, art:'it_part_life', name:m.name, n:'', desc:'Suit module · adapts the suit to ' + SUITX.kinds[m.kind].name + '. ' + m.does }); });
       if (S.core && S.core.oil) out.push({ key:'oil', art:'it_oil', name:'OIL', n:S.core.oil, desc:'Fuel for the drive, refined from fibre.' });
       var so = S.storeOrder || [];
       return out.sort(function(a, b){ var ia = so.indexOf(a.key), ib = so.indexOf(b.key); return (ia < 0 ? 1e4 : ia) - (ib < 0 ? 1e4 : ib); });
@@ -1250,7 +1261,7 @@
     if (!VICE) return '';
     return '<button class="x-wd x-wd-pilot" data-pilot="1"><h4>PILOT</h4><canvas class="x-pilot-mini" width="96" height="96"></canvas><p class="x-crt">' + esc(heroName()) + '</p><p class="x-mono light">CUSTOMIZE PILOT ▸</p></button>';
   }
-  var PILOT_TABS = [['face','FACE'],['hair','HAIR'],['eyes','EYES'],['mouth','MOUTH'],['hat','HEADWEAR'],['acc','EXTRAS'],['suit','FLIGHT SUIT'],['bg','BACKDROP']];
+  var PILOT_TABS = [['face','FACE'],['hair','HAIR'],['eyes','EYES'],['mouth','MOUTH'],['hat','HEADWEAR'],['acc','EXTRAS'],['suit','FLIGHT SUIT'],['colors','SUIT COLOURS'],['systems','SUIT SYSTEMS'],['bg','BACKDROP']];
   function pilotBuilder(done){
     var sp = JSON.parse(JSON.stringify(pilotSpec())), look = Object.assign({}, hero().look), tab = 'face', orig = JSON.stringify(sp), origLook = JSON.stringify(look);
     var s = el('div', 'x-modal x-pilot', '<div class="x-pilot-in riv"><header class="x-pilot-top"><b>CUSTOMIZE PILOT</b><span class="x-mono">' + esc(heroName()) + ' · U.S. EXPERIMENTAL ROCKET PROGRAM · 1936</span></header>' +
@@ -1283,8 +1294,35 @@
       if (tab === 'suit') h = '<h5>FLIGHT SUIT</h5><div class="x-swatches">' + SUITS.map(function(c, i){ return swatch([c[0], c[1]], look.suit === i, 'data-suit', i); }).join('') + '</div>' +
         '<h5>HELMET</h5><div class="x-swatches">' + HELMS.map(function(c, i){ return swatch([c[0], c[1]], look.helmet === i, 'data-helm', i); }).join('') + '</div>' +
         '<h5>VISOR</h5><div class="x-swatches">' + VISORS.map(function(c, i){ return swatch([c[0], c[1]], look.visor === i, 'data-visor', i); }).join('') + '</div>';
+      if (tab === 'colors') h = '<p class="x-mono light">Any colour for every part of the suit. Tap a swatch, or pick your own.</p>' + SUITX.parts.map(function(pt){
+          var cur = (look.cust || {})[pt.id] || '';
+          return '<h5>' + pt.name + (cur ? ' · <span style="color:' + cur + '">■</span> ' + cur.toUpperCase() : '') + '</h5><div class="x-swatches">' +
+            SUITX.swatches.map(function(c){ return '<button class="x-swatch' + (cur === c ? ' on' : '') + '" data-cpart="' + pt.id + '" data-ccol="' + c + '" style="background:' + c + '"></button>'; }).join('') +
+            '<label class="x-swatch x-swatch-pick" title="Pick any colour"><input type="color" data-cpick="' + pt.id + '" value="' + (cur || '#888888') + '"></label>' +
+            (cur ? '<button class="x-btn small ghost" data-cclear="' + pt.id + '">STOCK</button>' : '') + '</div>';
+        }).join('');
+      if (tab === 'systems') {
+        var here = atmo();
+        h = '<p class="x-mono light">Every world’s atmosphere works the suit’s air differently. A module, fitted at ' + esc(hqName()) + '’s Workshop, adapts the suit to one kind of atmosphere and takes away most of its extra strain.' +
+          (here ? ' Here: <b>' + here.name + '</b>, AIR ×' + here.eff.toFixed(2) + '.' : '') + '</p><ul class="x-hqlist">' + SUITX.modules.map(function(m){
+            var k = SUITX.kinds[m.kind], fit = (S.hq.equip || {})[m.id], can = onHQ() && S.hq.built.workshop && canAfford(m.cost);
+            return '<li class="' + (fit ? 'done' : '') + '"><b>' + m.name + '</b><span>' + k.name + ' · AIR ×' + k.mult.toFixed(2) + ' → ×' + (1 + (k.mult - 1) * SUITX.adapted).toFixed(2) + ' · ' + esc(m.does) + '</span><div>' +
+              (fit ? '<em>FITTED</em>' : '<em>' + costText(m.cost) + '</em>' + (onHQ() && S.hq.built.workshop ? '<button class="x-btn small" data-mod="' + m.id + '"' + (can ? '' : ' disabled') + '>FIT</button>' : '<em class="dim">AT THE WORKSHOP</em>')) + '</div></li>';
+          }).join('') + '</ul>';
+      }
       if (tab === 'bg') h = '<div class="x-swatches big">' + VICE.BACKDROPS.map(function(c, i){ return swatch(c, same(sp.bg, c), 'data-bg', i); }).join('') + '</div>';
       $('.x-pilot-grid', s).innerHTML = h;
+    }
+    s.addEventListener('input', function(e){
+      var c = e.target.closest('[data-cpick]'); if (!c) return;
+      look.cust = Object.assign({}, look.cust); look.cust[c.dataset.cpick] = c.value; syncSuit(); VICE.render($('.x-pilot-por', s), sp); field();
+    });
+    s.addEventListener('change', function(e){ if (e.target.closest('[data-cpick]')) draw(); });
+    // the portrait wears what the field figure wears
+    function syncSuit(){
+      var su = SUITS[look.suit] || SUITS[0], he = HELMS[look.helmet] || HELMS[0], vi = VISORS[look.visor] || VISORS[0], cu = look.cust || {};
+      var suitc = cu.suit || su[0];
+      sp.cloth = [suitc, VICE.shade(suitc, 12)]; sp.helmc = cu.helmet || he[0]; sp.visorc = cu.visor || vi[0]; sp.trim = cu.trim || '#9aa2a8'; sp.spec = cu.spec || '#e8b830';
     }
     s.addEventListener('click', function(e){
       var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
@@ -1302,15 +1340,18 @@
       if (d.helm != null) look.helmet = +d.helm;
       if (d.visor != null) look.visor = +d.visor;
       if (d.bg != null) sp.bg = VICE.BACKDROPS[+d.bg];
+      if (d.cpart) { look.cust = Object.assign({}, look.cust); look.cust[d.cpart] = d.ccol; }
+      if (d.cclear) { look.cust = Object.assign({}, look.cust); delete look.cust[d.cclear]; }
+      if (d.mod) { if (!buildModule(d.mod)) { toast('Not possible yet: the Workshop and the stores decide', 'red'); sfx.bump(); } }
       if (d.pa === 'random') { var r = VICE.specFor('pilot' + Date.now(), 'pilot human', { kind:'human' }); r.cloth = sp.cloth; r.traits = {}; sp = r; }
       if (d.pa === 'reset') { sp = JSON.parse(orig); look = JSON.parse(origLook); }
       if (d.pa === 'cancel') { s.remove(); sfx.click(); if (done) done(false); return; }
       if (d.pa === 'save') {
         S.hero.pilot = sp; S.hero.look = look; applyLook(); save(); s.remove(); sfx.reveal(); toast('PILOT · ' + heroName() + ' · portrait and kit saved'); if (done) done(true); return;
       }
-      sfx.click(); draw();
+      syncSuit(); sfx.click(); draw();
     });
-    draw();
+    syncSuit(); draw();
   }
   function invPanel(){
     var items = invItems();
@@ -1329,6 +1370,10 @@
       $('.x-inv-detail', body).innerHTML = '<b>' + esc(it.name) + (it.n !== '' ? ' × ' + esc(String(it.n)) : '') + '</b> · ' + esc(it.desc); });
     sortable([box], '.x-slot', 'data-inv', function(keys){ if (invMode === 'stores') S.storeOrder = keys[0]; else S.invOrder = keys[0]; save(); });
     $$('[data-im]', body).forEach(function(b){ b.addEventListener('click', function(e){ e.stopPropagation(); invMode = b.dataset.im; sfx.click(); var sec = $('.x-wd-inv', body); var t = el('div', null, invPanel()); sec.replaceWith(t.firstChild); invWire(body); }); });
+  }
+  function atmoLine(){
+    var a = onFoot() && atmo(); if (!a) return '';
+    return '<p class="x-mono light x-atmo">ATMOSPHERE · <b>' + a.name + '</b> · AIR ×' + a.eff.toFixed(2) + (a.module ? (a.fitted ? ' · ' + a.module.name + ' fitted' : ' · ' + a.module.name + ' would adapt the suit') : '') + '</p>';
   }
   function meter(label, v, max){ var k = clamp(v / max, 0, 1); return '<div class="x-meter' + (k < .25 ? ' low' : '') + '"><span>' + label + '</span><i><i style="width:' + Math.round(k * 100) + '%"></i></i><b>' + Math.round(v) + '/' + max + '</b></div>'; }
   function navSketchReady(){
@@ -2356,6 +2401,7 @@
     }).map(function(n){ return Object.assign({}, n); });
     critters = critters.filter(function(c){ return !(c.guardian && S.exp.beaten[M.world]); });
     if (M.gate && shipPct() >= 100) M.gate.forEach(function(g){ M.set(g.x, g.y, 'd'); });   // the Bridge of Hope opens at the endgame
+    var am0 = atmo(); if (am0 && am0.mult > 1) setTimeout(function(){ toast('ATMOSPHERE · ' + am0.name + ' · AIR ×' + am0.eff.toFixed(2) + (am0.fitted ? ' · ' + am0.module.name + ' fitted' : am0.module ? ' · ' + am0.module.name + ' would adapt the suit' : '')); }, 1400);
     fogArr = fogDec(S.fog[mapId], M.W * M.H);
     if (M.hq && S.hq.research['r-survey']) fogArr.fill(1);
     dialogOpen = false; encounterOpen = false; path = []; held = null; dlg = null; zoneId = null;
@@ -2481,11 +2527,27 @@
   function facing(){ var d = DIRS[P.dir]; return { x:P.x + d[0], y:P.y + d[1] }; }
 
   var saveTimer = 0, airTimer = 0;
+  // THE SUIT ADAPTS (explorer/suit.js): each atmosphere works the air harder; a fitted module takes most of that away
+  var SUITX = window.AOV_SUIT || { kinds:{}, env:{}, modules:[], adapted:1 };
+  function atmo(e){
+    e = e || (M && P ? M.env(P.x, P.y) : null);
+    if (!e || !M || M.hq || M.indoor) return null;
+    var kid = SUITX.env[e.id] || 'breathable', k = SUITX.kinds[kid] || { name:kid.toUpperCase(), mult:1 };
+    var mod = SUITX.modules.filter(function(m){ return m.id === k.module; })[0], fitted = !!(mod && (S.hq.equip || {})[mod.id]);
+    var eff = 1 + (k.mult - 1) * (fitted ? SUITX.adapted : 1);
+    return { id:kid, name:k.name, mult:k.mult, eff:eff, note:k.note, module:mod, fitted:fitted };
+  }
+  function buildModule(id){
+    var m = SUITX.modules.filter(function(x){ return x.id === id; })[0];
+    if (!m || !onHQ() || !S.hq.built.workshop || (S.hq.equip || {})[id] || !canAfford(m.cost)) return false;
+    pay(m.cost); S.hq.equip = S.hq.equip || {}; S.hq.equip[id] = Date.now();
+    hqRecord('Fitted the suit with ' + m.name + '.'); save(); toast(m.name + ' FITTED · the suit adapts to ' + SUITX.kinds[m.kind].name); return true;
+  }
   function hazardDrain(){
-    var e = M.env(P.x, P.y), r = e && e.hazard && e.hazard.rule || '';
+    var e = M.env(P.x, P.y), r = e && e.hazard && e.hazard.rule || '', am = atmo(e);
     var k = (S.hq.research['r-air'] ? .65 : 1) * (perk('breath') ? .8 : 1);
     var run = P && P.gait === 'sprint' && (P.moving || held || path.length) ? 2.2 : 1;   // sprinting burns air
-    return { air:(M.indoor ? 0 : (M.hq ? .08 : .16 * (/AIR/.test(r) ? 1.8 : 1)) * k) * run, suit:/SUIT/.test(r) ? .06 * (S.hq.research['r-suit'] ? .65 : 1) : 0 };
+    return { air:(M.indoor ? 0 : (M.hq ? .08 : .16 * (am ? am.eff : /AIR/.test(r) ? 1.8 : 1)) * k) * run, suit:/SUIT/.test(r) ? .06 * (S.hq.research['r-suit'] ? .65 : 1) : 0 };
   }
   function updateSurface(dt, now){
     if (!P) return;

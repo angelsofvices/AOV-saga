@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.7', title:'The suit',
+      notes:[
+        'A standard space-suit helmet for your pilot portrait: glass dome, collar ring and spec lights',
+        'A fully customizable suit: any colour for suit, trim and boots, helmet, visor and specs',
+        'Every world has an atmosphere (heat, cold, submersion, spores, thin air, dense, radiance, void, smoke) that works your AIR harder',
+        'Fit suit modules at the Workshop to adapt: Heat Shielding, Thermal Lining, Pressure Seals and more',
+        'The AstraNav shows the atmosphere you are standing in'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.6', title:'ViceWorld',
       notes:[
         'The saga’s origin returns: everyone you meet has a ViceWorld portrait when they speak',

@@ -31,7 +31,7 @@
     eyes:['dot','big','closed','shades','sleepy','xeyes','patch','wink'],
     mouth:['line','smile','grin','tongue','lips','frown','pipe','o'],
     hair:['short','slick','bob','long','mohawk','spiky','bun','bald'],
-    hat:['none','bucket','cap','beret','aviator','helmet','halo','horns','catears'],
+    hat:['none','spacehelm','bucket','cap','beret','aviator','helmet','halo','horns','catears'],
     acc:['earring','freckles','mustache','scar','bandage','smoke','blush']
   };
 
@@ -126,17 +126,31 @@
     if (acc.indexOf('bandage') >= 0) { rect(g, 9, 18, 4, 2, 'w'); px(g, 10, 17, 'w'); px(g, 11, 20, 'w'); }
     if (acc.indexOf('earring') >= 0 && !t.fins && !t.elf) { px(g, 5, 19, 'x'); px(g, 5, 20, 'x'); px(g, 26, 19, 'x'); }
     if (acc.indexOf('smoke') >= 0 && sp.mouth !== 'pipe') { line(g, 20, 22, 25, 22, 'w'); px(g, 25, 22, 'r'); px(g, 26, 20, 'y'); px(g, 27, 18, 'y'); px(g, 26, 16, 'y'); }
+    if (sp.hat === 'spacehelm') spaceHelm(g);
     if (t.glow) { for (var y = 0; y < 32; y++) for (var x = 0; x < 32; x++) if (g[y][x] === '.' && [[1,0],[-1,0],[0,1],[0,-1]].some(function(d){ var yy = y + d[1], xx = x + d[0]; return yy >= 0 && yy < 32 && xx >= 0 && xx < 32 && g[yy][xx] !== '.'; })) g[y][x] = '+'; }
     var o = outline(g);
     if (t.glow) for (var yy = 0; yy < 32; yy++) for (var xx = 0; xx < 32; xx++) if (o[yy][xx] === '+') o[yy][xx] = 'G';
     return o.map(function(r){ return r.join(''); });
+  }
+  // the standard space-suit helmet: a glass dome on a collar ring, a tinted visor band, a shine, and coloured spec lights
+  function spaceHelm(g){
+    for (var y = 0; y < 32; y++) for (var x = 0; x < 32; x++) {
+      var d = Math.pow((x - 15.5) / 14.2, 2) + Math.pow((y - 15) / 14.6, 2);
+      if (d <= 1 && d > .83) g[y][x] = (x > 22 || y > 22) ? 'n' : 'j';                     // the dome's rim
+      else if (d <= .83 && g[y][x] === '.') g[y][x] = (y < 9 ? 'v' : 'u');                 // glass: visor tint above, clear below
+    }
+    for (var a = 200; a < 260; a += 4) { var r = 11.5; px(g, 15.5 + r * Math.cos(a * Math.PI / 180), 15 + r * Math.sin(a * Math.PI / 180), 'w'); }   // the shine
+    rect(g, 4, 27, 24, 3, 'q'); rect(g, 4, 27, 24, 1, 'j'); [7, 12, 19, 24].forEach(function(x){ px(g, x, 28, 'p'); });   // collar ring and spec lights
+    px(g, 3, 14, 'p'); px(g, 28, 14, 'p');
   }
   function gem(g, x, y, sp){ px(g, x, y, 'g'); px(g, x + 1, y, 'g'); px(g, x - 1, y + 1, 'g'); px(g, x, y + 1, 'G'); px(g, x + 1, y + 1, 'g'); px(g, x + 2, y + 1, 'g'); px(g, x, y + 2, 'g'); px(g, x + 1, y + 2, 'g'); px(g, x + 1, y - 0, 'G'); }
 
   function palette(sp){
     var gm = GEMS[sp.badge] || GEMS.gold;
     return { k:'#101014', s:sp.skin[0], S:sp.skin[1], h:sp.hairc[0], H:sp.hairc[1], e:'#101014', w:'#ffffff', r:'#ec3a50', t:'#f05878', T:'#b02848', m:'#3a1418',
-      a:sp.hatc[0], A:sp.hatc[1], g:gm[0], G:shade(gm[0], 22), x:'#ffd23a', y:'#c8c8c8', l:'#101014', c:sp.cloth[0], C:sp.cloth[1], b:'#6a4428', Q:'#5fc04a' };
+      a:sp.hatc[0], A:sp.hatc[1], g:gm[0], G:shade(gm[0], 22), x:'#ffd23a', y:'#c8c8c8', l:'#101014', c:sp.cloth[0], C:sp.cloth[1], b:'#6a4428', Q:'#5fc04a',
+      // the space helmet: rim in the helmet colour, glass tinted by the visor, trim and spec lights from the suit
+      j:sp.helmc || sp.hatc[0], n:shade(sp.helmc || sp.hatc[0], -18), v:shade(sp.visorc || '#9fd2e6', 8), u:shade(sp.visorc || '#9fd2e6', 30), q:sp.trim || '#9aa2a8', p:sp.spec || '#e8b830' };
   }
   var cache = {};
   function sprite(sp){

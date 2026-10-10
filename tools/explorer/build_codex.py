@@ -14,9 +14,8 @@ Outputs:
 
 Placement (Creator 2026-10-10: Codex Aethren spawn; humanoids are placed):
   aethren   wild on its home world / district (tier IX+ and hidden entries never spawn)
-  humanoid  'npc'     an undated mortal: a person you can meet on their home world
-            'record'  a dated historical figure: an inscribed record on their home world
-            'codex'   gods, Immortals, demigods, or names the 1936 handoff reserves
+  humanoid  'npc'     every humanoid is alive in 1936 and can be met on their home world
+                      (Creator 2026-10-10: "non canon. no one is dead here. full saga living")
   Humanoids whose lore names no world live on Viridia (Creator ruling, 2026-10-10).
 Run: python3 tools/explorer/build_codex.py   (then python3 tools/explorer/build_fauna.py)
 """
@@ -71,11 +70,7 @@ for e in roster['entries']:
         place = 'wild'; why = 'Aethren' + (' · home from Codex lore' if h else ' · home by tier (Zyraxis)')
         if tier and tier >= 9: place, why = 'codex', 'tier IX+ never spawns'
     else:
-        if (cx.get('tierName') in RESERVED_TIERS): place, why = 'codex', (cx.get('tierName') or '') + ' · kept in the Codex'
-        elif re.search(r'\b' + re.escape(e['name']) + r'\b', canon02): place, why = 'codex', 'reserved by the 1936 canon handoff'
-        elif not h: place, why = 'codex', 'no home world in the Codex lore'
-        elif DATED.search(text): place, why = 'record', 'historical (dated lore): an inscribed record'
-        else: place, why = 'npc', 'a person on their home world'
+        place, why = 'npc', 'alive in 1936 (Creator: no one is dead here · full saga living)'
     st = cx.get('stats') or {}
     blurb = re.sub(r'^\s*\[[^\]]*\]\s*', '', next((p for p in re.split(r'\n\s*\n', str(cx.get('lore') or '')) if p.strip() and not p.strip().startswith('★') and not re.search(r'\bv\d+\.\d+', p)), '')).strip()
     blurb = re.split(r'(?<=[.!?])\s', blurb)[0][:280] if blurb else ''

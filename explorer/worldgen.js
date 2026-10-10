@@ -201,7 +201,7 @@
     });
     pts = pts || [{ x:area.sx, y:area.sy }];
     here.filter(function(b){ return b.place === 'npc'; }).forEach(function(b, i){
-      var p = spot(m, r, area.x, area.y, area.w, area.h, pts, 7); pts.push(p);
+      var p = spot(m, r, area.x, area.y, area.w, area.h, pts, 5); pts.push(p);
       clearRect(m, p.x, p.y, 1, 1, 'd'); road(m, area.sx, area.sy, p.x, p.y + 1, r);
       m.npcs.push({ x:p.x, y:p.y, dir:'down', key:'cx_' + b.id, codex:b.id, env:envId, n:i, person:true });
     });
@@ -227,7 +227,10 @@
     var w = (window.EXP_DATA.worlds || []).filter(function(x){ return x.no === no; })[0];
     var e = ENV[(w && w.name || '').toLowerCase()];
     if (!e) return null;
-    var W = 84, H = 64, m = new Map('w' + no, W, H), seed = no * 7919 + 17, r = rng(seed);
+    // worlds with many Codex people grow to fit them (Viridia holds most of the saga's humanoids)
+    var pop = ((window.AOV_CODEX || {}).beings || []).filter(function(b){ return b.kind === 'humanoid' && b.home && b.home.world === no; }).length;
+    var grow = pop > 20 ? Math.min(2.2, Math.sqrt(pop / 20)) : 1;
+    var W = Math.round(84 * grow), H = Math.round(64 * grow), m = new Map('w' + no, W, H), seed = no * 7919 + 17, r = rng(seed);
     m.world = no; m.envs = [e]; m.name = e.id;
     terrain(m, 0, 0, W, H, 0, seed, {});
     border(m);

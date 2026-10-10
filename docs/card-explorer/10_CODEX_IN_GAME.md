@@ -13,6 +13,7 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 |---|---|
 | `explorer/codex_beings.js` | All 583 beings (the 1936 roster plus the Codex; Ovauron is AEP-28 and is left out). Name, kind, class, tier, types, archetype, stats, home and placement. Also `placements`: where every other Codex entry stands in the worlds. Always loaded. |
 | `explorer/codex_reference.js` | Full lore, every page of WORLDS, COSMIC THEORIES, BOOKS, GAMES and the TIMELINE (56 era cards from `timeline.html`), and the 1,017-entry INDEX. Loaded only when the Codex is opened. |
+| `explorer/world_canon.js` | Each world's peoples, figures, sites and region notes, plus Origon's compass (from `game_roster/world_canon.json`). Always loaded. |
 | `game_roster/codex_homes.json` | Each being's home world or Zyraxis district, how it appears in game, and why. |
 
 **Homes** are read from each being's Codex lore: the world or Zyraxis district it names most often. Older Zyrex keep their roster district. Codex Aethren with no home named live on Zyraxis, in a district set by their tier. Lore is shown without the Codex's editing notes (★ correction and reframe paragraphs, version tags).
@@ -42,6 +43,36 @@ Creator direction 2026-10-10: *"think bigger. full pass of world"*.
 - **Zyraxis** (Codex): each district II–X has its **shrine** (Sunlit Pillar, Broken Obelisk, Great Tree, Void Rift, Alien Landing Pad, Spirit Tree, Forge Anvil, Machine Tower, Throne Dais). Visiting all nine gives **ANCIENT GEMSIGHT** (recorded; it has no mechanic yet). The **nine district routes** (Valley of the Benevolent Beast … Fracture of the Anomaly) are marked where each road crosses into the next district.
 - **Integrity checks:** nothing placed may overwrite anything else (vaults, refugee camps, landmarks, stones, people), and everything must be reachable from the ship. This is checked for all 27 worlds.
 
+## Every world, fleshed out from the Codex (survey build 10.3)
+
+Creator direction 2026-10-10: *"district shrine canon. gemsight reveals hidden aethren. use stuff from the codex. make sure all worlds are fleshed out like viridia and zyraxis and origon are"*.
+
+**Source:** `game_roster/world_canon.json`, mined from the Master Codex v16.3 (the WORLDS table and sheet, the index, the pages and the beings' lore) for every world except Zyraxis and Viridia, which have their own geography. Edit it freely: `build_codex.py` reads it and writes `explorer/world_canon.js`.
+
+Every region of every world now has:
+
+- **A region marker** with the Codex's note for that region.
+- **The camps of its peoples**, from the Codex's first races and named peoples (248 people in all), such as Lumeria's Astrums, Wizards, Witches and Dwarves, Cytherion's Mantis and Spiders, and Nexyros's Nexyrosillians. Talking to them, once you know the world's words, records them (+2 DATA).
+- **Its sites (315 in all)**: the Codex's events, places, prisms and institutions (the War of Mass and Light, the Anciariic Curse, Egnellahc's Transplacement, Xymetre's Ray of Perfection, the Formation of Zoryth, and so on). Reaching one gives +1 RELIC and +4 DATA.
+- **Its named figures.**
+  - Codex people are moved into their region: Mykarlyth into the Enforced Devotion Citadel, the four Nexyrosillian Kings into the Four Kings Ruins, Queen Furis into the Serpent Forges.
+  - Codex Aethren keep to their region, calm: Voltyran, Volcarith and Elzoran (Origon's First Family), Celestryx, Omegoran, Orivora, Krallathor and Erisimil.
+  - Axis-beings with no body to meet (the Great Wing, the Great Fin, Zoryth and others) stand as a presence at a site.
+
+**Origon** is laid out as the Codex's compass of ten lands: Desertlands NW, Crystallands N, Volcanolands NE, Darklands W, Gardenlands central-west, Riverlands central-east, Flatlands SW, Dragonlands SE, Giantlands east of the Dragonlands, Elvenlands far south. Each has its dominant race (Dragonlords, Crystalborn, Volcanids, Duneborn, Umbrakin, Verdants, Riverkin, Terrakin, Giantkin, Aetherelves).
+
+**Zyraxis** follows the Codex's geography expansion:
+- **Routes:** all **ten routes**, the tenth being the Throne of the Ultralord from Korathen to the Throne. Each route has its **Gemlord Cave**, and its Gemlord keeps to it, calm (Rakoron … Oatheus).
+- **Interstitial regions:** **The Wild March** and **The Green Divide**.
+- **The Bridge of Hope**, south of Baelgor and Xilnar. Canon says it opens only after the endgame; in 1936 that is when every system of the ship is restored. It leads to the Part 2 southern zones: **The Old Conquest**, **The New Conquest** and **The Pit of No Return**.
+- **District Shrines** are canon (Creator 2026-10-10).
+
+**ANCIENT GEMSIGHT** (Codex: a lens unlocked by visiting all nine district shrines; it reveals a world's hidden geography). Creator ruling: it reveals hidden Aethren.
+- **Veiled Aethren:** tier IX–X and the easter-egg line (Elzebub, Elzimir, Elzoran, Omegoran, Mealux; 14 species) still spawn, but are unseen and untouchable until you hold Gemsight.
+- **The lens on the live scanner:** with Gemsight, the scanner rings the veiled Aethren in violet, marks every cache no one has found, and boxes every undefeated warden.
+
+**Left out on purpose:** the Book IX Aetherstride route and the Genesis Expedition (both come after 1936); Ultharis on Uralyx (the Codex rules he has no tie to it); and the open *Elder Prime of Nexyros* card. Queen Bellatora Rosaris is taken to be the Codex being Lady Rosaris.
+
 ## In the AstraNav · RESEARCH · MASTER CANON
 
 | Tab | Unlocks when |
@@ -56,8 +87,8 @@ Creator direction 2026-10-10: *"think bigger. full pass of world"*.
 ## For the Creator
 
 - **Region palettes on Viridia** borrow the art of Yvoris (north), Pyrauna (south), Halcyra (east) and Nexyros (west). Viridia's own hazard and rules still apply everywhere.
-- **ANCIENT GEMSIGHT** is recorded but does nothing yet. Name what it should do.
-- **The two Codex lists of Zyraxis landmarks disagree**: *District Shrine* (v11.8) is built, and *Per-District Landmarks* (v15.10) is kept as a record. Say which one is canon.
+- **Peoples are drawn with the shared 1936 humanoid figure, recoloured per world** (as every world's people already are). Origon's races are cosmic lineages, not humanoids, so they need their own sprites.
+- **Thin worlds:** the Codex names no individuals on Halcyra, Wyvera, Elythera, Pyrauna or Quorauna, so those have peoples and sites but no named figures.
 
 *The Codex's own working notes stay in the game as record stones* (Creator 2026-10-10: keep them).
 

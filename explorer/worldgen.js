@@ -109,7 +109,7 @@
       [[1,0],[-1,0],[0,1],[0,-1]].forEach(function(d){
         var nx = cx + d[0], ny = cy + d[1], ni = ny * m.W + nx;
         if (nx < 0 || ny < 0 || nx >= m.W || ny >= m.H || seen[ni]) return;
-        if (SOLID[m.grid[ni]] && m.grid[ni] !== 'S') return;
+        if (SOLID[m.grid[ni]] && m.grid[ni] !== 'S' && !(m.gate && m.gate.some(function(g){ return g.x === nx && g.y === ny; }))) return;
         seen[ni] = 1; q.push(ni);
       });
     }
@@ -295,7 +295,9 @@
     var names = w ? w[4].filter(function(x){ return typeof x === 'string'; }) : [];
     if (names.length < 2) return null;
     if (no === 27) { var ord = ['Central Region','Northern Region','Eastern Region','Southern Region','Western Region']; if (ord.every(function(n){ return names.indexOf(n) >= 0; })) names = ord; }
-    var cols, rows, cells;
+    var cols, rows, cells, L = ((window.AOV_WORLDCANON || {}).worlds || {})[no];
+    L = L && L.layout;
+    if (L && names.every(function(n){ return L.cells[n]; })) return { names:names, cols:L.cols, rows:L.rows, cells:names.map(function(n){ return L.cells[n]; }), cross:false };   // Origon: the Codex's compass
     if (names.length <= 5) { cols = 3; rows = 3; cells = names.map(function(n, i){ return no === 27 ? VIR_CELL[n] : CROSS[i]; }); }
     else { cols = Math.ceil(Math.sqrt(names.length)); rows = Math.ceil(names.length / cols); cells = names.map(function(n, i){ return [i % cols, (i / cols) | 0]; }); }
     return { names:names, cols:cols, rows:rows, cells:cells, cross:names.length <= 5 };
@@ -348,7 +350,11 @@
     m.ship = { x:sx, y:sy }; m.set(sx, sy, 'S');
     road(m, sx, sy + 1, a0.sx, a0.sy, r);
     // the roads between regions: out from the centre of the cross, or region to region across the grid
-    areas.forEach(function(a, i){ if (i === 0) return; var b = RG.cross ? a0 : areas[i - 1]; road(m, b.sx, b.sy, a.sx, a.sy, r); });
+    areas.forEach(function(a, i){
+      if (RG.cross) { if (i > 0) road(m, a0.sx, a0.sy, a.sx, a.sy, r); return; }
+      // a grid: each region joins its neighbours to the east and south
+      areas.forEach(function(b){ var ca = RG.cells[a.i], cb = RG.cells[b.i]; if ((cb[0] === ca[0] + 1 && cb[1] === ca[1]) || (cb[1] === ca[1] + 1 && cb[0] === ca[0])) road(m, a.sx, a.sy, b.sx, b.sy, r); });
+    });
     var people = FAUNA.peoples[no] || null;
     a0.sx = sx; a0.sy = sy + 1;
     areas.forEach(function(a, i){
@@ -358,8 +364,43 @@
     // the vault lies in the region farthest from the ship
     var far = areas.slice(1).sort(function(p, q){ return (Math.abs(q.sx - sx) + Math.abs(q.sy - sy)) - (Math.abs(p.sx - sx) + Math.abs(p.sy - sy)); })[0];
     vault(m, r, far, no, e.id, people, levelFor(no));
+    canonPlace(m, r, areas, no, e.id);
     if (no !== 28) areas.forEach(function(a, i){ codexPlace(m, r, a, no, null, e.id, null, { name:a.name, i:i, n:n }); });
     return finish(m);
+  }
+  // THE WORLDS, FLESHED OUT (explorer/world_canon.js, from game_roster/world_canon.json): in each region, a marker
+  // stone with the Codex's note, the camps of its peoples, its named figures, and its sites
+  function canonPlace(m, r, areas, no, envId){
+    var W = ((window.AOV_WORLDCANON || {}).worlds || {})[no]; if (!W) return;
+    var byName = {}; areas.forEach(function(a){ byName[a.name] = a; });
+    var spName = {}; Object.keys(FAUNA.species).forEach(function(id){ var s = FAUNA.species[id]; if (s.name && !s.retired) spName[s.name.toLowerCase()] = id; });
+    function free(a, d){ return spot(m, r, a.x, a.y, a.w, a.h, [{ x:a.sx, y:a.sy }].concat(m.landmarks, m.records, m.npcs, m.vault ? [m.vault] : [], m.refugeeCamp ? [m.refugeeCamp] : []), d); }
+    function site(a, name, text, id){
+      var q = free(a, 7); clearRect(m, q.x, q.y, 1, 1); m.set(q.x, q.y, 'L'); road(m, a.sx, a.sy, q.x, q.y + 1, r);
+      m.landmarks.push({ x:q.x, y:q.y, name:name, id:id, env:'codex', codexTerm:name, text:name.toUpperCase() + '. ' + text });
+      return q;
+    }
+    var named = {};
+    areas.forEach(function(a){ if (W.notes && W.notes[a.name]) site(a, a.name, W.notes[a.name], 'rgm_' + no + '_' + a.i); });
+    (W.sites || []).forEach(function(x, k){ var a = byName[x.region]; if (!a || named[x.name]) return; named[x.name] = 1; site(a, x.name, x.text, 'site_' + no + '_' + k); });
+    (W.peoples || []).forEach(function(pe, k){
+      (pe.regions || []).forEach(function(rn, j){
+        var a = byName[rn]; if (!a) return;
+        var c = free(a, 8); clearRect(m, c.x, c.y, 3, 2, 'd'); road(m, a.sx, a.sy, c.x, c.y + 1, r);
+        for (var t = 0; t < 2; t++) m.npcs.push({ x:c.x - 1 + t * 2, y:c.y, dir:'down', key:'folk_' + no + '_' + k, env:envId, n:j * 2 + t, folk:{ name:pe.name, text:pe.text } });
+      });
+    });
+    (W.figures || []).forEach(function(f, k){
+      var a = byName[f.region]; if (!a) return;
+      var sid = spName[String(f.name).toLowerCase()];
+      if (sid) {   // an Aethren of the Codex who keeps to this region
+        var q = free(a, 6); clearRect(m, q.x, q.y, 1, 1); road(m, a.sx, a.sy, q.x, q.y, r);
+        m.spawns.push({ x:q.x, y:q.y, id:sid, lv:levelFor(no) + 8, calm:true, figure:true });
+      } else if (f.kind === 'humanoid') {
+        var p = free(a, 6); clearRect(m, p.x, p.y, 1, 1, 'd'); road(m, a.sx, a.sy, p.x, p.y + 1, r);
+        m.npcs.push({ x:p.x, y:p.y, dir:'down', key:'fig_' + no + '_' + k, env:envId, n:0, figure:{ name:f.name, text:f.text } });
+      } else if (!named[f.name]) { named[f.name] = 1; site(a, f.name, f.text, 'fig_' + no + '_' + k); }   // axis-beings and the like: a presence at a place
+    });
   }
   // a world with no named regions: one open map, as before
   function buildOpenWorld(no, e, load){
@@ -382,18 +423,35 @@
   }
 
   // ── Zyraxis: the ten districts in the canon Z ──
-  var ZROUTES = ['Valley of the Benevolent Beast','Choir of the Pearlord','Wilds of the Citrinehowl','Verge of the Emeraldbloom','Rift of the Amethyst Voice','Skylanes of the Sapphirebroker','Threshold of the Onyxwhisper','Roads of the Amberchain','Fracture of the Anomaly'];
+  // Codex · WORLDS · Zyraxis geography expansion: the TEN routes (west to east), each with a Gemlord Cave for its
+  // owning Gemlord; the interstitial regions; the Bridge of Hope south of Baelgor and Xilnar; the Part 2 southern zones.
+  var ZROUTES = ['Valley of the Benevolent Beast','Choir of the Pearlord','Wilds of the Citrinehowl','Verge of the Emeraldbloom','Rift of the Amethyst Voice','Skylanes of the Sapphirebroker','Threshold of the Onyxwhisper','Roads of the Amberchain','Fracture of the Anomaly','Throne of the Ultralord'];
+  var ZGEMLORDS = ['rakoron','ivirium','mutaryn','emeralix','eurakeon','azurel','obsidius','ambrevon','oathane','oatheus'];
+  var ZEXTRA = [   // [id, name, cell x, cell y, codex text]
+    ['wildmarch', 'The Wild March', 0, 1, 'Mid-north, between Malezor, Zarvane, Andrannor and Netharion. Training, exploration, sidequests, and wild Zyrex of every type.'],
+    ['greendivide', 'The Green Divide', 3, 1, 'Mid-east, between Andrannor, Veridan and Netharion. Nature-family Zyrex, and the terrain of the Verdant Awakening.'],
+    ['bridgeofhope', 'The Bridge of Hope', 0, 3, 'A ceremonial corridor south of Baelgor and Xilnar, joining the main continent to the southern lands. It opens only after the endgame.'],
+    ['throne', 'The Throne', 3, 3, 'The terminal route: from Korathen, the Throne of the Ultralord.'],
+    ['oldconquest', 'The Old Conquest', 0, 4, 'Pre-Accord ruins, ghost-Zyrex, and the era before free will.'],
+    ['newconquest', 'The New Conquest', 1, 4, 'Seer-remnant country: reconciliation, and healing after the long war.'],
+    ['pitofnoreturn', 'The Pit of No Return', 2, 4, 'The southernmost molten zone. The final challenge.']
+  ];
   var ZSHRINES = ['Sunlit Pillar','Broken Obelisk','Great Tree','Void Rift','Alien Landing Pad','Spirit Tree','Forge Anvil','Machine Tower','Throne Dais'];
   var DIST = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
   var ZPOS = [[0,0],[1,0],[2,0],[3,0],[2,1],[1,1],[0,2],[1,2],[2,2],[3,2]];
   var CW = 36, CH = 28;
   function buildZyraxis(){
-    var D = window.EXP_DATA, m = new Map('w9', CW * 4, CH * 3), seed = 9 * 7919 + 17, r = rng(seed);
+    // rows 0-2: the Z of districts; row 3 (half height): the Bridge of Hope and the Throne; row 4: the southern lands
+    var BH = CH >> 1, D = window.EXP_DATA, m = new Map('w9', CW * 4, CH * 4 + BH), seed = 9 * 7919 + 17, r = rng(seed);
     m.world = 9; m.name = 'zyraxis'; m.districts = [];
     m.envs = DIST.map(function(id){ return ENV[id]; }).concat([ENV.zyraxis]);
-    // the two empty cells of the Z: the dome's edge, rock and still water
-    [[0,1],[3,1]].forEach(function(c){
-      terrain(m, c[0] * CW, c[1] * CH, CW, CH, 10, seed + 99, { high:.5, wet:.42 });
+    var cellY = function(cy){ return cy <= 3 ? cy * CH : 3 * CH + BH; }, cellH = function(cy){ return cy === 3 ? BH : CH; };
+    // what is not a district or a named region: the dome's edge, rock and still water
+    for (var ey = 0; ey < 5; ey++) for (var ex = 0; ex < 4; ex++) terrain(m, ex * CW, cellY(ey), CW, cellH(ey), 10, seed + 99, { high:.5, wet:.42 });
+    var xc = ZEXTRA.map(function(z){
+      var x0 = z[2] * CW, y0 = cellY(z[3]), w = z[0] === 'bridgeofhope' ? CW * 2 : CW, h = cellH(z[3]);
+      terrain(m, x0, y0, w, h, 10, seed + 7 * x0 + y0, z[0] === 'pitofnoreturn' ? { high:.66, wet:.2 } : z[0] === 'bridgeofhope' ? { high:.9, wet:.0 } : { high:.72, wet:.28 });
+      return { id:z[0], name:z[1], text:z[4], x:x0, y:y0, w:w, h:h, sx:x0 + (w >> 1), sy:y0 + (h >> 1) };
     });
     var centres = [];
     DIST.forEach(function(id, i){
@@ -402,7 +460,9 @@
       centres.push({ x:cx + (CW >> 1), y:cy + (CH >> 1) });
       m.districts.push({ id:id, x:cx, y:cy, w:CW, h:CH, i:i });
     });
+    xc.forEach(function(a){ m.districts.push({ id:a.id, name:a.name, x:a.x, y:a.y, w:a.w, h:a.h, extra:true }); });   // after the ten, so districts[0-9] stay the Z
     border(m);
+    xc.forEach(function(a){ clearRect(m, a.sx, a.sy, 1, 1, 'd'); });
     // Malezor, as built by hand, set into district I
     var MZ = D.maps.malezor, ox = 3, oy = 2, rows = MZ.rows, codes = { O:'otterlin', V:'verdanix', W:'aetherwing', C:'volcanut' };
     for (var y = 0; y < rows.length; y++) for (var x = 0; x < rows[y].length; x++) {
@@ -422,13 +482,29 @@
     // the roads of the Z, district to district
     var trails = [road(m, ox + 30, oy + 12, centres[1].x, centres[1].y, r)];
     for (var d = 1; d < DIST.length - 1; d++) trails.push(road(m, centres[d].x, centres[d].y, centres[d + 1].x, centres[d + 1].y, r));
+    var X = {}; xc.forEach(function(a){ X[a.id] = a; });
+    trails.push(road(m, centres[9].x, centres[9].y, X.throne.sx, X.throne.sy, r));           // route 10: Korathen to the Throne
+    road(m, centres[5].x, centres[5].y, X.wildmarch.sx, X.wildmarch.sy, r);                    // Vorashil to the Wild March
+    road(m, centres[4].x, centres[4].y, X.greendivide.sx, X.greendivide.sy, r);                // Netharion to the Green Divide
+    road(m, X.greendivide.sx, X.greendivide.sy, centres[3].x, centres[3].y, r);                // and on to Veridan
+    // the Bridge of Hope: from between Xilnar and Baelgor, south across the gap to the southern lands
+    var bx = CW, by0 = 3 * CH, br = X.bridgeofhope;
+    road(m, centres[6].x, centres[6].y, bx, by0 - 2, r); road(m, centres[7].x, centres[7].y, bx, by0 - 2, r);
+    for (var yy = by0 - 2; yy < by0 + BH + 2; yy++) for (var xx = bx - 1; xx <= bx + 1; xx++) { m.set(xx, yy, 'd'); delete m.props[yy * m.W + xx]; }
+    m.gate = [{ x:bx - 1, y:by0 + 1 }, { x:bx, y:by0 + 1 }, { x:bx + 1, y:by0 + 1 }];
+    m.gate.forEach(function(g){ m.set(g.x, g.y, '#'); });
+    m.set(bx + 2, by0, 'X'); m.signs[by0 * m.W + bx + 2] = 'THE BRIDGE OF HOPE. A ceremonial corridor to the southern lands. Its gate opens only when the long work is done (restore every system of the ship).';
+    road(m, bx, by0 + BH + 2, X.oldconquest.sx, X.oldconquest.sy, r); road(m, bx, by0 + BH + 2, X.newconquest.sx, X.newconquest.sy, r);
+    road(m, X.newconquest.sx, X.newconquest.sy, X.pitofnoreturn.sx, X.pitofnoreturn.sy, r);
     // the nine routes of the Z (Codex · 9 District Routes), each marked where it crosses into the next district
+    var caves = [];
     ZROUTES.forEach(function(name, k){
-      var t = trails[k] || [], d2 = m.districts[k + 1], hit = null;
+      var t = trails[k] || [], d2 = k < 9 ? m.districts.filter(function(z){ return z.id === DIST[k + 1]; })[0] : X.throne, hit = null;
       for (var j = 0; j < t.length && !hit; j++) if (t[j].x >= d2.x && t[j].y >= d2.y && t[j].x < d2.x + d2.w && t[j].y < d2.y + d2.h) hit = t[Math.min(t.length - 1, j + 2)];
       hit = hit || t[t.length >> 1]; if (!hit) return;
       [[1,0],[-1,0],[0,1],[0,-1]].some(function(o){ var x = hit.x + o[0], y = hit.y + o[1], c = m.at(x, y);
         if (c !== '.' && c !== ',') return false; m.set(x, y, 'X'); m.signs[y * m.W + x] = 'ROUTE MARKER · ' + name.toUpperCase() + '. Carved deep, and kept clear by someone.'; return true; });
+      caves.push({ k:k, name:name, t:t });
     });
     // what lives and stands in each district
     DIST.forEach(function(id, i){
@@ -445,8 +521,37 @@
         m.landmarks.push({ x:sp.x, y:sp.y, name:ZSHRINES[i - 1], id:'shrine_' + id, env:'codex', codexTerm:'District Shrine', shrine:ZSHRINES[i - 1] });
         codexPlace(m, r, area, 9, id, id, [{ x:area.sx, y:area.sy }, sp]);
       }
-      var ids = speciesFor(9, id).filter(function(s){ return i !== 0 || ['otterlin','verdanix','aetherwing','volcanut'].indexOf(s) < 0; });
+      var ids = speciesFor(9, id).filter(function(s){ return ZGEMLORDS.indexOf(s) < 0 && (i !== 0 || ['otterlin','verdanix','aetherwing','volcanut'].indexOf(s) < 0); });
       spawnFauna(m, r, i === 0 ? { x:a.x + 1, y:a.y + 1, w:a.w - 2, h:a.h - 2, sx:m.ship.x, sy:m.ship.y } : area, ids, i === 0 ? 4 : 9, levelFor(9, i));
+    });
+    // the named regions beyond the districts: a marker stone with the Codex's words, wild Zyrex, and a cache or two
+    var all9 = speciesFor(9).filter(function(s){ return ZGEMLORDS.indexOf(s) < 0; });
+    xc.forEach(function(a, k){
+      var q = spot(m, r, a.x, a.y, a.w, a.h, [{ x:a.sx, y:a.sy }].concat(m.landmarks, m.records, m.npcs), 5);
+      clearRect(m, q.x, q.y, 1, 1); m.set(q.x, q.y, 'L'); road(m, a.sx, a.sy, q.x, q.y + 1, r);
+      m.landmarks.push({ x:q.x, y:q.y, name:a.name, id:'zx_' + a.id, env:'codex', codexTerm:'Zyraxis', text:a.name.toUpperCase() + '. ' + a.text });
+      if (a.id === 'bridgeofhope') return;
+      var pool = a.id === 'greendivide' ? all9.filter(function(s){ return (FAUNA.species[s].types || []).some(function(t){ return /Nature|Verdant/.test(t); }); }) : all9;
+      spawnFauna(m, r, a, pool.length ? pool : all9, 7, levelFor(9, a.id === 'wildmarch' ? 3 : a.id === 'greendivide' ? 5 : 9) + (a.y >= 3 * CH ? 6 : 0));
+      populate(m, r, a, 10, { landmarks:0, minerals:2, finds:2 });
+    });
+    // each route's Gemlord Cave, a little off the road, and its Gemlord, who keeps to it
+    caves.forEach(function(job){
+      var k = job.k, name = job.name, t = job.t;
+      var cv = null;
+      for (var tries = 0; tries < 60 && !cv; tries++) {
+        var q = t[Math.max(0, Math.min(t.length - 1, (t.length >> 1) + ((r() * 9) | 0) - 4))]; if (!q) break;
+        var ox2 = q.x + ((r() * 9) | 0) - 4, oy2 = q.y + ((r() * 7) | 0) - 3;
+        if (ox2 < 3 || oy2 < 3 || ox2 > m.W - 4 || oy2 > m.H - 4 || 'dSXMLK'.indexOf(m.at(ox2, oy2)) >= 0) continue;
+        if (m.landmarks.concat(m.records, m.npcs).some(function(o){ return Math.abs(o.x - ox2) + Math.abs(o.y - oy2) < 6; })) continue;
+        cv = { x:ox2, y:oy2 };
+      }
+      if (!cv) return;
+      clearRect(m, cv.x, cv.y, 1, 1); m.set(cv.x, cv.y, 'L'); road(m, q.x, q.y, cv.x, cv.y + 1, r);
+      var gl = ZGEMLORDS[k], gs = FAUNA.species[gl];
+      m.landmarks.push({ x:cv.x, y:cv.y, name:'Gemlord Cave · ' + (gs ? gs.name : gl.toUpperCase()), id:'cave_' + gl, env:'codex', codexTerm:'9 District Routes',
+        text:'A Gemlord Cave on the ' + name + '. It belongs to ' + (gs ? gs.name : gl.toUpperCase()) + ', the route’s owning Gemlord.' });
+      if (gs) m.spawns.push({ x:cv.x + 1, y:cv.y + 1, id:gl, lv:levelFor(9, Math.min(9, k + 1)) + 10, calm:true, gemlord:true });
     });
     // Zyraxis's vault lies in Korathen, the far end of the Z, with an Aethren guardian
     var kd = m.districts[9];

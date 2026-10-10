@@ -261,6 +261,12 @@ PEOPLES = {
   27:{'race':'VIRIDIANS', 'unknown':'PEOPLE WHO LOOK LIKE US'},
   9:{'race':'HAEMEN', 'unknown':'HUMANOID INHABITANTS'}}
 
+# VEILED (Creator 2026-10-10: "gemsight reveals hidden aethren"): tier IX-X and the easter-egg line spawn,
+# but stay unseen until the player holds ANCIENT GEMSIGHT (all nine Zyraxis district shrines visited).
+VEILED = {'elzebub', 'elzimir', 'elzoran', 'omegoran', 'mealux'}
+for sid, sp in species.items():
+    if sp.get('retired'): continue
+    if (sp.get('tier') or 0) >= 9 or sid in VEILED: sp['veiled'] = True
 out = {'generated':'tools/explorer/build_fauna.py', 'strong': STRONG, 'alias': ALIAS, 'colors': COLORS, 'species': species, 'peoples': PEOPLES}
 p = os.path.join(ROOT, 'explorer/fauna.js')
 open(p, 'w', encoding='utf-8').write(

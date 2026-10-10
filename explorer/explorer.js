@@ -1117,10 +1117,15 @@
         g.fillStyle = n.warden ? '#ffb347' : n.resident ? '#9fe8ff' : '#b96bce';
         g.beginPath(); g.arc((n.x + .5) * s2, (n.y + .5) * s2, Math.max(2, s2 * .28), 0, 7); g.fill();
       });
-      (sameMap ? critters : (scanMap.spawns || [])).forEach(function(c){
+      (sameMap ? critters : (scanMap.spawns || []).filter(function(c){ return S.flags.gemsight || !(SP[c.id] && SP[c.id].veiled); })).forEach(function(c){
         g.fillStyle = c.guardian ? '#ff6b55' : c.resident ? '#ff7ae0' : '#d8c65a';
         g.beginPath(); g.arc((c.x + .5) * s2, (c.y + .5) * s2, Math.max(2, s2 * .24), 0, 7); g.fill();
       });
+      if (S.flags.gemsight) {   // ANCIENT GEMSIGHT: hidden Aethren, unfound caches and undefeated wardens
+        (sameMap ? veiled : (scanMap.spawns || []).filter(function(c){ return SP[c.id] && SP[c.id].veiled; })).forEach(function(c){ g.strokeStyle = '#c77dff'; g.lineWidth = 2; g.beginPath(); g.arc((c.x + .5) * s2, (c.y + .5) * s2, Math.max(3, s2 * .5), 0, 7); g.stroke(); });
+        for (var gi = 0; gi < scanMap.grid.length; gi++) if (scanMap.grid[gi] === '*' && !S.found[scanMap.id + ':' + (gi % scanMap.W) + ',' + ((gi / scanMap.W) | 0)]) { g.fillStyle = '#ffe08a'; g.fillRect((gi % scanMap.W) * s2, ((gi / scanMap.W) | 0) * s2, Math.max(2, s2 * .6), Math.max(2, s2 * .6)); }
+        (scanMap.npcs || []).forEach(function(n){ if (n.warden && !S.exp.beaten[scanMap.world]) { g.strokeStyle = '#ff6b55'; g.lineWidth = 2; g.strokeRect(n.x * s2 - 2, n.y * s2 - 2, s2 + 4, s2 + 4); } });
+      }
       var pos = sameMap && P ? P : (scanMap.ship || null);
       if (pos && Math.floor(now / 400) % 2) { g.fillStyle = '#ff4a2a'; g.beginPath(); g.arc((pos.x + .5) * s2, (pos.y + .5) * s2, Math.max(3, s2 * .55), 0, 7); g.fill(); }
       if (scanMap.vault) { g.fillStyle = '#ffe08a'; g.fillRect(scanMap.vault.x * s2, scanMap.vault.y * s2, Math.max(3, s2), Math.max(3, s2)); }
@@ -1977,7 +1982,7 @@
   }
 
   // ═════════════════════════ SURFACE · the open worlds ═════════════════════════
-  var T = 16, M = null, P = null, critters = [], npcs = [], fogArr = null, dialogOpen = false, encounterOpen = false, held = null, path = [], zoneId = null;
+  var T = 16, M = null, P = null, critters = [], veiled = [], npcs = [], fogArr = null, dialogOpen = false, encounterOpen = false, held = null, path = [], zoneId = null;
   var DIRS = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
   var SOLID = GEN.SOLID;
 
@@ -2012,9 +2017,12 @@
     critters = M.spawns.map(function(sp){
       var s = SP[sp.id] || {};
       return { id:sp.id, lv:sp.lv, x:sp.x, y:sp.y, fx:sp.x, fy:sp.y, fromX:sp.x, fromY:sp.y, t:1, home:{ x:sp.x, y:sp.y }, dir:'down', cool:Math.random() * 2,
-               swims:sp.id === 'otterlin' || s.body === 'amph', flies:s.body === 'wing', state:'idle', anim:0, calm:sp.resident ? 1e9 : 0,
-               guardian:!!sp.guardian, resident:!!sp.resident };
+               swims:sp.id === 'otterlin' || s.body === 'amph', flies:s.body === 'wing', state:'idle', anim:0, calm:sp.resident || sp.calm ? 1e9 : 0,
+               guardian:!!sp.guardian, resident:!!sp.resident, veiled:!!s.veiled };
     });
+    // veiled Aethren (tier IX-X and the easter-egg line) are there, but unseen until ANCIENT GEMSIGHT
+    veiled = critters.filter(function(c){ return c.veiled; });
+    if (!S.flags.gemsight) critters = critters.filter(function(c){ return !c.veiled; });
     npcs = M.npcs.filter(function(n){
       var no = M.world;
       if (n.warden && S.exp.beaten[no]) return false;               // a beaten warden does not come back
@@ -2022,6 +2030,7 @@
       return true;
     }).map(function(n){ return Object.assign({}, n); });
     critters = critters.filter(function(c){ return !(c.guardian && S.exp.beaten[M.world]); });
+    if (M.gate && shipPct() >= 100) M.gate.forEach(function(g){ M.set(g.x, g.y, 'd'); });   // the Bridge of Hope opens at the endgame
     fogArr = fogDec(S.fog[mapId], M.W * M.H);
     if (M.hq && S.hq.research['r-survey']) fogArr.fill(1);
     dialogOpen = false; encounterOpen = false; path = []; held = null; dlg = null; zoneId = null;
@@ -2054,7 +2063,7 @@
   function zoneName(){
     if (M.hq) return hqName();
     if (M.indoor) return term(M.location);
-    if (M.world === 9) return term(zoneId || 'malezor');
+    if (M.world === 9) return zoneId && !/^(malezor|zarvane|andrannor|veridan|netharion|vorashil|xilnar|baelgor|thardin|korathen)$/.test(zoneId) ? zoneLabel(zoneId) : term(zoneId || 'malezor');
     return term(WORLD[M.world].term) + (zoneId && M.districts ? ' · ' + zoneLabel(zoneId) : '');
   }
   function hudRefresh(){
@@ -2075,7 +2084,8 @@
   function zoneLabel(id){
     var d = (M.districts || []).filter(function(x){ return x.id === id; })[0];
     if (!d || !d.name) return term(id);
-    return worldLearned(M.world) ? d.name.toUpperCase() : 'REGION ' + ['I','II','III','IV','V','VI','VII','VIII','IX','X'][d.i];
+    if (!worldLearned(M.world)) return d.i != null ? 'REGION ' + ['I','II','III','IV','V','VI','VII','VIII','IX','X'][d.i] : 'UNCHARTED GROUND';
+    return d.name.toUpperCase();
   }
   function checkZone(quiet){
     if (!M || M.indoor || !M.districts) return;
@@ -2279,6 +2289,7 @@
       if (n.refugee) return talkRefugee(n);
       if (n.resident) return talkResident(n);
       if (n.codex) return talkCodexPerson(n);
+      if (n.folk || n.figure) return talkFolk(n);
       talkPeople(n); return;
     }
     if (ch === 'K' && M.vault) return openVault();
@@ -2635,6 +2646,7 @@
   function worldLearned(no){ return no === 9 ? Object.keys(S.lore).some(function(k){ return /^z_/.test(k); }) || S.flags.taught : !!S.lore['w' + no]; }
   async function examineCodexLandmark(lm){
     if (lm.shrine) return visitShrine(lm);
+    if (lm.text) { var f0 = ixUnlock(lm.codexTerm, 'reached'), f1 = !S.seen['lm:' + lm.id]; S.seen['lm:' + lm.id] = Date.now(); if (f1) { gainAll({ relic:1, data:4 }); toast('FIELD RECORD · ' + lm.name); } save(); await say([lm.text]); return; }
     var first = ixUnlock(lm.codexTerm, 'reached'); save();
     if (first) { gainAll({ relic:1, data:4 }); toast('MASTER CODEX · ' + lm.codexTerm); }
     await new Promise(function(res){ loadCanon(res); });
@@ -2647,7 +2659,8 @@
     if (first) { S.seen[key] = Date.now(); ixUnlock('District Shrine', 'reached'); gainAll({ relic:1, data:4 }); }
     var n = Object.keys(S.seen).filter(function(k){ return /^shrine:/.test(k); }).length;
     var lines = [lm.shrine.toUpperCase() + '. A district shrine of Zyraxis.', 'Shrines visited: ' + n + ' of 9.'];
-    if (n >= 9 && !S.flags.gemsight) { S.flags.gemsight = Date.now(); lines.push('Every shrine of the nine districts has seen you. ANCIENT GEMSIGHT.'); toast('ANCIENT GEMSIGHT'); hqRecord('All nine district shrines of Zyraxis visited: Ancient Gemsight.'); }
+    if (n >= 9 && !S.flags.gemsight) { S.flags.gemsight = Date.now(); critters = critters.concat(veiled.filter(function(c){ return critters.indexOf(c) < 0; }));
+      lines.push('Every shrine of the nine districts has seen you. ANCIENT GEMSIGHT.', 'The lens settles over your sight. What was hidden in the worlds shows itself now: Aethren that were never seen, caches no one found, and those who still stand undefeated. (The live scanner shows them too.)'); toast('ANCIENT GEMSIGHT'); hqRecord('All nine district shrines of Zyraxis visited: Ancient Gemsight.'); }
     save(); if (first) toast('SHRINE · ' + lm.shrine);
     await say(lines);
   }
@@ -2665,6 +2678,14 @@
     save();
     var titles = rec.codexPages.map(function(k){ var p = k.split(':'), sec = R.sections.filter(function(x){ return x.key === p[0]; })[0], pg = sec && sec.pages[+p[1]]; return pg ? sec.title + ': ' + pg.title : null; }).filter(Boolean);
     await say(['A record stone. You read it against the words you have learned.'].concat(rec.codexTerms.map(function(t){ var d = ixDesc(t); return t + (d ? ': ' + d.slice(0, 200) : '.'); }), titles.length ? ['It carries ' + (titles.length > 1 ? 'pages' : 'a page') + ' of the Master Canon: ' + titles.join(' · ') + '.'] : [], n ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON. +' + (2 * n) + ' DATA)'] : ['You have copied this stone before.']));
+  }
+  // the peoples and named figures of a world (explorer/world_canon.js): strangers until you know the world's words
+  async function talkFolk(n){
+    var who = n.folk || n.figure; sfx.meet();
+    if (!worldLearned(M.world)) { await say([n.figure ? 'Someone who carries themselves like no one else here. They regard you, and speak in a tongue you cannot follow.' : 'They gather close and talk among themselves in a tongue you cannot follow.', '(Learn this world’s words first, from its people or its records.)']); return; }
+    var key = (n.figure ? 'fig:' : 'folk:') + M.world + ':' + who.name, first = !S.seen[key];
+    if (first) { S.seen[key] = Date.now(); ixUnlock(who.name, 'met'); gain('data', 2, true); toast((n.figure ? 'MET · ' : 'PEOPLE · ') + who.name); save(); }
+    await say([who.name.toUpperCase() + '.', who.text || 'They tell you a little of themselves.'].concat(first ? ['(Recorded in your journal. +2 DATA)'] : []));
   }
   async function talkPeople(n){
     if (n.key === 'furtrader') return talkHaemen();

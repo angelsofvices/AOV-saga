@@ -975,7 +975,7 @@
     ({ system:navHome, inventory:navInventory, upgrades:navUpgrades, hq:navHQ, stars:navSystem, companions:navCompanions, research:navResearch, journal:navJournal, setup:navSetup })[navTab](body, sel);
     return s;
   }
-  function backToField(){ closeStation(true); if (S.stage === 'nav') { cockpit(); return; } if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else cockpit(); }
+  function backToField(){ closeStation(true); if (S.stage === 'nav') { cockpit(); return; } if (resumeField()) return; if (S.pos && S.pos.map) { S.stage = 'surface'; surface(S.pos.map); } else cockpit(); }
   function navCycle(d){
     var tabs = $$('.x-nav-tabs [data-tab]').filter(function(b){ return b.dataset.tab !== 'close'; }).map(function(b){ return b.dataset.tab; });
     var i = tabs.indexOf(navTab); if (i < 0) return;
@@ -1945,7 +1945,7 @@
       if (b.dataset.a === 'resetmoves') {
         if (!confirm('Put every object and station you moved back where it started?')) return;
         Object.keys(S.moved || {}).forEach(function(mid){ (S.moved[mid] || []).slice().reverse().forEach(function(mv){ if (mv.fd) { S.found[mid + ':' + mv.f[0] + ',' + mv.f[1]] = 1; delete S.found[mid + ':' + mv.t[0] + ',' + mv.t[1]]; } }); });
-        S.moved = {}; if (GEN.reset) GEN.reset(); if (M) M = null; save(); toast('LAYOUT RESET · everything is back where it started'); nav('setup'); return;
+        S.moved = {}; if (GEN.reset) GEN.reset(); if (M) M = null; parked = null; save(); toast('LAYOUT RESET · everything is back where it started'); nav('setup'); return;
       }
       if (b.dataset.a === 'reset') { if (!confirm('Erase this expedition and start over?')) return; try { localStorage.removeItem(KEY); } catch(err){} S = null; title(); return; }
       var r = b.closest('[data-o]'); if (!r) return;
@@ -2438,6 +2438,7 @@
     var before = S.hq.stage || 1; if (text) hqRecord(text);
     var now = hqStage(); S.hq.stage = now; save();
     if (M && M.hq && mode === 'surface') { S.pos = { map:'nasarus', x:P.x, y:P.y, dir:P.dir }; S.fog.nasarus = fogEnc(fogArr); surface('nasarus'); }
+    else if (parked && parked.map === 'nasarus') parked = null;   // the base changed while parked: the next return rebuilds the camp from the new save
     if (now > before) { hqRecord('STAGE ' + now + ' · ' + stageName(now) + '.'); save(); setTimeout(function(){ stageReveal(now); }, 200); }
   }
   function stageReveal(n){
@@ -2791,6 +2792,22 @@
 
   function worldNo(){ return M.world; }
   function zoneOf(x, y){ var d = GEN.zoneAt(M, x, y); return d ? d.id : null; }
+  // the field's screen (HUD, pad, action buttons): built for a new map, and rebuilt on return without touching the world
+  function fieldScreen(){
+    screen('x-surface',
+      '<div class="x-hud riv"><div class="x-zone"><b class="x-zn"></b><span class="x-zw"></span></div>' +
+        '<div class="x-gauges">' + gauge('SUIT','suit') + gauge('AIR','air') + '</div>' +
+        '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
+        '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
+      '<p class="x-objhint" aria-live="polite"></p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ MOVE · TOUCHPAD ASTRANAV</p>' +
+      '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
+      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-sq" aria-label="Square: grab, set or move">□<small>MOVE</small></button><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
+      '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
+    bindSurfaceUI();
+    startWorld('surface');
+    hudRefresh();
+  }
   function surface(mapId){
     if (carry && M) cancelCarry();
     M = buildMap(mapId);
@@ -2823,19 +2840,7 @@
     fogArr = fogDec(S.fog[mapId], M.W * M.H);
     if (M.hq && S.hq.research['r-survey']) fogArr.fill(1);
     dialogOpen = false; encounterOpen = false; path = []; held = null; dlg = null; zoneId = null;
-    screen('x-surface',
-      '<div class="x-hud riv"><div class="x-zone"><b class="x-zn"></b><span class="x-zw"></span></div>' +
-        '<div class="x-gauges">' + gauge('SUIT','suit') + gauge('AIR','air') + '</div>' +
-        '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
-        '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
-      '<p class="x-objhint" aria-live="polite"></p>' +
-      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ MOVE · TOUCHPAD ASTRANAV</p>' +
-      '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-sq" aria-label="Square: grab, set or move">□<small>MOVE</small></button><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
-      '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
-    bindSurfaceUI();
-    startWorld('surface');
-    hudRefresh();
+    fieldScreen();
     revealFog();
     checkZone(true);
     save();
@@ -3982,7 +3987,21 @@
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal, .x-battle')) return;
     held = null; path = [];
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save(); sfx.click();
+    // keep the live field (party, enemies, fights, the camp's Aethren) in memory: the AstraNav only covers it
+    parked = { map:M.id, M:M, P:P, fogArr:fogArr, critters:critters, veiled:veiled, npcs:npcs, allies:allies, homebodies:homebodies, foes:foes, shots:shots, fxs:fxs, trail:trail, foeGroups:foeGroups, quietT:quietT };
     nav(typeof tab === 'string' ? tab : 'system');
+  }
+  // the field as it was when you opened the AstraNav, and not a rebuild: fights and the party carry on
+  var parked = null;
+  function resumeField(){
+    if (!parked || !S.pos || S.pos.map !== parked.map) return false;
+    M = parked.M; P = parked.P; fogArr = parked.fogArr; critters = parked.critters; veiled = parked.veiled; npcs = parked.npcs;
+    allies = parked.allies; homebodies = parked.homebodies; foes = parked.foes; shots = parked.shots; fxs = parked.fxs; trail = parked.trail; foeGroups = parked.foeGroups; quietT = parked.quietT;
+    parked = null; S.stage = 'surface'; S.landed = true;
+    specCache = {};
+    placeDevMachine();   // the developer switch may have changed in SETUP while you were away
+    fieldScreen(); revealFog();
+    return true;
   }
   // the field sketch: the stretch of ground around you, as far as you have walked it
   function drawSketch(c){

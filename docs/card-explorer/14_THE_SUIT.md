@@ -27,7 +27,7 @@ The original FLIGHT SUIT presets (suit, helmet and visor) are kept. A custom col
 
 ## Air adapts to the environment
 
-Every world and Zyraxis district has an **atmosphere** (`explorer/suit.js`), and each atmosphere works the suit's air harder:
+Every world and Zyraxis district has an **atmosphere** (`explorer/suit.js`), and each atmosphere works the suit's air harder. **The atmosphere assignments are Creator-approved** (2026-10-10: *"atmosphere assignments are good"*).
 
 | Atmosphere | Air × | Where | Module that adapts the suit |
 |---|---|---|---|
@@ -52,4 +52,4 @@ Every world and Zyraxis district has an **atmosphere** (`explorer/suit.js`), and
 - AstraNav · SYSTEM shows the current atmosphere under the AIR gauge, for example *ATMOSPHERE · HEAT · AIR ×1.60 · HEAT SHIELDING would adapt the suit*.
 - Landing in a hard atmosphere gives the same notice.
 
-All the numbers are proposals in `explorer/suit.js`; change them freely.
+The air multipliers, the modules and their costs are still proposals in `explorer/suit.js`; change them freely.

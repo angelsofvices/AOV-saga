@@ -2,7 +2,8 @@
 // Creator direction: "air adapts to environment based on upgrades. fully customizable suit."
 // Every world has an atmosphere that works the suit's air harder or softer. A suit module, fitted at NASARUS's
 // Workshop, adapts the suit to one kind of atmosphere and takes away most of its extra strain.
-// Numbers are proposals; the engine reads this file (explorer.js · hazardDrain).
+// The atmosphere assignments below are Creator-approved (2026-10-10). The air multipliers, the modules and their
+// costs are still proposals; the engine reads this file (explorer.js · hazardDrain).
 window.AOV_SUIT = {
   // kinds of atmosphere: the extra air drain (× the base rate) and the module that adapts to it
   kinds: {
@@ -17,7 +18,7 @@ window.AOV_SUIT = {
     void:      { name:'VOID',       mult:1.35, note:'Dead air in the dark. The suit makes all of its own.', module:'lamps' },
     smoke:     { name:'SMOKE',      mult:1.35, note:'Furnace smoke and soot.', module:'scrubber' }
   },
-  // each environment's atmosphere (worlds and Zyraxis districts)
+  // each environment's atmosphere (worlds and Zyraxis districts) · APPROVED by the Creator 2026-10-10: "atmosphere assignments are good"
   env: {
     origon:'dense', lumeria:'glare', draevos:'heat', arborynth:'spores', thallassar:'water', pyrauna:'heat', quorauna:'dense', cytherion:'spores',
     zyraxis:'breathable', myraclese:'breathable', bellatora:'smoke', yvoris:'cold', kyrathos:'void', nexyros:'void', jynaera:'thin', sylvanir:'spores',

@@ -20,16 +20,14 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 ## In the worlds
 
 - **Aethren (102 from the Codex).** They spawn wild on their home world or district, with the Codex's tier, types and stats. Species from older rosters keep their ids, so cards already held still match. Tier IX and higher never spawn.
-- **People (55).** Undated mortal humanoids live on their home world. Once you've learned that world's words, talking to them unlocks their Codex entry (+3 DATA).
-- **Records (196 figures on 50 stones).** Dated historical figures (their lore gives CE/BCE/Bya years) are carved on record stones on their home world, four to a stone. Reading a stone unlocks them (+2 DATA each). They are not shown as living people in 1936.
-- **Codex only (29).** Gods, Immortals and demigods, and names the 1936 canon handoff reserves (02_CARL_NASARO…). They stay sealed for now.
-- **Viridia (Creator ruling, 2026-10-10):** humanoids whose lore names no world are all on Viridia, so Viridia now holds 37 people and 48 record stones.
+- **People (280): everyone is alive.** Creator ruling 2026-10-10: *"non canon. no one is dead here. full saga living."* Every humanoid in the Codex is alive in 1936 and lives on their home world, including gods, Immortals, demigods and the characters the 1936 handoff had reserved. Once you've learned that world's words, talking to them unlocks their Codex entry (+3 DATA). There are no record stones any more.
+- **Home worlds:** the one the lore names most often. Humanoids whose lore names no world are on **Viridia** (Creator ruling). Viridia holds 241 people, so its map grows to 185 × 141 to fit them. Any world with more than 20 people grows the same way.
 
 ## In the AstraNav · RESEARCH · MASTER CANON
 
 | Tab | Unlocks when |
 |---|---|
-| BEINGS (582) | an Aethren is scanned or battled; a person is met; a figure is read on a record |
+| BEINGS (582) | an Aethren is scanned or battled; a person is met |
 | WORLDS | the world named on the page is visited (unvisited worlds stay redacted) |
 | COSMIC THEORIES · BOOKS · GAMES | a page is decoded at NASARUS's Research Station for 4 DATA |
 | INDEX (1,017) | its subject is an unlocked being, a visited world, or a term Carl has learned |
@@ -38,5 +36,5 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 
 ## For the Creator
 
-1. **Timeline:** the 55 living people were chosen because their lore has no date. Each still needs a check that they are alive in 1936. The list is in `game_roster/codex_homes.json` (`place: "npc"`).
-2. **Some Codex lore is entirely editing notes**, so those beings show "still being written" (for example Amyra Silverstone-Veridae).
+1. **Some Codex lore is entirely editing notes**, so those beings show "still being written" (for example Amyra Silverstone-Veridae).
+2. **Tier IX+ Aethren** (9) still don't spawn in the wild. Say if they should.

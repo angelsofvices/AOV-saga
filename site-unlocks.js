@@ -89,7 +89,7 @@ window.AOV_UNLOCKS = {
         'The full Master Codex is in the game: 582 beings, the Worlds, Cosmic Theories, Books, Games and a 1,017-entry Index',
         'Every entry is sealed until you discover it: scan Aethren, meet people, read record stones, visit worlds',
         'Over a hundred Codex Aethren now live in the wild on their home worlds',
-        'Meet Codex characters on their worlds, and read carved records of the historical figures',
+        'Every character in the saga is alive in 1936: meet all 280 of them on their home worlds, most of them on a much larger Viridia',
         'Decode Cosmic Theories, Books and Games pages with DATA at the Research Station'
       ] },
     { date:'2026-10-09', build:'AETHRYX ADVENTURES: 1936 · SURVEY 9.2', title:'Cloning at NASARUS',

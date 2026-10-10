@@ -19,7 +19,7 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 
 ## In the worlds
 
-- **Aethren (102 from the Codex).** They spawn wild on their home world or district, with the Codex's tier, types and stats. Species from older rosters keep their ids, so cards already held still match. Tier IX and higher never spawn.
+- **Aethren: everything spawns** (Creator 2026-10-10: *"include everything from codex"*). All 302 Aethren, the official 1936 roster plus 106 from the Codex, are in the wild on their home world or district, with the Codex's tier, types and stats. That includes the tier IX–X beings (mostly in Thardin and Korathen), the Elzebub → Elzimir → Elzoran → Omegoran line, and Mealux. Species from older rosters keep their ids, so cards already held still match. Wardens and vault guardians only field Aethren up to tier VIII, so the bosses stay fair.
 - **People (280): everyone is alive.** Creator ruling 2026-10-10: *"non canon. no one is dead here. full saga living."* Every humanoid in the Codex is alive in 1936 and lives on their home world, including gods, Immortals, demigods and the characters the 1936 handoff had reserved. Once you've learned that world's words, talking to them unlocks their Codex entry (+3 DATA). There are no record stones any more.
 - **Home worlds:** the one the lore names most often. Humanoids whose lore names no world are on **Viridia** (Creator ruling). Viridia holds 241 people, so its map grows to 185 × 141 to fit them. Any world with more than 20 people grows the same way.
 
@@ -32,9 +32,8 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 | COSMIC THEORIES · BOOKS · GAMES | a page is decoded at NASARUS's Research Station for 4 DATA |
 | INDEX (1,017) | its subject is an unlocked being, a visited world, or a term Carl has learned |
 
-**Always sealed:** Ovauron / AEP-28 and Mealux, wherever they appear (canon: AEP-28 is not described; Mealux is a hidden trace).
+**Always sealed:** Ovauron / AEP-28, wherever it appears (canon: AEP-28 is sealed and not described). Mealux is no longer sealed.
 
 ## For the Creator
 
 1. **Some Codex lore is entirely editing notes**, so those beings show "still being written" (for example Amyra Silverstone-Veridae).
-2. **Tier IX+ Aethren** (9) still don't spawn in the wild. Say if they should.

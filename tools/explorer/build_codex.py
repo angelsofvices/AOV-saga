@@ -68,7 +68,6 @@ for e in roster['entries']:
     place, why = None, ''
     if e['kind'] == 'aethren':
         place = 'wild'; why = 'Aethren' + (' · home from Codex lore' if h else ' · home by tier (Zyraxis)')
-        if tier and tier >= 9: place, why = 'codex', 'tier IX+ never spawns'
     else:
         place, why = 'npc', 'alive in 1936 (Creator: no one is dead here · full saga living)'
     st = cx.get('stats') or {}

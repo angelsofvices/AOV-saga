@@ -149,9 +149,8 @@ for line, shown in [(l, f) for l in OFF['roster'] for f in FORMS.get(l, [l])]:
         tier = tier or 1; types = types or guess_types(shown)
     d = (rj and rj.get('primaryDistrict')) or (v7 and v7['district'])
     if d not in DISTRICTS: d = TIER_HOME[min(10, tier)] if tier > 1 else ('malezor' if h(sid) % 2 else 'zarvane')
+    # Creator 2026-10-10: "include everything from codex" · tier IX+, the easter-egg line and Mealux all spawn
     if norm(shown) in hidden: flags['hidden'] = True
-    if tier >= 9: flags['hidden'] = True
-    if rj and rj.get('easterEgg'): flags['hidden'] = True
     base = rj['base'] if rj else pool(sid, tier, types)
     mv = moves(rj, types) if rj else moves({}, types)
     note = ''

@@ -107,9 +107,70 @@ index = []
 for r in wb['INDEX'].iter_rows(min_row=4, values_only=True):
     if r[1] and r[0] and not str(r[0]).startswith('★'): index.append([str(r[0]), str(r[1]), str(r[2] or '')])
 
+# ── the TIMELINE (timeline.html on the site): one page per era card ──
+tl = open(P('timeline.html'), encoding='utf-8').read()
+def strip(h): return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', h)).strip()
+tlpages = []
+for card in re.findall(r'<div class="era-card">(.*?)</div>\s*</div>', tl, re.S):
+    name = re.search(r'class="era-name">(.*?)</h3>', card, re.S); span = re.search(r'class="era-span">(.*?)</div>', card, re.S)
+    sub = re.search(r'class="era-sub">(.*?)</div>', card, re.S); body = re.findall(r'class="era-body">(.*?)</p>', card, re.S)
+    facts = re.findall(r'class="planet-fact">(.*?)</div>', card, re.S)
+    if not name: continue
+    rows = [[strip(x)] for x in ([span.group(1)] if span else []) + ([sub.group(1)] if sub else []) + body + facts if strip(x)]
+    tlpages.append({'title': strip(name.group(1)), 'rows': rows})
+sections.append({'key': 'timeline', 'title': 'TIMELINE', 'pages': tlpages})
+
+# ── EVERYTHING ON THE GROUND (Creator 2026-10-10: "make sure all entries are placed in world ... all things
+# mentioned in every file"). Each Index entry that is not a being, and every page of every section, gets a
+# physical place: a landmark (places), a find (items, relics), or a record stone (events, concepts, pages).
+# Home = the world / district the text names most; Books → Viridia, Games → Zyraxis, the rest → Lumeria
+# (the Recorder World). AEP-28 is sealed, so nothing about it can be placed.
+being_keys = {norm(b['name']) for b in beings} | {norm(a) for b in beings for a in b.get('aliases', [])}
+WORLD_KEYS = {k for k in NAMES if NAMES[k]}
+PLACE_RX = re.compile(r'\((?:North|South|East|West|Central)[a-z]* Region|\b(city|capital|district|valley|docks?|towers?|sacred site|canyon|temple|academy|harbou?r|port|fortress|citadel|keep|castle|palace|village|town|forest|mountain|peaks?|lake|sea|ocean|desert|plains?|fields|junction|gate|bridge|ruins?|shrine|cathedral|arena|market|quarter|vale|reach|isle|island|coast|marsh|swamp|caverns?|mines?)\b', re.I)
+META_RX = re.compile(r'(formula|structure|codification|per[- ]district|endgame|routes|network|chart|\brule\b|\bcanon\b|\bv\d|distribution|origin|affinity| vs )', re.I)
+REGION_RX = re.compile(r'\((?:North|South|East|West|Central)[a-z]* Region|^\s*(?:a|the)?\s*(?:city|capital|district|valley|temple|fortress|citadel|village|town|region|sacred site)\b', re.I)
+ITEM_RX = re.compile(r'\b(relic|gem|gemstone|astralite|prism|seed|sword|blade|crown|orb|scroll|tome|artifact|artefact|amulet|ring|key|shard|stone of|staff|spear|shield|armou?r|vessel|zycube|serum|potion|elixir|core)\b', re.I)
+def home_or(text, fallback):
+    h = home_of(text)
+    if h: return h
+    return fallback
+LUMERIA = {'world': WORLDS['lumeria'], 'district': None}
+VIRIDIA = {'world': 27, 'district': None}
+ZYR = {'world': 9, 'district': None}
+SEALED = re.compile(r'ovauron|primalutonia|drift planet|aep[- ]?28|\bae-28\b', re.I)
+places = []
+for letter, term, desc in index:
+    k = norm(term)
+    if k in being_keys or k in WORLD_KEYS: continue                     # beings are placed already; worlds are the worlds
+    if SEALED.search(term): continue   # sealed: AEP-28 under every name (descriptions that mention it are redacted in game)
+    kind = 'rec' if META_RX.search(term) else 'lm' if PLACE_RX.search(term) or REGION_RX.search(desc[:80]) else 'find' if ITEM_RX.search(term) else 'rec'
+    places.append({'t': kind, 'home': home_or(term + ' ' + desc, LUMERIA), 'term': term})
+for sec in sections:
+    fb = VIRIDIA if sec['key'] == 'books' else ZYR if sec['key'] == 'games' else LUMERIA
+    for i, pg in enumerate(sec['pages']):
+        text = pg['title'] + ' ' + ' '.join(' '.join(r) for r in pg['rows'])
+        if SEALED.search(pg['title']): continue
+        h = home_of(pg['title']) or (fb if sec['key'] in ('books', 'games') else home_of(text) or fb)
+        places.append({'t': 'rec', 'home': h, 'page': sec['key'] + ':' + i.__str__()})
+# group records five to a stone, per world (and district)
+grouped, stones = {}, []
+for pl in places:
+    if pl['t'] != 'rec': continue
+    key = (pl['home']['world'], pl['home'].get('district'))
+    grouped.setdefault(key, []).append(pl)
+for (w, d), items in grouped.items():
+    for k in range(0, len(items), 5):
+        chunk = items[k:k + 5]
+        stones.append({'t': 'rec', 'home': {'world': w, 'district': d}, 'terms': [c['term'] for c in chunk if 'term' in c], 'pages': [c['page'] for c in chunk if 'page' in c]})
+placements = [p for p in places if p['t'] != 'rec'] + stones
+from collections import Counter as _C
+print('placements', _C(p['t'] for p in placements), 'index entries placed', sum(1 for p in places if 'term' in p), 'pages placed', sum(1 for p in places if 'page' in p))
+print('by world', _C(p['home']['world'] for p in placements).most_common(8))
+
 json.dump(homes, open(P('game_roster/codex_homes.json'), 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
 hdr = '// ★ GENERATED by tools/explorer/build_codex.py from the Master Codex v16.3 · do not hand-edit.\n'
-open(P('explorer/codex_beings.js'), 'w', encoding='utf-8').write(hdr + 'window.AOV_CODEX = ' + json.dumps({'version': '16.3', 'beings': beings}, ensure_ascii=False, separators=(',', ':')) + ';\n')
+open(P('explorer/codex_beings.js'), 'w', encoding='utf-8').write(hdr + 'window.AOV_CODEX = ' + json.dumps({'version': '16.3', 'beings': beings, 'placements': placements}, ensure_ascii=False, separators=(',', ':')) + ';\n')
 open(P('explorer/codex_reference.js'), 'w', encoding='utf-8').write(hdr + 'window.AOV_CODEX_REF = ' + json.dumps({'version': '16.3', 'lore': lore, 'sections': sections, 'index': index}, ensure_ascii=False, separators=(',', ':')) + ';\n')
 from collections import Counter
 print(len(beings), 'beings ·', Counter((b['kind'], b['place']) for b in beings))

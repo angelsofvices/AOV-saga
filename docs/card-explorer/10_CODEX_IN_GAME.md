@@ -21,7 +21,7 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 
 - **Aethren: everything spawns** (Creator 2026-10-10: *"include everything from codex"*). All 302 Aethren, the official 1936 roster plus 106 from the Codex, are in the wild on their home world or district, with the Codex's tier, types and stats. That includes the tier IX–X beings (mostly in Thardin and Korathen), the Elzebub → Elzimir → Elzoran → Omegoran line, and Mealux. Species from older rosters keep their ids, so cards already held still match. Wardens and vault guardians only field Aethren up to tier VIII, so the bosses stay fair.
 - **People (281): everyone is alive.** Creator ruling 2026-10-10: *"non canon. no one is dead here. full saga living."* Every humanoid in the Codex is alive in 1936 and lives on their home world, including gods, Immortals, demigods and the characters the 1936 handoff had reserved. Once you've learned that world's words, talking to them unlocks their Codex entry (+3 DATA). There are no record stones any more.
-- **Home worlds:** the one the lore names most often. Humanoids whose lore names no world are on **Viridia** (Creator ruling). Viridia holds 241 people, so its map grows to 185 × 141 to fit them. Any world with more than 20 people grows the same way.
+- **Home worlds:** the one the lore names most often. Humanoids whose lore names no world are on **Viridia** (Creator ruling).
 - **Everything else in the Codex is in the worlds too** (Creator 2026-10-10: *"make sure all entries are placed in world… from anciuxor down to scrap. all games all books all timeline all worlds"*). Every INDEX entry that isn't a being or a world (431 of them) and every page (257) has a place on its home world. That home is the world or district its text names most often.
   - **Landmarks (54):** named places such as Ashen Fields, the Temple of Anciuxor and the Tree of Elyssia. Reaching one unlocks its entry (+1 RELIC, +4 DATA) without needing the language.
   - **Relics (15):** gems, prisms, crowns and keys (the Phoenaris Crown, the Key of Anciuxor, the Astralite Prisms). They glint on the ground, and picking one up unlocks it (+1 RELIC).
@@ -29,6 +29,18 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
   - **Fallbacks when the text names no world:** book pages go on Viridia, game pages on Zyraxis, and everything else on **Lumeria**, the Recorder-World. Lumeria holds 95 placements, so it grows to 142 × 108.
   - On Zyraxis, entries with no district (or ones naming Malezor, the hand-built opening) are spread across the other nine districts.
 - **Malezor's own people live in Malezor**, on open ground beside its road: **Zurelea**, the potion maker (Creator 2026-10-10: *"humanoid from zyraxis rp7"*, added to the 1936 roster from her Codex index entry), and Warden Kelthor. Other Zyraxis people with no district named are spread across the other nine districts.
+
+## The worlds, region by region (survey build 10.2)
+
+Creator direction 2026-10-10: *"think bigger. full pass of world"*.
+
+- **Every world is laid out in its named regions**, the five per world in the biome manifest (`explorer/biomes.js`). They form a compass cross with the first region in the middle, where the ship lands. Origon's ten lands sit in a 4 × 3 grid. Regions differ in terrain (seas and shallows are wetter, cliffs and peaks rockier, plains open), and the roads run out from the centre to each region.
+- **Region names** appear on the HUD, as a toast on entering, and on the field sketch. Until you've learned a world's words they read REGION I–V.
+- **Viridia: the five canon regions.** Northern, Eastern, Central, Southern and Western (Norell Goddhart's five-region federation), each in its own country: frost in the north, fire in the south, coast in the east, dust and canyon in the west, and the green heart in the middle. Its **50 named Viridian districts** (Codex: *"(Northern Region · Viridian District)"*) stand as landmarks in their own region.
+- **Everyone and everything is placed by region.** A person, place, relic or record goes to the region (and on Viridia, the district) its own text names most often. On Viridia, 142 people are placed by region, and the 60 whose lore names a district live near its landmark. The other 99, and anything else with no region named, are spread evenly across the world's regions.
+- **Lumeria's Halo Archive** keeps what no other world claims (95 Codex entries), so Lumeria grows to fit it. Each world is sized by its busiest region: Viridia is 216 × 174 and Lumeria 192 × 156.
+- **Zyraxis** (Codex): each district II–X has its **shrine** (Sunlit Pillar, Broken Obelisk, Great Tree, Void Rift, Alien Landing Pad, Spirit Tree, Forge Anvil, Machine Tower, Throne Dais). Visiting all nine gives **ANCIENT GEMSIGHT** (recorded; it has no mechanic yet). The **nine district routes** (Valley of the Benevolent Beast … Fracture of the Anomaly) are marked where each road crosses into the next district.
+- **Integrity checks:** nothing placed may overwrite anything else (vaults, refugee camps, landmarks, stones, people), and everything must be reachable from the ship. This is checked for all 27 worlds.
 
 ## In the AstraNav · RESEARCH · MASTER CANON
 
@@ -42,6 +54,10 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 **Always sealed:** Ovauron / AEP-28 under all its names (Primalutonia, the Drift Planet, AE-28), wherever it appears. Entries that only *mention* it are placed and readable, with the clause that names it blacked out (canon: AEP-28 is sealed and not described). Mealux is no longer sealed.
 
 ## For the Creator
+
+- **Region palettes on Viridia** borrow the art of Yvoris (north), Pyrauna (south), Halcyra (east) and Nexyros (west). Viridia's own hazard and rules still apply everywhere.
+- **ANCIENT GEMSIGHT** is recorded but does nothing yet. Name what it should do.
+- **The two Codex lists of Zyraxis landmarks disagree**: *District Shrine* (v11.8) is built, and *Per-District Landmarks* (v15.10) is kept as a record. Say which one is canon.
 
 *The Codex's own working notes stay in the game as record stones* (Creator 2026-10-10: keep them).
 

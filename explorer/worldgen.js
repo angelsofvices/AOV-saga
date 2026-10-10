@@ -73,7 +73,7 @@
   }
   // a winding road from a to b; bridges water, cuts passes through rock
   function road(m, ax, ay, bx, by, r){
-    var x = ax, y = ay, guard = 0;
+    var x = ax, y = ay, guard = 0, trail = [];
     while ((x !== bx || y !== by) && guard++ < 4000) {
       var dx = bx - x, dy = by - y;
       if (Math.abs(dx) > 0 && (Math.abs(dy) === 0 || r() < Math.abs(dx) / (Math.abs(dx) + Math.abs(dy)))) x += dx > 0 ? 1 : -1;
@@ -81,8 +81,9 @@
       if (x < 1 || y < 1 || x >= m.W - 1 || y >= m.H - 1) continue;
       var c = m.at(x, y);
       if ('SEXMLA*FwK'.indexOf(c) >= 0) continue;
-      m.set(x, y, 'd'); delete m.props[y * m.W + x];
+      m.set(x, y, 'd'); delete m.props[y * m.W + x]; trail.push({ x:x, y:y });
     }
+    return trail;
   }
   function border(m){
     for (var x = 0; x < m.W; x++) { m.set(x, 0, '#'); m.set(x, m.H - 1, '#'); }
@@ -95,7 +96,11 @@
       for (var j = 0; j < away.length && ok; j++) if (Math.abs(away[j].x - x) + Math.abs(away[j].y - y) < minD) ok = false;
       if (ok) return { x:x, y:y };
     }
-    return { x:x0 + (w >> 1), y:y0 + (h >> 1) };
+    // a crowded area: stand a little closer rather than on top of someone
+    // (never closer than 3, or 6 for landmarks, so the ground cleared around one never erases another)
+    var floor = arguments[8] || (minD >= 8 ? 6 : 3);
+    if (minD > floor) return spot(m, r, x0, y0, w, h, away, minD - 1, floor);
+    return { x:x0 + (w >> 1), y:y0 + (h >> 1), full:true };
   }
   function reachable(m, sx, sy){
     var seen = new Uint8Array(m.W * m.H), q = [sy * m.W + sx]; seen[q[0]] = 1;
@@ -168,17 +173,19 @@
     return speciesFor(no, district).filter(function(id){ return (FAUNA.species[id].tier || 1) <= 8; }).sort(function(a, b){ return (FAUNA.species[b].tier || 0) - (FAUNA.species[a].tier || 0) || (a < b ? -1 : 1); });
   }
   function vault(m, r, area, no, envId, people, lvl, district){
-    var best = null, bd = -1;
+    var best = null, bd = -1, stood = m.records.concat(m.landmarks, m.npcs);   // keep clear of what already stands here
     for (var k = 0; k < 50; k++) {
       var p = spot(m, r, area.x, area.y, area.w, area.h, [], 0), d = Math.abs(p.x - area.sx) + Math.abs(p.y - area.sy);
+      if (stood.some(function(o){ return Math.abs(o.x - p.x) <= 5 && Math.abs(o.y - p.y) <= 5; })) continue;
       if (d > bd && p.y > area.y + 3 && p.y < area.y + area.h - 4) { bd = d; best = p; }
     }
+    if (!best) best = spot(m, r, area.x, area.y, area.w, area.h, stood, 8);
     clearRect(m, best.x, best.y, 3, 3, 'd'); m.set(best.x, best.y, 'K');
     m.vault = { x:best.x, y:best.y, no:no };
     road(m, area.sx, area.sy, best.x, best.y + 2, r);
     if (people && people.race) {
       m.npcs.push({ x:best.x + 1, y:best.y + 2, dir:'down', key:'warden_w' + no, env:envId, n:0, warden:true });
-      var rp = spot(m, r, area.x, area.y, area.w, area.h, [best, { x:area.sx, y:area.sy }], 16);
+      var rp = spot(m, r, area.x, area.y, area.w, area.h, [best, { x:area.sx, y:area.sy }].concat(stood), 12);
       clearRect(m, rp.x, rp.y, 3, 2, 'd');
       for (var n = 0; n < 3; n++) m.npcs.push({ x:rp.x - 1 + n, y:rp.y, dir:'down', key:'ref_w' + no, env:envId, n:n, refugee:true });
       m.refugeeCamp = { x:rp.x, y:rp.y };
@@ -190,26 +197,38 @@
   }
   // THE MASTER CODEX on the ground (explorer/codex_beings.js): every person lives on their home world, and every
   // other Codex entry (index terms, pages, the timeline) is a landmark, a find or a record stone there.
-  function codexPlace(m, r, area, no, district, envId, pts){
+  //   rg = { name, i, n } on a regional world: only what belongs to that region (things with no region named
+  //   are spread across the regions). Landmarks go down first, so a Viridian district's people and records
+  //   can stand around their district's landmark.
+  function codexPlace(m, r, area, no, district, envId, pts, rg){
     var CX = window.AOV_CODEX; if (!CX) return;
+    function mine(home, key){ return !rg || (home.region ? home.region === rg.name : hashStr(key) % rg.n === rg.i); }
     var here = CX.beings.filter(function(b){
       if (b.kind !== 'humanoid' || !b.home || b.home.world !== no) return false;
-      if (no !== 9) return true;
+      if (no !== 9) return mine(b.home, b.id);
       var d = b.home.district || ZD9[hashStr(b.id) % 9];   // Malezor's own people live in the hand-built meadow (malezorPeople)
       return d === district;
     });
-    pts = pts || [{ x:area.sx, y:area.sy }];
-    here.filter(function(b){ return b.place === 'npc'; }).forEach(function(b, i){
-      var p = spot(m, r, area.x, area.y, area.w, area.h, pts, 5); pts.push(p);
-      clearRect(m, p.x, p.y, 1, 1, 'd'); road(m, area.sx, area.sy, p.x, p.y + 1, r);
-      m.npcs.push({ x:p.x, y:p.y, dir:'down', key:'cx_' + b.id, codex:b.id, env:envId, n:i, person:true });
-    });
+    // keep clear of everything already standing in this area (camps, landmarks, records, the vault)
+    pts = (pts || [{ x:area.sx, y:area.sy }]).concat(m.landmarks, m.records, m.npcs, m.vault ? [m.vault] : []).filter(function(o){
+      return o.x >= area.x - 3 && o.y >= area.y - 3 && o.x < area.x + area.w + 3 && o.y < area.y + area.h + 3; });
+    m.anchors = m.anchors || {};
+    function near(home, minD){
+      var a = home && home.near && m.anchors[home.near];
+      if (!a) return spot(m, r, area.x, area.y, area.w, area.h, pts, minD);
+      var x0 = Math.max(area.x, a.x - 9), y0 = Math.max(area.y, a.y - 8), x1 = Math.min(area.x + area.w, a.x + 10), y1 = Math.min(area.y + area.h, a.y + 9);
+      var q = spot(m, r, x0, y0, x1 - x0, y1 - y0, pts, minD);
+      return q.full ? spot(m, r, area.x, area.y, area.w, area.h, pts, minD) : q;   // the district is full: the next street over
+    }
     // everything else the Codex names (places, relics, concepts, books, games, the timeline) stands here too:
     // landmarks to reach, finds to pick up, and record stones to read once you know this world's words
-    codexLore(here9(no, district), function(pl){
-      var q = spot(m, r, area.x, area.y, area.w, area.h, pts, pl.t === 'lm' ? 8 : 5); pts.push(q);
+    var lore = [];
+    codexLore(function(pl){ return here9(no, district)(pl) && mine(pl.home, pl.term || (pl.terms || []).concat(pl.pages || []).join('|')); }, function(pl){ lore.push(pl); });
+    lore.sort(function(a, b){ return (a.t === 'lm' ? 0 : 1) - (b.t === 'lm' ? 0 : 1); });
+    lore.forEach(function(pl){
+      var q = pl.t === 'lm' ? spot(m, r, area.x, area.y, area.w, area.h, pts, 8) : near(pl.home, 4); pts.push(q);
       if (pl.t === 'lm') {
-        clearRect(m, q.x, q.y, 2, 2); m.set(q.x, q.y, 'L');
+        clearRect(m, q.x, q.y, 2, 2); m.set(q.x, q.y, 'L'); m.anchors[pl.term] = q;
         m.landmarks.push({ x:q.x, y:q.y, name:pl.term, id:'cxl_' + pl.i, env:'codex', codexTerm:pl.term });
       } else if (pl.t === 'find') {
         clearRect(m, q.x, q.y, 1, 1); m.set(q.x, q.y, '*');
@@ -219,6 +238,11 @@
         m.records.push({ x:q.x, y:q.y, key:'cxs_' + pl.i, n:0, codexTerms:pl.terms || [], codexPages:pl.pages || [] });
       }
       road(m, area.sx, area.sy, q.x, q.y + 1, r);
+    });
+    here.filter(function(b){ return b.place === 'npc'; }).forEach(function(b, i){
+      var p = near(b.home, 3); pts.push(p);
+      clearRect(m, p.x, p.y, 1, 1, 'd'); road(m, area.sx, area.sy, p.x, p.y + 1, r);
+      m.npcs.push({ x:p.x, y:p.y, dir:'down', key:'cx_' + b.id, codex:b.id, env:envId, n:i, person:true });
     });
   }
   // Zyraxis: entries with no district (or Malezor, the hand-built opening) are spread across the other nine
@@ -258,15 +282,88 @@
     return m;
   }
 
-  // ── one ordinary world ──
+  // ── one ordinary world, in its named regions ──
+  // Every world is split into the regions of its biome manifest (explorer/biomes.js): five laid out as a compass
+  // cross with the first in the middle, Origon's ten lands in a 4 × 3 grid. Viridia uses its five canon regions
+  // (Northern, Eastern, Central, Southern, Western), each in its own country: frost to the north, fire to the
+  // south, coast to the east, dust and canyon to the west. Worlds with many Codex people and places grow.
+  var CROSS = [[1,1],[1,0],[2,1],[1,2],[0,1]];
+  var VIR_CELL = { 'Central Region':[1,1], 'Northern Region':[1,0], 'Eastern Region':[2,1], 'Southern Region':[1,2], 'Western Region':[0,1] };
+  var VIR_SKIN = { 'Northern Region':'yvoris', 'Southern Region':'pyrauna', 'Eastern Region':'halcyra', 'Western Region':'nexyros' };
+  function regionsOf(no){
+    var B = window.AOV_BIOMES, w = B && B.worlds && B.worlds[no];
+    var names = w ? w[4].filter(function(x){ return typeof x === 'string'; }) : [];
+    if (names.length < 2) return null;
+    if (no === 27) { var ord = ['Central Region','Northern Region','Eastern Region','Southern Region','Western Region']; if (ord.every(function(n){ return names.indexOf(n) >= 0; })) names = ord; }
+    var cols, rows, cells;
+    if (names.length <= 5) { cols = 3; rows = 3; cells = names.map(function(n, i){ return no === 27 ? VIR_CELL[n] : CROSS[i]; }); }
+    else { cols = Math.ceil(Math.sqrt(names.length)); rows = Math.ceil(names.length / cols); cells = names.map(function(n, i){ return [i % cols, (i / cols) | 0]; }); }
+    return { names:names, cols:cols, rows:rows, cells:cells, cross:names.length <= 5 };
+  }
+  function terrainFor(name){
+    var n = String(name).toLowerCase();
+    if (/sea|shallow|reef|harbo|deep|shoal|coast|water|bay|tide|current|sharedwater/.test(n)) return { wet:.4, high:.75 };
+    if (/mountain|peak|cliff|slope|shelf|aerie|crag|heights|ridge|forge/.test(n)) return { wet:.24, high:.62 };
+    if (/plain|field|flat|grass|march|road|causeway/.test(n)) return { wet:.22, high:.78 };
+    return { wet:.3, high:.69 };
+  }
   function buildWorld(no){
     var w = (window.EXP_DATA.worlds || []).filter(function(x){ return x.no === no; })[0];
     var e = ENV[(w && w.name || '').toLowerCase()];
     if (!e) return null;
-    // worlds with many Codex people grow to fit them (Viridia holds most of the saga's humanoids)
-    var pop = ((window.AOV_CODEX || {}).beings || []).filter(function(b){ return b.kind === 'humanoid' && b.home && b.home.world === no; }).length;
-    pop += ((window.AOV_CODEX || {}).placements || []).filter(function(p){ return p.home && p.home.world === no; }).length * .6;
-    var grow = pop > 20 ? Math.min(2.2, Math.sqrt(pop / 20)) : 1;
+    var RG = regionsOf(no);
+    var CX = window.AOV_CODEX || {};
+    var load = (CX.beings || []).filter(function(b){ return b.kind === 'humanoid' && b.home && b.home.world === no; }).length +
+               (CX.placements || []).filter(function(p){ return p.home && p.home.world === no; }).length * .6;
+    if (!RG) return buildOpenWorld(no, e, load);
+    // size the regions by the busiest one, so a crowded region (Lumeria's Halo Archive, Central Viridia) has room
+    var n = RG.names.length, per = {};
+    (CX.beings || []).filter(function(b){ return b.kind === 'humanoid' && b.home && b.home.world === no; }).forEach(function(b){ var k = b.home.region || '*'; per[k] = (per[k] || 0) + 1; });
+    (CX.placements || []).filter(function(p){ return p.home && p.home.world === no; }).forEach(function(p){ var k = p.home.region || '*'; per[k] = (per[k] || 0) + .6; });
+    var busiest = Math.max.apply(null, RG.names.map(function(nm){ return (per[nm] || 0) + (per['*'] || 0) / n; }).concat([0]));
+    var g = Math.max(1, Math.min(1.8, Math.sqrt(Math.max(load / (n * 12), busiest / 22)))), cw = Math.round(40 * g), ch = Math.round(32 * g);
+    var W = cw * RG.cols, H = ch * RG.rows, m = new Map('w' + no, W, H), seed = no * 7919 + 17, r = rng(seed);
+    m.world = no; m.name = e.id; m.districts = [];
+    m.envs = RG.names.map(function(name){
+      var skin = no === 27 && ENV[VIR_SKIN[name]];
+      return skin ? Object.assign({}, skin, { kind:e.kind, no:e.no, name:e.name, title:e.title, canon:e.canon, concept:e.concept, hazard:e.hazard, mechanic:e.mechanic, landmarks:[], lord:e.lord, spoiler:e.spoiler }) : e;
+    });
+    var ri0 = m.envs.length;
+    m.envs.push(Object.assign({}, e, { landmarks:[] }));   // the wild edges between the arms of the cross
+    for (var cy = 0; cy < RG.rows; cy++) for (var cx = 0; cx < RG.cols; cx++) {
+      if (RG.cells.some(function(c){ return c[0] === cx && c[1] === cy; })) continue;
+      terrain(m, cx * cw, cy * ch, cw, ch, ri0, seed + 99 + cx * 7 + cy * 13, no === 27 || /ocean|harmony/.test((window.AOV_BIOMES.worlds[no] || [])[3]) ? { high:.8, wet:.55 } : { high:.48, wet:.3 });
+    }
+    var areas = RG.names.map(function(name, i){
+      var c = RG.cells[i], x0 = c[0] * cw, y0 = c[1] * ch;
+      terrain(m, x0, y0, cw, ch, i, seed + i * 31, terrainFor(name));
+      m.districts.push({ id:'rg_' + no + '_' + i, name:name, x:x0, y:y0, w:cw, h:ch, i:i });
+      return { x:x0, y:y0, w:cw, h:ch, sx:x0 + (cw >> 1), sy:y0 + (ch >> 1), name:name, i:i };
+    });
+    border(m);
+    areas.forEach(function(a){ clearRect(m, a.sx, a.sy, 1, 1, 'd'); });
+    // the ship sets down in the first region (Viridia: the Central Region), west of its centre
+    var a0 = areas[0], sx = a0.x + 8 + ((r() * 4) | 0), sy = a0.sy + ((r() * 6) | 0) - 3;
+    clearRect(m, sx, sy, 4, 3);
+    m.ship = { x:sx, y:sy }; m.set(sx, sy, 'S');
+    road(m, sx, sy + 1, a0.sx, a0.sy, r);
+    // the roads between regions: out from the centre of the cross, or region to region across the grid
+    areas.forEach(function(a, i){ if (i === 0) return; var b = RG.cross ? a0 : areas[i - 1]; road(m, b.sx, b.sy, a.sx, a.sy, r); });
+    var people = FAUNA.peoples[no] || null;
+    a0.sx = sx; a0.sy = sy + 1;
+    areas.forEach(function(a, i){
+      populate(m, r, a, i, i === 0 ? { people:people, peopleKey:'w' + no, camps:2, perCamp:2, landmarks:3, minerals:3, finds:2 } : { landmarks:0, minerals:2, finds:1 });
+      spawnFauna(m, r, a, speciesFor(no), Math.ceil(18 / n) + 1, levelFor(no));
+    });
+    // the vault lies in the region farthest from the ship
+    var far = areas.slice(1).sort(function(p, q){ return (Math.abs(q.sx - sx) + Math.abs(q.sy - sy)) - (Math.abs(p.sx - sx) + Math.abs(p.sy - sy)); })[0];
+    vault(m, r, far, no, e.id, people, levelFor(no));
+    if (no !== 28) areas.forEach(function(a, i){ codexPlace(m, r, a, no, null, e.id, null, { name:a.name, i:i, n:n }); });
+    return finish(m);
+  }
+  // a world with no named regions: one open map, as before
+  function buildOpenWorld(no, e, load){
+    var grow = load > 20 ? Math.min(2.2, Math.sqrt(load / 20)) : 1;
     var W = Math.round(84 * grow), H = Math.round(64 * grow), m = new Map('w' + no, W, H), seed = no * 7919 + 17, r = rng(seed);
     m.world = no; m.envs = [e]; m.name = e.id;
     terrain(m, 0, 0, W, H, 0, seed, {});
@@ -285,6 +382,8 @@
   }
 
   // ── Zyraxis: the ten districts in the canon Z ──
+  var ZROUTES = ['Valley of the Benevolent Beast','Choir of the Pearlord','Wilds of the Citrinehowl','Verge of the Emeraldbloom','Rift of the Amethyst Voice','Skylanes of the Sapphirebroker','Threshold of the Onyxwhisper','Roads of the Amberchain','Fracture of the Anomaly'];
+  var ZSHRINES = ['Sunlit Pillar','Broken Obelisk','Great Tree','Void Rift','Alien Landing Pad','Spirit Tree','Forge Anvil','Machine Tower','Throne Dais'];
   var DIST = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
   var ZPOS = [[0,0],[1,0],[2,0],[3,0],[2,1],[1,1],[0,2],[1,2],[2,2],[3,2]];
   var CW = 36, CH = 28;
@@ -321,8 +420,16 @@
     m.ship = sh;
     malezorPeople(m, ox, oy, rows);
     // the roads of the Z, district to district
-    road(m, ox + 30, oy + 12, centres[1].x, centres[1].y, r);
-    for (var d = 1; d < DIST.length - 1; d++) road(m, centres[d].x, centres[d].y, centres[d + 1].x, centres[d + 1].y, r);
+    var trails = [road(m, ox + 30, oy + 12, centres[1].x, centres[1].y, r)];
+    for (var d = 1; d < DIST.length - 1; d++) trails.push(road(m, centres[d].x, centres[d].y, centres[d + 1].x, centres[d + 1].y, r));
+    // the nine routes of the Z (Codex · 9 District Routes), each marked where it crosses into the next district
+    ZROUTES.forEach(function(name, k){
+      var t = trails[k] || [], d2 = m.districts[k + 1], hit = null;
+      for (var j = 0; j < t.length && !hit; j++) if (t[j].x >= d2.x && t[j].y >= d2.y && t[j].x < d2.x + d2.w && t[j].y < d2.y + d2.h) hit = t[Math.min(t.length - 1, j + 2)];
+      hit = hit || t[t.length >> 1]; if (!hit) return;
+      [[1,0],[-1,0],[0,1],[0,-1]].some(function(o){ var x = hit.x + o[0], y = hit.y + o[1], c = m.at(x, y);
+        if (c !== '.' && c !== ',') return false; m.set(x, y, 'X'); m.signs[y * m.W + x] = 'ROUTE MARKER · ' + name.toUpperCase() + '. Carved deep, and kept clear by someone.'; return true; });
+    });
     // what lives and stands in each district
     DIST.forEach(function(id, i){
       var a = m.districts[i], area = { x:a.x, y:a.y, w:a.w, h:a.h, sx:centres[i].x, sy:centres[i].y };
@@ -331,7 +438,13 @@
         clearRect(m, centres[i].x, centres[i].y, 1, 1, 'd');
         populate(m, r, area, i, { people:FAUNA.peoples[9], peopleKey:'z_' + id, camps:1, perCamp:2, landmarks:3, minerals:2, finds:2 });
       }
-      if (i > 0) codexPlace(m, r, area, 9, id, id);
+      if (i > 0) {
+        // each district beyond Malezor has its shrine (Codex · District Shrine)
+        var sp = spot(m, r, area.x, area.y, area.w, area.h, [{ x:area.sx, y:area.sy }].concat(m.landmarks, m.records, m.npcs), 7);
+        clearRect(m, sp.x, sp.y, 2, 2); m.set(sp.x, sp.y, 'L'); road(m, area.sx, area.sy, sp.x, sp.y + 1, r);
+        m.landmarks.push({ x:sp.x, y:sp.y, name:ZSHRINES[i - 1], id:'shrine_' + id, env:'codex', codexTerm:'District Shrine', shrine:ZSHRINES[i - 1] });
+        codexPlace(m, r, area, 9, id, id, [{ x:area.sx, y:area.sy }, sp]);
+      }
       var ids = speciesFor(9, id).filter(function(s){ return i !== 0 || ['otterlin','verdanix','aetherwing','volcanut'].indexOf(s) < 0; });
       spawnFauna(m, r, i === 0 ? { x:a.x + 1, y:a.y + 1, w:a.w - 2, h:a.h - 2, sx:m.ship.x, sy:m.ship.y } : area, ids, i === 0 ? 4 : 9, levelFor(9, i));
     });

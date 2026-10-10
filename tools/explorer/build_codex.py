@@ -56,12 +56,13 @@ def home_of(text):
 wb = openpyxl.load_workbook(P('data/codex/The_AOV_Saga_Master_Codex_v16.3.xlsx'), read_only=True)
 
 # ── beings ──
-beings, lore, homes = [], {}, {}
+beings, lore, homes, btext = [], {}, {}, {}
 for e in roster['entries']:
     cx = e.get('codex') or {}
     if e['kind'] == 'world': continue                               # Ovauron is AEP-28, sealed
     bid = slug(e['name'])
     text = ' '.join(str(x or '') for x in (cx.get('lore'), cx.get('card')))
+    btext[bid] = text
     tier = ROM.get(str(cx.get('tier') or '').strip())
     h = home_of(text)
     if not h and e['kind'] == 'humanoid': h = {'world': 27, 'district': None, 'ruled': True}   # Creator 2026-10-10: humanoids with no world named are all on Viridia
@@ -139,34 +140,78 @@ LUMERIA = {'world': WORLDS['lumeria'], 'district': None}
 VIRIDIA = {'world': 27, 'district': None}
 ZYR = {'world': 9, 'district': None}
 SEALED = re.compile(r'ovauron|primalutonia|drift planet|aep[- ]?28|\bae-28\b', re.I)
+# ── REGIONS · every world is split into the named regions of its biome manifest (explorer/biomes.js), and
+#    Viridia into its five canon regions with the named Viridian districts inside them. Each person, place,
+#    relic and record goes to the region (and, on Viridia, the district) its own text names most often. ──
+import subprocess
+REG = json.loads(subprocess.run(['node', '-e', "global.window=global;window.AOV_FAUNA={peoples:{}};require(process.argv[1]);var W=AOV_BIOMES.worlds,o={};Object.keys(W).forEach(function(k){o[k]=W[k][4];});console.log(JSON.stringify(o));", P('explorer/biomes.js')], capture_output=True, text=True, check=True).stdout)
+VDIST = {}
+for letter, term, desc in index:
+    mm = re.match(r'\s*' + re.escape(term) + r'\s*\((Northern|Eastern|Central|Southern|Western) Region · Viridian District\)', desc)
+    if mm: VDIST[term] = mm.group(1) + ' Region'
+VWORDS = {'Northern Region': ['northern', 'thenorth', 'northviridia'], 'Southern Region': ['southern', 'thesouth', 'southviridia'],
+          'Eastern Region': ['eastern', 'theeast', 'eastviridia'], 'Western Region': ['western', 'thewest', 'westviridia'], 'Central Region': ['central', 'capital']}
+def best(t, names):
+    hits = [(t.count(norm(n)), -t.find(norm(n)), n) for n in names if norm(n) and norm(n) in t]
+    return max(hits)[2] if hits else None
+def region_of(text, world):
+    t = norm(text)
+    if world == 27:
+        d = best(t, VDIST)
+        if d: return {'region': VDIST[d], 'near': d}
+        sc = sorted(((sum(t.count(w) for w in ws), r) for r, ws in VWORDS.items()), reverse=True)
+        return {'region': sc[0][1]} if sc[0][0] else {}
+    if world == 9 or str(world) not in REG: return {}
+    names = {}
+    for spec in REG[str(world)]:
+        if isinstance(spec, list): names[spec[0]] = spec[1].split(' / ')[0]   # Origon's named sites lie inside a land
+        else: names[spec] = spec
+    n = best(t, names)
+    return {'region': names[n]} if n else {}
+for b in beings:
+    if b['kind'] == 'humanoid' and b['home'] and b['home']['world'] != 9:
+        b['home'] = dict(b['home']); b['home'].update(region_of(btext[b['id']], b['home']['world']))
+        homes[b['id']]['home'] = b['home']
 places = []
 for letter, term, desc in index:
     k = norm(term)
     if k in being_keys or norm(term.split('·')[0]) in being_keys or k in WORLD_KEYS: continue   # 'Zurelea · Malezor Potion Maker' is the being Zurelea                     # beings are placed already; worlds are the worlds
+    if term == 'District Shrine': continue   # the nine shrines of Zyraxis carry it (worldgen.js)
     if SEALED.search(term): continue   # sealed: AEP-28 under every name (descriptions that mention it are redacted in game)
     kind = 'rec' if META_RX.search(term) else 'lm' if PLACE_RX.search(term) or REGION_RX.search(desc[:80]) else 'find' if ITEM_RX.search(term) else 'rec'
-    places.append({'t': kind, 'home': home_or(term + ' ' + desc, LUMERIA), 'term': term})
+    h = dict(home_or(term + ' ' + desc, LUMERIA))
+    if term in VDIST: h.update({'world': 27, 'district': None, 'region': VDIST[term]})   # a Viridian district: it anchors its own people
+    else: h.update(region_of(term + ' ' + desc, h['world']))
+    places.append({'t': kind, 'home': h, 'term': term})
 for sec in sections:
     fb = VIRIDIA if sec['key'] == 'books' else ZYR if sec['key'] == 'games' else LUMERIA
     for i, pg in enumerate(sec['pages']):
         text = pg['title'] + ' ' + ' '.join(' '.join(r) for r in pg['rows'])
         if SEALED.search(pg['title']): continue
-        h = home_of(pg['title']) or (fb if sec['key'] in ('books', 'games') else home_of(text) or fb)
+        h = dict(home_of(pg['title']) or (fb if sec['key'] in ('books', 'games') else home_of(text) or fb))
+        h.update(region_of(text, h['world']))
         places.append({'t': 'rec', 'home': h, 'page': sec['key'] + ':' + i.__str__()})
-# group records five to a stone, per world (and district)
+# the Recorder-World keeps what no other world claims in its Halo Archive
+for pl in places:
+    if pl['home']['world'] == WORLDS['lumeria'] and not pl['home'].get('region'): pl['home']['region'] = 'Halo Archive'
+# group records five to a stone, per world, district, region and Viridian district
 grouped, stones = {}, []
 for pl in places:
     if pl['t'] != 'rec': continue
-    key = (pl['home']['world'], pl['home'].get('district'))
+    key = (pl['home']['world'], pl['home'].get('district'), pl['home'].get('region'), pl['home'].get('near'))
     grouped.setdefault(key, []).append(pl)
-for (w, d), items in grouped.items():
+for (w, d, rg, nr), items in grouped.items():
     for k in range(0, len(items), 5):
         chunk = items[k:k + 5]
-        stones.append({'t': 'rec', 'home': {'world': w, 'district': d}, 'terms': [c['term'] for c in chunk if 'term' in c], 'pages': [c['page'] for c in chunk if 'page' in c]})
+        hm = {'world': w, 'district': d}
+        if rg: hm['region'] = rg
+        if nr: hm['near'] = nr
+        stones.append({'t': 'rec', 'home': hm, 'terms': [c['term'] for c in chunk if 'term' in c], 'pages': [c['page'] for c in chunk if 'page' in c]})
 placements = [p for p in places if p['t'] != 'rec'] + stones
 from collections import Counter as _C
 print('placements', _C(p['t'] for p in placements), 'index entries placed', sum(1 for p in places if 'term' in p), 'pages placed', sum(1 for p in places if 'page' in p))
 print('by world', _C(p['home']['world'] for p in placements).most_common(8))
+print('Viridian districts', len(VDIST), 'regions', _C((p['home']['world'], p['home'].get('region')) for p in placements if p['home'].get('region')).most_common(40))
 
 json.dump(homes, open(P('game_roster/codex_homes.json'), 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
 hdr = '// ★ GENERATED by tools/explorer/build_codex.py from the Master Codex v16.3 · do not hand-edit.\n'
@@ -175,4 +220,5 @@ open(P('explorer/codex_reference.js'), 'w', encoding='utf-8').write(hdr + 'windo
 from collections import Counter
 print(len(beings), 'beings ·', Counter((b['kind'], b['place']) for b in beings))
 print('sections', [(s['key'], len(s['pages'])) for s in sections], 'index', len(index))
+print('people by region', Counter((b['home']['world'], b['home'].get('region')) for b in beings if b['kind'] == 'humanoid' and b['home']).most_common(30))
 print('humanoid homes', Counter(str(b['home']['world']) if b['home'] else 'none' for b in beings if b['kind'] == 'humanoid').most_common(12))

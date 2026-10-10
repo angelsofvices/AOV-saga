@@ -457,6 +457,10 @@
     if (s.kind === 'aethren') rows.push(['SPECIES', subjName(id)], ['TYPES', s.types]);
     if (s.kind === 'haemen') rows.push(['PEOPLE', s.species ? (known(s.term) ? s.species : '— not yet learned —') : '— awaiting canon —']);
     if (s.sp && c.lv) rows.push(['LEVEL', String(c.lv)], ['VIGOUR', Math.max(0, c.hp == null ? maxHp(id) : c.hp) + ' / ' + maxHp(id)]);
+    // a habitat variant: its Codex record (habitat, body plan, colours, feature, tier, source species)
+    var vr = window.AOV_AETHREN_VARIANTS && window.AOV_AETHREN_VARIANTS.get(id);
+    if (vr) rows.push(['HABITAT', vr.habitatName], ['BODY PLAN', vr.body.toUpperCase()], ['FEATURE', String(vr.feature).toUpperCase()], ['TIER', String(vr.tier)],
+      ['SOURCE BODY', vr.sourceSpecies && subj(vr.sourceSpecies) ? (known(subj(vr.sourceSpecies).term) ? subjName(vr.sourceSpecies) : '— a canon Aethren, not yet named —') : String(vr.sourceSpecies || '—')]);
     rows.push(['RARITY', rarity(s)], ['QUANTITY', String(c.qty)]);
     return '<div class="x-card' + (c.foil ? ' foil' : '') + (big ? ' big' : '') + (c.pend ? ' pend' : '') + '" data-card="' + id + '">' +
       (c.pend ? '<div class="x-card-pend">IN BAG · BRING HOME</div>' : s.sp && !c.clone ? '<div class="x-card-pend prof">PROFILE · CLONE AT ' + esc(hqName()) + '</div>' : '') +
@@ -469,6 +473,7 @@
         (s.provisional ? '<p class="x-card-canon">PROVISIONAL · awaiting the Creator’s species for this world</p>' : '') +
         (s.provisionalData ? '<p class="x-card-canon">OFFICIAL ROSTER · tier and types provisional, awaiting the Creator</p>' : '') +
         (s.retired ? '<p class="x-card-canon">RETIRED · no longer on the official roster</p>' : '') +
+        (vr ? '<p class="x-card-cols"><span>COLOURS</span>' + ['primary', 'secondary', 'accent'].map(function(k){ return '<i title="' + k + ' ' + vr.colors[k] + '" style="background:' + vr.colors[k] + '"></i>'; }).join('') + '</p>' : '') +
         '<p class="x-card-note">“' + esc(s.journal) + '”</p>'
         : '<div class="x-card-meta"><span>' + esc(classLine(s)) + (s.sp && c.lv ? ' · LV ' + c.lv : '') + '</span><b>' + rarity(s) + '</b></div>') +
       (c.qty > 1 ? '<span class="x-qty">×' + c.qty + '</span>' : '') +

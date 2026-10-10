@@ -84,6 +84,11 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.12', title:'624 Aethren variants, on the card',
+      notes:[
+        '16 native body plans across 39 habitats: 624 Aethren variants live on 24 worlds',
+        'A variant’s card records its habitat, body plan, feature, tier, source body and colours'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.11', title:'AstraNav, and the composite gems',
       notes:[
         'One spelling everywhere: the AstraNav',

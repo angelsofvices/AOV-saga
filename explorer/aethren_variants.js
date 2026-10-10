@@ -1,5 +1,5 @@
 // ★ 2026-10-09 · AETHREN VARIANTS
-// 30 habitat families × 4 native body plans = 120 visibly distinct creatures.
+// 39 habitat families × 16 native body plans (4 canon bodies + 12 native silhouettes) = 624 habitat variants.
 // Each variant is a sprite phenotype, not a new claim about the canon roster:
 // the source body remains a canon Aethren body and the habitat supplies its
 // coloration, feature, and encounter ecology.

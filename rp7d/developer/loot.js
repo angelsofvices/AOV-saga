@@ -133,7 +133,7 @@ export function eatItem(key, rizer, { yieldMultiplier = 1 } = {}) {
   const room = { hp: (rizer.maxHp || 100) - rizer.hp, stamina: rizer.maxStamina - rizer.stamina, astral: rizer.maxAstralEnergy - rizer.astralEnergy };
   if (!Object.keys(b).some(k => room[k] > 0.5)) return null;
   const got = {};
-  for (const [k, v] of Object.entries(b)) { const add = Math.min(v * yieldMultiplier, Math.max(0, room[k])); if (add <= 0) continue; got[k] = Math.round(add);
+  for (const [k, v] of Object.entries(b)) { const add = Math.min(v * (k === 'hp' ? 2 : 1) * yieldMultiplier, Math.max(0, room[k])); // HP boosts are on the old 100-HP scale (HP_SCALE) if (add <= 0) continue; got[k] = Math.round(add);
     if (k === 'hp') rizer.hp += add; else if (k === 'stamina') rizer.stamina += add; else rizer.astralEnergy += add; }
   return got;
 }

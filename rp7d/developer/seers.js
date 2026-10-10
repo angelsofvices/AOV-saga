@@ -22,12 +22,12 @@ import { dressCorrupted } from './enemy-skins.js';
 import { dressDaemon } from './daemon-skins.js';
 import { DAEMON_BLACK_SPEC } from './daemons-black.js';
 import { rollEnemyBag } from './coin-piles.js';
-import { meleeMul } from './astral-stats.js';
+import { dealt } from './astral-stats.js';
 import { DAEMON_RED_SPEC } from './daemons-red.js';
 
 export const SEER = {
   name: 'Seer grunt', key: 'seer', patrols: 'seerPatrols',
-  url: './assets/seer/seer.glb', scale: 1.25, hp: 15, radius: 0.55,
+  url: './assets/seer/seer.glb', scale: 1.25, hp: 15, atk: 80, def: 60, radius: 0.55, // atk / def: the 5 core stats (astral-stats.js)
   walk: 2.1, run: 6.0, sight: 17, sightNight: 11, cone: 1.05, sense: 3.5,
   loseAfter: 4.5, giveUpDist: 32, leash: 48, callRadius: 14, maxAttackers: 2, // (loseAfter / giveUpDist / leash: not used while the hunt is relentless — see `hunted` in update)
   hold: 3.6, respawn: 40,
@@ -47,7 +47,7 @@ export const SEER = {
 // Zombie punch/kick clips drive his attacks; he is slower to turn and swings at air more often.
 export const MORI = {
   ...SEER, name: 'Mori', key: 'mori', family: 'corrupted', patrols: 'moriPatrols', url: './assets/mori/mori.glb',
-  hp: 9, walk: 1.25, run: 3.6, sight: 13, sightNight: 13, cone: 1.2, sense: 3, loseAfter: 6, giveUpDist: 26, leash: 36, callRadius: 12,
+  hp: 9, atk: 80, def: 60, walk: 1.25, run: 3.6, sight: 13, sightNight: 13, cone: 1.2, sense: 3, loseAfter: 6, giveUpDist: 26, leash: 36, callRadius: 12,
   punch: { damage: 9, weight: 0.8, range: 1.05 }, kick: { damage: 12, weight: 0.2, range: 1.4 },
   bite: { damage: 11, range: 1.02 },
   comboLength: [0.45, 0.35, 0.15, 0.05], clipSpeed: 0.72, windup: [0.45, 0.75], turnRate: 2.0, whiff: 0.45, cooldown: [1.3, 2.4]
@@ -889,7 +889,8 @@ export async function createSeers(scene, world, W) {
           at.done.add(key);
           const kx = hit.at.x - ra.x, kz = hit.at.z - ra.z, kd = Math.hypot(kx, kz) || 1;
           const fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1; // mid-combo blows rock them; the finisher's last blow sends them
-          const r = hitGrunt(g, base * stageMul * meleeMul(fin), kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)));
+          const r = hitGrunt(g, dealt(base * stageMul, g.T.def, fin), // Rizer's ATK against this foe's DEF
+            kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)));
           hooks.onLanded?.({ ...r, x: hit.at.x, y: hit.at.y, z: hit.at.z, part: hit.part }, at.kind, g);
           if (r.down) ghost = { at, w, x: hit.at.x, y: hit.at.y, z: hit.at.z, name: r.name, t: clock };
         }

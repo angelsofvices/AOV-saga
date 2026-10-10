@@ -6,6 +6,9 @@
 //   loop    true for cycles (idle, walk, run), false for one-shots
 //   inPlace true strips forward travel (the game moves the character itself)
 export default [
+  { file: 'rizer/Plant_Tree.fbx', name: 'Treehouse · Plant seeds', loop: false, inPlace: true },
+  { file: 'rizer/Ladder_Climbing.fbx', name: 'Treehouse · Ladder climbing', loop: true, inPlace: true },
+  { file: 'mori/Wobbling.fbx', name: 'Tornado · Wobbling', loop: true, inPlace: true },
   // locomotion
   { file: 'rizer/walk_1.fbx', name: 'Walk 1', loop: true },
   { file: 'rizer/npc_walk_1.fbx', name: 'NPC walk 1', loop: true },

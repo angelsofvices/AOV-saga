@@ -17,6 +17,8 @@ import DEFAULT_ASSIGNMENTS from './anim-assignments.js';
 
 // Every slot an actor can fill. `kind` decides how the actor drives it.
 export const SLOTS = [
+  { key: 'plantTree', label: 'Plant tree seeds', kind: 'oneshot' },
+  { key: 'ladderClimb', label: 'Treehouse ladder climb / descent', kind: 'state' },
   { key: 'idle', label: 'Idle', kind: 'state' },
   { key: 'walk', label: 'Walk', kind: 'locomotion' },
   { key: 'run', label: 'Run', kind: 'locomotion' },
@@ -29,6 +31,8 @@ export const SLOTS = [
   { key: 'astraliftHit', label: 'Astralift hit reaction', kind: 'oneshot' },
   { key: 'standup', label: 'Enemy stand up', kind: 'oneshot' },
   { key: 'shocked', label: 'Enemy electrocuted (Astralthunder)', kind: 'oneshot' },
+  { key: 'tornadoWobble', label: 'Enemy tornado · wobbling', kind: 'state' },
+  { key: 'tornadoFloat', label: 'Enemy tornado · floating', kind: 'state' },
   { key: 'dazedWalk', label: 'Enemy dazed walk (Astralstrike)', kind: 'locomotion' },
   { key: 'dazedRun', label: 'Enemy dazed run (Astralstrike)', kind: 'locomotion' },
   { key: 'crawl', label: 'Mori / Daemon crawl', kind: 'locomotion' },
@@ -155,7 +159,7 @@ export const SLOTS = [
   { key: 'hover', label: 'Hover (unused yet)', kind: 'state' }
 ];
 const AIR = new Set(['jump', 'rifleJump', 'fall', 'doublejump', 'wallflip', 'hover', 'fly', 'descend', 'fastfall', 'bail']); // physics owns height for these
-const FIXED_ROOT = new Set(['ledgeGrab', 'ledgeClimb']); // geometry drives the root; clips supply the body pose
+const FIXED_ROOT = new Set(['ledgeGrab', 'ledgeClimb', 'ladderClimb']); // geometry drives the root; clips supply the body pose
 const DROP = new Set(['bigland', 'fastland']);
 const FLOOR = new Set(['bailImpact', 'airslam']); // physics owns the fall; the body keeps its whole drop to the floor (it ends lying down) // physics owns the fall; keep only the landing's downward give
 export const SLOT_KEYS = SLOTS.map(s => s.key);

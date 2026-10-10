@@ -28,6 +28,8 @@ const RIFLE = {
 const M = f => 'lib:mori/' + f + '.fbx';
 const DEATHS = { clip: L('death_1'), more: [L('death_2'), L('death_3'), L('death_4')] };
 const PLAYER = {
+  plantTree: { clip: L('Plant_Tree'), inPlace: true },
+  ladderClimb: { clip: L('Ladder_Climbing'), inPlace: true },
   walk: { clip: L('walk_1'), stride: 1.15 }, // same 1.17 s cadence, 15% longer steps (legs swing wider, covers more ground)
   stairWalkUp: { clip: L('Ascending Stairs'), inPlace: true },
   stairRunUp: { clip: L('Running Up Stairs'), inPlace: true },
@@ -138,7 +140,12 @@ const PLAYER = {
   craft: { clip: L('Crafting'), inPlace: true }          // □ with the telescope drawn: crafts it, piece by piece
 };
 // Mori: use the dedicated zombie pack for his idle, movement and attacks.
+const TORNADO = {
+  tornadoWobble: { clip: M('Wobbling'), inPlace: true },
+  tornadoFloat: { clip: L('float'), inPlace: true }
+};
 const MORI = {
+  ...TORNADO,
   idle: { clip: M('Zombie Idle') },
   walk: { clip: M('Slow_Walk'), inPlace: true },
   run: { clip: M('Jog_Chase'), inPlace: true },
@@ -165,6 +172,7 @@ export default {
   psychosyd: PLAYER, // Rizer's Psychosyd skin
   elzoran: PLAYER,
   seer: {
+    ...TORNADO,
     dance: { clip: 'lib:dance/Rockstar Hips.fbx', more: ['lib:dance/dance cheer.fbx','lib:dance/Flair.fbx','lib:dance/guy dance 2.fbx','lib:dance/guy dance 3.fbx','lib:dance/gyat dance 2.fbx','lib:dance/gyat dance 3.fbx','lib:dance/gyat dance girl.fbx','lib:dance/kid dance.fbx','lib:dance/pop lock dance.fbx','lib:dance/Rockstar hips variaint 2.fbx'], inPlace: true },
     walk: { clip: L('npc_walk_1'), more: [L('npc_walk_2')] },
     astraliftHit: { clip: L('blastback') },
@@ -187,6 +195,7 @@ export default {
   // Nova Guardian: the shared clips for moving, being hit and falling. Its rifle slots (rifleIdle … rifleDeath) are empty
   // until Mixamo rifle clips are assigned; the rifle rig holds and aims the weapon meanwhile.
   nova: {
+    ...TORNADO,
     ...RIFLE,
     walk: { clip: L('npc_walk_1') },
     hurt: { clip: L('Hit_1'), more: [L('Big_Stomach_Hit'), L('Head_Hit')] },

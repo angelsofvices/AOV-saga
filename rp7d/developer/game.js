@@ -56,6 +56,7 @@ import { registerPlayableBuilds, savePlayableBuild, playableEntry, removeBuildAs
 import { createHUD } from './hud.js';
 import { createUILayout } from './ui-layout.js';
 import { setNight } from './props.js';
+import { createTreehouses } from './treehouses.js';
 import { createHomeInterior } from './home-interior.js';
 import { createFurnitureMover } from './home-furniture.js';
 import { createSeating } from './seating.js';
@@ -289,6 +290,7 @@ function toggleFocus() {
 // The active partner: one bonded Zyrex out in the world with Rizer. Picking another (Zyphone › Zyrex) swaps it.
 function setPartner(id) {
   const rec = (inventory.bondedZyrex || []).find(b => b.id === id); if (!rec) return false;
+  if (inventory.treehouses?.some(t => t.cabin === 'built' && t.defenders?.includes(id))) { showToast('Recall this defender from its treehouse first'); return false; }
   if (partner) { scene.remove(partner.b.root); partner = null; }
   inventory.activeZyrex = rec.id; saveInv();
   const a = rizer.facing + Math.PI - 0.7, at = { x: rizer.position.x + Math.sin(a) * 2.3, z: rizer.position.z + Math.cos(a) * 2.3 };
@@ -308,6 +310,7 @@ function setOutdoorActorsVisible(value) {
   if (npcs) for (const n of npcs.npcs) n.root.visible = visible;
   for (const z of zyrex || []) z.setVisible ? z.setVisible(visible) : z.b?.root && (z.b.root.visible = visible);
   partner?.setVisible(visible);
+  for (const L of treehouses?.live.values() || []) for (const g of L.guards.values()) g.setVisible(visible);
   if (seers) for (const g of seers.grunts) { const v = g.cave ? caveMode && g.cave === caveId : visible; g.root.visible = v; g.lootBag.visible = v && g.state === 'down' && !g.looted; }
   commonChests?.setVisible(visible);
   if (loot) for (const c of loot.all) { c.chest.visible = visible; c.mesh.visible = visible && c.state === 'waiting'; }
@@ -325,7 +328,7 @@ function showInterior(I = homeInterior) {
   indoor = I; homeMode = true; world.setExteriorVisible(false); I.show(true); setOutdoorActorsVisible(false);
   $('#game').classList.add('home-interior'); astral.clearLock(); I.start(rizer, cam, 1);
   cam.snapBehind(rizer);
-  showToast(I === homeInterior ? 'Rizer’s Living Room · walk upstairs to Rizer’s room' : 'Malezor Town Store · Floor 1 · Rizer Department · the stairs on the right lead up to the Zyrex Department', 3400);
+  showToast(I.treehouse ? 'Rizer’s Treehouse · N opens management · R lock / □ move furniture · Space at the door to leave' : I === homeInterior ? 'Rizer’s Living Room · walk upstairs to Rizer’s room' : 'Malezor Town Store · Floor 1 · Rizer Department · the stairs on the right lead up to the Zyrex Department', 3400);
 }
 const showHomeInterior = () => showInterior(homeInterior);
 // ── Pickups: loot lying in the world. Wild fruit in the grass (nature.js) and the bags defeated enemies drop.
@@ -438,6 +441,9 @@ function initStorage() {
   storage.onChange(onStorageChange);
   syncWorkstationKit();
   dep.sync(); // deployed Field Equipment comes back where it was left
+  treehouses = createTreehouses({ scene, world, rizer, cam, home: homeInterior, blocked: deployBlocked, occupants: placementOccupants,
+    toast: showToast, prompt: (n,h) => dep?.showPrompt(n,h), enter: I => walkDoor('enter',I), exit: leaveHomeInterior, leaveDoor: I => walkDoor('exit',I), saveGame, foes, seers, fx, onGuardHit: partnerHit,
+    onAssign: id => { if (partner?.record.id === id) { scene.remove(partner.b.root); partner=null; inventory.activeZyrex=null; hud?.setPartner(null); } } });
 }
 const _pcPos = new THREE.Vector3(), _pcLook = new THREE.Vector3();
 // Typing pose reached (seating.js): the camera eases to the monitor over his shoulder, then the screen opens. Closing it eases back.
@@ -644,7 +650,7 @@ function walkDoor(mode, I = indoor) {
   if (!outside || !inside || rizer.seq || !rizer.actor) return;
   const sign = mode === 'enter' ? 1 : -1, ext = doorFrame(outside, sign), int = doorFrame(inside, sign);
   const [first, second] = mode === 'enter' ? [ext, int] : [int, ext], slot = mode === 'enter' ? 'enter' : 'exitDoor';
-  if (!rizer.actor.has(slot)) { if (mode === 'enter') showInterior(I); else leaveHomeInterior(); return; } // clip not loaded: plain switch
+  if (!rizer.actor.has(slot)) { if (mode === 'enter') showInterior(I); else { leaveHomeInterior(); if(I.treehouse) treehouses?.descend(I.rec); } return; } // clip not loaded: plain switch
   let switched = false;
   fadeEl();
   const go = () => rizer.startDoorWalk(first, slot, {
@@ -664,7 +670,7 @@ function walkDoor(mode, I = indoor) {
       if (mode === 'exit' && switched) snapOutsideDoor(3.2); else cam.snapBehind(rizer, mode === 'exit' ? 3.2 : 3.7);
       if (t > DOORWALK.close[1] - 0.02 && !second.latched) { second.latched = true; sfx.play('land', 0.35, 1.35); } // the latch clicks shut
     },
-    done: () => { first.set(0); second.set(0); doorFade.style.opacity = 0; if (mode === 'exit') { snapOutsideDoor(3.4); cam.targetDist = 3.6; } else { cam.snapBehind(rizer, 3.4); cam.targetDist = 4.6; } }
+    done: () => { first.set(0); second.set(0); doorFade.style.opacity = 0; if (mode === 'exit' && I.treehouse) treehouses?.descend(I.rec); if (mode === 'exit') { snapOutsideDoor(3.4); cam.targetDist = 3.6; } else { cam.snapBehind(rizer, 3.4); cam.targetDist = 4.6; } }
   });
   const m = rizer.doorMark(first);
   if (Math.hypot(rizer.position.x - m.x, rizer.position.z - m.z) > 0.12) rizer.walkTo({ x: m.x, z: m.z }, m.face, go, { pass: { x: m.x, z: m.z, r: 1.3 } }); else { rizer.facing = m.face; go(); } // walk up to the knob, then open
@@ -712,10 +718,11 @@ const readSave = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY) 
 let newArmed = false, titleIndex = 0;
 function saveGame() {
   if (!started || !rizer || koT > 0 || ufoPilot || astralboard?.active) return;
+  treehouses?.save();
   const hero = npcs?.npcs.find(n => n.role === 'hero');
   if (hero) { inventory.zorynMet = hero.met; inventory.zorynRecruited = hero.recruited || hero.wasRecruited; inventory.zorynDowned = hero.downed; inventory.zorynHealth = hero.health; saveInv(); }
   const p = rizer.position, at = homeMode ? homeReturn : caveMode && caveReturn ? { x: caveReturn.x, y: world.groundAt(caveReturn.x, caveReturn.z), z: caveReturn.z, facing: caveReturn.face } : { x: p.x, y: p.y, z: p.z, facing: rizer.facing };
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, t: Date.now(), home: homeMode && indoor === homeInterior, at, hour, region: hud?.regionOf(p.x, p.z) })); } catch (e) {}
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, t: Date.now(), home: homeMode && indoor === homeInterior, treehouse: homeMode && indoor.treehouse ? indoor.id : null, at, hour, region: hud?.regionOf(p.x, p.z) })); } catch (e) {}
 }
 function titleButtons() { return [...document.querySelectorAll('#title-menu .title-btn')].filter(b => !b.disabled); }
 function titleFocus(i) { const list = titleButtons(); if (!list.length) return; titleIndex = (i + list.length) % list.length; list.forEach((b, k) => b.classList.toggle('focus', k === titleIndex)); }
@@ -736,6 +743,7 @@ function loadGame() {
   const sv = readSave(); if (!sv || !world) return;
   if (typeof sv.hour === 'number') { hour = sv.hour; hourTarget = null; }
   if (!sv.home && sv.at) { homeReturn = { ...sv.at }; leaveHomeInterior(); }
+  if (sv.treehouse) { const rec=inventory.treehouses?.find(q => q.id === sv.treehouse && q.cabin === 'built'); if (rec) showInterior(treehouses.interior(rec)); }
   beginPlay(); showToast(sv.home ? 'Home · it kept your place' : `${sv.region || 'Malezor'} · it kept your place`);
 }
 $('#enter').addEventListener('click', () => { if (world) startNewGame(); });
@@ -810,6 +818,7 @@ let seating = null; // INTERACTIVE_SEAT controller (the Nebuladock chair)
 let pcUse = null; // Nebuladock 3000 session: {phase 'walk'|'in'|'on'|'out', k 0..1 camera blend, n:{screen}}
 let labs = null, labsView = null, xray = null, astralResetArmed = 0; // LABS › Rizer (labs.js): clones, templates, reset · labsView: the camera held on him while the page is up
 let n3000 = null, n3000Camera = null, tv = null, tvCamera = null; // tv: the living-room TV & DVD system (tv-system.js)
+let treehouses = null;
 let dep = null, stationUI = null; // storage foundation: deployed Field Equipment · Home PC / Experiment Table screens
 let storeInterior = null, indoor = null; // every enterable building is an interior level; `indoor` is the one Rizer is in (homeMode = indoors)
 let furnMover = null, homeInterior = null, homeMode = false, homeReturn = null, npcs = null, commonChests = null, zycube = null;
@@ -1140,7 +1149,7 @@ function build() {
   };
   hud.setScanSource(() => av.minimap());
   const activeBond = (inventory.bondedZyrex || []).find(b => b.id === inventory.activeZyrex);
-  if (activeBond) hud.setPartner({ name:activeBond.name, type:activeBond.species, lv:activeBond.level, hp:100, maxHp:100, ap:100, maxAp:100 });
+  if (activeBond && !inventory.treehouses?.some(q => q.cabin === 'built' && q.defenders?.includes(activeBond.id))) hud.setPartner({ name:activeBond.name, type:activeBond.species, lv:activeBond.level, hp:100, maxHp:100, ap:100, maxAp:100 });
   if (activeBond) setPartner(activeBond.id);
   bondGame = createBondGame({ scene, host:$('#game'), fx, inventory, saveInv, toast:showToast,
     onSuccess:(z, difficulty) => {
@@ -1206,7 +1215,7 @@ function build() {
   addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
   // Debug/test hook for playtests and automated checks.
-  window.__rp7d = { get store() { return storeInterior; }, get indoor() { return indoor; }, enterStore: () => walkDoor('enter', storeInterior), stationUI: () => stationUI, focus, get storm() { return storm; }, castFocus, get lightbulbs() { return lightbulbs; }, caves: { get sys() { return caveSys; }, enter: id => enterCave(id), exit: () => exitCave(), get mode() { return caveMode; }, get id() { return caveId; }, report: () => world.caveReport(), plan: () => world.cavePlan, state: caveState, grunts: caveGrunts },  get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
+  window.__rp7d = { get store() { return storeInterior; }, get indoor() { return indoor; }, enterStore: () => walkDoor('enter', storeInterior), stationUI: () => stationUI, focus, get storm() { return storm; }, castFocus, get lightbulbs() { return lightbulbs; }, caves: { get sys() { return caveSys; }, enter: id => enterCave(id), exit: () => exitCave(), get mode() { return caveMode; }, get id() { return caveId; }, report: () => world.caveReport(), plan: () => world.cavePlan, state: caveState, grunts: caveGrunts },  get seers() { return seers; }, get labs() { return labs; }, get skinLab() { return skinLab; }, get tv() { return tv; }, get n3000() { return n3000; }, get homeInterior() { return homeInterior; }, get elapsed() { return elapsed; }, music, get gatelocks() { return gatelocks; }, get partner() { return partner; }, get astralboard() { return astralboard; }, get furn() { return homeInterior?.furn; }, get furnMover() { return furnMover; }, storage, crafting, get dep() { return dep; }, get stationUI() { return stationUI; }, openStation, get astro() { return astro; }, get scopeView() { return scopeView; }, scope: { start: startScope, use: useScope, toggle: toggleScope, get set() { return scopeSet; }, get build() { return scopeBuild; } }, world, rizer, cam, get zyrex() { return zyrex; }, zy, lab, skinLab, buildLab, bondGame, astral, loot, held, inventory, hud, sfx, westLakeBus, get commonChests() { return commonChests; }, get npcs() { return npcs; }, get scanobots() { return scanobots; }, get penumbras() { return penumbras; }, get novas() { return novas; }, get resources() { return resources; }, resource: { add: addResource, remove: removeResource, count: getResourceCount, has: hasResource, RESOURCES, SALVAGE }, get bolts() { return bolts; }, foes, progression, awardRizerXP, levelInfo, levelStart, RXP_CURVE, rxp: { awardCombatRXP, awardDiscovery, awardObjective, awardOnce, combatRXP, RXP_BANDS, RXP_REWARDS, RXP_COMBAT, RXP_ENEMIES, RXP_DISCOVERY, RXP_OBJECTIVES }, get treehouses() { return treehouses; }, get coinPiles() { return coinPiles; }, get gatelocks() { return gatelocks; }, press: c => pressed.add(c), setHour: h => { hour = h; hourTarget = null; }, settle: (sec = 2) => { for (let i = 0; i < sec * 60; i++) { elapsed += 1 / 60; update(1 / 60, elapsed); } }, teleport: (x, z, yaw = 0, pitch = 0.3, dist = 9) => { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); cam.yaw = yaw; cam.pitch = pitch; cam.targetDist = cam.dist = dist; cam.focus.set(x, rizer.position.y + 1.7, z); }, get hour() { return hour; }, leaveHome: () => leaveHomeInterior(), get lootNear() { return nearestLoot(); }, renderer, scene, camera, composer };
   frame();
   // title screen: ready once the world exists · a NEW GAME reload skips straight into play
   $('#new-sub').textContent = 'Wake up in Rizer’s room';
@@ -1813,6 +1822,7 @@ function devMapJump(pt) {
 }
 function teleport(x, z) { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); rizer.vy = 0; rizer.flying = false; cam.focus.set(x, rizer.position.y + 1.7, z); }
 function menuAction(act) {
+  if (act === 'plant-tree') { zy.close(); treehouses?.start(); return; }
   if (act !== 'reset') resetArmed = 0;
   if (act === 'sens') settings.sens = SENS[(SENS.indexOf(settings.sens) + 1) % SENS.length];
   if (act === 'invert') settings.invertY = !settings.invertY;
@@ -1907,6 +1917,7 @@ function devTick(dt) {
 const _bladeA = new THREE.Vector3(), _bladeB = new THREE.Vector3();
 const _frustum = new THREE.Frustum(), _pv = new THREE.Matrix4(), _sph = new THREE.Sphere(new THREE.Vector3(), 2.6);
 const seerHooks = {
+  treehouseTarget: (g,r) => treehouses?.attackTarget(g,r),
   inView: pos => { _sph.center.set(pos.x, pos.y + 1.2, pos.z); return _frustum.intersectsSphere(_sph); },
   projectileThreat: g => bowProjectiles?.shots?.find(s => {
     const dx = g.pos.x - s.pos.x, dy = g.pos.y + 1.25 - s.pos.y, dz = g.pos.z - s.pos.z;
@@ -2088,6 +2099,7 @@ function update(dt, t, realDt = dt) {
   const stWas = !!stationUI?.isOpen;
   const labOpen = (lab.isOpen || skinLab?.isOpen || buildLab?.isOpen) && !zy.isOpen;
   if (pad?.zyphone && bondGame?.active) bondGame.fail('Cancelled');
+  else if (pad && treehouses?.isOpen) treehouses.pad(pad);
   else if (pad && stationUI?.isOpen) stationUI.pad(pad);
   else if (pad?.zyphone && started) { skinLab?.close(); buildLab?.close(); zy.toggle(); }
   else if (pad && zy.isOpen && zy.tab === 'map' && devMapOn() && pad.edge(0)) devMapJump(hud.mapCursor); // ✕ on the dev map cursor
@@ -2095,10 +2107,11 @@ function update(dt, t, realDt = dt) {
   else if (pad && labOpen) (buildLab?.isOpen ? buildLab : skinLab?.isOpen ? skinLab : lab).pad(pad);
   if (pressed.has('Tab') && started) { skinLab?.close(); buildLab?.close(); zy.open(); }
   const pcLock = !!pcUse && pcUse.phase !== 'walk'; // in front of the Nebuladock: locomotion and combat are off
-  const menu = zy.isOpen || wasOpen || !!stationUI?.isOpen || stWas || pcLock, ko = koT > 0;
+  const menu = zy.isOpen || wasOpen || !!stationUI?.isOpen || stWas || pcLock || !!treehouses?.isOpen, ko = koT > 0;
   if ((zy.isOpen || stationUI?.isOpen) && dep?.placing) dep.cancel(true); // opening a menu abandons a placement
   dep?.showPrompt(null); // re-shown below when something usable is in reach
-  if (!menu && homeMode && indoor !== homeInterior) { const st = indoor.stationAt(rizer); if (st) dep?.showPrompt(st.name, 'SHOP · ○ / E'); }
+  if (!menu && homeMode && indoor.treehouse) dep?.showPrompt('RIZER’S TREEHOUSE','○ / E manage · R lock / □ move furniture');
+  else if (!menu && homeMode && indoor !== homeInterior) { const st = indoor.stationAt(rizer); if (st) dep?.showPrompt(st.name, 'SHOP · ○ / E'); }
   else if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'tv' ? 'WATCH TV · ○ / E' : st.id === 'floor-guitar' || st.pickup ? 'PICK UP · ○ / E' : undefined); } } }
   if (!menu) dep?.update(); // the placement ghost
   const kx = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
@@ -2130,16 +2143,25 @@ function update(dt, t, realDt = dt) {
     radioPrev:pad?.edge(14) || pressed.has('KeyT'),
     radioWheel:pad?.btn(4) || keys.has('KeyB')
   };
-  const act = started && !scopeView && !menu && !ko && !lab.previewing && !buildLab?.isOpen && !bondGame?.active && !ufoTransition && !rizer.seq && !rizer.bail && !rizer.prayer && !astral.rollingCast && !pcUse && !seating?.active; // prayer and the authored Rolling Thunder cast own Rizer until the clip ends
+  const act = started && !scopeView && !menu && !ko && !lab.previewing && !buildLab?.isOpen && !bondGame?.active && !ufoTransition && !rizer.seq && !treehouses?.busy && !rizer.bail && !rizer.prayer && !astral.rollingCast && !pcUse && !seating?.active; // prayer and the authored Rolling Thunder cast own Rizer until the clip ends
   // a lab preview / hologram transition / walking through a door holds Rizer still
   if (!act) { inp.x = inp.z = 0; inp.jumpPressed = false; inp.dodgePressed = inp.emotePressed = inp.crouchPressed = false; }
+  if (!menu && started && !treehouses?.busy && pressed.has('KeyN')) { if (homeMode && indoor.treehouse) indoor.manage(); else if (!homeMode) { const near=treehouses?.nearest(); if(near) treehouses.open(near.rec); else treehouses?.start(); } pressed.delete('KeyN'); }
+  const treePlanting = !!treehouses?.placing;
+  const treeNear = !homeMode && !menu && !treePlanting && act ? treehouses?.nearest() : null;
+  if (!menu && treePlanting) { if (pressed.has('KeyE') || pad?.interact) treehouses.plant(); else if (pressed.has('Escape') || pad?.kick) treehouses.cancel(); }
+  else if (treeNear && (pressed.has('KeyE') || pad?.interact)) treehouses.interact();
+  else if (treeNear && (pad?.kick || pressed.has('KeyK')) && Math.abs(rizer.position.y-treeNear.rec.y-4.6)<.7) treehouses.descend(treeNear.rec);
+  const treeConsumed = treePlanting || !!treehouses?.busy || !!treehouses?.isOpen || (!!treeNear && !!rizer.seq);
+  if (treeConsumed) { inp.x=inp.z=0; inp.jumpPressed=inp.jumpHeld=inp.crouchPressed=inp.dodgePressed=inp.emotePressed=false; for(const k of ['KeyE','KeyF','KeyJ','KeyK','MousePunch','MouseKick']) pressed.delete(k); }
+  if (homeMode && indoor.treehouse) indoor.mover.update(dt,inp,{active:act&&!menu,lock:pressed.has('KeyR')||pressed.has('MouseLock')||!!pad?.lock,square:pressed.has('KeyJ')||pressed.has('MousePunch')||!!pad?.punch,cancel:pressed.has('KeyE')||!!pad?.interact});
   const placingNow = !!dep?.placing; // placing: ○ / E confirms, △ cancels, and nothing else acts on those buttons
   if (placingNow && !menu) { if (pressed.has('KeyE') || pad?.interact) dep.confirm(); else if (pad?.kick) dep.cancel(); for (const c of ['KeyE', 'KeyF', 'KeyJ', 'KeyK', 'MousePunch', 'MouseKick']) pressed.delete(c); }
-  const padAct = pad && !labOpen && !placingNow ? pad : null; // while the lab is open the face buttons drive the lab
+  const padAct = pad && !labOpen && !placingNow && !treeConsumed ? pad : null; // while the lab is open the face buttons drive the lab
   if (homeMode && indoor === homeInterior && furnMover) furnMover.update(dt, inp, { active: act && !menu, lock: pressed.has('KeyR') || pressed.has('MouseLock') || !!padAct?.lock, square: pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch, cancel: pressed.has('KeyE') || !!padAct?.interact });
   else if (furnMover?.busy) furnMover.abort();
   if (homeMode && seating?.active) seating.update(dt, { interact: !menu && (pressed.has('KeyE') || !!padAct?.interact), square: !menu && (pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch) }); else if (seating?.active) seating.abort();
-  if (homeMode && !menu && act && !rizer.seq && !furnMover?.busy && indoor.nearDoor(rizer)) { // inside, at the front door: ✕ / Space leaves the same way ✕ enters
+  if (homeMode && !menu && act && !rizer.seq && !furnMover?.busy && !indoor.mover?.busy && indoor.nearDoor(rizer)) { // inside, at the front door: ✕ / Space leaves the same way ✕ enters
     dep?.showPrompt('Front door', 'X / SPACE · go outside');
     if (inp.jumpPressed) { inp.jumpPressed = false; inp.jumpHeld = false; walkHomeDoor('exit'); }
   }
@@ -2183,7 +2205,8 @@ function update(dt, t, realDt = dt) {
     } else if (homeMode && indoor !== homeInterior) { // another building: its counters are merchants (store.js · station-ui 'shop')
       if (pressed.has('KeyE') || padAct?.interact) {
         const st = indoor.stationAt(rizer);
-        if (st?.dept) { dep?.showPrompt(null); stationUI.open('shop', { store: indoor.id, dept: st.dept, onWallet: inv => hud.setWallet(inv) }); }
+        if (indoor.treehouse) indoor.manage();
+        else if (st?.dept) { dep?.showPrompt(null); stationUI.open('shop', { store: indoor.id, dept: st.dept, onWallet: inv => hud.setWallet(inv) }); }
         else showToast(indoor.level === 1 ? 'Front door · ✕ / Space to leave · the stairs on the right go up' : 'The stairs by the east wall lead back down');
       }
     } else if (homeMode) {
@@ -2351,6 +2374,7 @@ function update(dt, t, realDt = dt) {
   if (!menu && !westLakeBus?.driving) updateBow(dt, rizer.weapon === 'bow' && (keys.has('KeyJ') || mousePunchHeld || !!padAct?.punchHeld));
   if (!menu && !westLakeBus?.driving && held) updateBlaster(dt, act && rizer.weapon === 'blaster' && (keys.has('KeyJ') || mousePunchHeld || !!padAct?.punchHeld));
   if (!menu && !westLakeBus?.driving) { const mv = Math.hypot(inp.x || 0, inp.z || 0) > 0.3 || !!inp.jumpPressed; updateJam(dt, mv); updateScope(dt, mv); }
+  if (!menu && started) treehouses?.update(dt,t,!homeMode && !caveMode);
   if (!menu && homeMode) indoor.update(rizer, cam, () => walkHomeDoor('exit'), showToast, dt);
   if (!menu && !homeMode) npcs?.update(dt, rizer, seers);
   const movementWorld = homeMode ? indoor.roomWorld : world;

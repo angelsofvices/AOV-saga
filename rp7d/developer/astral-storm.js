@@ -21,7 +21,7 @@ import * as THREE from 'three';
 
 export const STORM = {
   clap: { energy: 35, cooldown: 4, radius: 8, strikeDamage: 2, impactDamage: 4, perBody: 2, lift: 1.1, blast: 3.2 },
-  spin: { energy: 40, cooldown: 8, radius: 5.5, life: 5, speed: 3.2, tick: 0.8, tickDamage: 1, endDamage: 2, swirl: 2.4, lift: 1.2 }
+  spin: { energy: 40, cooldown: 8, radius: 5.5, life: 5, speed: 3.2, tick: 0.8, tickDamage: 1, endDamage: 2, swirl: 2.4, lift: 1.2, height: 14, growthPerEnemy: 0.12, maxGrowth: 2.4, speedPerEnemy: 0.1 }
 };
 // The animation timeline of each move: the slot to play (its own when loaded, else the stand-in) and when each event fires.
 export const STORM_TIMING = {
@@ -98,7 +98,12 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
         const h = hands(rizer); if (h) for (const P of h) astral.arc(P.clone(), new THREE.Vector3(P.x, ground(P.x, P.z, P.y), P.z), 0.2, 0.05, 0.2, 5); // palms to the ground
         astral.flash.position.copy(center(bodies[0].g)).y += 2; astral.flash.intensity = 40; sfx?.play('thunder', 0.55, 1.25);
       },
-      TARGET_SUSPEND: tl => { for (const b of bodies) if (foes.alive(b.g) && !b.g.isScanobot) { const c = center(b.g); b.hold = { x: c.x, y: ground(c.x, c.z, c.y + 1) + C.lift, z: c.z }; held.set(b.g, b.hold); } },
+      TARGET_SUSPEND: tl => { for (const b of bodies) if (foes.alive(b.g) && !b.g.isScanobot) { const c = center(b.g); b.hold = { x: c.x, y: ground(c.x, c.z, c.y + 1) + C.lift, z: c.z }; held.set(b.g, b.hold);
+          if (b.g.actor?.has('tornadoFloat')) {
+            b.g.actor.tornadoPose = { owner: tl, slot: 'tornadoFloat', previous: null, time: 0, age: 1 };
+            b.g.actor.update(0, 0, false);
+          }
+        } },
       CLAP_IMPACT: tl => { // the clap: every held body is pulled to one midline and they collide
         const live = bodies.filter(b => foes.alive(b.g) || b.hold);
         const mid = live.reduce((m, b) => m.add(center(b.g)), new THREE.Vector3()).divideScalar(Math.max(1, live.length));
@@ -106,11 +111,18 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
         tl.pull = { mid, t: 0, live };
         for (const b of live) if (b.hold) b.pullFrom = { x: b.hold.x, y: b.hold.y, z: b.hold.z };
       },
-      CLAP_END: tl => { for (const b of bodies) held.delete(b.g); }
+      CLAP_END: tl => { for (const b of bodies) releaseCaught(tl, b.g); }
     }, { bodies, slot });
     return { ok: true, count: targets.length, slot };
   }
   function clapStep(tl, dt) {
+    for (const b of tl.bodies || []) {
+      const pose = b.g.actor?.tornadoPose;
+      if (pose?.owner !== tl) continue;
+      if (!foes.alive(b.g)) { releaseCaught(tl, b.g); continue; }
+      pose.time = Math.max(0, tl.t - STORM_TIMING.astralclap.events.TARGET_SUSPEND);
+      b.g.actor.update(0, 0, false);
+    }
     const P = tl.pull; if (!P || P.done) return;
     const C = STORM.clap; P.t += dt;
     const T = STORM_TIMING.astralclap, k = Math.min(1, P.t / Math.max(0.05, T.contact - T.events.CLAP_IMPACT)), e = k * k; // accelerating into each other: they collide on the frame the hands meet
@@ -127,7 +139,7 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
       fx.emit(m.x, m.y + 1.2, m.z, 46, { color: '#cfe3ff', speed: 6, up: 2.2, size: 0.45, life: 0.55, g: 2 });
       fx.emit(m.x, m.y + 1.2, m.z, 26, { color: '#6fa8ff', speed: 4, up: 1.2, size: 0.5, life: 0.6, g: 1 });
       for (let s = 0; s < 7; s++) { const a = s / 7 * Math.PI * 2, to = new THREE.Vector3(m.x + Math.sin(a) * 3.5, m.y + 0.3, m.z + Math.cos(a) * 3.5); astral.arc(new THREE.Vector3(m.x, m.y + 1.2, m.z), to, 0.7, 0.05, 0.2, 8); }
-      for (const b of P.live) { held.delete(b.g); if (foes.alive(b.g)) { const h = foes.blastBack(b.g, m, dmg, 0.35, 'astralclap'); if (h) hits.push(h); } }
+      for (const b of P.live) { releaseCaught(tl, b.g); if (foes.alive(b.g)) { const h = foes.blastBack(b.g, m, dmg, 0.35, 'astralclap'); if (h) hits.push(h); } }
       cam?.kick(1.5); sfx?.play('thunder', 0.9, 1.1); sfx?.play('heavy', 0.9, 0.9);
       onToast?.(`ASTRALCLAP · ${n} bod${n === 1 ? 'y' : 'ies'} collide · ${dmg} damage each${hits.filter(h => h?.down).length ? ` · ${hits.filter(h => h?.down).length} down` : ''}`);
     }
@@ -153,44 +165,82 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
       STORM_ACTIVE: tl => { tl.storm = true; sfx?.play('thunder', 0.5, 1.3); },
       SPIN_RELEASE: tl => { if (rizer.actor?.shot && (rizer.actor.shot.kind === slot)) rizer.actor.release?.(slot, 0.25); },
       STORM_END: tl => { // the tornado dissipates and lets go of everything it holds
-        if (tl.tornado) { const c = tl.tornado.position; fx.emit(c.x, c.y + 2, c.z, 40, { color: '#bcd8ff', speed: 4, up: 2, size: 0.4, life: 0.7, g: 1 }); scene.remove(tl.tornado); tl.tornado = null; }
-        for (const [g] of tl.caught || []) { held.delete(g); if (foes.alive(g)) foes.blastBack(g, tl.lastAt || rizer.position, S.endDamage, 0.4, 'astralspin'); }
+        if (tl.tornado) { const c = tl.tornado.position; fx.emit(c.x, c.y + 2, c.z, 40, { color: '#bcd8ff', speed: 4, up: 2, size: 0.4, life: 0.7, g: 1 }); scene.remove(tl.tornado); tl.tornado.traverse(o => { o.geometry?.dispose(); if (o.material) o.material.dispose(); }); tl.tornado = null; }
+        for (const [g, o] of tl.caught || []) { releaseCaught(tl, g, o); if (foes.alive(g)) foes.blastBack(g, tl.lastAt || rizer.position, S.endDamage, 0.4, 'astralspin'); }
         tl.storm = false;
       }
     }, { slot, airborne });
     return { ok: true, airborne, slot };
   }
+  function releaseCaught(tl, g, o) {
+    held.delete(g);
+    if (g.actor?.tornadoPose?.owner === tl) g.actor.tornadoPose = null;
+    if (g.root && o?.rotation) { g.root.rotation.x = o.rotation.x; g.root.rotation.z = o.rotation.z; }
+    g.stormHeld = false;
+  }
   function makeTornado() {
     const g = new THREE.Group(), layers = [];
-    for (let i = 0; i < 6; i++) {
-      const r0 = 0.5 + i * 0.45, r1 = 0.8 + i * 0.55, h = 1.1;
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, h, 18, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(i % 2 ? '#9fc8ff' : '#e6f2ff').multiplyScalar(1.4), transparent: true, opacity: 0.22 - i * 0.02, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+    for (let i = 0; i < 12; i++) {
+      const r0 = 0.4 + i * 0.35, r1 = 0.75 + i * 0.35, h = STORM.spin.height / 11.2;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, h, 18, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(i % 2 ? '#9fc8ff' : '#e6f2ff').multiplyScalar(1.4), transparent: true, opacity: 0.22 - i * 0.01, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
       m.position.y = 0.55 + i * h * 0.92; g.add(m); layers.push(m);
     }
-    g.userData.layers = layers; return g;
+    // Helical wind ribbons make axial rotation visible on the otherwise round funnel.
+    const ribbons = [];
+    for (let j = 0; j < 3; j++) {
+      const points = [];
+      for (let k = 0; k <= 90; k++) {
+        const t = k / 90, a = t * Math.PI * 8 + j * Math.PI * 2 / 3, r = 0.55 + t * 4.1;
+        points.push(new THREE.Vector3(Math.sin(a) * r, t * STORM.spin.height, Math.cos(a) * r));
+      }
+      const ribbon = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 90, 0.055, 4, false), new THREE.MeshBasicMaterial({ color: '#cfe3ff', transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
+      g.add(ribbon); ribbons.push(ribbon);
+    }
+    g.userData.layers = layers; g.userData.ribbons = ribbons; return g;
   }
   function spinStep(tl, dt) {
     const S = STORM.spin, T = tl.tornado; if (!T) return;
     // it travels along the ground surface, following the terrain (or a cave floor)
-    const nx = T.position.x + tl.dir.x * S.speed * dt, nz = T.position.z + tl.dir.z * S.speed * dt;
+    const count = tl.caught?.size || 0;
+    tl.growth = (tl.growth || 1) + (Math.min(S.maxGrowth, 1 + count * S.growthPerEnemy) - (tl.growth || 1)) * Math.min(1, dt * 2);
+    const growth = tl.growth, acceleration = 1 + Math.min(count, 12) * S.speedPerEnemy;
+    T.scale.set(growth, 1 + (growth - 1) * 0.7, growth);
+    const nx = T.position.x + tl.dir.x * S.speed * acceleration * dt, nz = T.position.z + tl.dir.z * S.speed * acceleration * dt;
     T.position.set(nx, ground(nx, nz, T.position.y + 0.6), nz); tl.lastAt = T.position.clone();
-    T.userData.layers.forEach((m, i) => { m.rotation.y += dt * (6 + i * 1.5); m.scale.setScalar(1 + Math.sin(tl.t * 7 + i) * 0.06); });
-    if (Math.random() < dt * 14) fx.emit(T.position.x + (Math.random() - 0.5) * 3, T.position.y + Math.random() * 5, T.position.z + (Math.random() - 0.5) * 3, 2, { color: '#cfe3ff', speed: 1.2, up: 1.5, size: 0.2, life: 0.4, g: -1 });
+    T.userData.layers.forEach((m, i) => { m.rotation.y += dt * (6 + i * 1.5) * acceleration; m.scale.setScalar(1 + Math.sin(tl.t * 7 + i) * 0.06); });
+    if (Math.random() < dt * 14) fx.emit(T.position.x + (Math.random() - 0.5) * 3, T.position.y + Math.random() * S.height * T.scale.y, T.position.z + (Math.random() - 0.5) * 3, 2, { color: '#cfe3ff', speed: 1.2, up: 1.5, size: 0.2, life: 0.4, g: -1 });
+    T.userData.ribbons.forEach((m, i) => { m.rotation.y += dt * (4 + i) * acceleration; });
     if (!tl.storm) return;
     // the storm: enemies inside are dragged in, lifted and swirled, and the lightning keeps striking them
     for (const g of foes.grunts) {
-      if (!foes.alive(g) || g.isScanobot) continue;
+      if (!foes.alive(g)) continue;
       const c = center(g), d = Math.hypot(c.x - T.position.x, c.z - T.position.z);
-      if (d > S.radius || Math.abs(c.y - T.position.y) > 4) continue;
-      if (!tl.caught.has(g)) { tl.caught.set(g, { a: Math.atan2(c.x - T.position.x, c.z - T.position.z), r: Math.max(1.2, d) }); foes.shock(g, 0, 0, 0, S.life); }
+      if (d > S.radius * growth || c.y < T.position.y - 2 || c.y > T.position.y + S.height * T.scale.y) continue;
+      if (!tl.caught.has(g)) {
+        const phase = Math.random() * Math.PI * 2;
+        tl.caught.set(g, { a: Math.atan2(c.x - T.position.x, c.z - T.position.z), r: Math.max(1.2, d), phase, since: tl.t, nextPose: 0, slot: null, rotation: g.root?.rotation.clone(), spin: 0.6 + Math.random() * 0.9 });
+        g.stormHeld = true; foes.shock(g, 0, 0, 0, S.life);
+      }
     }
     for (const [g, o] of tl.caught) {
-      if (!foes.alive(g)) { held.delete(g); tl.caught.delete(g); continue; }
-      o.a += dt * S.swirl; o.r += (1.6 - o.r) * Math.min(1, dt * 1.5);
-      held.set(g, { x: T.position.x + Math.sin(o.a) * o.r, y: T.position.y + S.lift + Math.sin(tl.t * 3 + o.a) * 0.3, z: T.position.z + Math.cos(o.a) * o.r });
+      if (!foes.alive(g)) { releaseCaught(tl, g, o); tl.caught.delete(g); continue; }
+      o.a += dt * S.swirl * acceleration; o.r += (1.6 * growth - o.r) * Math.min(1, dt * 1.5);
+      const rise = Math.min(1, (tl.t - o.since) / 1.6), elevation = S.lift + rise * (2.5 + (Math.sin(o.phase) + 1) * 2.2) * T.scale.y;
+      held.set(g, { x: T.position.x + Math.sin(o.a) * o.r, y: T.position.y + elevation + Math.sin(tl.t * 3 + o.phase) * 0.5, z: T.position.z + Math.cos(o.a) * o.r });
+      if (g.root) { g.root.rotation.y = o.a + o.phase + tl.t * o.spin; g.root.rotation.x = Math.sin(tl.t * 1.7 + o.phase) * 0.3; g.root.rotation.z = Math.cos(tl.t * 1.3 + o.phase) * 0.45; }
+      if (g.actor) {
+        if (tl.t >= o.nextPose) {
+          const previous = o.slot, chosen = Math.random() < 0.55 ? 'tornadoWobble' : 'tornadoFloat';
+          o.slot = g.actor.has(chosen) ? chosen : g.actor.has('tornadoFloat') ? 'tornadoFloat' : null;
+          o.poseAt = tl.t; o.nextPose = tl.t + 0.9 + Math.random() * 1.2;
+          if (o.slot) g.actor.tornadoPose = { owner: tl, slot: o.slot, previous: previous === o.slot ? null : previous, time: 0, age: 0 };
+        }
+        const pose = g.actor.tornadoPose;
+        if (pose?.owner === tl) { pose.time = tl.t - o.since + o.phase; pose.age = tl.t - o.poseAt; g.actor.update(0, 0, false); }
+      }
     }
     tl.tick -= dt;
-    if (tl.tick <= 0) { tl.tick = S.tick; for (const [g] of tl.caught) { const c = center(g); astral.arc(new THREE.Vector3(T.position.x, T.position.y + 4.5, T.position.z), new THREE.Vector3(c.x, c.y + 1, c.z), 0.6, 0.04, 0.16, 7); foes.shock(g, S.tickDamage, 0, 0, S.life); } if (tl.caught.size) sfx?.play('light', 0.5, 1.4); }
+    if (tl.tick <= 0) { tl.tick = S.tick / acceleration; for (const [g] of tl.caught) { const c = center(g); astral.arc(new THREE.Vector3(T.position.x, T.position.y + S.height * T.scale.y * 0.8, T.position.z), new THREE.Vector3(c.x, c.y + 1, c.z), 0.6, 0.04, 0.16, 7); foes.shock(g, S.tickDamage, 0, 0, S.life); } if (tl.caught.size) sfx?.play('light', 0.5, 1.4); }
   }
 
   // Runs AFTER the enemies' own update each frame, so a held body stays exactly where the move holds it.
@@ -203,7 +253,8 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
       if (tl.id === 'astralclap') clapStep(tl, dt); else spinStep(tl, dt);
       if (tl.i >= tl.ev.length && (tl.id !== 'astralclap' || tl.pull?.done !== false)) active.splice(i, 1);
     }
-    for (const [g, h] of held) { if (!foes.alive(g)) { held.delete(g); continue; } g.pos.set(h.x, h.y, h.z); g.root.position.copy(g.pos); g.speed = 0; g.knock?.set(0, 0, 0); }
+    for (const [g, h] of held) { if (!foes.alive(g)) { held.delete(g); continue; } if (g.isScanobot) { g.pos.set(h.x, h.y - (g.alt || 0), h.z); g.center.set(h.x, h.y, h.z); g.root.position.copy(g.center); }
+      else { g.pos.set(h.x, h.y, h.z); g.root.position.copy(g.pos); } g.speed = 0; g.knock?.set(0, 0, 0); }
   }
   return { astralclap, astralspin, update, get busy() { return active.length > 0; }, cooldown: id => cool[id] || 0, get active() { return active; } };
 }

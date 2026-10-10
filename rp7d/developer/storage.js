@@ -205,6 +205,19 @@ export function audit() {
   return { ok: !problems.length, problems, totals, zycube: slotsUsed(LOC.ZYCUBE), capacity: capacity(), home: slotsUsed(LOC.HOME_PC) };
 }
 
-export const storage = { LOC, LOC_NAME, ZYCUBE_TIERS, capacity, tier, nextTier, contents, count, total, ownsWeapon, equipmentIn, equipmentByUid, slotsUsed, canStore, add, remove, transfer, transferAll, deployEquipment, packEquipment, upgradeZycube, knownRecipes, learnRecipe, audit, onChange, addGuard };
+// Structure recipes use the same ownership transaction as equipment crafting.
+export function consumeResources(recipe) {
+  ensure(); const entries = Object.entries(recipe);
+  if (!entries.length || entries.some(([id,n]) => !defOf(id)?.stackable || !Number.isInteger(n) || n <= 0 || count(LOC.ZYCUBE,id) < n)) return fail('INSUFFICIENT', 'Missing construction materials');
+  const s = snap();
+  for (const [id,n] of entries) if (!take(LOC.ZYCUBE,id,n)) { restore(s); return fail('ERROR','Could not consume materials'); }
+  commit('construction', { recipe }); return OK;
+}
+export function refundResources(recipe) {
+  ensure(); const s = snap();
+  for (const [id,n] of Object.entries(recipe)) { if (!Number.isInteger(n) || n < 0) { restore(s); return fail('ERROR','Invalid recycling receipt'); } if (!n) continue; const c=canStore(LOC.ZYCUBE,id,n); if (!c.ok) { restore(s);return c; } put(LOC.ZYCUBE,id,n); }
+  commit('recycling', { recipe }); return OK;
+}
+export const storage = { consumeResources, refundResources, LOC, LOC_NAME, ZYCUBE_TIERS, capacity, tier, nextTier, contents, count, total, ownsWeapon, equipmentIn, equipmentByUid, slotsUsed, canStore, add, remove, transfer, transferAll, deployEquipment, packEquipment, upgradeZycube, knownRecipes, learnRecipe, audit, onChange, addGuard };
 export default storage;
 export { FIELD_EQUIPMENT };

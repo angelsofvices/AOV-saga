@@ -706,6 +706,25 @@ export async function createSeers(scene, world, W) {
           if (g.sink >= 1.5 && g.timer <= 0 && dist > 25) reset(g);
           break;
       }
+      // Player bases use the existing humanoid chase, collision and attack animation driver.
+      // Only an already-hostile, unstunned pursuer away from Rizer may redirect to a nearby base.
+      const baseGoal = g.state === 'chase' ? hooks.treehouseTarget?.(g,rizer) : null;
+      if (baseGoal) {
+        const dx=baseGoal.pos.x-p.x,dz=baseGoal.pos.z-p.z,d=Math.hypot(dx,dz);
+        face=Math.atan2(dx,dz);want=d>baseGoal.reach?g.T.run:0;
+        if (g.baseStrike) {
+          g.baseStrike.t += dt;
+          if(!g.baseStrike.hit && g.baseStrike.t>=g.baseStrike.contact) {
+            g.baseStrike.hit=true;
+            if(d<baseGoal.reach+.15 && Math.abs(p.y-baseGoal.pos.y)<1.5) baseGoal.hit();
+          }
+          if(g.baseStrike.t>=g.baseStrike.duration)g.baseStrike=null;
+        } else if(d<=baseGoal.reach && g.cool<=0) {
+          const slot=g.actor.has('punch')?'punch':'kick';g.actor.play(slot);
+          const duration=g.actor.acts[slot]?.getClip().duration||1;
+          g.baseStrike={t:0,contact:duration*.38,duration,hit:false};g.cool=duration+1;
+        }
+      } else if (g.baseStrike) { g.baseStrike=null; }
       // movement
       g.actor.fighting = (g.T.key === 'seer' || g.T.family === 'daemon') && (g.state === 'observe' || g.state === 'alert' || g.state === 'chase' || g.state === 'windup');
       if (g.avoidT > 0 && face !== null) { face += g.avoidTurn || g.side * 0.9; g.avoidT = Math.max(0, g.avoidT - dt); }

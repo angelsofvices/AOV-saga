@@ -182,6 +182,17 @@ export class Actor {
   update(dt, speed, grounded = true, vy = 0) {
     const a = this.acts;
     for (const k in a) a[k].setEffectiveWeight(0);
+    // Storm-owned pose overrides damage/locomotion only while a funnel holds this actor.
+    if (this.tornadoPose) {
+      const p = this.tornadoPose, current = a[p.slot], previous = a[p.previous];
+      const blend = Math.min(1, (p.age || 0) / 0.3);
+      for (const [action, weight] of [[current, previous ? blend : 1], [previous, current ? 1 - blend : 1]]) {
+        if (!action) continue;
+        action.time = (p.time || 0) % Math.max(action.getClip().duration, 0.001);
+        action.setEffectiveWeight(weight);
+      }
+      if (current || previous) { this._pose(); return; }
+    }
     if (this.preview) {
       const p = this.preview; p.t += dt * p.speed;
       if (p.t >= p.dur) p.t = p.loop ? p.t % Math.max(p.dur, 1e-3) : p.dur;

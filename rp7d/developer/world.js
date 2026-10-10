@@ -185,6 +185,7 @@ export function createWorld(W, scene, shared) {
   function surfaceAt(x, z, y, list = surfaces, cam = false) {
     let best = -Infinity;
     for (const s of list) {
+      if (s.active === false) continue;
       // Pyramid roof proxies do not match the rotated, non-square scaled mesh.
       // Their actual walkable faces are sampled from the rendered triangles below.
       if (list === surfaces && !cam && s.shape === 'pyramid') continue;
@@ -360,5 +361,5 @@ export function createWorld(W, scene, shared) {
     if (natureGroup) natureGroup.visible = v; expanse.group.visible = v; sea.visible = v;
     exterior = v; // lights stay visible (see game.js · borrowed lights)
   }
-  return { caves, cavePlan, caveReport: () => placementReport(cavePlan), setInterior(router) { interior = router; }, interiorOwns: (x, z) => !!interior?.owns(x, z), interiorName: (x, z) => interior?.owns(x, z) ? interior.name?.(x, z) : null, T, mass, structures, nature: natureGroup, heightAt: T.heightAt, waterAt: T.waterAt, groundAt, groundNormalAt, surfaceAt, resolve, rayClear, keepOnLand, containsLand: W.containsLand || (() => true), onLand, expanse, sea, interactables, obstacles, mapShapes, camFloor, addObstacle, addMesh, update, homes: T.homes, lampLights, ufo: ufoVehicle, setExteriorVisible };
+  return { caves, cavePlan, caveReport: () => placementReport(cavePlan), setInterior(router) { interior = router; }, interiorOwns: (x, z) => !!interior?.owns(x, z), interiorName: (x, z) => interior?.owns(x, z) ? interior.name?.(x, z) : null, T, mass, structures, nature: natureGroup, heightAt: T.heightAt, waterAt: T.waterAt, groundAt, groundNormalAt, surfaceAt, resolve, rayClear, keepOnLand, containsLand: W.containsLand || (() => true), onLand, expanse, sea, interactables, obstacles, mapShapes, camFloor, addObstacle, addMesh, addSurface(s) { surfaces.push(s); return s; }, update, homes: T.homes, lampLights, ufo: ufoVehicle, setExteriorVisible };
 }

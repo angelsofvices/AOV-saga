@@ -65,7 +65,7 @@ window.AOV_UNLOCKS = {
       blurb:'The mainline open-world beta of Rizing Power. Playable in your browser today.' },
     { id:'game-project1936', kind:'game', name:'Aethryx Adventures: 1936', title:'Mainline · 1936 · The Expedition of Carl Nasaro', status:'unlocked',
       since:'2026-10-07', href:'/explorer/', color:'#E2C27D', cta:'BEGIN THE EXPEDITION',
-      blurb:'1936. You are Carl Nasaro, crash-landed on NASARUS with a ship too broken to reach home. Lead your Aethren through the worlds, beat the wardens, bring back every part, and make NASARUS home: scan its creatures into the AstraNav, battle them with your cards, meet its peoples. Collect the Expanse. Map the Expanse. Bring it home.' },
+      blurb:'1936. You are Carl Nasaro, crash-landed on NASARUS with a ship too broken to reach home. Lead your Aethren through the worlds, beat the wardens, bring back every part, and make NASARUS home: scan its Aethren, clone them at NASARUS, lead them into battle as your party, meet its peoples. Collect the Expanse. Map the Expanse. Bring it home.' },
     { id:'game-rp7d', kind:'game', name:'RP7D', title:'Rizing Power · Deluxe 3D', status:'unlocked',
       since:'2026-10-08', href:'/play-rp7d/', color:'#3FA0FF', cta:'DEV PLAYTEST · PASSWORD',
       blurb:'The Deluxe 3D build of Rizing Power. A live dev playtest of Malezor, behind the dev password.' },

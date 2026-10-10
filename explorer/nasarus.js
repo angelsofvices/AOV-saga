@@ -54,7 +54,7 @@ window.AOV_HQ = {
   // FACILITIES (handoff §5, proposals). cost is paid from STORES. requires: built ids or research ids.
   facilities: [
     { id: 'camp', name: 'CAMP SHELTER', spr: 'hq_tent', at: [19, 24], w: 2, cost: {}, free: true,
-      does: 'Rest: refills SUIT and AIR, rests your card team, saves the expedition.' },
+      does: 'Rest: refills SUIT and AIR, rests your Aethren party, saves the expedition.' },
     { id: 'stores', name: 'CAMP STORES', spr: 'hq_crate', at: [22, 26], w: 1, cost: {}, free: true, requires: ['camp'],
       does: 'The initial storage area. Deposit what you extracted.' },
     { id: 'nav', name: 'NAVIGATION CENTER', spr: 'hq_nav', at: [24, 22], w: 2, cost: { scrap: 4, crystal: 3 }, requires: ['camp', 'drive'],
@@ -66,7 +66,7 @@ window.AOV_HQ = {
     { id: 'workshop', name: 'WORKSHOP', spr: 'hq_workshop', at: [23, 30], w: 2, cost: { scrap: 8, crystal: 4 }, requires: ['research'],
       does: 'Repairs and crafting: flares, equipment research, and clearing the rockfall.' },
     { id: 'archive', name: 'CARD ARCHIVE', spr: 'hq_archive', at: [27, 30], w: 2, cost: { fibre: 4, crystal: 3, relic: 1 }, requires: ['research'],
-      does: 'Organises the collection. Your battle team grows to four cards.' },
+      does: 'Organises your scanned profiles and cloned Aethren. Your party holds up to nine.' },
     { id: 'terminal', name: 'RESTORATION TERMINAL', spr: 'hq_terminal', at: [31, 26], w: 1, cost: { scrap: 6, relic: 2 }, requires: ['workshop'],
       does: 'Manages the restoration of the ancient ruins you have surveyed.' },
     { id: 'history', name: 'HISTORICAL ARCHIVE', spr: 'hq_history', at: [31, 30], w: 2, cost: { relic: 4, fibre: 3 }, requires: ['terminal', 'r-script'],

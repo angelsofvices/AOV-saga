@@ -31,7 +31,7 @@ window.AOV_EXP = {
     { id: 'calm',   name: 'CALM AURA',   types: ['Spirit', 'Unknown', 'Chrono'],                         text: 'Territorial creatures settle instead of charging.' },
     { id: 'quiet',  name: 'SOFT FOOT',   types: ['Beast', 'Creature', 'Humanoid', 'Aquatic'],             text: 'Sprinting no longer scares skittish creatures.' },
     { id: 'sense',  name: 'VAULT SENSE', types: ['Tech', 'Crystal', 'Extraterrestrial'],                  text: 'Sealed vaults show on the field sketch, clue or no clue.' },
-    { id: 'fury',   name: 'WAR FURY',    types: ['Elemental', 'Draconic', 'Ultramax', 'Corrupted', 'Aura'], text: 'Your cards hit a fifth harder in every battle.' }
+    { id: 'fury',   name: 'WAR FURY',    types: ['Elemental', 'Draconic', 'Ultramax', 'Corrupted', 'Aura'], text: 'Your Aethren party hits a fifth harder in every battle.' }
   ],
   // WARDENS · on worlds with a people, a warden guards the vault and hunts the alien on sight.
   // Worlds with no people (records only), and Zyraxis, have an Aethren guardian at the vault instead.

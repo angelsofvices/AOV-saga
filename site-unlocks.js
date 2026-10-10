@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.13', title:'42 body plans, 1,638 Aethren variants',
+      notes:[
+        '26 new native body plans: stag, hound, feline, bear, ape, hopper, frog, ray, eel, jellyfish, urchin, snail, wasp, dragonfly, owl, wading bird, drake, turtle, scorpion, spider, mantis, worm, wisp, drone, mushroom, hydra',
+        '42 body plans across 39 habitats: 1,638 variants, every one drawn differently',
+        'Body patterns inside the outline: spots, stripes, bands, speckle, mottle, belly',
+        'A second feature on every variant, including new ones that follow the body: spikes, mane, tendrils, aura, tusks, plates, halo, whiskers',
+        'Beetles, golems and avians now take their habitat’s colours too'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.12', title:'624 Aethren variants, on the card',
       notes:[
         '16 native body plans across 39 habitats: 624 Aethren variants live on 24 worlds',

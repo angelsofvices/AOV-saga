@@ -1,5 +1,6 @@
 // ★ 2026-10-09 · AETHREN VARIANTS
-// 39 habitat families × 16 native body plans (4 canon bodies + 12 native silhouettes) = 624 habitat variants.
+// 39 habitat families × 42 native body plans (4 canon bodies + 38 native silhouettes) = 1,638 habitat variants.
+// Each variant also wears a body pattern and a second feature, picked from its habitat and body together.
 // Each variant is a sprite phenotype, not a new claim about the canon roster:
 // the source body remains a canon Aethren body and the habitat supplies its
 // coloration, feature, and encounter ecology.
@@ -22,6 +23,38 @@
     cephalopod: ['......kk........','....krrrrk......','...krrRRrrk.....','..krrrrrrrrk....','..krrYYrrrk.....','...krrrrrrk.....','..k..kk..k......','.k...kk...k.....','k....kk....k....','k...k..k...k....','...k....k.......','..k......k......','................','................','................','................']
   };
   Object.keys(newPlans).forEach(function(id){ ART.registerBodyPlan(id, { rows:shape(newPlans[id]), pal:{'!':'#fff28a'}, note:'Native silhouette · '+id }); });
+
+  // ★ 2026-10-10 · MORE BODIES (Creator: "add more differentiations across body types… more not less"):
+  // 26 further native silhouettes, so the Expanse holds 42 body plans in all.
+  var morePlans = {
+    stag: ['..k...k.........','..kk.kk.........','...kkk..........','...krrk.........','..krYrk.........','..krrrkkkkkkk...','...krrRRRRRrrk..','....krRRRRRRrk..','....krrrrrrrrk..','....kk.kk.kk.kk.','....kk.kk.kk.kk.','....k..k..k..k..'],
+    hound: ['................','..kk............','.krrk...........','krYrrk..........','kkrrrkkkkkkkk...','..krrRRRRRRrrk..','..krRRRRRRRRrkk.','..krrrrrrrrrrk.k','...kk.kk..kk.k..','...kk.kk..kk.k..','...k..k...k..k..'],
+    feline: ['..k.k...........','.krkrk..........','.krYrk..........','.krrrkkkkkkk....','..krRRRRRRrrk...','..krRRRRRRRrk..k','..krrrrrrrrrk.kk','...kk.kk.kk.kkk.','...kk.kk.kk.....'],
+    bear: ['..kk....kk......','.krrkkkkrrk.....','.krrrrrrrrk.....','.krYrrrrYrk.....','..krrkkrrk......','.krrRRRRrrk.....','krrRRRRRRrrk....','krRRRRRRRRrk....','krrRRRRRRrrk....','.krrrrrrrrk.....','.kkk.kk.kkk.....'],
+    ape: ['....kkkk........','...krrrrk.......','...kYrrYk.......','...krkkrk.......','..kkrrrrkk......','.krkRRRRkrk.....','krk.kRRk.krk....','kk..kRRk..kk....','...krrrrk.......','...kk..kk.......','...kk..kk.......','..kkk..kkk......'],
+    hopper: ['...k.k..........','...kkk..........','..kkrk..........','..krYk..........','..krrk..........','..krRRk.........','..krRRRk........','..krRRRrk.......','...krrrrkk......','....kkrrk.kk....','...kkk.kk..kk...','..kkk...........'],
+    frog: ['................','..kk......kk....','.kYYk....kYYk...','.krrkkkkkkrrk...','krrrrrrrrrrrrk..','krRRRRRRRRRRrk..','.krRRRRRRRRrk...','kkrrkkrrkkrrkk..','k..kk....kk..k..'],
+    ray: ['................','k.............k.','kk...kkkk....kk.','.krrkrrrrkrrrk..','..krrRRRRRrrk...','...krrYrYrrk....','....krrrrrk.....','.....kkrkk......','.......k........','.......k........','........k.......'],
+    eel: ['................','kkk.............','krYk.......kk...','krrrk....krrrk..','.krrrk..krrRrrk.','..krRrkkrRk.krk.','...krRRRRk...kk.','....kkkkk.......'],
+    jelly: ['....kkkkkk......','..kcCCCCCCck....','.kcCCCCCCCCck...','.kcCYccccYCck...','.kcccccccccck...','..kkkkkkkkkk....','..k.k.k.k.k.....','...k.k.k.k.k....','..k.k.k.k.k.....','...k...k...k....'],
+    urchin: ['..k..k..k.......','...k.k.k........','k..krrrk..k.....','.kkrRRRrkk......','..krRYRRrk......','kkkrRRRRrkkk....','..krRRYRrk......','.kkrRRRrkk......','k..krrrk..k.....','...k.k.k........','..k..k..k.......'],
+    snail: ['................','......kkkk......','.....kRRRRk.....','....kRrrrRRk....','k..kRrkkkrRk....','Yk.kRrkRkrRk....','krkkRrrrRrRk....','krrkRRRRRRk.....','krrrkkkkkkrk....','.krrrrrrrrrrk...','..kkkkkkkkkk....'],
+    wasp: ['..k.....k.......','...k...k........','.kk.kkk.kk......','kVVkrYrkVVk.....','kVVkrrrkVVk.....','.kk.kRk.kk......','....krk.........','....kRk.........','....krk.........','....kkk.........','.....k..........'],
+    dragonfly: ['.......kk.......','......kYYk......','kkkkk.krrk.kkkkk','kCCCCkkrrkkCCCCk','.kkkkkkrrkkkkkk.','kCCCCkkrrkkCCCCk','kkkkk.krrk.kkkkk','.......rr.......','.......rr.......','.......rr.......','.......kk.......'],
+    owl: ['..k.......k.....','..kk.....kk.....','..krkkkkkrk.....','.krYYrrrYYrk....','.krYkrrrkYrk....','.krrrrkrrrrk....','.kVrrRRRrrVk....','.kVrRRRRRrVk....','.kVrrRRRrrVk....','..krrrrrrrk.....','...kk...kk......'],
+    wader: ['.....kk.........','....krYk........','kkkkkrrk........','.....krk........','.....krk........','....krrrkkk.....','...krRRRRrrk....','...krRRRRRrkk...','....krrrrrk..k..','.....k...k......','.....k...k......','.....k...k......','....kk..kk......'],
+    drake: ['k...........k...','kk..kk.....kk...','kVk.krk...kVk...','kVVkrYrk.kVVk...','.kVkrrrrkkVk....','..kkrRRRrkk.....','...krRRRRrk.....','...krRRRRrk...k.','....krrrrrkk.kk.','....kk.kk.krrk..','....k..k...kk...'],
+    turtle: ['................','.....kkkkkk.....','....kRRRRRRk....','...kRrRRrRRRk...','..kRRRRRRrRRRk..','kkkRRrRRRRRRRk..','kYrkkkkkkkkkkk..','krrk.krk..krk...','.kk..kk...kk....'],
+    scorpion: ['..........kk....','.........krrk...','..........kRk...','...........krk..','...........krk..','kk.kkkkkkkkrk...','krkrrRRRRRrrk...','.krrYRRRRRrk....','kk.krrrrrrk.....','...k.k.k.k......','..k.k.k.k.......'],
+    spider: ['k.k........k.k..','.k.k......k.k...','..k.k.kk.k.k....','...kkrrrrkk.....','k.kkrYrrYrkk.k..','.kkrrRRRRrrkk...','..krRRRRRRrk....','.kkrrRRRRrrkk...','k.kkrrrrrrkk.k..','..k.kkkkkk.k....','.k..k....k..k...'],
+    mantis: ['....kk..........','...kYrk.........','...krrk.........','..kk.kk.........','.krk.krk........','krk..krrk.......','.k...krRk.......','.....krRRk......','.....krRRrk.....','......krrrrk....','.....k.k..k.k...','....k..k..k..k..'],
+    worm: ['................','................','......kkkk......','.....krrrrk.....','....krkkkkrk....','...krk....krk...','..kYrk.....krk..','..krk.......krk.','...k.........kk.'],
+    wisp: ['......kk........','.....kCCk.......','....kCwwCk......','...kCwYYwCk.....','...kCwwwwCk.....','....kCCCCk......','.....kCCk.......','......kCk.......','.....kCk........','......k.........'],
+    drone: ['kk...kkkk...kk..','krk.krrrrk.krk..','.kkkrRRRRrkkk...','...krkYYkrk.....','...krrrrrrk.....','....kkrrkk......','.....krrk.......','....k.kk.k......'],
+    mushroom: ['....kkkkkk......','..kRRRRRRRRk....','.kRRwRRRRwRRk...','kRRRRRRwRRRRRk..','kkkkkkkkkkkkkk..','.....krrk.......','.....kYYk.......','.....krrk.......','....krrrrk......','....kkkkkk......'],
+    hydra: ['.kk...kk...kk...','kYrk.kYrk.kYrk..','.krk..krk..krk..','..krk.krk.krk...','...krkrrkkrk....','....krRRRRk.....','...krRRRRRrk....','...krRRRRRrk....','....krrrrrk.....','....kk...kk.....']
+  };
+  Object.keys(morePlans).forEach(function(id){ ART.registerBodyPlan(id, { rows:shape(morePlans[id]), pal:{'!':'#fff28a'}, note:'Native silhouette · '+id }); });
   var bodies = [
     { key:'quad', sprite:'otterlin_down', types:['Beast','Creature'], source:'quad' },
     { key:'amph', sprite:'verdanix_down', types:['Aquatic','Nature'], source:'amph' },
@@ -38,8 +71,39 @@
     { key:'blob', sprite:'blob', types:['Unknown','Creature'], source:'amph' },
     { key:'golem', sprite:'golem', types:['Tech','Elemental'], source:'spine' },
     { key:'flora', sprite:'flora', types:['Verdant','Nature'], source:'amph' },
-    { key:'cephalopod', sprite:'cephalopod', types:['Aquatic','Unknown'], source:'amph' }
+    { key:'cephalopod', sprite:'cephalopod', types:['Aquatic','Unknown'], source:'amph' },
+    // the 26 further bodies (2026-10-10)
+    { key:'stag', sprite:'stag', types:['Beast','Nature'], source:'quad' },
+    { key:'hound', sprite:'hound', types:['Beast','Creature'], source:'quad' },
+    { key:'feline', sprite:'feline', types:['Beast','Spirit'], source:'quad' },
+    { key:'bear', sprite:'bear', types:['Beast','Ultramax'], source:'quad' },
+    { key:'ape', sprite:'ape', types:['Humanoid','Beast'], source:'quad' },
+    { key:'hopper', sprite:'hopper', types:['Creature','Aura'], source:'quad' },
+    { key:'frog', sprite:'frog', types:['Aquatic','Verdant'], source:'amph' },
+    { key:'ray', sprite:'ray', types:['Aquatic','Astral'], source:'amph' },
+    { key:'eel', sprite:'eel', types:['Aquatic','Elemental'], source:'spine' },
+    { key:'jelly', sprite:'jelly', types:['Aquatic','Radiant'], source:'amph' },
+    { key:'urchin', sprite:'urchin', types:['Aquatic','Crystal'], source:'spine' },
+    { key:'snail', sprite:'snail', types:['Nature','Chrono'], source:'amph' },
+    { key:'wasp', sprite:'wasp', types:['Beast','Corrupted'], source:'wing' },
+    { key:'dragonfly', sprite:'dragonfly', types:['Aura','Verdant'], source:'wing' },
+    { key:'owl', sprite:'owl', types:['Spirit','Aura'], source:'wing' },
+    { key:'wader', sprite:'wader', types:['Aquatic','Aura'], source:'wing' },
+    { key:'drake', sprite:'drake', types:['Draconic','Astral'], source:'spine' },
+    { key:'turtle', sprite:'turtle', types:['Aquatic','Chrono'], source:'amph' },
+    { key:'scorpion', sprite:'scorpion', types:['Beast','Corrupted'], source:'spine' },
+    { key:'spider', sprite:'spider', types:['Unknown','Beast'], source:'spine' },
+    { key:'mantis', sprite:'mantis', types:['Verdant','Beast'], source:'spine' },
+    { key:'worm', sprite:'worm', types:['Creature','Nature'], source:'amph' },
+    { key:'wisp', sprite:'wisp', types:['Spirit','Radiant'], source:'wing' },
+    { key:'drone', sprite:'drone', types:['Tech','Extraterrestrial'], source:'spine' },
+    { key:'mushroom', sprite:'mushroom', types:['Verdant','Unknown'], source:'amph' },
+    { key:'hydra', sprite:'hydra', types:['Draconic','Aquatic'], source:'spine' }
   ];
+  // per-variant differentiation: a body pattern and a second feature, chosen from the habitat and the body together
+  var PATTERNS = ['spots', 'stripes', 'bands', 'speckle', 'mottle', 'belly', 'none'];
+  var FEATURES2 = ['spikes', 'mane', 'tendrils', 'aura', 'tusks', 'plates', 'halo', 'whiskers', 'horns', 'crest', 'fins', 'antennae', 'quills', 'tail', 'rings', 'glow'];
+  function darken(hex, k){ var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; return '#' + [r, g, b].map(function(c){ return Math.round(c * (1 - k)).toString(16).padStart(2, '0'); }).join(''); }
   var habitats = [
     ['sky','Cloudstep Aerie',3,'crest','#5c8aff','#e8c8a8','#fff28a'],
     ['forest','Rootshadow Forest',4,'frill','#2fe6a8','#3aa66e','#d8f8a8'],
@@ -94,8 +158,10 @@
   habitats.forEach(function(h, hi){
     bodies.forEach(function(b, bi){
       var id='zyrex-'+slug(h[1])+'-'+b.key, source=sourceFor(h[2], b.source), tier=Math.min(10, 1 + ((hi + bi) % 8));
-      ART.registerVariant(id, b.sprite, { feature:h[3], primary:h[4], secondary:h[5], accent:h[6], pal:{ i:h[4],j:h[4],I:h[5],x:h[4],q:h[4],Q:h[5],h:h[5],V:h[4],c:h[4],C:h[5],r:h[4],R:h[5],u:h[4],y:h[5] }, note:'Habitat phenotype · '+h[1] });
-      var v={id:id,name:h[1]+' '+b.key.toUpperCase(),sprite:id,body:b.key,sourceSpecies:source,worldNo:h[2],habitat:h[0],habitatName:h[1],feature:h[3],colors:{primary:h[4],secondary:h[5],accent:h[6]},tier:tier,types:b.types.slice(),canonBasis:'Native '+b.key+' body plan adapted to Codex habitat '+h[1]+'.'};
+      var pattern = PATTERNS[(hi * 5 + bi * 3) % PATTERNS.length], feature2 = FEATURES2[(hi * 7 + bi * 11) % FEATURES2.length];
+      ART.registerVariant(id, b.sprite, { feature:h[3], feature2:feature2, pattern:pattern, primary:h[4], secondary:h[5], accent:h[6], accent2:darken(h[6], .25), patternColor:darken(h[4], .38),
+        pal:{ i:h[4],j:h[4],I:h[5],x:h[4],q:h[4],Q:h[5],h:h[5],V:h[4],c:h[4],C:h[5],r:h[4],R:h[5],u:h[4],y:h[5], B:h[4],P:h[6],M:h[5],N:darken(h[5], .3),v:h[5] }, note:'Habitat phenotype · '+h[1] });
+      var v={id:id,name:h[1]+' '+b.key.toUpperCase(),sprite:id,body:b.key,sourceSpecies:source,worldNo:h[2],habitat:h[0],habitatName:h[1],feature:h[3],feature2:feature2,pattern:pattern,colors:{primary:h[4],secondary:h[5],accent:h[6]},tier:tier,types:b.types.slice(),canonBasis:'Native '+b.key+' body plan adapted to Codex habitat '+h[1]+'.'};
       var district = h[2] === 9 ? (zdistrict[h[0]] || 'zarvane') : null;
       // battle stats and moves come from the canon body the variant is built on, scaled to its tier
       var src = (FAUNA.species || {})[source] || {}, sb = src.base || { hp:66, atk:66, def:66, spd:66, spc:66 }, tot = 0, base = {};

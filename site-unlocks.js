@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.8', title:'Chapters, papers and the sandbox',
+      notes:[
+        'The Journal reads in chapters: MISSION, THE STORY, three logs of objectives, and EXPEDITIONS',
+        'Long AstraNav panels are clickable tabs: Research, the Living Master Codex and Companions',
+        'The five NASARUS machine papers are real sheets of paper lying on the ground, spread across the base. Walk over one to pick it up',
+        'GRAB, DRAG, SET: face a prop, plant, stone or station and press □ to lift it, □ again to set it, ○ to put it back',
+        'Everything you move stays where you put it'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.7', title:'The suit',
       notes:[
         'A standard space-suit helmet for your pilot portrait: glass dome, collar ring and spec lights',

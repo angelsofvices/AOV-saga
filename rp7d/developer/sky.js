@@ -79,8 +79,11 @@ export function createSky(scene, shared) {
     sun.position.set(fx + lightDir.x * 140, focus.y + Math.max(lightDir.y, 0.08) * 140, fz + lightDir.z * 140);
     hemi.color.copy(a.hemiSky).lerp(b.hemiSky, t); hemi.groundColor.copy(a.hemiGround).lerp(b.hemiGround, t);
     hemi.intensity = a.hemiI + (b.hemiI - a.hemiI) * t;
-    tmp.copy(shared.uSkyHorizon.value); scene.fog.color.copy(tmp);
-    scene.fog.density = a.fogD + (b.fogD - a.fogD) * t;
+    // Astral X-ray temporarily disables fog; keep updating the sky without touching absent fog.
+    if (scene.fog) {
+      tmp.copy(shared.uSkyHorizon.value); scene.fog.color.copy(tmp);
+      scene.fog.density = a.fogD + (b.fogD - a.fogD) * t;
+    }
     dome.position.copy(focus);
     return night;
   }

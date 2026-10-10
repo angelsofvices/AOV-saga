@@ -6,7 +6,7 @@ import { Actor, CLIPS, loadGLB } from './actor.js';
 import { clamp, damp, dampAngle } from './util.js';
 import { DOORWALK, doorPath } from './doorwalk.js';
 import { preloadBuild, applyBuildToActor } from './build-library.js';
-import { maxHpOf, maxStaminaOf, maxEnergyOf, staminaRegenMul, dodgeCostMul, astralHitMul, astralRegen, hpRegen } from './astral-stats.js';
+import { maxHpOf, maxStaminaOf, maxEnergyOf, staminaRegenMul, dodgeCostMul, astralHitMul, astralRegen, hpRegen, taken, HP_SCALE } from './astral-stats.js';
 
 // Playable characters. All share the Mixamo rig and its Idle/Walk/Run/Punch/Kick clips.
 // Characters saved from the Build Lab join this list at startup (build-library.js · registerPlayableBuilds): they
@@ -206,9 +206,9 @@ export class Rizer {
     this.ready = this.setCharacter(DEFAULT_CHARACTER);
   }
   get model() { return this.actor?.model; }
-  get maxHp() { return maxHpOf(COMBAT.maxHp); }          // LABS › ASTRAL stats and mods (astral-stats.js)
-  get maxStamina() { return maxStaminaOf(100); }
-  get maxAstralEnergy() { return maxEnergyOf(100); }
+  get maxHp() { return maxHpOf(); }               // the 5 core stats: HP · STA · SP (Focus › Attributes, astral-stats.js)
+  get maxStamina() { return maxStaminaOf(); }
+  get maxAstralEnergy() { return maxEnergyOf(); } // SP
   spendEnergy(amount) { if (this.god) return true; if (this.astralEnergy < amount) return false; this.astralEnergy -= amount; return true; }
   // Swap the visible character; each GLB loads once and is kept.
   async setCharacter(key) {
@@ -831,6 +831,7 @@ export class Rizer {
   // same attacker's combo (so combos land, and two Seers can't stun-lock you together).
   hurt(dmg, from, src = null) {
     if (this.inUfo) return false; // the pilot is protected while inside the vehicle
+    dmg = taken(dmg, src?.T?.atk ?? src?.atk); // the attacker's ATK against Rizer's DEF (astral-stats.js)
     const chain = src && src === this.hurtBy && this.hurtT > 0;
     if (this.dodgeT > 0 && this.hp > 0 && !(this.hurtT > 0 && !chain) && !this.perfectDone && (this.dodgeAge ?? 9) <= COMBAT.perfect.dodge) { this.perfectDone = true; this.events.push('perfectDodge'); } // the roll began just as this blow arrived
     if ((this.hurtT > 0 && !chain) || this.dodgeT > 0 || this.hp <= 0 || this.god) return false; // no damage mid-roll (or in dev god mode)
@@ -890,7 +891,7 @@ export class Rizer {
       if (p.standAfterKneel) { p.phase = 'stand'; p.t = 0; A.play('prayStand', 1, { hold: true }); }
       else {
         const P = COMBAT.prayer;
-        this.hp = Math.min(this.maxHp, this.hp + P.hp * dt);
+        this.hp = Math.min(this.maxHp, this.hp + P.hp * HP_SCALE * dt);
         this.astralEnergy = Math.min(this.maxAstralEnergy, this.astralEnergy + P.astral * dt);
         this.stamina = Math.min(this.maxStamina, this.stamina + P.stamina * dt);
       }

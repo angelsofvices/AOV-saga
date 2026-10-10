@@ -168,7 +168,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     const scroll = [...page.querySelectorAll('.rz-col')].map(c => c.scrollTop); // a redraw keeps each column where it was
     const v = astralHub.view();
     const bin = (code, title, sub, body, cls = '') => `<section class="rz-bin${cls}"><header><i>${code}</i><b>${title}</b><small>${sub}</small></header>${body}</section>`;
-    const stat = s => `<div class="ax-stat"><div class="ax-stat-top"><b style="color:${s.color}">${s.name}</b><small>+${s.per} ${esc(s.unit)} each</small></div>
+    const stat = s => `<div class="ax-stat"><div class="ax-stat-top"><b style="color:${s.color}">${s.name} <span class="ax-total">${s.total}</span></b><small>${esc(s.full)} · ${s.kind.toUpperCase()} · +${s.per} ${esc(s.unit)} per AP</small></div>
       <div class="ax-pips">${Array.from({ length: v.statMax }, (_, i) => `<i class="${i < s.value ? 'on' : ''}" style="--c:${s.color}"></i>`).join('')}</div>
       <div class="ax-btns"><button class="zy-item rz-mini" data-item data-astral="lower" data-arg="${s.id}">−</button><span>${s.value}</span><button class="zy-item rz-mini" data-item data-astral="raise" data-arg="${s.id}">+</button></div></div>`;
     const system = sys => bin(sys.code, sys.name, sys.note, sys.mods.map(m => `<button class="zy-item rz-row${m.installed ? ' current' : ''}" data-item data-astral="mod" data-arg="${m.id}"><span>${esc(m.name)}<em>${esc(m.effect)}</em></span><small>${m.installed ? 'INSTALLED' : m.cost + ' AP'}</small></button>`).join(''), ' ax-sys');
@@ -187,7 +187,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     page.innerHTML = `<div class="rz-labs ax-labs">
       <div class="rz-col rz-left">${modes}
         ${moves ? loadout : `<section class="ax-ap"><small>ASTRAL POINTS</small><b>${v.free}</b><span>of ${v.total} · Level ${v.level} · +${v.perLevel} per Level</span></section>
-        ${bin('01', 'STATS', 'SPEND AP · RAISE HIS LIMITS', v.stats.map(stat).join(''))}
+        ${bin('01', 'CORE STATS', 'HP · ATK · DEF · STA · SP', v.stats.map(stat).join(''))}
         ${system(cortex)}${system(arms)}`}
       </div>
       <div class="rz-stage" aria-hidden="true"><span class="rz-tl"></span><span class="rz-tr"></span><span class="rz-bl"></span><span class="rz-br"></span>

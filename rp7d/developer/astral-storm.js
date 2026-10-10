@@ -82,7 +82,7 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
     const targets = foes.grunts.filter(g => foes.alive(g) && Math.hypot(center(g).x - lp.x, center(g).z - lp.z) < C.radius && Math.abs(center(g).y - lp.y) < 4);
     if (!targets.includes(lockRef) && foes.alive(lockRef)) targets.unshift(lockRef);
     if (!targets.length) return { fail: 'ASTRALCLAP · no enemies in reach' };
-    if (!rizer.spendEnergy(C.energy)) return { fail: 'ASTRAL ENERGY LOW' };
+    if (!rizer.spendEnergy(C.energy)) return { fail: 'SP LOW' };
     cool.astralclap = C.cooldown;
     rizer.facing = Math.atan2(lp.x - rizer.position.x, lp.z - rizer.position.z);
     rizer.attack = null; rizer.vel.x = rizer.vel.z = 0;
@@ -138,7 +138,7 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
     const S = STORM.spin;
     if (cool.astralspin > 0) return { fail: `ASTRALSPIN · ready in ${Math.ceil(cool.astralspin)} s` };
     if (rizer.attack || rizer.dodgeT > 0) return { fail: null };
-    if (!rizer.spendEnergy(S.energy)) return { fail: 'ASTRAL ENERGY LOW' };
+    if (!rizer.spendEnergy(S.energy)) return { fail: 'SP LOW' };
     cool.astralspin = S.cooldown;
     const airborne = !rizer.onGround || !!rizer.flying, slot = playCast(rizer, 'astralspin', airborne);
     if (!airborne) { rizer.vel.x = rizer.vel.z = 0; rizer.landLock = Math.max(rizer.landLock || 0, STORM_TIMING.astralspin.events.SPIN_RELEASE); }

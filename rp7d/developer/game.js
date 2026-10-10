@@ -41,7 +41,7 @@ import { createTVSystem, buildDvdPickup } from './tv-system.js';
 import { DVDS } from './dvd-registry.js';
 import { createLabs } from './labs.js';
 import { createXray } from './astral-xray.js';
-import { astral as astralBuild, ASTRAL as ASTRAL_AP, STATS, SYSTEMS, MODS, meleeMul, staminaRegenMul, dodgeCostMul, astralHitMul, astralRegen, hpRegen } from './astral-stats.js';
+import { astral as astralBuild, ASTRAL as ASTRAL_AP, STATS, SYSTEMS, MODS, BASE as STAT_BASE, statOf, defMul, meleeMul, staminaRegenMul, dodgeCostMul, astralHitMul, astralRegen, hpRegen } from './astral-stats.js';
 import { crafting } from './crafting.js';
 import { createDeployables } from './deployables.js';
 import { pushOut, sweepOut } from './body-collision.js';
@@ -211,7 +211,7 @@ function fireUfoLaser() {
   if (ufoFireCooldown > 0) return;
   const target = astral.lock;
   if (!target || target.kind !== 'enemy' || !seers?.alive(target.ref)) { showToast('Lock onto a Seer or Mori first'); return; }
-  if (!rizer.spendEnergy(10)) { showToast('ASTRAL ENERGY LOW'); return; }
+  if (!rizer.spendEnergy(10)) { showToast('SP LOW'); return; }
   const root = world.ufo.root, start = new THREE.Vector3(0, 4.3, 9).applyAxisAngle(new THREE.Vector3(0, 1, 0), root.rotation.y).add(root.position);
   const end = target.pos().clone().add(new THREE.Vector3(0, 1.4, 0)), delta = end.clone().sub(start), dist = delta.length();
   if (world.rayClear(start, end, 0.1) < dist - 1.2) { showToast('Laser blocked'); return; }
@@ -932,7 +932,7 @@ function castFocus(id, context = false) {
   if (id === 'astralift') {
     if (!astral.canAstralift(foes)) return showToast('ASTRALIFT · lock an enemy or a closed chest');
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) return;
-    if (!rizer.spendEnergy(ASTRAL.lift.energy)) return showToast('ASTRAL ENERGY LOW');
+    if (!rizer.spendEnergy(ASTRAL.lift.energy)) return showToast('SP LOW');
     if (astral.astralift(rizer, foes, loot, commonChests, result => {
       if (!result) return;
       if (result.kind === 'chest') showToast('ASTRALIFT · chest opening');
@@ -952,14 +952,14 @@ function castFocus(id, context = false) {
   }
   if (id === 'astralthunder') { // lightning from the sky onto the locked Seer or Mori
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) return;
-    if (!rizer.spendEnergy(ASTRAL.thunder.energy)) return showToast('ASTRAL ENERGY LOW');
+    if (!rizer.spendEnergy(ASTRAL.thunder.energy)) return showToast('SP LOW');
     astral.thunder(rizer, lk.ref, foes, (p, hits) => {
       cam.kick(1.2); hitStop = Math.max(hitStop, 0.1); sfx.play('thunder'); rumbleHit('thunder');
       const main = hits[0]; showToast(main?.down ? `ASTRALTHUNDER · ${main.name} down` : `ASTRALTHUNDER · ${ASTRAL.thunder.damage} damage${hits.length > 1 ? ` · ${hits.length - 1} caught in the blast` : ''}`);
     });
   } else if (id === 'astralburst') { // lightning crackles over Rizer, then explodes out around him
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.bursting) return;
-    if (!rizer.spendEnergy(ASTRAL.burst.energy)) return showToast('ASTRAL ENERGY LOW');
+    if (!rizer.spendEnergy(ASTRAL.burst.energy)) return showToast('SP LOW');
     const p = lk.ref.pos; rizer.facing = Math.atan2(p.x - rizer.position.x, p.z - rizer.position.z);
     sfx.play('blast', 0.55, 0.8); rumbleHit('light'); // the charge hums up
     astral.astralburst(rizer, foes, (c, hits) => {
@@ -969,7 +969,7 @@ function castFocus(id, context = false) {
     });
   } else if (id === 'rolling_thunder') { // every impact starts a 3 s fuse; nearby enemies chain before the final blast
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.rolling) return;
-    if (!rizer.spendEnergy(ASTRAL.rolling.energy)) return showToast('ASTRAL ENERGY LOW');
+    if (!rizer.spendEnergy(ASTRAL.rolling.energy)) return showToast('SP LOW');
     sfx.play('blast', 0.6, 0.75); rumbleHit('light');
     astral.rollingThunder(rizer, lk.ref, foes, result => {
       if (result.exploded) {
@@ -1312,11 +1312,11 @@ function makeAstralHub() {
       const lv = progression.level;
       return {
         name: CHARACTERS[rizer.charKey]?.name || 'Rizer', level: lv, total: astralBuild.total, free: astralBuild.free, perLevel: ASTRAL_AP.perLevel, statMax: ASTRAL_AP.statMax,
-        stats: STATS.map(st => ({ ...st, value: astralBuild.stat(st.id) })), mods: astralBuild.mods.length, resetArmed: performance.now() - astralResetArmed < 4000,
+        stats: STATS.map(st => ({ ...st, value: astralBuild.stat(st.id), total: statOf(st.id), base: STAT_BASE[st.id] })), mods: astralBuild.mods.length, resetArmed: performance.now() - astralResetArmed < 4000,
         systems: SYSTEMS.map((sys, i) => ({ ...sys, code: ['CTX', 'SPN', 'ARM', 'LEG'][i], mods: Object.entries(MODS).filter(([, m]) => m.system === sys.id).map(([id, m]) => ({ id, ...m, installed: astralBuild.has(id) })) })),
-        readout: [['LEVEL', lv], ['MAX HEALTH', rizer.maxHp], ['MAX STAMINA', rizer.maxStamina], ['MAX ASTRAL', rizer.maxAstralEnergy], ['MELEE DAMAGE', pct(meleeMul())],
-          ['FINISHERS', pct(meleeMul(true))], ['STAMINA REGEN', pct(staminaRegenMul())], ['DODGE COST', pct(dodgeCostMul())], ['ASTRAL / BLOW', pct(astralHitMul())],
-          ['HEALTH REGEN', hpRegen() ? `+${hpRegen()} / s` : '—'], ['ASTRAL REGEN', astralRegen() ? `+${astralRegen()} / s` : '—']]
+        readout: [['LEVEL', lv], ['HP', rizer.maxHp], ['ATK', statOf('atk')], ['DEF', statOf('def')], ['STA', rizer.maxStamina], ['SP', rizer.maxAstralEnergy],
+          ['PHYSICAL DMG', pct(meleeMul())], ['FINISHERS', pct(meleeMul(true))], ['DAMAGE TAKEN', pct(defMul(statOf('def')) )], ['STA REGEN', pct(staminaRegenMul())], ['DODGE COST', pct(dodgeCostMul())],
+          ['SP / BLOW', pct(astralHitMul())], ['HP REGEN', hpRegen() ? `+${hpRegen()} / s` : '—'], ['SP REGEN', astralRegen() ? `+${astralRegen()} / s` : '—']]
       };
     },
     act(action, arg) {

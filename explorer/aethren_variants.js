@@ -97,9 +97,14 @@
       ART.registerVariant(id, b.sprite, { feature:h[3], primary:h[4], secondary:h[5], accent:h[6], pal:{ i:h[4],j:h[4],I:h[5],x:h[4],q:h[4],Q:h[5],h:h[5],V:h[4],c:h[4],C:h[5],r:h[4],R:h[5],u:h[4],y:h[5] }, note:'Habitat phenotype · '+h[1] });
       var v={id:id,name:h[1]+' '+b.key.toUpperCase(),sprite:id,body:b.key,sourceSpecies:source,worldNo:h[2],habitat:h[0],habitatName:h[1],feature:h[3],colors:{primary:h[4],secondary:h[5],accent:h[6]},tier:tier,types:b.types.slice(),canonBasis:'Native '+b.key+' body plan adapted to Codex habitat '+h[1]+'.'};
       var district = h[2] === 9 ? (zdistrict[h[0]] || 'zarvane') : null;
-      FAUNA.species[id] = { name:v.name, tier:tier, types:b.types.slice(), body:b.key, col:h[4], col2:h[5], world:h[2], district:district, temperament:'habitat-adapted', canon:false, provisional:true, note:v.canonBasis, journal:'A distinct Aethren phenotype recorded in '+h[1]+'.', unknown:'UNCLASSIFIED AETHREN' };
+      // battle stats and moves come from the canon body the variant is built on, scaled to its tier
+      var src = (FAUNA.species || {})[source] || {}, sb = src.base || { hp:66, atk:66, def:66, spd:66, spc:66 }, tot = 0, base = {};
+      Object.keys(sb).forEach(function(k){ tot += sb[k]; });
+      Object.keys(sb).forEach(function(k){ base[k] = Math.max(10, Math.round(sb[k] / tot * tier * 333)); });
+      var mv = (src.moves || [{ n:'Strike', p:40, s:'A1' }, { n:'Lunge', p:60, s:'A2' }, { n:'Surge', p:90, s:'A3' }]).map(function(m, i){ return { n:m.n, t:b.types[i === 1 ? 1 : 0], p:m.p, s:m.s }; });
+      FAUNA.species[id] = { name:v.name, tier:tier, types:b.types.slice(), base:base, moves:mv, body:b.key, col:h[4], col2:h[5], world:h[2], district:district, temperament:src.temperament || 'curious', habitat:'adapted', canon:false, provisional:true, note:v.canonBasis, journal:'A distinct Aethren phenotype recorded in '+h[1]+'.', unknown:'UNCLASSIFIED AETHREN' };
       variants.push(v); (byWorld[h[2]]||(byWorld[h[2]]=[])).push(v);
-      if (D && D.subjects && !D.subjects[id]) { D.subjects[id]={kind:'aethren',set:h[2],term:id,art:id,tier:tier,types:b.types.join(' / '),temperament:'habitat-adapted',canonNote:v.canonBasis,journal:'A distinct Aethren phenotype recorded in '+h[1]+'.'}; }
+      if (D && D.subjects && !D.subjects[id]) { D.subjects[id]={kind:'aethren',set:h[2],term:id,art:id,tier:tier,types:b.types.join(' / '),temperament:FAUNA.species[id].temperament,canonNote:v.canonBasis,journal:'A distinct Aethren phenotype recorded in '+h[1]+'.'}; }
       if (D && D.lexicon && !D.lexicon[id]) D.lexicon[id]={unknown:'UNCLASSIFIED AETHREN · '+h[1].toUpperCase(),canon:null};
     });
   });

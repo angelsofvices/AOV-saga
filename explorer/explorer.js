@@ -750,7 +750,7 @@
     if (S.at) return 'ABOARD · IN ORBIT · ' + placeName(S.at);
     return 'ABOARD · DEEP SPACE · ' + term('expanse');
   }
-  // climbing aboard repairs the suit and rests the card team. AIR refills only at NASARUS.
+  // climbing aboard repairs the suit and rests the Aethren party. AIR refills only at NASARUS.
   function aboard(){
     S.stage = 'nav'; S.suit = 100; S.flares = Math.max(S.flares, flaresMax()); healTeam();
     if (S.at === 'nasarus') refillAir();         // the ship carries no oxygen of its own: only the base refills it
@@ -1232,7 +1232,7 @@
     toast(m.name + ' TEST COMPLETE');
   }
 
-  // ── CARDS · the collection and the battle team ──
+  // ── COMPANIONS · cloned Aethren and the deployed party ──
   function navCards(body){
     autoTeam();
     var ids = Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp; }).sort(function(a, b){ return subj(a).set - subj(b).set || (S.cards[b].lv || 0) - (S.cards[a].lv || 0); });
@@ -1705,7 +1705,7 @@
   }
   async function rest(){
     S.suit = 100; refillAir(); S.flares = Math.max(S.flares, flaresMax()); healTeam(); save(); hudRefresh(); sfx.meet();
-    await say(['You rest in the shelter. SUIT and AIR refilled, flares restocked, your card team rested. The expedition is saved.']);
+    await say(['You rest in the shelter. SUIT and AIR refilled, flares restocked, your Aethren party rested. The expedition is saved.']);
   }
 
   // ── AstraNav · the headquarters page ──

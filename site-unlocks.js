@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.17', title:'Ship levels',
+      notes:[
+        'The ship has five levels. Level 1 is built on NASARUS before the first take-off; level 5 reaches hyperspace',
+        'Each level widens the reach (7, 14, 21, then every world) and the tank (25%, 50%, 75%, 100%, 125%). Each gate asks more than the last',
+        'Build ship levels at the Rocketship Repair Station; out-of-reach worlds name the level they need',
+        'New AstraNav tab: UPGRADES. Meters for the ship and for your pilot level (more AIR, less suit damage as you level)',
+        'COMPANIONS · UPGRADES: train your Aethren. The ship’s level sets how far they can grow'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.16', title:'Refuel the rocket',
       notes:[
         'The rocket has a fuel tank. At the rocket (or in the cockpit), REFUEL: 1 OIL fills 20%, or FILL UP',

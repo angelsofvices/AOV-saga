@@ -35,6 +35,27 @@ window.AOV_CORE = {
     { id:'recipe-rocketship-repair', name:'ROCKETSHIP REPAIR PAPER', source:'NASARUS flight papers', machine:'rocketship_repair', world:'nasarus', at:[5, 22], where:'blown west on the crash, toward the Damaged Inscriptions' },
     { id:'recipe-astranav-terminal', name:'ASTRANAV TERMINAL PAPER', source:'NASARUS navigation papers', machine:'astranav_terminal', world:'nasarus', at:[43, 18], where:'north-east, below the Collapsed Civic Building' }
   ],
+  // ★ SHIP LEVELS (Creator 2026-10-10): "ship can be built 5 levels. level 1 gets you to the first 7 planets closest to
+  // nasarus (25% max fuel). scale up to all planets by level 4 (100% max fuel). level 5 gets you back to hyperspace
+  // (125% max fuel). each level gate should take longer to reach. level 0 to level 1 happens before taking off from
+  // nasarus for the first time. easiest level up gate. basic mechs of game explored here on home planet."
+  // reach: how many worlds, nearest to NASARUS first. tank: the most fuel the ship can hold (%). needs: the gate
+  // (keys read by explorer.js shipNeedValue). cost: materials spent at the Rocketship Repair Station to build the level.
+  // The gate numbers are proposals: tune them freely.
+  shipLevels: [
+    { lv:1, name:'LIFT-OFF', reach:7, tank:25, note:'Before the first take-off: the basics of NASARUS.',
+      needs:[{ k:'camp', n:1 }, { k:'workstation', n:1 }, { k:'papers', n:4 }, { k:'machines', n:5 }, { k:'navcenter', n:1 }, { k:'oil', n:1 }], cost:{} },
+    { lv:2, name:'SHORT HOPS', reach:14, tank:50, note:'The nearer worlds walked, the first parts home.',
+      needs:[{ k:'player', n:3 }, { k:'worlds', n:2 }, { k:'parts', n:2 }, { k:'scans', n:6 }, { k:'clones', n:1 }, { k:'ruins', n:3 }, { k:'stage', n:2 }], cost:{ scrap:20, crystal:10, data:6 } },
+    { lv:3, name:'LONG RANGE', reach:21, tank:75, note:'Wardens beaten, peoples met, the camp a headquarters.',
+      needs:[{ k:'player', n:6 }, { k:'worlds', n:6 }, { k:'parts', n:7 }, { k:'battles', n:4 }, { k:'peoples', n:4 }, { k:'refugees', n:1 }, { k:'restored', n:2 }, { k:'stage', n:3 }], cost:{ scrap:45, crystal:25, relic:4, data:15 } },
+    { lv:4, name:'THE WHOLE EXPANSE', reach:27, tank:100, note:'Every world within reach.',
+      needs:[{ k:'player', n:10 }, { k:'worlds', n:12 }, { k:'parts', n:14 }, { k:'battles', n:10 }, { k:'peoples', n:8 }, { k:'restored', n:4 }, { k:'settled', n:2 }, { k:'stage', n:4 }], cost:{ scrap:90, crystal:50, relic:10, data:30, terra:20 } },
+    { lv:5, name:'HYPERSPACE', reach:27, tank:125, note:'Every system restored. The way home.',
+      needs:[{ k:'player', n:14 }, { k:'worlds', n:27 }, { k:'parts', n:27 }, { k:'peoples', n:14 }, { k:'restored', n:7 }, { k:'stage', n:5 }], cost:{ scrap:150, crystal:90, relic:20, data:60, terra:40 } }
+  ],
+  // Aethren level cap by ship level (0–5): training and battles both stop at the cap
+  aethrenCap: [15, 25, 40, 60, 80, 100],
   oil: { id:'oil', name:'OIL', source:'FIBRE → FUEL GENERATOR → OIL', normalPerDistance:1, outOfRangeMultiplier:2.5 },
   navigation: { baseRadius:2, upgradeStep:2, outOfRange: { label:'INTERFERENCE', risk:'Navigation static and accelerated Oil consumption.' } },
   // Aethren discovery remains playable; companion conversion and card combat are

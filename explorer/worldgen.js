@@ -165,7 +165,7 @@
   // warden on it and have a refugee camp in a war region; worlds without a people (and Zyraxis) have an
   // Aethren guardian at the vault instead.
   function strongest(no, district){
-    return speciesFor(no, district).sort(function(a, b){ return (FAUNA.species[b].tier || 0) - (FAUNA.species[a].tier || 0) || (a < b ? -1 : 1); });
+    return speciesFor(no, district).filter(function(id){ return (FAUNA.species[id].tier || 1) <= 8; }).sort(function(a, b){ return (FAUNA.species[b].tier || 0) - (FAUNA.species[a].tier || 0) || (a < b ? -1 : 1); });
   }
   function vault(m, r, area, no, envId, people, lvl, district){
     var best = null, bd = -1;

@@ -1192,7 +1192,7 @@
   // Beings unlock when scanned, met or read on a record; WORLDS rows when the world is visited;
   // INDEX entries when their subject is unlocked; COSMIC THEORIES, BOOKS and GAMES pages are decoded
   // with DATA at NASARUS's Research Station. AEP-28, Ovauron and Mealux stay sealed (canon).
-  var canonTab = 'beings', canonLetter = 'A', SEALED_RX = /(ovauron|aep[- ]?28|\bae-28\b|mealux)/i, PAGE_COST = 4;
+  var canonTab = 'beings', canonLetter = 'A', SEALED_RX = /(ovauron|aep[- ]?28|\bae-28\b)/i, PAGE_COST = 4;
   function spIdByName(){ if (spIdByName.m) return spIdByName.m; var m = {}; Object.keys(SP).forEach(function(id){ var n = (SP[id].name || '').toLowerCase().replace(/[^a-z0-9]/g, ''); if (n && !m[n]) m[n] = id; }); return (spIdByName.m = m); }
   function beingOpen(b){
     if (SEALED_RX.test(b.name)) return false;
@@ -2465,6 +2465,7 @@
   }
   function wardenTeam(no){
     var ids = Object.keys(SP).filter(function(id){ var x = SP[id]; return x.world === no && !x.retired && !x.hidden; })
+      .filter(function(id){ return (SP[id].tier || 1) <= 8; })        // bosses send Aethren up to tier VIII; IX+ roam the wild
       .sort(function(a, b){ return SP[b].tier - SP[a].tier || (a < b ? -1 : 1); }).slice(0, EXP.warden.team || 3).reverse();
     var lv = GEN.levelFor(no) + (EXP.warden.levelUp || 6);
     return ids.map(function(id, i){ return { sp:id, lv:lv + i * 2 }; });

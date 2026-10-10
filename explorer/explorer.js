@@ -878,6 +878,57 @@
     save();
   }
   function ship(){ if (S.stage !== 'nav') aboard(); nav('system'); }
+  // ── CHAPTER TABS · long AstraNav panels read as clickable chapters, one at a time ──
+  // chapterize(host, key, want, dflt): the host's direct <section>s with an <h3> become tabs. Sections that share a
+  // data-chap label share one tab (the party and its roster). The open tab is remembered per panel for the session;
+  // want (a section id) or dflt picks it otherwise. Panels with fewer than two tabs are left as they are.
+  var chapMem = {};
+  function chapterize(host, key, want, dflt){
+    if (!host) return null;
+    var secs = Array.prototype.slice.call(host.children).filter(function(n){ return n.tagName === 'SECTION' && n.querySelector(':scope > h3'); });
+    var groups = [], byLabel = {};
+    secs.forEach(function(n){
+      var h = n.querySelector(':scope > h3'), b = h.querySelector(':scope > b');
+      var label = n.dataset.chap || Array.prototype.slice.call(h.childNodes).filter(function(c){ return c.nodeType === 3; }).map(function(c){ return c.textContent; }).join('').trim() || h.textContent.trim();
+      var g = byLabel[label];
+      if (!g) { g = byLabel[label] = { label:label, badge:b ? b.textContent.trim() : '', secs:[] }; groups.push(g); }
+      g.secs.push(n);
+    });
+    if (groups.length < 2) return null;
+    function find(id){ if (!id) return -1; for (var i = 0; i < groups.length; i++) if (groups[i].secs.some(function(n){ return n.id === id || n.id === key.split(':')[0] + '-' + id; })) return i; return -1; }
+    var at = find(want);
+    if (at < 0 && chapMem[key] != null && chapMem[key] < groups.length && groups[chapMem[key]].label === chapMem[key + '#']) at = chapMem[key];
+    if (at < 0) at = find(dflt);
+    if (at < 0) at = 0;
+    var bar = el('nav', 'x-chaptabs' + (groups.length > 7 ? ' many' : ''));
+    bar.setAttribute('aria-label', 'Chapters');
+    bar.innerHTML = groups.map(function(g, i){
+      return '<button class="x-chaptab" data-chap="' + i + '"><span>' + esc(g.label) + '</span>' + (g.badge ? '<b>' + esc(g.badge) + '</b>' : '') + '</button>';
+    }).join('');
+    host.insertBefore(bar, secs[0]);
+    function show(i){
+      at = i; chapMem[key] = i; chapMem[key + '#'] = groups[i].label;
+      groups.forEach(function(g, j){ g.secs.forEach(function(n){ n.classList.toggle('x-ch-off', j !== i); }); });
+      Array.prototype.slice.call(bar.children).forEach(function(b, j){ b.classList.toggle('on', j === i); b.setAttribute('aria-selected', j === i ? 'true' : 'false'); });
+    }
+    bar.addEventListener('click', function(e){
+      var b = e.target.closest('[data-chap]'); if (!b) return;
+      e.stopPropagation(); sfx.click(); show(+b.dataset.chap);
+      try { if (bar.getBoundingClientRect().top < 0) bar.scrollIntoView({ block:'start' }); } catch(err){}
+    });
+    show(at);
+    return { show:show, groups:groups, bar:bar, find:find };
+  }
+  function openChapter(id){
+    var n = doc.getElementById(id); if (!n) return false;
+    var host = n.parentNode, bar = host && host.querySelector(':scope > .x-chaptabs'); if (!bar) return !!n;
+    var secs = Array.prototype.slice.call(host.children).filter(function(c){ return c.tagName === 'SECTION' && c.querySelector(':scope > h3'); });
+    var b = Array.prototype.slice.call(bar.children).filter(function(btn){ return btn.querySelector('span').textContent === (n.dataset.chap || '') ; })[0];
+    if (!b) { var lab = Array.prototype.slice.call(n.querySelector(':scope > h3').childNodes).filter(function(c){ return c.nodeType === 3; }).map(function(c){ return c.textContent; }).join('').trim(); b = Array.prototype.slice.call(bar.children).filter(function(btn){ return btn.querySelector('span').textContent === lab; })[0]; }
+    if (b) b.click();
+    return !n.classList.contains('x-ch-off');
+  }
+
   function nav(tab, sel){
     navTab = tab || navTab || 'system';
     navTab = { field:'system', cards:'companions', codex:'research', log:'journal' }[navTab] || navTab;   // old section names
@@ -1429,7 +1480,7 @@
   }
 
   // ── 4 · COMPANIONS · the Aethren you have cloned ──
-  function navCompanions(body){ navCards(body); }
+  function navCompanions(body, sel){ navCards(body, sel); }
 
   // ── 5 · RESEARCH · everything you collect. It counts once it is home at NASARUS. ──
   function researchIds(){ return Object.keys(S.cards).filter(function(id){ return subj(id) && (!subj(id).sp || !S.cards[id].clone); }).sort(function(a, b){ return subj(a).set - subj(b).set || (subj(a).kind > subj(b).kind ? 1 : -1); }); }
@@ -1473,7 +1524,7 @@
       ui.appendChild(m); m.addEventListener('click', function(ev){ if (ev.target === m || ev.target.closest('[data-t]')) m.remove(); });
     };
   }
-  function navResearch(body){
+  function navResearch(body, sel){
     var ids = researchIds(), h = S.hq, eq = (HQ.airTanks || []).filter(function(t){ return (h.equip || {})[t.id]; });
     var pendIds = ids.filter(function(id){ return S.cards[id].pend; });
     body.innerHTML = '<p class="x-crt">RESEARCH · what you carry counts only once it is home at ' + esc(hqName()) + '</p>' +
@@ -1500,6 +1551,7 @@
     navCodex($('.x-codex-in', body));
     catalogPanel($('.x-itemcat', body));
     canonPanel($('.x-canon', body), $('.x-canon-count', body));
+    chapterize(body, 'rs', sel, 'rs-pack');
     body.onclick = function(e){
       var g = e.target.closest('[data-go]'); if (g) { nav(g.dataset.go); return; }
       var c = e.target.closest('.x-grid [data-card]'); if (!c) return;
@@ -1620,16 +1672,48 @@
   }
 
   // ── 6 · JOURNAL · the missions ──
-  function navJournal(body){
+  // JOURNAL · read as chapters: the mission, the story so far, the three logs of objectives, and the expeditions
+  var JOURNAL_LOGS = [
+    { id:'jr-log1', title:'I · THE CRASH SITE', note:'Camp, the machine papers, the departure chain and the ruins of the drifting base.', at:[0, 1, 2, 3, 4, 5] },
+    { id:'jr-log2', title:'II · FIRST STEPS', note:'Leave, come home, and learn the worlds: contact, scans, companions and the carved words.', at:[6, 7, 8, 14, 15, 16, 17, 18, 19, 20, 21, 24] },
+    { id:'jr-log3', title:'III · THE WAY HOME', note:'Clues, wardens, ship parts and refugees, world by world, until the ship can fly.', at:[9, 10, 11, 12, 13, 22, 23, 25] }
+  ];
+  function objLi(o){ return '<li class="' + (o.done ? 'done' : '') + (o.main ? ' main' : '') + (o.side ? ' side' : '') + '">' + esc(o.t) + '</li>'; }
+  function journalLogs(){
+    var all = objectives(), used = {};
+    var logs = JOURNAL_LOGS.map(function(L){ var items = L.at.map(function(i){ used[i] = 1; return all[i]; }).filter(Boolean); return { id:L.id, title:L.title, note:L.note, items:items }; });
+    var rest = all.filter(function(o, i){ return !used[i]; });   // anything added later lands in the last log
+    if (rest.length) logs[logs.length - 1].items = logs[logs.length - 1].items.concat(rest);
+    return logs;
+  }
+  function navJournal(body, sel){
     var vis = D.worlds.filter(function(w){ return S.visited[w.no] && w.no <= 27; });
-    body.innerHTML = '<div class="x-paper"><p class="x-mono">JOURNAL OF ' + esc(heroName()) + ' · ' + STORY.year + '</p>' + objList() + '</div>' +
-      '<section class="x-arc riv"><h3>EXPEDITIONS <b>' + vis.length + ' / 27</b></h3><ul class="x-hqlist">' +
+    var logs = journalLogs(), next = objectives().filter(function(o){ return !o.done && !o.main; })[0], main = objectives().filter(function(o){ return o.main; })[0];
+    var cur = logs.filter(function(L){ return L.items.some(function(o){ return !o.done; }); })[0] || logs[logs.length - 1];
+    body.innerHTML = '<p class="x-crt x-jr-head">JOURNAL OF ' + esc(heroName()) + ' · ' + STORY.year + '</p>' +
+      '<section class="x-paper x-jch" id="jr-mission"><h3>MISSION <b>' + objectives().filter(function(o){ return o.done; }).length + ' / ' + objectives().length + '</b></h3>' + goalsHtml() +
+        '<div class="x-jr-next"><p class="x-mono">NEXT</p><p class="x-jr-now">' + (next ? '▸ ' + esc(next.t) : 'Every log is complete.') + '</p>' + (main ? '<p class="x-jr-main' + (main.done ? ' done' : '') + '">' + esc(main.t) + '</p>' : '') + '</div>' +
+        '<ul class="x-jr-logs">' + logs.map(function(L){
+          var d = L.items.filter(function(o){ return o.done; }).length;
+          return '<li class="' + (d === L.items.length ? 'done' : L === cur ? 'now' : '') + '"><button data-jr="' + L.id + '"><b>' + esc(L.title) + '</b><em>' + d + ' / ' + L.items.length + '</em><i class="x-jr-bar"><i style="width:' + Math.round(d / Math.max(1, L.items.length) * 100) + '%"></i></i></button></li>';
+        }).join('') + '</ul></section>' +
+      '<section class="x-paper x-jch" id="jr-story"><h3>THE STORY <b>' + STORY.chapters.filter(function(c){ return c.open; }).length + ' / ' + STORY.chapters.length + '</b></h3>' + chaptersHtml() + '</section>' +
+      logs.map(function(L){
+        var d = L.items.filter(function(o){ return o.done; }).length;
+        return '<section class="x-paper x-jch" id="' + L.id + '"><h3>' + esc(L.title) + ' <b>' + d + ' / ' + L.items.length + '</b></h3><p class="x-mono light">' + esc(L.note) + '</p><ol class="x-obj">' + L.items.map(objLi).join('') + '</ol></section>';
+      }).join('') +
+      '<section class="x-arc riv" id="jr-exp"><h3>EXPEDITIONS <b>' + vis.length + ' / 27</b></h3><ul class="x-hqlist">' +
       (vis.length ? vis.map(function(w){
         var no = w.no, steps = [hasClue(no) ? '✓ CLUE' : '· CLUE', S.exp.beaten[no] ? '✓ ' + (hasWarden(no) ? 'WARDEN' : 'GUARDIAN') : '· ' + (hasWarden(no) ? 'WARDEN' : 'GUARDIAN'),
           S.hq.installed[no] || S.hq.parts[no] ? '✓ PART HOME' : S.exp.vault[no] ? '… PART IN BAG' : '· PART'];
         if (hasWarden(no)) steps.push(S.hq.residents[no] ? '✓ REFUGEES' : '· REFUGEES');
         return '<li class="' + (S.hq.installed[no] || S.hq.parts[no] ? 'done' : '') + '"><b>' + esc(placeName(no)) + '</b><span>' + steps.join(' · ') + '</span><div><em>' + esc(vaultState(no)) + '</em></div></li>';
       }).join('') : '<li><b>— no expeditions yet —</b><span>Set a course in NAVIGATION.</span><div></div></li>') + '</ul></section>';
+    var ch = chapterize(body, 'jr', sel, 'jr-mission');
+    body.onclick = function(e){
+      var j = e.target.closest('[data-jr]'); if (!j || !ch) return;
+      sfx.click(); ch.show(ch.find(j.dataset.jr));
+    };
   }
 
   function machineDef(id){ return MACHINES.filter(function(m){ return m.id === id; })[0]; }
@@ -1666,7 +1750,7 @@
   }
 
   // ── COMPANIONS · cloned Aethren and the deployed party ──
-  function navCards(body){
+  function navCards(body, sel){
     autoTeam();
     var ids = Object.keys(S.cards).filter(function(id){ return subj(id) && subj(id).sp; }).sort(function(a, b){ return subj(a).set - subj(b).set || (S.cards[b].lv || 0) - (S.cards[a].lv || 0); });
     if (S.cardOrder) { var co = S.cardOrder; ids.sort(function(a, b){ var ia = co.indexOf(a), ib = co.indexOf(b); return (ia < 0 ? 1e4 : ia) - (ib < 0 ? 1e4 : ib); }); }
@@ -1684,12 +1768,15 @@
           else act = '<em>' + costText(cloneCost(id)) + '</em><button class="x-btn small" data-clone="' + id + '"' + (canAfford(cloneCost(id)) ? '' : ' disabled') + '>CLONE</button>';
           return '<li><b>' + esc(subjName(id)) + ' · LV ' + c.lv + '</b><span>' + esc(subj(id).types) + ' · tier ' + ((SP[subj(id).sp] || {}).tier || '?') + '</span><div>' + act + '</div></li>';
         }).join('') + '</ul>' : '<p class="x-mono light">No profiles waiting. Scan Aethren in the field.</p>') + '</section>' +
-      '<section class="x-team riv"><h3>PARTY <small>up to ' + teamMax() + ' · the first leads · drag to reorder, or drag an Aethren in from the roster</small></h3>' +
+      '<section class="x-team riv" id="cp-party" data-chap="PARTY & ROSTER"><h3>PARTY <small>up to ' + teamMax() + ' · the first leads · drag to reorder, or drag an Aethren in from the roster</small></h3>' +
         (leadPerk() ? '<p class="x-perk"><b>LEAD PERK · ' + esc(leadPerk().name) + '</b> ' + esc(leadPerk().text) + '</p>' : '<p class="x-perk dim">The lead card’s first type gives a field perk.</p>') +
         '<div class="x-teamrow">' +
         (S.team.length ? S.team.map(teamChip).join('') : '<p class="x-mono light">No companions yet. Clone a scanned profile at ' + esc(hqName()) + '.</p>') + '</div></section>' +
+      '<section class="x-roster-sec" id="cp-roster" data-chap="PARTY & ROSTER"><h3 hidden>ROSTER</h3>' +
       (ids.length ? '<p class="x-mono light x-dnd-hint">ROSTER · drag to arrange · drag into the party to deploy</p><div class="x-grid x-roster">' + ids.map(function(id){ return cardHtml(id, false); }).join('') + '</div>'
-      : '<p class="x-empty">No companions yet. Scan an Aethren, bring the profile home, and clone it.</p>');
+      : '<p class="x-empty">No companions yet. Scan an Aethren, bring the profile home, and clone it.</p>') + '</section>';
+    var cpTabs = chapterize(body, 'cp', sel, prof.length && !S.team.length ? 'cp-clone' : 'cp-party');
+    if (cpTabs) { var pb = cpTabs.bar.querySelector('[data-chap="1"] b'); if (!pb) cpTabs.bar.children[1].insertAdjacentHTML('beforeend', '<b>' + S.team.length + ' / ' + ids.length + '</b>'); }
     sortable([$('.x-teamrow', body), $('.x-roster', body)], '[data-card]', 'data-card', function(lists){
       // the roster lists every clone (party members too), so drops can repeat a key: keep the first of each
       var uniq = function(l){ return (l || []).filter(function(id, i, all){ return all.indexOf(id) === i; }); };
@@ -1745,11 +1832,11 @@
   function navCodex(body){
     var worlds = D.worlds.filter(function(w){ return !w.hidden && (S.visited[w.no] || known(w.term) || setCards(w.no)); }).map(function(w){ return w.no; });
     var sets = worlds.concat([29, 30]);
-    body.innerHTML = (S.flags.copied && !S.flags.decoded ? '<section class="x-arc riv"><h3>DECODING</h3><p class="x-mono light">' +
+    body.innerHTML = (S.flags.copied && !S.flags.decoded ? '<section class="x-arc riv" id="cx-decode"><h3>DECODING</h3><p class="x-mono light">' +
         (canDecode() ? 'The carved markings can be cross-referenced against your scans.' : 'Markings copied. Classify at least 4 subjects to cross-reference them (' + classifiedCount() + '/4).') +
         '</p><button class="x-btn" data-a="dec"' + (canDecode() ? '' : ' disabled') + '>DECODE THE MARKINGS</button></section>' : '') +
       '<p class="x-crt">' + esc(heroName()) + '’S LIVING MASTER CODEX · ' + esc(STORY.rule) + '</p>' +
-      '<p class="x-mono light">PLAYER DISCOVERIES, drawn from the MASTER CANON. Aethren cards are in COMPANIONS, research cards above; the planetary survey is in NAVIGATION; restoration records are in HEADQUARTERS.</p>' +
+      '<p class="x-mono light">PLAYER DISCOVERIES, drawn from the MASTER CANON. Aethren cards are in COMPANIONS, research cards in their own tab; the planetary survey is in NAVIGATION; restoration records are in HEADQUARTERS.</p>' +
       '<section class="x-arc riv"><h3>' + esc(hqName()) + ' · HEADQUARTERS <b>STAGE ' + hqStage() + '</b></h3><p class="x-mono light">An ancient drifting planet. Haemen and Aethren lived here before the First Eternal War. Why it was abandoned is not known.</p>' +
         '<ul>' + HQ.ruins.filter(function(u){ return S.hq.ruins[u.id]; }).map(function(u){ return '<li class="done"><b>' + esc(u.label) + '</b><span>' + (S.hq.ruins[u.id].restored ? 'RESTORED' : 'SURVEYED') + '</span><em>' + esc(u.survey) + '</em></li>'; }).join('') +
         (Object.keys(S.hq.ruins).length ? '' : '<li><b>— no ruins surveyed yet —</b></li>') + '</ul></section>' + sets.map(function(n){
@@ -1766,6 +1853,7 @@
             (S.notes[id] ? '<em>' + esc(subj(id).journal) + '</em>' : '') + '</li>';
         }).join('') + '</ul></section>';
     }).join('') + '<p class="x-mono dim">The master collection holds 30 sets.</p>';
+    chapterize(body, 'codex', S.flags.copied && !S.flags.decoded ? 'cx-decode' : null);
     var dec = $('[data-a="dec"]', body);
     if (dec) dec.addEventListener('click', function(){
       reclassify(D.teaches.markings, 'The carved figures match your scans. Beside each figure, a word. The words repeat in the wireless pattern.', function(){
@@ -1910,7 +1998,137 @@
   function needLabel(k){ var m = /^(restored|residents|settled):(\d+)$/.exec(k), L = { restored:'RUINS RESTORED', residents:'REFUGEE GROUPS HOME', settled:'AETHREN SPECIES SETTLED' };
     return (stageNeedMet(k) ? '✓ ' : '') + (m ? m[2] + ' ' + L[m[1]] + ' (' + (m[1] === 'restored' ? hqRestored() : Object.keys(S.hq[m[1]] || {}).length) + ')' : nameOf(k)); }
   function hqState(){ return { built:S.hq.built, ruins:S.hq.ruins, regions:S.hq.regions, found:S.found, stage:hqStage(), drive:S.hq.drive, research:S.hq.research, residents:residentsList(), settled:Object.keys(S.hq.settled) }; }
-  function buildMap(id){ return id === 'nasarus' ? GEN.build('nasarus', hqState()) : GEN.build(id); }
+  function buildMap(id){ var m = id === 'nasarus' ? GEN.build('nasarus', hqState()) : GEN.build(id); if (m) { placePapers(m); applyMoves(m); } return m; }
+  // ── SANDBOX · GRAB, DRAG, SET ──
+  // □ (C on a keyboard, MOVE on touch) lifts the movable thing you face: a prop, boulder, plant, crystal, wreckage or a
+  // HEADQUARTERS station. It rides in front of you as you walk. □ again sets it on the tile you face; ○ while carrying
+  // puts it back where it was. Every move is saved per map (S.moved) and replayed whenever the map is built, so the
+  // world stays the way you arranged it: the base layout, and later the puzzles that need things moved.
+  var MOVABLE = { P:1, B:1, w:1, b:1, T:1, A:1 }, carry = null;
+  function movedList(id){ S.moved = S.moved || {}; return (S.moved[id] = S.moved[id] || []); }
+  function liftTile(m, x, y){ var i = y * m.W + x, o = { c:m.grid[i], prop:m.props[i] }; m.grid[i] = '.'; delete m.props[i]; return o; }
+  function dropTile(m, x, y, o){ var i = y * m.W + x; m.grid[i] = o.c; if (o.prop) m.props[i] = o.prop; else delete m.props[i]; }
+  function structById(m, id){ return (m.structs || []).filter(function(st){ return st.id === id; })[0]; }
+  function liftStruct(m, st){ for (var k = 0; k < st.w; k++) { var i = st.y * m.W + st.x + k; m.grid[i] = '.'; delete m.sidx[i]; } }
+  function dropStruct(m, st, x, y){ st.x = x; st.y = y; var n = m.structs.indexOf(st); for (var k = 0; k < st.w; k++) { var i = y * m.W + x + k; m.grid[i] = 'F'; delete m.props[i]; m.sidx[i] = n; } }
+  function applyMoves(m){
+    (S.moved && S.moved[m.id] || []).forEach(function(mv){
+      if (mv.st) { var st = structById(m, mv.st); if (!st || (st.x === mv.t[0] && st.y === mv.t[1])) return; if (!structFits(m, st, mv.t[0], mv.t[1], true)) return; liftStruct(m, st); dropStruct(m, st, mv.t[0], mv.t[1]); return; }
+      var i = mv.f[1] * m.W + mv.f[0], j = mv.t[1] * m.W + mv.t[0];
+      if (m.grid[i] !== mv.c || !floorFree(m, mv.t[0], mv.t[1], true)) return;
+      dropTile(m, mv.t[0], mv.t[1], liftTile(m, mv.f[0], mv.f[1]));
+    });
+  }
+  function floorFree(m, x, y, quiet){
+    if (x < 1 || y < 1 || x >= m.W - 1 || y >= m.H - 1) return false;
+    var c = m.grid[y * m.W + x]; if (c !== '.' && c !== ',' && c !== 'd') return false;
+    if (m.warps && m.warps[c]) return false;
+    if (m.paperAt && m.paperAt[y * m.W + x] && !(S.core.recipes || {})[m.paperAt[y * m.W + x].id]) return false;
+    if (quiet) return true;
+    return !(P && P.x === x && P.y === y) && !critterAt(x, y) && !npcAt(x, y);
+  }
+  function structFits(m, st, x, y, quiet){
+    for (var k = 0; k < st.w; k++) { var i = y * m.W + x + k; if (m.sidx[i] === m.structs.indexOf(st)) continue; if (!floorFree(m, x + k, y, quiet)) return false; }
+    return true;
+  }
+  function movableName(ch, i){
+    if (ch === 'P') return (propLine(M.props[i]) || 'it').split(/[.:]/)[0];
+    return { B:'the boulder', w:'the wreckage', b:'the plant', T:'the tree', A:'the crystal' }[ch] || 'it';
+  }
+  function carryTarget(){
+    var f = facing();
+    if (carry && carry.st) { var x = P.dir === 'left' ? f.x - carry.st.w + 1 : f.x; return { x:x, y:f.y }; }   // a station sits with its near end in front of you
+    return f;
+  }
+  function carryOk(){ var t = carryTarget(); return carry.st ? structFits(M, carry.st, t.x, t.y) : floorFree(M, t.x, t.y); }
+  function btnMove(){
+    if (dialogOpen || encounterOpen || doc.querySelector('.x-modal') || P.moving) return;
+    if (carry) return setCarry();
+    var f = facing(), i = f.y * M.W + f.x, ch = at(f.x, f.y);
+    if (ch === 'F' && M.sidx && M.sidx[i] != null) {
+      var st = M.structs[M.sidx[i]];
+      if (!M.hq) { sfx.bump(); return toast('That will not move.'); }
+      carry = { st:st, f:[st.x, st.y], spr:st.spr }; liftStruct(M, st);
+      sfx.click(); vibrate(50, .3); hudRefresh(); return toast('LIFTED · ' + ((st.ref && (st.ref.name || st.ref.label)) || 'THE STATION') + ' · □ SET · ○ CANCEL');
+    }
+    if (!MOVABLE[ch]) { sfx.bump(); return toast(ch === '.' || ch === ',' || ch === 'd' ? 'Nothing here to move. Face a prop, plant, stone or station and press □.' : 'That will not move.'); }
+    var spec = objSpec(ch, i, M.env(f.x, f.y), performance.now()), name = movableName(ch, i), wasFound = !!S.found[M.id + ':' + f.x + ',' + f.y];
+    carry = { c:ch, f:[f.x, f.y], o:liftTile(M, f.x, f.y), spec:spec, found:wasFound };
+    sfx.click(); vibrate(50, .3); hudRefresh(); toast('LIFTED · ' + name.toUpperCase() + ' · □ SET · ○ CANCEL');
+  }
+  function setCarry(){
+    var t = carryTarget();
+    if (!carryOk()) { sfx.bump(); vibrate(30, .2); return toast('No room there. Face open ground.'); }
+    var list = movedList(M.id);
+    if (carry.st) {
+      dropStruct(M, carry.st, t.x, t.y);
+      list = list.filter(function(mv){ return mv.st !== carry.st.id; }); list.push({ st:carry.st.id, t:[t.x, t.y] }); S.moved[M.id] = list;
+    } else {
+      dropTile(M, t.x, t.y, carry.o);
+      // the same object, wherever it stands: what was taken from it stays taken
+      var k0 = M.id + ':' + carry.f[0] + ',' + carry.f[1], k1 = M.id + ':' + t.x + ',' + t.y;
+      if (carry.found) { S.found[k1] = 1; delete S.found[k0]; }
+      list.push({ c:carry.c, f:carry.f, t:[t.x, t.y] });
+      if (list.length > 600) list.splice(0, list.length - 600);
+    }
+    carry = null; specCache = {}; sfx.step(); vibrate(70, .4); save(); hudRefresh(); toast('SET');
+  }
+  function cancelCarry(){
+    if (!carry) return false;
+    if (carry.st) dropStruct(M, carry.st, carry.f[0], carry.f[1]); else dropTile(M, carry.f[0], carry.f[1], carry.o);
+    carry = null; sfx.click(); hudRefresh(); toast('PUT BACK'); return true;
+  }
+  function drawCarry(ox, oy, TZ, z, now){
+    if (!carry) return;
+    var t = carryTarget(), ok = carryOk(), w = carry.st ? carry.st.w : 1, bob = Math.sin(now / 160) * z;
+    ctx.fillStyle = ok ? 'rgba(120,230,140,.22)' : 'rgba(255,90,70,.25)'; ctx.fillRect(ox + t.x * TZ, oy + t.y * TZ, TZ * w, TZ);
+    ctx.strokeStyle = ok ? 'rgba(150,255,170,.85)' : 'rgba(255,110,90,.9)'; ctx.lineWidth = Math.max(1, z); ctx.setLineDash([3 * z, 2 * z]);
+    ctx.strokeRect(ox + t.x * TZ + z / 2, oy + t.y * TZ + z / 2, TZ * w - z, TZ - z); ctx.setLineDash([]);
+    ctx.globalAlpha = .78;
+    if (carry.st) ART.draw(ctx, carry.st.spr, ox + (t.x + w / 2) * TZ, oy + (t.y + 1) * TZ - 3 * z + bob, z);
+    else if (carry.spec) ART.draw(ctx, carry.spec, ox + (t.x + .5) * TZ, oy + (t.y + 1) * TZ - 3 * z + bob, z);
+    ctx.globalAlpha = 1;
+  }
+  // ── MACHINE PAPERS · rectangle sheets lying on the floor of the world they belong to, spread out ──
+  function paperFloor(m, x, y){ var c = m.at(x, y); return (c === '.' || c === ',' || c === 'd') && !(m.ship && Math.abs(x - m.ship.x) <= 2 && y >= m.ship.y - 1 && y <= m.ship.y + 1); }
+  function placePapers(m){
+    m.papers = []; m.paperAt = {};
+    (CORE.recipes || []).forEach(function(r, k){
+      if ((r.world || 'nasarus') !== m.id || !r.at) return;
+      var busy = function(x, y){ return m.paperAt[y * m.W + x] || (m.npcs || []).some(function(n){ return n.x === x && n.y === y; }) || (m.spawns || []).some(function(c){ return c.x === x && c.y === y; }); };
+      for (var d = 0; d < 12; d++) for (var dy = -d; dy <= d; dy++) for (var dx = -d; dx <= d; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
+        var x = r.at[0] + dx, y = r.at[1] + dy;
+        if (x < 1 || y < 1 || x >= m.W - 1 || y >= m.H - 1 || !paperFloor(m, x, y) || busy(x, y)) continue;
+        var pp = { id:r.id, x:x, y:y, tilt:[-0.32, 0.18, -0.08, 0.4, -0.22][k % 5] };
+        m.papers.push(pp); m.paperAt[y * m.W + x] = pp; return;
+      }
+    });
+  }
+  function paperHere(x, y){ var pp = M && M.paperAt && M.paperAt[y * M.W + x]; return pp && !(S.core.recipes || {})[pp.id] ? pp : null; }
+  function pickPaper(pp){
+    var r = coreRecipe(pp.id); if (!r) return;
+    held = null; path = [];
+    if (!coreDiscoverRecipe(pp.id)) { S.core.recipes[pp.id] = S.core.recipes[pp.id] || Date.now(); save(); }
+    sfx.reveal(); vibrate(60, .3);
+    var n = Object.keys(S.core.recipes).length;
+    say(['A sheet of paper, pinned flat under a stone. The ink has held.', r.name + ' · from the ' + r.source + '.',
+      'Build it at HEADQUARTERS · CORE SYSTEMS. Machine papers: ' + n + ' / ' + (CORE.recipes || []).length + '.']);
+  }
+  // a sheet lying flat on the floor: drawn into the ground layer, under everything that stands
+  function drawPaper(pp, X, Y, TZ, now){
+    var w = TZ * .3, h = TZ * .38, cx = X + TZ / 2, cy = Y + TZ / 2 + TZ * .22;   // a small sheet, well under the pilot's size
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(pp.tilt);
+    ctx.fillStyle = 'rgba(20,14,8,.35)'; ctx.fillRect(-w / 2 + TZ * .03, -h / 2 + TZ * .04, w, h);              // shadow
+    ctx.fillStyle = '#efe6d0'; ctx.fillRect(-w / 2, -h / 2, w, h);                                                // the sheet
+    ctx.fillStyle = '#9b2a1f'; ctx.fillRect(-w / 2 + w * .12, -h / 2 + h * .1, w * .76, Math.max(1, h * .07));    // printed title bar
+    ctx.fillStyle = 'rgba(42,33,24,.55)';
+    for (var l = 0; l < 3; l++) ctx.fillRect(-w / 2 + w * .12, -h / 2 + h * (.32 + l * .2), w * (l === 2 ? .45 : .76), Math.max(1, h * .035));   // typed lines
+    ctx.fillStyle = '#c9bb98'; ctx.beginPath(); ctx.moveTo(w / 2 - w * .26, h / 2); ctx.lineTo(w / 2, h / 2 - w * .26); ctx.lineTo(w / 2, h / 2); ctx.closePath(); ctx.fill();   // dog-ear
+    ctx.strokeStyle = 'rgba(90,74,54,.6)'; ctx.lineWidth = Math.max(1, TZ / 32); ctx.strokeRect(-w / 2, -h / 2, w, h);
+    var gl = (now / 1400 + pp.x * .37) % 3; if (gl < .5) { ctx.fillStyle = 'rgba(255,248,220,' + (.5 * Math.sin(gl * 6.283)).toFixed(2) + ')'; ctx.fillRect(-w / 2, -h / 2, w, h); }   // it catches the light now and then
+    ctx.restore();
+  }
   function hqRecord(text){ S.hq.records.push({ t:Date.now(), text:text }); if (S.hq.records.length > 200) S.hq.records.shift(); }
   function matName(k){ return (MATS.filter(function(m){ return m[0] === k; })[0] || [k, k.toUpperCase()])[1]; }
   function costText(c){ return Object.keys(c || {}).map(function(k){ return matName(k) + ' ' + c[k]; }).join(' · ') || 'FREE'; }
@@ -2227,11 +2445,11 @@
       '<div class="x-sh-btns">' + (at && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>EMPTY THE BAG</button>' : '') +
       (at && h.built.depot ? '<span class="x-xch">EXCHANGE <button class="x-btn ghost small" data-h="xfrom">' + matName(xFrom) + ' ×3</button> → <button class="x-btn ghost small" data-h="xto">' + matName(xTo) + ' ×1</button><button class="x-btn small" data-h="xgo">TRADE</button></span>' : '') + '</div></section>';
     html += '<section class="x-arc riv" id="hq-core"><h3>CORE SYSTEMS <b>' + coreBuiltCount() + '/' + CORE.starter.length + ' STARTER MACHINES · OIL ' + (S.core.oil || 0) + '</b></h3>' +
-      '<p class="x-mono light">NASARUS carries the opening departure sequence. Recover each physical recipe paper, build the machine, then produce OIL from FIBRE in the FUEL GENERATOR.</p>' +
+      '<p class="x-mono light">NASARUS carries the opening departure sequence. Each recipe paper is a sheet lying somewhere on the ground of ' + esc(hqName()) + ': walk over it to pick it up, build the machine, then produce OIL from FIBRE in the FUEL GENERATOR.</p>' +
       '<ul class="x-hqlist">' + CORE.starter.map(function(m){
         var built=coreMachine(m.id), learned=!!S.core.recipes[m.recipe], r=coreRecipe(m.recipe), can=learned && canAfford(m.cost);
         return '<li class="' + (built ? 'done' : '') + '"><b>' + esc(m.name) + '</b><span>' + esc(m.does) + ' · ' + (built ? 'operational' : learned ? costText(m.cost) : 'recipe paper not recovered') + '</span><div>' +
-          (built ? '<em class="ok">BUILT</em>' : (!learned ? '<button class="x-btn small" data-core-recipe="' + m.recipe + '">RECOVER PAPER</button>' : '<button class="x-btn small" data-core-build="' + m.id + '"' + (can ? '' : ' disabled') + '>BUILD</button>')) + '</div></li>';
+          (built ? '<em class="ok">BUILT</em>' : (!learned ? (r && r.at ? '<em class="dim">ON THE GROUND · ' + esc(r.where || 'somewhere on ' + hqName()) + '</em>' : '<button class="x-btn small" data-core-recipe="' + m.recipe + '">RECOVER PAPER</button>') : '<button class="x-btn small" data-core-build="' + m.id + '"' + (can ? '' : ' disabled') + '>BUILD</button>')) + '</div></li>';
       }).join('') +
       (coreMachine('fuel_generator') ? '<li><b>FUEL RESERVE</b><span>FIBRE → FUEL GENERATOR → OIL · safe navigation radius ' + coreNavRadius() + '</span><div><em>FIBRE 1</em><button class="x-btn small" data-core-oil="1"' + ((h.store.fibre || 0) ? '' : ' disabled') + '>PRODUCE OIL</button></div></li>' : '') +
       '</ul></section>';
@@ -2377,6 +2595,7 @@
   function worldNo(){ return M.world; }
   function zoneOf(x, y){ var d = GEN.zoneAt(M, x, y); return d ? d.id : null; }
   function surface(mapId){
+    if (carry && M) cancelCarry();
     M = buildMap(mapId);
     if (!M) { ship(); return; }
     specCache = {};
@@ -2411,9 +2630,9 @@
         '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
         '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
       '<p class="x-objhint" aria-live="polite"></p>' +
-      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ SCAN · TOUCHPAD ASTRANAV</p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ MOVE · TOUCHPAD ASTRANAV</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<div class="x-ab"><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
+      '<div class="x-ab"><button class="x-sq" aria-label="Square: grab, set or move">□<small>MOVE</small></button><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI();
     startWorld('surface');
@@ -2450,6 +2669,7 @@
     if (lead) lead.innerHTML = team.length ? '<img class="x-pix" alt="" src="' + ART.url(subjArt(team[0]), 2) + '"><b>LV ' + S.cards[team[0]].lv + '</b>' : '';
     var b = $('.x-b small'); if (b) b.textContent = GAIT[P.gait].label;
     var bb = $('.x-b'); if (bb) { bb.classList.toggle('on', P.gait !== 'steady'); bb.dataset.gait = P.gait; }
+    var sq = $('.x-sq'); if (sq) { sq.classList.toggle('on', !!carry); var sl = sq.querySelector('small'); if (sl) sl.textContent = carry ? 'SET' : 'MOVE'; }
   }
   // a zone's name: a Zyraxis district by its lexicon term; a world's region by name once you know the world's words
   function zoneLabel(id){
@@ -2476,6 +2696,7 @@
     });
     $('.x-a').addEventListener('click', btnA);
     $('.x-b').addEventListener('click', btnB);
+    var sqb = $('.x-sq'); if (sqb) sqb.addEventListener('click', btnMove);
     // AstraNav controller access is reserved for the DualSense touchpad.
     $('.x-dialog').addEventListener('click', function(e){ if (!e.target.closest('[data-c]')) advanceDialog(); });
   }
@@ -2602,6 +2823,7 @@
       held = null; path = []; S.pos = { map:warp.to, x:warp.x, y:warp.y, dir:warp.dir }; S.fog[M.id] = fogEnc(fogArr); save();
       var to = warp.to; stopWorld(); fade(function(){ surface(to); }); return;
     }
+    var paper = paperHere(P.x, P.y); if (paper) { pickPaper(paper); return; }
     if (M.location && mark(M.location, 'reached')) { S.notes[M.location] = 1; toast('NEW FIELD RECORD · ' + term(subj(M.location).term)); }
     var wd = npcs.filter(function(n){ return n.warden; })[0];
     if (wd && !S.exp.beaten[M.world] && Math.abs(wd.x - P.x) + Math.abs(wd.y - P.y) <= 3 && !(wd.cool > performance.now())) { held = null; path = []; wardenMeet(wd); }
@@ -2666,6 +2888,7 @@
   function btnA(){
     if (encounterOpen || doc.querySelector('.x-modal')) return;
     if (dialogOpen) { advanceDialog(); return; }
+    if (carry) { toast('Carrying · □ SET · ○ CANCEL'); return; }
     if (P.moving) return;
     var f = facing(), ch = at(f.x, f.y), c = critterAt(f.x, f.y), n = npcAt(f.x, f.y), i = f.y * M.W + f.x;
     if (c && c.resident) { return say([subjName(c.id) + ' lives on ' + hqName() + ' now. It watches you without fear.']); }
@@ -2681,6 +2904,7 @@
       talkPeople(n); return;
     }
     if (ch === 'K' && M.vault) return openVault();
+    var fpaper = paperHere(f.x, f.y) || paperHere(P.x, P.y); if (fpaper) return pickPaper(fpaper);
     if (M.hq) {
       if (ch === 'F' && M.sidx[i] != null) return hqUse(M.structs[M.sidx[i]]);
       if (ch === 'S') return hqShip();
@@ -2718,6 +2942,7 @@
   }
   function btnB(){
     if (dialogOpen) { advanceDialog(true); return; }
+    if (carry && !encounterOpen && !doc.querySelector('.x-modal')) { cancelCarry(); return; }
     if (encounterOpen || doc.querySelector('.x-modal')) return;
     var order = ['stalk', 'steady', 'sprint'];
     P.gait = S.gait = order[(order.indexOf(P.gait) + 1) % order.length]; hudRefresh(); sfx.click(); vibrate(40, P.gait === 'sprint' ? .5 : .2);
@@ -3553,11 +3778,12 @@
       var cnv = ART.canvas(tileSpec(ri, under, x, y, fr));
       if (cnv) ctx.drawImage(cnv, ox + x * TZ, oy + y * TZ, TZ, TZ);
       if (ch === '*' && M.codexFinds && M.codexFinds[i] && !S.found[M.id + ':' + x + ',' + y]) { ctx.fillStyle = fr ? '#ffe9a0' : '#d9a441'; var gs = TZ / 8; ctx.fillRect(ox + x * TZ + TZ / 2 - gs / 2, oy + y * TZ + TZ / 2 - gs * 1.5, gs, gs * 3); ctx.fillRect(ox + x * TZ + TZ / 2 - gs * 1.5, oy + y * TZ + TZ / 2 - gs / 2, gs * 3, gs); }   // a Codex relic glints
+      if (M.paperAt && M.paperAt[i] && paperHere(x, y)) drawPaper(M.paperAt[i], ox + x * TZ, oy + y * TZ, TZ, now);
       if (OBJ.indexOf(ch) >= 0 && ch !== 'S' && ch !== 'F') list.push({ k:ch, i:i, x:x, y:y, s:y, ri:ri });
     }
     if (M.ship) { ctx.fillStyle = 'rgba(40,24,12,.35)'; ctx.beginPath(); ctx.ellipse(ox + (M.ship.x + .5) * TZ, oy + (M.ship.y + .85) * TZ, 1.2 * TZ, .4 * TZ, 0, 0, 7); ctx.fill(); list.push({ k:'ship', x:M.ship.x, y:M.ship.y, s:M.ship.y + .1 }); }
     npcs.forEach(function(n){ if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1) list.push({ k:'npc', n:n, x:n.x, y:n.y, s:n.y }); });
-    (M.structs || []).forEach(function(st){ if (st.x + st.w >= x0 - 2 && st.x <= x1 + 2 && st.y >= y0 - 1 && st.y <= y1 + 4) list.push({ k:'struct', st:st, x:st.x, y:st.y, s:st.y }); });
+    (M.structs || []).forEach(function(st){ if (carry && carry.st === st) return; if (st.x + st.w >= x0 - 2 && st.x <= x1 + 2 && st.y >= y0 - 1 && st.y <= y1 + 4) list.push({ k:'struct', st:st, x:st.x, y:st.y, s:st.y }); });
     critters.forEach(function(c){ if (c.x >= x0 - 1 && c.x <= x1 + 1 && c.y >= y0 - 1 && c.y <= y1 + 1) list.push({ k:'critter', c:c, s:c.fy + (c.flies ? .5 : 0) }); });
     if (COMPANIONS.follow && onFoot()) {
       var party = teamReady(), slots = [[-1,1],[1,1],[-2,2],[2,2],[-1,3],[1,3],[-3,3],[3,3], [0,4]];
@@ -3585,6 +3811,7 @@
         if (spc) ART.draw(ctx, spc, X, Y, z);
       }
     });
+    drawCarry(ox, oy, TZ, z, now);
     for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
       if (fogArr[y * M.W + x]) continue;
       ctx.fillStyle = M.indoor ? 'rgba(6,4,3,.96)' : 'rgba(11,9,18,.9)';
@@ -3718,6 +3945,7 @@
       if (d) { e.preventDefault(); keys[d] = true; held = d; path = []; return; }
       if (k === 'z' || k === 'enter' || k === ' ') { e.preventDefault(); btnA(); }
       if (k === 'x' || k === 'escape' || k === 'backspace') { e.preventDefault(); btnB(); }
+      if (k === 'c') { e.preventDefault(); btnMove(); }
       if (k === 'j' || k === 'm' || k === 'tab') { e.preventDefault(); openNav(); }
       return;
     }
@@ -3754,7 +3982,7 @@
         var ph = doc.querySelector('.x-encounter .x-shutter'); if (ph && visible(ph)) { ph.click(); return; }
         ph = doc.querySelector('.x-encounter [data-e="scan"]'); if (ph && visible(ph)) { ph.click(); return; }
         ph = doc.querySelector('.x-battle [data-b="photo"]'); if (ph && visible(ph)) { ph.click(); return; }
-        if (surfaceFree()) btnB();
+        if (surfaceFree()) btnMove();
       }
       else if (b === 'triangle') { if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
       else if (b === 'options') { if (!surfaceFree()) goBack(); }
@@ -3782,7 +4010,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

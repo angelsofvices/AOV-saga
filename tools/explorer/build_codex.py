@@ -16,7 +16,8 @@ Placement (Creator 2026-10-10: Codex Aethren spawn; humanoids are placed):
   aethren   wild on its home world / district (tier IX+ and hidden entries never spawn)
   humanoid  'npc'     an undated mortal: a person you can meet on their home world
             'record'  a dated historical figure: an inscribed record on their home world
-            'codex'   gods, Immortals, demigods, names the 1936 handoff reserves, or no home found
+            'codex'   gods, Immortals, demigods, or names the 1936 handoff reserves
+  Humanoids whose lore names no world live on Viridia (Creator ruling, 2026-10-10).
 Run: python3 tools/explorer/build_codex.py   (then python3 tools/explorer/build_fauna.py)
 """
 import json, os, re, unicodedata, openpyxl
@@ -64,6 +65,7 @@ for e in roster['entries']:
     text = ' '.join(str(x or '') for x in (cx.get('lore'), cx.get('card')))
     tier = ROM.get(str(cx.get('tier') or '').strip())
     h = home_of(text)
+    if not h and e['kind'] == 'humanoid': h = {'world': 27, 'district': None, 'ruled': True}   # Creator 2026-10-10: humanoids with no world named are all on Viridia
     place, why = None, ''
     if e['kind'] == 'aethren':
         place = 'wild'; why = 'Aethren' + (' · home from Codex lore' if h else ' · home by tier (Zyraxis)')

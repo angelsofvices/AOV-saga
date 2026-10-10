@@ -20,9 +20,10 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 ## In the worlds
 
 - **Aethren (102 from the Codex).** They spawn wild on their home world or district, with the Codex's tier, types and stats. Species from older rosters keep their ids, so cards already held still match. Tier IX and higher never spawn.
-- **People (26).** Undated mortal humanoids live on their home world. Once you've learned that world's words, talking to them unlocks their Codex entry (+3 DATA).
-- **Records (71 figures on 18 stones).** Dated historical figures (their lore gives CE/BCE/Bya years) are carved on record stones on their home world, four to a stone. Reading a stone unlocks them (+2 DATA each). They are not shown as living people in 1936.
-- **Codex only (183).** Gods, Immortals and demigods; names the 1936 canon handoff reserves (02_CARL_NASARO…); and humanoids whose lore names no world. They stay sealed for now.
+- **People (55).** Undated mortal humanoids live on their home world. Once you've learned that world's words, talking to them unlocks their Codex entry (+3 DATA).
+- **Records (196 figures on 50 stones).** Dated historical figures (their lore gives CE/BCE/Bya years) are carved on record stones on their home world, four to a stone. Reading a stone unlocks them (+2 DATA each). They are not shown as living people in 1936.
+- **Codex only (29).** Gods, Immortals and demigods, and names the 1936 canon handoff reserves (02_CARL_NASARO…). They stay sealed for now.
+- **Viridia (Creator ruling, 2026-10-10):** humanoids whose lore names no world are all on Viridia, so Viridia now holds 37 people and 48 record stones.
 
 ## In the AstraNav · RESEARCH · MASTER CANON
 
@@ -37,6 +38,5 @@ python3 tools/explorer/build_fauna.py    # adds the Codex Aethren to the species
 
 ## For the Creator
 
-1. **159 humanoids have no home world in their lore.** Many are Viridian figures from regions such as Auroravale and Shiverreach. Give them worlds and they can be placed.
-2. **Timeline:** the 26 living people were chosen because their lore has no date. Each still needs a check that they are alive in 1936. The list is in `game_roster/codex_homes.json` (`place: "npc"`).
-3. **Some Codex lore is entirely editing notes**, so those beings show "still being written" (for example Amyra Silverstone-Veridae).
+1. **Timeline:** the 55 living people were chosen because their lore has no date. Each still needs a check that they are alive in 1936. The list is in `game_roster/codex_homes.json` (`place: "npc"`).
+2. **Some Codex lore is entirely editing notes**, so those beings show "still being written" (for example Amyra Silverstone-Veridae).

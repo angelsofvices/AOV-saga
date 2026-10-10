@@ -84,6 +84,10 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.15', title:'Developer tools',
+      notes:[
+        'For playtesting only: a developer machine, switched on in SETUP once the Developer Room is unlocked. Players never see it'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.14', title:'Aethren where they belong',
       notes:[
         'Every body plan lives in the environments that suit it: fish in water, drakes in heat and sky, owls in the canopy and the ruins',

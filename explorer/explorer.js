@@ -361,11 +361,15 @@
 
   // ───────────────────────── toasts ─────────────────────────
   var toasts = el('div', 'x-toasts'); toasts.setAttribute('aria-live', 'polite'); doc.body.appendChild(toasts);
+  // one toast at a time: a new one replaces the last, and a repeat only refreshes it
+  var toastLast = null;
   function toast(txt, kind){
+    if (toastLast && toastLast.el.isConnected && toastLast.txt === txt) { clearTimeout(toastLast.timer); toastLast.el.classList.remove('out'); toastLast.timer = setTimeout(toastLast.fade, 2600); return; }
+    while (toasts.firstChild) toasts.removeChild(toasts.firstChild);
     var t = el('div', 'x-toast' + (kind ? ' ' + kind : ''), esc(txt));
     toasts.appendChild(t);
-    while (toasts.children.length > 3) toasts.removeChild(toasts.firstChild);
-    setTimeout(function(){ t.classList.add('out'); setTimeout(function(){ t.remove(); }, 400); }, 2600);
+    var fade = function(){ t.classList.add('out'); setTimeout(function(){ t.remove(); }, 400); };
+    toastLast = { el:t, txt:txt, fade:fade, timer:setTimeout(fade, 2600) };
   }
 
   // Typewriter: types `text` into node, returns a promise. Tap to finish early.
@@ -542,13 +546,13 @@
     var F = S.flags, fauna = classifiedCount('aethren'), spec = classifiedCount('plant') + classifiedCount('mineral');
     var worlds = D.worlds.filter(function(w){ return S.visited[w.no]; }).length;
     return [
-      { t:'Make camp beside the wreck on ' + hqName(), done: !!S.hq.built.camp },
-      { t:'Recover the five NASARUS machine papers (' + Object.keys(S.core.recipes || {}).length + '/5)', done: Object.keys(S.core.recipes || {}).length >= 5 },
+      { t:'Make camp beside the wreck on ' + hqName(), done: !!S.hq.built.camp, to:'camp' },
+      { t:'Recover the five NASARUS machine papers (' + Object.keys(S.core.recipes || {}).length + '/5)', done: Object.keys(S.core.recipes || {}).length >= 5, to:'paper' },
       { t:'Build the five-machine departure chain (' + coreBuiltCount() + '/5)', done: coreBuiltCount() >= 5 },
-      { t:'Survey the ruins of ' + hqName() + ' (' + Math.min(Object.keys(S.hq.ruins).length, 3) + '/3)', done: Object.keys(S.hq.ruins).length >= 3 },
+      { t:'Survey the ruins of ' + hqName() + ' (' + Math.min(Object.keys(S.hq.ruins).length, 3) + '/3)', done: Object.keys(S.hq.ruins).length >= 3, to:'ruin' },
       { t:'Build the ROCKETSHIP REPAIR STATION', done: coreMachine('rocketship_repair') || (!S.core.enabled && !!S.hq.drive) },
       { t:'Build the Navigation Center', done: !!S.hq.built.nav },
-      { t:'Depart on your first expedition', done: worlds > 0 },
+      { t:'Depart on your first expedition', done: worlds > 0, to:'ship' },
       { t:'Return to ' + hqName() + ' and deposit what you extracted', done: !!S.flags.returned },
       { t:'Reach STAGE 2 · EXPEDITION CAMP', done: hqStage() >= 2 },
       { t:'Find a world’s clue: learn from its people, or read its records', done: D.worlds.some(function(w){ return hasClue(w.no); }) },
@@ -1251,7 +1255,7 @@
         '<p class="x-mono light">FLARES ' + S.flares + '/' + flaresMax() + ' · BAG ' + (packTotal() + packParts() + pend) + (packParts() ? ' · ' + packParts() + ' SHIP PART' + (packParts() > 1 ? 'S' : '') : '') + '</p>' +
         '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
           landed ? '<button class="x-btn" data-a="out">DISEMBARK</button>' : '<button class="x-btn" data-go="stars">SET A COURSE</button>') + '</div></section>' +
-      pilotWidget() + invPanel() +
+      pilotWidget() + invSummary(w) +
       ((landed || S.at) ? '<section class="x-wd x-wd-sketch riv"><h4>LIVE SCANNER · ' + esc(placeName(S.at || (M && M.world))) + ' <b class="x-scanner-clock"></b></h4><canvas class="x-live-scanner" width="640" height="400" aria-label="Live scanner of the current world"></canvas></section>' : '') +
       w('hq', 'HEADQUARTERS', '<p class="x-crt">' + esc(hqName()) + ' · STAGE ' + hqStage() + '</p><p class="x-mono light">' + esc(stageName(hqStage())) + ' · SHIP ' + shipPct() + '% · ' + Object.keys(S.hq.residents).length + ' groups · ' + Object.keys(S.hq.settled).length + ' species</p><i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i>') +
       w('stars', 'NAVIGATION', '<p class="x-crt">' + (navOnline() ? 'DRIVE ONLINE' : 'NAVIGATION OFFLINE') + '</p><p class="x-mono light">' + visited + ' / 27 worlds visited · ' + Object.keys(S.hq.installed).length + ' parts home</p>') +
@@ -1364,7 +1368,7 @@
           (here ? ' Here: <b>' + here.name + '</b>, AIR ×' + here.eff.toFixed(2) + '.' : '') + '</p><ul class="x-hqlist">' + SUITX.modules.map(function(m){
             var k = SUITX.kinds[m.kind], fit = (S.hq.equip || {})[m.id], can = onHQ() && S.hq.built.workshop && canAfford(m.cost);
             return '<li class="' + (fit ? 'done' : '') + '"><b>' + m.name + '</b><span>' + k.name + ' · AIR ×' + k.mult.toFixed(2) + ' → ×' + (1 + (k.mult - 1) * SUITX.adapted).toFixed(2) + ' · ' + esc(m.does) + '</span><div>' +
-              (fit ? '<em>FITTED</em>' : '<em>' + costText(m.cost) + '</em>' + (onHQ() && S.hq.built.workshop ? '<button class="x-btn small" data-mod="' + m.id + '"' + (can ? '' : ' disabled') + '>FIT</button>' : '<em class="dim">AT THE WORKSHOP</em>')) + '</div></li>';
+              (fit ? '<em>FITTED</em>' : '<em>' + costText(m.cost) + '</em><em class="dim">FIT IT AT THE WORKSHOP</em>') + '</div></li>';
           }).join('') + '</ul>';
       }
       if (tab === 'bg') h = '<div class="x-swatches big">' + VICE.BACKDROPS.map(function(c, i){ return swatch(c, same(sp.bg, c), 'data-bg', i); }).join('') + '</div>';
@@ -1409,6 +1413,12 @@
       syncSuit(); sfx.click(); draw();
     });
     syncSuit(); draw();
+  }
+  // the System screen's inventory widget: a glance, the full list lives in the INVENTORY tab
+  function invSummary(w){
+    var bag = invItems('bag'), store = invItems('stores'), top = bag.filter(function(it){ return typeof it.n === 'number' && it.n; }).slice(0, 6);
+    return w('inventory', 'INVENTORY', '<div class="x-wd-invsum">' + (top.length ? top.map(function(it){ return '<span class="x-slot mini" title="' + esc(it.name) + '"><img class="x-pix" alt="" src="' + ART.url(it.art, 2) + '"><b>' + esc(String(it.n)) + '</b></span>'; }).join('') : '<span class="x-mono light">The bag is empty.</span>') + '</div>' +
+      '<p class="x-mono light">BAG ' + bag.length + ' · STORES ' + store.length + ' · open INVENTORY for everything</p>', 'x-wd-inv');
   }
   function invPanel(){
     var items = invItems();
@@ -1467,6 +1477,7 @@
       });
       if (S.flags.gemsight) {   // ANCIENT GEMSIGHT: hidden Aethren, unfound caches and undefeated wardens
         (sameMap ? veiled : (scanMap.spawns || []).filter(function(c){ return SP[c.id] && SP[c.id].veiled; })).forEach(function(c){ g.strokeStyle = '#c77dff'; g.lineWidth = 2; g.beginPath(); g.arc((c.x + .5) * s2, (c.y + .5) * s2, Math.max(3, s2 * .5), 0, 7); g.stroke(); });
+        (scanMap.papers || []).forEach(function(pp){ if ((S.core.recipes || {})[pp.id]) return; g.fillStyle = '#efe6d0'; g.fillRect(pp.x * s2 - 1, pp.y * s2 - 1, Math.max(3, s2 + 2), Math.max(3, s2 + 2)); g.fillStyle = '#9b2a1f'; g.fillRect(pp.x * s2, pp.y * s2, Math.max(1, s2), Math.max(1, s2 * .35)); });
         for (var gi = 0; gi < scanMap.grid.length; gi++) if (scanMap.grid[gi] === '*' && !S.found[scanMap.id + ':' + (gi % scanMap.W) + ',' + ((gi / scanMap.W) | 0)]) { g.fillStyle = '#ffe08a'; g.fillRect((gi % scanMap.W) * s2, ((gi / scanMap.W) | 0) * s2, Math.max(2, s2 * .6), Math.max(2, s2 * .6)); }
         (scanMap.npcs || []).forEach(function(n){ if (n.warden && !S.exp.beaten[scanMap.world]) { g.strokeStyle = '#ff6b55'; g.lineWidth = 2; g.strokeRect(n.x * s2 - 2, n.y * s2 - 2, s2 + 4, s2 + 4); } });
       }
@@ -1533,20 +1544,11 @@
   function navResearch(body, sel){
     var ids = researchIds(), h = S.hq, eq = (HQ.airTanks || []).filter(function(t){ return (h.equip || {})[t.id]; });
     var pendIds = ids.filter(function(id){ return S.cards[id].pend; });
-    body.innerHTML = '<p class="x-crt">RESEARCH · what you carry counts only once it is home at ' + esc(hqName()) + '</p>' +
-      '<section class="x-arc riv" id="rs-pack"><h3>IN THE BAG · UNREDEEMED <b>' + (packTotal() + packParts() + pendingCards()) + '</b></h3>' +
-        '<p class="x-mono light">Lost if you die out there. Bring it home to ' + esc(hqName()) + ' to redeem it.</p><ul class="x-hqlist">' +
-        MATS.filter(function(m){ return S.pack[m[0]]; }).map(function(m){ return '<li><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_' + m[0], 2) + '">' + m[1] + ' × ' + S.pack[m[0]] + '</b><span>' + esc(m[2]) + '</span><div></div></li>'; }).join('') +
-        (S.pack.parts || []).map(function(no){ return '<li><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_part_' + sysOf(no).id, 2) + '">' + esc(sysOf(no).part) + '</b><span>Ship part from ' + esc(placeName(no)) + ', for the ' + esc(sysOf(no).name) + '.</span><div><em>SHIP PART</em></div></li>'; }).join('') +
-        pendIds.map(function(id){ return '<li><b>' + esc(subjName(id)) + (S.cards[id].pend > 1 ? ' × ' + S.cards[id].pend : '') + '</b><span>' + esc(classLine(subj(id))) + ' · ' + esc(setName(subj(id).set)) + '</span><div><em>CARD</em></div></li>'; }).join('') +
-        (packTotal() + packParts() + pendingCards() ? '' : '<li><b>— the pack is empty —</b><span></span><div></div></li>') + '</ul></section>' +
-      '<section class="x-arc riv" id="rs-stores"><h3>REDEEMED AT ' + esc(hqName()) + '</h3><table class="x-mats"><tr><th></th><th>STORES</th></tr>' +
-        MATS.map(function(m){ return '<tr><td><b><img class="x-pix x-ico" alt="" src="' + ART.url('it_' + m[0], 2) + '">' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
-        '<ul class="x-hqlist">' + Object.keys(h.parts).map(function(no){ return '<li class="done"><b>' + esc(sysOf(+no).part) + '</b><span>From ' + esc(placeName(+no)) + '. Ready to install (HEADQUARTERS).</span><div><em class="ok">HOME</em></div></li>'; }).join('') + '</ul></section>' +
+    body.innerHTML = '<p class="x-crt">RESEARCH · what you carry counts only once it is home at ' + esc(hqName()) + '. Items, bag and stores are in INVENTORY.</p>' +
       '<section class="x-arc riv" id="rs-kit"><h3>EQUIPMENT AND CRAFTS</h3><ul class="x-hqlist">' +
         '<li class="done"><b>THE ASTRANAV</b><span>Navigation, survey, cloning and the record of everything.</span><div><em class="ok">ISSUED</em></div></li>' +
         '<li class="done"><b>AIR TANK · ' + airMax() + ' AIR</b><span>' + (eq.length ? esc(eq[eq.length - 1].name) : 'The stock tank.') + ' Only ' + esc(hqName()) + ' refills it.</span><div><em class="ok">FITTED</em></div></li>' +
-        '<li class="done"><b>RECALL FLARES · ' + S.flares + ' / ' + flaresMax() + '</b><span>Crafted at the Workshop. The ship homes in on the flare.</span><div><em class="ok">CARRIED</em></div></li>' +
+        '<li class="done"><b>RECALL FLARES · ' + S.flares + ' / ' + flaresMax() + '</b><span>Crafted at the Workstation. The ship homes in on the flare.</span><div><em class="ok">CARRIED</em></div></li>' +
         '<li class="' + (h.built.workshop ? 'done' : '') + '"><b>AETHREN PARTY</b><span>Scan profiles, clone them at NASARUS, deploy them in the overworld, and send the party into battle.</span><div><button class="x-btn small" data-go="companions">PARTY</button></div></li>' +
         '</ul></section>' +
       '<section class="x-arc riv" id="rs-cards"><h3>RESEARCH CARDS <b>' + ids.length + '</b></h3>' +
@@ -1557,7 +1559,7 @@
     navCodex($('.x-codex-in', body));
     catalogPanel($('.x-itemcat', body));
     canonPanel($('.x-canon', body), $('.x-canon-count', body));
-    chapterize(body, 'rs', sel, 'rs-pack');
+    chapterize(body, 'rs', sel, 'rs-cards');
     body.onclick = function(e){
       var g = e.target.closest('[data-go]'); if (g) { nav(g.dataset.go); return; }
       var c = e.target.closest('.x-grid [data-card]'); if (!c) return;
@@ -1899,8 +1901,9 @@
       row('sound', 'SOUND', ['OFF', 'ON']) + row('haptics', 'HAPTICS', ['OFF', 'ON']) + row('text', 'TEXT SPEED', ['SLOW', 'NORMAL', 'FAST']) +
       row('hand', 'TOUCH CONTROLS', ['D-PAD LEFT', 'D-PAD RIGHT']) + row('alpha', 'CONTROL OPACITY', ['SOLID', 'SOFT', 'FAINT']) +
       '<p class="x-mono light">' + esc(padTxt) + '</p>' +
-      '<p class="x-mono light">✕ examine · ○ back / gait (stalk · steady · sprint) · □ scan · TOUCHPAD AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
+      '<p class="x-mono light">✕ examine / use · ○ back / gait (stalk · steady · sprint) · □ move (grab, drag, set) · TOUCHPAD AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
       '<div class="x-sh-btns"><button class="x-btn" data-a="pilot">CUSTOMIZE PILOT</button><button class="x-btn" data-a="kit">REFIT YOUR KIT</button><button class="x-btn ghost" data-a="devroom">DEVELOPER ROOM</button><button class="x-btn ghost" data-a="rename">RENAME ASTRONAUT</button><button class="x-btn ghost" data-a="renamehq">RENAME ' + esc(hqName()) + '</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
+        '<button class="x-btn ghost" data-a="resetmoves">RESET MOVED OBJECTS (' + Object.keys(S.moved || {}).reduce(function(n, k){ return n + (S.moved[k] || []).length; }, 0) + ')</button>' +
         '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>' +
       '<p class="x-mono light">PILOT-OBSERVER: ' + esc(heroName()) + ' · HEADQUARTERS: ' + esc(hqName()) + '</p>' +
       '<p class="x-mono dim">Personal names live in this save only. The canon identities stay Carl Nasaro and NASARUS.</p></div>';
@@ -1912,6 +1915,11 @@
       if (b.dataset.a === 'fs') { goLandscape(); return; }
       if (b.dataset.a === 'rename') { naming({ def:hero().first }).then(function(n){ S.hero.first = n; save(); toast('ASTRONAUT · ' + heroName()); nav('setup'); }); return; }
       if (b.dataset.a === 'renamehq') { naming({ title:'NAME THIS WORLD', suffix:'', def:hqName(), max:12, world:true }).then(function(n){ S.hq.name = n; hqRecord('The log renames this world ' + n + '.'); save(); toast('HEADQUARTERS · ' + n); nav('setup'); }); return; }
+      if (b.dataset.a === 'resetmoves') {
+        if (!confirm('Put every object and station you moved back where it started?')) return;
+        Object.keys(S.moved || {}).forEach(function(mid){ (S.moved[mid] || []).slice().reverse().forEach(function(mv){ if (mv.fd) { S.found[mid + ':' + mv.f[0] + ',' + mv.f[1]] = 1; delete S.found[mid + ':' + mv.t[0] + ',' + mv.t[1]]; } }); });
+        S.moved = {}; if (GEN.reset) GEN.reset(); if (M) M = null; save(); toast('LAYOUT RESET · everything is back where it started'); nav('setup'); return;
+      }
       if (b.dataset.a === 'reset') { if (!confirm('Erase this expedition and start over?')) return; try { localStorage.removeItem(KEY); } catch(err){} S = null; title(); return; }
       var r = b.closest('[data-o]'); if (!r) return;
       var k = r.dataset.o, d = +b.dataset.d;
@@ -1972,7 +1980,7 @@
   function packParts(){ return (S.pack.parts || []).length; }
   function installPart(no){
     var sy = sysOf(no);
-    if (!S.hq.parts[no] || S.hq.installed[no] || !(S.hq.built.workshop || coreMachine('rocketship_repair')) || !canAfford(sy.cost)) return false;
+    if (!S.hq.parts[no] || S.hq.installed[no] || !(coreMachine('rocketship_repair') || (!S.core.enabled && S.hq.built.workshop)) || !canAfford(sy.cost)) return false;
     pay(sy.cost); delete S.hq.parts[no]; S.hq.installed[no] = Date.now();
     hqRecord('Installed the ' + sy.part + ' from ' + placeName(no) + ' in the ' + sy.name + '. The ship is ' + shipPct() + '% restored.'); save();
     toast(sy.part + ' INSTALLED · SHIP ' + shipPct() + '%');
@@ -2075,7 +2083,7 @@
       // the same object, wherever it stands: what was taken from it stays taken
       var k0 = M.id + ':' + carry.f[0] + ',' + carry.f[1], k1 = M.id + ':' + t.x + ',' + t.y;
       if (carry.found) { S.found[k1] = 1; delete S.found[k0]; }
-      list.push({ c:carry.c, f:carry.f, t:[t.x, t.y] });
+      list.push({ c:carry.c, f:carry.f, t:[t.x, t.y], fd:carry.found ? 1 : 0 });
       if (list.length > 600) list.splice(0, list.length - 600);
     }
     carry = null; specCache = {}; sfx.step(); vibrate(70, .4); save(); hudRefresh(); toast('SET');
@@ -2084,6 +2092,58 @@
     if (!carry) return false;
     if (carry.st) dropStruct(M, carry.st, carry.f[0], carry.f[1]); else dropTile(M, carry.f[0], carry.f[1], carry.o);
     carry = null; sfx.click(); hudRefresh(); toast('PUT BACK'); return true;
+  }
+  // what A would do, for the thing you face (and □, whether it can be moved)
+  function actionAt(){
+    if (!M || !P) return ['EXAMINE', ''];
+    if (carry) return ['—', 'CARRYING · □ SET · ○ PUT BACK'];
+    var f = facing(), ch = at(f.x, f.y), i = f.y * M.W + f.x, c = critterAt(f.x, f.y), n = npcAt(f.x, f.y);
+    if (paperHere(f.x, f.y) || paperHere(P.x, P.y)) return ['PICK UP', 'PICK UP THE PAPER'];
+    if (c) return c.resident ? ['LOOK', 'A RESIDENT AETHREN'] : ['MEET', 'APPROACH THE CREATURE'];
+    if (n) return ['TALK', n.warden ? 'FACE THE WARDEN' : 'TALK'];
+    if (ch === 'F' && M.sidx && M.sidx[i] != null) {
+      var st = M.structs[M.sidx[i]], nm = st.ref && (st.ref.name || st.ref.label) || '';
+      if (st.kind === 'plot') return ['BUILD', st.id === 'camp' ? 'MAKE CAMP' : 'BUILD THE ' + nm];
+      if (st.kind === 'fac') return st.id === 'camp' ? ['REST', 'REST AT THE CAMP SHELTER'] : ['OPEN', 'OPEN THE ' + nm];
+      if (st.kind === 'core') return ['OPEN', 'OPEN THE ' + nm];
+      if (st.kind === 'ruin') return S.hq.ruins[st.id] ? ['LOOK', nm] : ['SURVEY', 'SURVEY THE SITE'];
+    }
+    if (ch === 'S') return ['SHIP', 'YOUR ROCKETSHIP · FLY OR STAR MAP'];
+    if (ch === 'K') return ['VAULT', 'THE SEALED VAULT'];
+    if (ch === 'M') return ['READ', 'READ THE CARVINGS'];
+    if (ch === 'L') return ['LOOK', 'THE LANDMARK'];
+    if (M.hq && (ch === 'w' || ch === 'A' || ch === 'b')) return ['TAKE', { w:'TAKE THE WRECKAGE', A:'BREAK OFF CRYSTAL', b:'GATHER FIBRE' }[ch]];
+    if (ch === 'b' || ch === 'T') return ['GATHER', 'GATHER · STUDY THE PLANT'];
+    if (ch === 'A') return ['MINE', 'MINE THE CRYSTAL'];
+    if (ch === 'B') return ['BREAK', 'BREAK LOOSE STONE'];
+    if (ch === 'P') return ['SEARCH', 'SEARCH IT'];
+    if (ch === 'X') return M.hq ? ['LOOK', 'THE ROCKFALL'] : ['READ', 'READ THE MARKER'];
+    return ['EXAMINE', ''];
+  }
+  // where the next objective points, on the map you stand on
+  function guideTarget(to){
+    if (!M || !P || !to) return null;
+    var best = null, bd = 1e9;
+    function consider(x, y){ var d = Math.abs(x - P.x) + Math.abs(y - P.y); if (d < bd) { bd = d; best = { x:x, y:y }; } }
+    if (to === 'paper') (M.papers || []).forEach(function(pp){ if (paperHere(pp.x, pp.y)) consider(pp.x, pp.y); });
+    if (to === 'ruin') (M.structs || []).forEach(function(st){ if (st.kind === 'ruin' && !S.hq.ruins[st.id]) consider(st.x, st.y + 1); });
+    if (to === 'camp') (M.structs || []).forEach(function(st){ if (st.id === 'camp') consider(st.x, st.y + 1); });
+    if (to === 'workstation') (M.structs || []).forEach(function(st){ if (st.id === 'core:workstation') consider(st.x, st.y + 1); });
+    if (to === 'ship' && M.ship) consider(M.ship.x, M.ship.y + 1);
+    return best;
+  }
+  var lastAct = 0, actCache = '';
+  function updateActionUI(now){
+    if (now - lastAct < 120) return; lastAct = now;
+    var a = actionAt(), sq = $('.x-sq'), f = P && facing(), mov = !!(f && M && (MOVABLE[at(f.x, f.y)] || (M.hq && at(f.x, f.y) === 'F' && M.sidx[f.y * M.W + f.x] != null)));
+    var nx = objectives().filter(function(o){ return !o.done && !o.main; })[0], g = nx && nx.to && guideTarget(nx.to), dir = '';
+    if (g && (g.x !== P.x || g.y !== P.y)) { var dd = Math.round(Math.hypot(g.x - P.x, g.y - P.y)); dir = dd <= 1 ? ' · right here' : ' · ' + dd + ' paces ' + compass(g.x - P.x, g.y - P.y); }
+    var key = a[0] + '|' + a[1] + '|' + mov + '|' + !!carry + '|' + (nx ? nx.t : '') + dir + '|' + padOn;
+    if (key === actCache) return; actCache = key;
+    var as = $('.x-a small'); if (as) as.textContent = a[0];
+    var pr = $('.x-aprompt'); if (pr) { pr.hidden = !a[1]; pr.textContent = a[1] ? (padOn ? '✕ ' : 'A · ') + a[1] : ''; }
+    if (sq) { sq.classList.toggle('dim', !mov && !carry); }
+    var oh = $('.x-objhint'); if (oh) oh.textContent = nx ? '▸ ' + nx.t + dir : '';
   }
   function drawCarry(ox, oy, TZ, z, now){
     if (!carry) return;
@@ -2214,7 +2274,7 @@
   function deposit(quiet){
     if ((S.pack.parts || []).length && S.hq.built.stores) {
       S.pack.parts.forEach(function(no){ S.hq.parts[no] = Date.now(); delete S.exp.vault[no]; hqRecord('Brought the ' + sysOf(no).part + ' home from ' + placeName(no) + '.'); });
-      if (!quiet) toast('SHIP PARTS HOME · ' + S.pack.parts.length + ' · install them at the Workshop'); S.pack.parts = []; save();
+      if (!quiet) toast('SHIP PARTS HOME · ' + S.pack.parts.length + ' · install them at the Rocketship Repair Station'); S.pack.parts = []; save();
     }
     var pc = pendingCards();
     if (pc && S.hq.built.stores) {
@@ -2237,6 +2297,7 @@
   }
   function canAfford(c){ return Object.keys(c || {}).every(function(k){ return (S.hq.store[k] || 0) >= c[k]; }); }
   // crafting from the inventory draws on everything you hold: the bag first, then the stores
+  function canInstall(){ return coreMachine('rocketship_repair') || (!S.core.enabled && S.hq.built.workshop); }
   function canAffordAny(c){ return Object.keys(c || {}).every(function(k){ return (S.pack[k] || 0) + (S.hq.store[k] || 0) >= c[k]; }); }
   function payAny(c){ Object.keys(c || {}).forEach(function(k){ var fromBag = Math.min(S.pack[k] || 0, c[k]); S.pack[k] = (S.pack[k] || 0) - fromBag; S.hq.store[k] = (S.hq.store[k] || 0) - (c[k] - fromBag); }); }
   function pay(c){ Object.keys(c || {}).forEach(function(k){ S.hq.store[k] -= c[k]; }); }
@@ -2301,7 +2362,7 @@
     if (S.hq.built.nav) setTimeout(navOnlineBoot, 400);
     return true;
   }
-  function craftFlare(){ var c = { fibre:2, scrap:1 }; if (!(S.hq.built.workshop || coreMachine('workstation')) || !canAfford(c) || S.flares >= flaresMax()) return false; pay(c); S.flares++; hqRecord('Crafted a recall flare.'); save(); toast('FLARE CRAFTED · ' + S.flares + '/' + flaresMax()); return true; }
+  function craftFlare(){ var c = { fibre:2, scrap:1 }; if (!(coreMachine('workstation') || (!S.core.enabled && S.hq.built.workshop)) || !canAfford(c) || S.flares >= flaresMax()) return false; pay(c); S.flares++; hqRecord('Crafted a recall flare.'); save(); toast('FLARE CRAFTED · ' + S.flares + '/' + flaresMax()); return true; }
   function exchange(from, to){ if (!(S.hq.built.depot || coreMachine('material_processor')) || from === to || (S.hq.store[from] || 0) < 3) return false; S.hq.store[from] -= 3; S.hq.store[to] = (S.hq.store[to] || 0) + 1; save(); return true; }
 
   // the Navigation Center comes online: the AstraNav charts the Expanse for the first time
@@ -2429,7 +2490,7 @@
   var xFrom = 'scrap', xTo = 'crystal';
   function navHQ(body, sec){
     var h = S.hq, at = onHQ(), live = at && !!stationNow, stg = hqStage(), next = HQ.stages[stg];
-    var html = '<section class="x-arc riv x-hqhead" id="hq-top"><h3>' + esc(hqName()) + ' <b>STAGE ' + stg + ' · ' + esc(stageName(stg)) + '</b></h3>' +
+    var html = '<section class="x-arc riv x-hqhead" id="hq-top" data-chap="OVERVIEW"><h3>' + esc(hqName()) + ' <b>STAGE ' + stg + ' · ' + esc(stageName(stg)) + '</b></h3>' +
       '<div class="x-stages">' + HQ.stages.map(function(s2){ return '<span class="' + (s2.n <= stg ? 'on' : '') + (s2.future ? ' fut' : '') + '"><b>' + s2.n + '</b><i>' + esc(s2.name) + '</i></span>'; }).join('') + '</div>' +
       (next && !next.future ? '<p class="x-mono light">NEXT · STAGE ' + next.n + (next.longTerm ? ' (LONG-TERM)' : '') + ' · ' + esc(next.needs.map(needLabel).join(' · ')) + '</p>' :
         '') +
@@ -2442,8 +2503,8 @@
       EXP.ship.systems.map(function(sy){
         var need = sysNeed(sy.id), done = sysDone(sy.id), ready = Object.keys(h.parts).filter(function(w){ return sysOf(+w).id === sy.id; });
         var act = done >= need ? '<em class="ok">RESTORED</em>' : '<em>' + done + ' / ' + need + '</em>' +
-          ready.map(function(w){ return live && (h.built.workshop || coreMachine('rocketship_repair')) ? '<button class="x-btn small" data-i="' + w + '"' + (canAfford(sy.cost) ? '' : ' disabled') + '>INSTALL · ' + esc(placeName(+w)) + '</button>' : '<em class="dim">' + esc(sy.part) + ' READY</em>'; }).join('');
-        return '<li class="' + (done >= need ? 'done' : '') + '"><b>' + esc(sy.name) + '</b><span>' + esc(sy.part) + ' × ' + need + ' · each installs for ' + costText(sy.cost) + (h.built.workshop ? '' : ' · needs the WORKSHOP') + '</span><div>' + act + '</div></li>';
+          ready.map(function(w){ return live && canInstall() ? '<button class="x-btn small" data-i="' + w + '"' + (canAfford(sy.cost) ? '' : ' disabled') + '>INSTALL · ' + esc(placeName(+w)) + '</button>' : '<em class="dim">' + esc(sy.part) + ' READY</em>'; }).join('');
+        return '<li class="' + (done >= need ? 'done' : '') + '"><b>' + esc(sy.name) + '</b><span>' + esc(sy.part) + ' × ' + need + ' · each installs for ' + costText(sy.cost) + (canInstall() ? '' : ' · needs the ROCKETSHIP REPAIR STATION') + '</span><div>' + act + '</div></li>';
       }).join('') + '</ul>' + (shipPct() >= 100 ? '<p class="x-crt">' + esc(EXP.ship.done) + '</p>' : '') + '</section>';
     var resN = Object.keys(h.residents).length, setN = Object.keys(h.settled).length;
     html += '<section class="x-arc riv" id="hq-pop"><h3>THE PEOPLE OF ' + esc(hqName()) + ' <b>' + resN + ' GROUPS · ' + setN + ' SPECIES</b></h3>' +
@@ -2497,7 +2558,11 @@
           else act = '<em>' + costText(t.cost) + '</em>' + (live ? '<button class="x-btn small" data-w="' + t.id + '"' + (canAfford(t.cost) ? '' : ' disabled') + '>FIT</button>' : '');
           return '<li class="' + (have ? 'done' : '') + '"><b>' + esc(t.name) + ' · ' + t.cap + ' AIR</b><span>' + esc(t.does) + '</span><div>' + act + '</div></li>';
         }).join('') +
-        '<li><b>RECALL FLARE</b><span>Craft a flare. You carry ' + S.flares + ' of ' + flaresMax() + '.</span><div><em>FIBRE 2 · SCRAP 1</em>' + (live ? '<button class="x-btn small" data-w="flare"' + (canAfford({ fibre:2, scrap:1 }) && S.flares < flaresMax() ? '' : ' disabled') + '>CRAFT</button>' : '') + '</div></li>' +
+        SUITX.modules.map(function(sm){
+          var kk = SUITX.kinds[sm.kind], fit = (h.equip || {})[sm.id];
+          return '<li class="' + (fit ? 'done' : '') + '"><b>SUIT · ' + esc(sm.name) + '</b><span>' + kk.name + ' · AIR ×' + kk.mult.toFixed(2) + ' → ×' + (1 + (kk.mult - 1) * SUITX.adapted).toFixed(2) + ' · ' + esc(sm.does) + '</span><div>' +
+            (fit ? '<em class="ok">FITTED</em>' : '<em>' + costText(sm.cost) + '</em>' + (live ? '<button class="x-btn small" data-mod="' + sm.id + '"' + (canAfford(sm.cost) ? '' : ' disabled') + '>FIT</button>' : '')) + '</div></li>';
+        }).join('') +
         '<li class="' + (open ? 'done' : '') + '"><b>' + esc(g.name) + '</b><span>' + esc(g.does) + '</span><div>' + (open ? '<em class="ok">OPEN</em>' : '<em>' + costText(g.cost) + '</em>' + (live ? '<button class="x-btn small" data-w="clear"' + (canAfford(g.cost) ? '' : ' disabled') + '>CLEAR</button>' : '')) + '</div></li></ul></section>';
     }
     html += '<section class="x-arc riv" id="hq-restore"><h3>' + (h.built.terminal ? 'RESTORATION TERMINAL' : 'THE RUINS') + ' <b>' + Object.keys(h.ruins).length + '/' + HQ.ruins.length + ' SURVEYED · ' + hqRestored() + ' RESTORED</b></h3><ul class="x-hqlist">' + HQ.ruins.map(function(u){
@@ -2514,20 +2579,7 @@
       HQ.ruins.filter(function(u){ return h.ruins[u.id]; }).map(function(u){ return '<li class="done"><b>' + esc(u.label) + '</b><span>' + esc(u.cat.toUpperCase()) + '</span><em>' + esc(u.survey) + ' ' + esc(HQ.recordNote) + '</em></li>'; }).join('') + '</ul></section>';
     html += '<section class="x-arc riv" id="hq-records"><h3>RESTORATION RECORDS</h3><ol class="x-records">' + h.records.slice().reverse().map(function(r){ return '<li>' + esc(r.text) + '</li>'; }).join('') + '</ol></section>';
     body.innerHTML = html;
-    var hqOpen = sec ? 'hq-' + sec : 'hq-top';
-    Array.prototype.slice.call(body.querySelectorAll('section.x-arc[id^="hq-"]')).forEach(function(section){
-      var heading = section.querySelector(':scope > h3');
-      if (!heading) return;
-      var details = el('details', 'x-subsection x-arc riv');
-      details.id = section.id;
-      details.open = section.id === hqOpen;
-      var summary = el('summary', '', heading.innerHTML);
-      details.appendChild(summary);
-      heading.remove();
-      while (section.firstChild) details.appendChild(section.firstChild);
-      section.replaceWith(details);
-    });
-    if (sec) { var t = $('#hq-' + sec, body); if (t) setTimeout(function(){ try { t.scrollIntoView({ block:'start' }); } catch(e){} }, 30); }
+    if (!stationNow) chapterize(body, 'hq', sec ? 'hq-' + sec : null, 'hq-top');
     body.onclick = function(e){
       var b = e.target.closest('button'); if (!b || b.disabled) return;
       var d = b.dataset, keep = sec, ok = true;
@@ -2542,6 +2594,7 @@
       else if (d.r) { ok = study(d.r); keep = 'research'; }
       else if (d.u) { ok = restoreRuin(d.u); keep = 'restore'; }
       else if (d.w === 'flare') { ok = craftFlare(); keep = 'workshop'; }
+      else if (d.mod) { ok = buildModule(d.mod); keep = 'workshop'; }
       else if (d.w === 'clear') { ok = clearRegion('basin'); keep = 'workshop'; }
       else if (/^tank/.test(d.w)) { ok = buildTank(d.w); keep = 'workshop'; }
       else if (d.i) { ok = installPart(+d.i); keep = 'ship'; }
@@ -2650,7 +2703,7 @@
       '<p class="x-objhint" aria-live="polite"></p>' +
       '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ MOVE · TOUCHPAD ASTRANAV</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<div class="x-ab"><button class="x-sq" aria-label="Square: grab, set or move">□<small>MOVE</small></button><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
+      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-sq" aria-label="Square: grab, set or move">□<small>MOVE</small></button><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI();
     startWorld('surface');
@@ -2679,6 +2732,7 @@
     zn.textContent = zoneName();
     $('.x-zw').textContent = M.hq ? 'HEADQUARTERS · STAGE ' + hqStage() + ' · BAG ' + packTotal() : M.world === 9 ? term('zyraxis') : M.indoor ? term(M.name) : setName(M.world).replace(/ — .*/, '') + ' · BAG ' + packTotal();
     var oh = $('.x-objhint'); if (oh) { var nx = objectives().filter(function(o){ return !o.done && !o.main; })[0]; oh.textContent = nx ? '▸ ' + nx.t : ''; }
+    actCache = '';   // the action prompt and the objective's direction redraw on the next frame
     [['suit', S.suit], ['air', airPct()]].forEach(function(g){
       var n = $('[data-g="' + g[0] + '"] .x-needle'); if (n) n.style.transform = 'rotate(' + (-80 + clamp(g[1], 0, 100) / 100 * 160) + 'deg)';
       var box = $('[data-g="' + g[0] + '"]'); if (box) box.classList.toggle('low', g[1] < 25);
@@ -2715,7 +2769,8 @@
     $('.x-a').addEventListener('click', btnA);
     $('.x-b').addEventListener('click', btnB);
     var sqb = $('.x-sq'); if (sqb) sqb.addEventListener('click', btnMove);
-    // AstraNav controller access is reserved for the DualSense touchpad.
+    // AstraNav access is the DualSense touchpad. On a touch screen the NAV button stands in for it (Creator-approved 2026-10-10).
+    var mb = $('.x-hud .x-menu'); if (mb) mb.addEventListener('click', function(e){ e.stopPropagation(); touchpad(); });
     $('.x-dialog').addEventListener('click', function(e){ if (!e.target.closest('[data-c]')) advanceDialog(); });
   }
   // tap the ground: walk there; tap a thing: walk next to it, face it, examine it
@@ -3086,7 +3141,7 @@
     var s = screen('x-nav x-cockpit' + (outOfRange() ? ' x-static' : ''),
       '<div class="x-nav-dev x-cockpit-dev">' +
         '<header class="x-nav-top"><b class="x-nav-logo">ROCKETSHIP</b><span class="x-nav-mk">COCKPIT · ' + esc(where) + (S.landed ? ' · LANDED' : ' · IN ORBIT') + '</span>' +
-          '<span class="x-nav-where">TOUCHPAD · ASTRANAV</span></header>' +
+          '<button class="x-nav-where x-ck-an" data-ck="an" aria-label="Touchpad: open the AstraNav">TOUCHPAD · ASTRANAV</button></header>' +
         '<nav class="x-nav-tabs x-cockpit-tabs" aria-label="Cockpit">' +
           '<button data-ck="map" class="' + (cockpitTab === 'map' ? 'on' : '') + '">STAR MAP</button>' +
           '<button data-ck="ship" class="' + (cockpitTab === 'ship' ? 'on' : '') + '">SHIP</button>' +
@@ -3100,6 +3155,7 @@
       var t = e.target.closest('[data-ck]'); if (!t) return;
       sfx.click();
       if (t.dataset.ck === 'out') { disembark(); return; }
+      if (t.dataset.ck === 'an') { touchpad(); return; }
       cockpitTab = t.dataset.ck; cockpit();
     });
     if (padOn) setTimeout(focusFirst, 30);
@@ -3109,7 +3165,7 @@
   // ── STATIONS · every structure and machine has its own screen, opened by walking up to it and pressing A ──
   var stationNow = null;
   var STATION_HQ = {   // which record sections each facility works with
-    stores:['mats'], depot:['mats'], research:['research'], workshop:['workshop', 'ship'], terminal:['restore'], history:['history', 'records'],
+    stores:['mats'], depot:['mats'], research:['research'], workshop:['workshop'], terminal:['restore'], history:['history', 'records'],
     habitation:['pop'], sanctuary:['pop'], 'core:rocketship_repair':['ship'], 'core:material_processor':['mats']
   };
   var STATION_CP = { research:['cp-clone'], archive:['cp-party', 'cp-roster'] };
@@ -3232,7 +3288,7 @@
     var bag = invItems('bag'), store = invItems('stores');
     var parts = [];
     (S.pack.parts || []).forEach(function(no){ var sy = sysOf(no); parts.push({ key:'part:' + no, art:'it_part_' + sy.id, name:sy.part, n:'BAG', desc:'From ' + placeName(no) + ', for the ' + sy.name + '. Bring it home.' }); });
-    Object.keys(S.hq.parts || {}).forEach(function(no){ var sy = sysOf(+no); parts.push({ key:'hpart:' + no, art:'it_part_' + sy.id, name:sy.part, n:'HOME', desc:'From ' + placeName(+no) + '. Install it at the Workshop or the Rocketship Repair Station.' }); });
+    Object.keys(S.hq.parts || {}).forEach(function(no){ var sy = sysOf(+no); parts.push({ key:'hpart:' + no, art:'it_part_' + sy.id, name:sy.part, n:'HOME', desc:'From ' + placeName(+no) + '. Install it at the Rocketship Repair Station.' }); });
     Object.keys(S.hq.installed || {}).forEach(function(no){ var sy = sysOf(+no); parts.push({ key:'ipart:' + no, art:'it_part_' + sy.id, name:sy.part, n:'✓', desc:'Installed in the ' + sy.name + '. From ' + placeName(+no) + '.' }); });
     var papers = (CORE.recipes || []).map(function(r){ var got = !!(S.core.recipes || {})[r.id]; return { key:'paper:' + r.id, art:'it_scroll', name:r.name, n:got ? '✓' : '?', desc:got ? 'Recovered: ' + r.source + '. Build its machine at the Workstation.' : 'Not yet recovered. It lies ' + (r.where || 'somewhere on ' + hqName()) + '.' }; });
     // ALL ITEMS: one slot per item, bag and stores counted together
@@ -4047,6 +4103,7 @@
       }
     });
     drawCarry(ox, oy, TZ, z, now);
+    updateActionUI(now);
     for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
       if (fogArr[y * M.W + x]) continue;
       ctx.fillStyle = M.indoor ? 'rgba(6,4,3,.96)' : 'rgba(11,9,18,.9)';

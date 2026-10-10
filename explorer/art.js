@@ -278,6 +278,8 @@
       rows:["........","...kkkkk","...kOOOO","....kooo",".....koo","..kkkkkk",".kmmmmmm",".kmMMMMM",".kmMkyyy",".kmMkyYy",".kmMMMMM",".kmmmmmm","..kkkkkk","..kNk...",".kkkkk..","........"] },
     core_repair: { group:"machines", sym:true, note:"Rocketship Repair Station: a gantry crane holding an engine block on its hook.",
       rows:["........",".kkkkkkk",".kyyyyyy",".kkkkkkk",".kMk...k",".kMk...k",".kMk..kk",".kMk..ky",".kMk...k",".kMk.kkk",".kMk.krr",".kMk.krR",".kMk.kkk",".kMk....","kkkkkkkk","kNNNNNNN"] },
+    dev_replicator: { group:"machines", sym:true, note:"DEV REPLICATOR (developer only): a steel cabinet with a glowing screen and a copper output tray.",
+      rows:["..kkkkkk",".kMMMMMM","kMmmmmmm","kMmkkkkk","kMmkYYYY","kMmkYyYy","kMmkkkkk","kMmmmmmm","kMmrkRkr","kMmmmmmm","kMkkkkkk","kMkooooo","kMkokkkk","kMmmmmmm",".kkkkkkk","..kN...."] },
     markings: { group:"props",
       rows:["................",
       "................",

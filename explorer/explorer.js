@@ -1908,6 +1908,7 @@
       '<p class="x-mono light">' + esc(padTxt) + '</p>' +
       '<p class="x-mono light">✕ examine / use · ○ back / gait (stalk · steady · sprint) · □ move (grab, drag, set) · TOUCHPAD AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
       '<div class="x-sh-btns"><button class="x-btn" data-a="pilot">CUSTOMIZE PILOT</button><button class="x-btn" data-a="kit">REFIT YOUR KIT</button><button class="x-btn ghost" data-a="devroom">DEVELOPER ROOM</button><button class="x-btn ghost" data-a="rename">RENAME ASTRONAUT</button><button class="x-btn ghost" data-a="renamehq">RENAME ' + esc(hqName()) + '</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
+        (S.dev && S.dev.access ? '<button class="x-btn' + (S.dev.replicator ? '' : ' ghost') + '" data-a="devrep">DEV REPLICATOR · ' + (S.dev.replicator ? 'ON' : 'OFF') + '</button>' : '') +
         '<button class="x-btn ghost" data-a="resetmoves">RESET MOVED OBJECTS (' + Object.keys(S.moved || {}).reduce(function(n, k){ return n + (S.moved[k] || []).length; }, 0) + ')</button>' +
         '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>' +
       '<p class="x-mono light">PILOT-OBSERVER: ' + esc(heroName()) + ' · HEADQUARTERS: ' + esc(hqName()) + '</p>' +
@@ -1920,6 +1921,7 @@
       if (b.dataset.a === 'fs') { goLandscape(); return; }
       if (b.dataset.a === 'rename') { naming({ def:hero().first }).then(function(n){ S.hero.first = n; save(); toast('ASTRONAUT · ' + heroName()); nav('setup'); }); return; }
       if (b.dataset.a === 'renamehq') { naming({ title:'NAME THIS WORLD', suffix:'', def:hqName(), max:12, world:true }).then(function(n){ S.hq.name = n; hqRecord('The log renames this world ' + n + '.'); save(); toast('HEADQUARTERS · ' + n); nav('setup'); }); return; }
+      if (b.dataset.a === 'devrep') { if (!(S.dev && S.dev.access)) return; S.dev.replicator = !S.dev.replicator; save(); sfx.click(); toast('DEV REPLICATOR ' + (S.dev.replicator ? 'ON · it stands beside you when you return to the field' : 'OFF')); nav('setup'); return; }
       if (b.dataset.a === 'resetmoves') {
         if (!confirm('Put every object and station you moved back where it started?')) return;
         Object.keys(S.moved || {}).forEach(function(mid){ (S.moved[mid] || []).slice().reverse().forEach(function(mv){ if (mv.fd) { S.found[mid + ':' + mv.f[0] + ',' + mv.f[1]] = 1; delete S.found[mid + ':' + mv.t[0] + ',' + mv.t[1]]; } }); });
@@ -2111,6 +2113,7 @@
       if (st.kind === 'plot') return ['BUILD', st.id === 'camp' ? 'MAKE CAMP' : 'BUILD THE ' + nm];
       if (st.kind === 'fac') return st.id === 'camp' ? ['REST', 'REST AT THE CAMP SHELTER'] : ['OPEN', 'OPEN THE ' + nm];
       if (st.kind === 'core') return ['OPEN', 'OPEN THE ' + nm];
+      if (st.kind === 'dev') return ['DEV', 'DEV REPLICATOR · ×5 ANY ITEM'];
       if (st.kind === 'ruin') return S.hq.ruins[st.id] ? ['LOOK', nm] : ['SURVEY', 'SURVEY THE SITE'];
     }
     if (ch === 'S') return ['SHIP', 'YOUR ROCKETSHIP · FLY OR STAR MAP'];
@@ -2679,6 +2682,7 @@
     var start = S.pos && S.pos.map === mapId ? S.pos : { x:M.ship ? M.ship.x : 1, y:M.ship ? M.ship.y + 1 : 1, dir:'down' };
     if (SOLID[at(start.x, start.y)]) start = { x:M.ship.x, y:M.ship.y + 1, dir:'down' };
     P = { x:start.x, y:start.y, fx:start.x, fy:start.y, dir:start.dir || 'down', t:0, moving:false, gait:S.gait || 'steady', dust:[], anim:0 };
+    placeDevMachine();
     critters = M.spawns.map(function(sp){
       var s = SP[sp.id] || {};
       return { id:sp.id, lv:sp.lv, x:sp.x, y:sp.y, fx:sp.x, fy:sp.y, fromX:sp.x, fromY:sp.y, t:1, home:{ x:sp.x, y:sp.y }, dir:'down', cool:Math.random() * 2,
@@ -2982,6 +2986,7 @@
       talkPeople(n); return;
     }
     if (ch === 'K' && M.vault) return openVault();
+    if (ch === 'F' && M.sidx && M.sidx[i] != null && M.structs[M.sidx[i]] && M.structs[M.sidx[i]].kind === 'dev') return openStation('dev:replicator');
     var fpaper = paperHere(f.x, f.y) || paperHere(P.x, P.y); if (fpaper) return pickPaper(fpaper);
     if (M.hq) {
       if (ch === 'F' && M.sidx[i] != null) return hqUse(M.structs[M.sidx[i]]);
@@ -3116,6 +3121,80 @@
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); S.landed = true; save(); sfx.click();
     aboard(); cockpit(S.at === 'nasarus' ? 'nasarus' : typeof S.at === 'number' ? 'w' + S.at : null);
   }
+  // ── DEV REPLICATOR · a developer-only machine for fast playtesting (Creator 2026-10-10) ──
+  // It exists only when the Developer Room has been unlocked (SETUP · DEVELOPER ROOM, password) AND it is switched on in
+  // SETUP. Then it stands beside the pilot on every map entered. It gives ×5 of any item, or the materials for every machine.
+  function devOn(){ return !!(S && S.dev && S.dev.access && S.dev.replicator); }
+  function placeDevMachine(){
+    if (!M) return;
+    M.structs = M.structs || []; M.sidx = M.sidx || {};
+    // clear any earlier one (maps can be cached between visits)
+    M.structs.filter(function(st){ return st.kind === 'dev'; }).forEach(function(st){ var i0 = st.y * M.W + st.x; if (M.grid[i0] === 'F') M.grid[i0] = st.under || '.'; delete M.sidx[i0]; });
+    M.structs = M.structs.filter(function(st){ return st.kind !== 'dev'; });
+    Object.keys(M.sidx).forEach(function(k){ var n = M.structs.indexOf(M.structs[M.sidx[k]]); if (n < 0) delete M.sidx[k]; });
+    M.structs.forEach(function(st, n){ for (var k = 0; k < st.w; k++) M.sidx[st.y * M.W + st.x + k] = n; });
+    if (!devOn() || !P) return;
+    var spots = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[2,0],[-2,0],[0,2],[1,-1],[-1,-1],[2,1],[-2,1]];
+    for (var q = 0; q < spots.length; q++) {
+      var x = P.x + spots[q][0], y = P.y + spots[q][1];
+      if (!floorFree(M, x, y, true) || (P.x === x && P.y === y) || (M.npcs || []).some(function(n){ return n.x === x && n.y === y; }) || (M.spawns || []).some(function(c){ return c.x === x && c.y === y; })) continue;
+      var st = { id:'dev:replicator', kind:'dev', ref:{ name:'DEV REPLICATOR' }, x:x, y:y, w:1, spr:'dev_replicator', under:M.grid[y * M.W + x] };
+      M.grid[y * M.W + x] = 'F'; delete M.props[y * M.W + x]; M.sidx[y * M.W + x] = M.structs.length; M.structs.push(st);
+      return st;
+    }
+  }
+  var devDest = 'stores', devQuery = '';
+  function devGive(kind, id, n){
+    n = n || 5;
+    if (kind === 'mat') { if (devDest === 'bag') S.pack[id] = (S.pack[id] || 0) + n; else S.hq.store[id] = (S.hq.store[id] || 0) + n; return true; }
+    if (kind === 'item') { var t = ITEMS.byId[id]; if (!t || t.sealed) return false; var box = devDest === 'bag' ? (S.pack.items = S.pack.items || {}) : (S.hq.items = S.hq.items || {}); box[id] = (box[id] || 0) + n; S.itemSeen = S.itemSeen || {}; if (!S.itemSeen[id]) S.itemSeen[id] = Date.now(); return true; }
+    if (kind === 'oil') { S.core.oil = (S.core.oil || 0) + n; return true; }
+    if (kind === 'flare') { S.flares = Math.max(S.flares, flaresMax()); return true; }
+    if (kind === 'air') { refillAir(); S.suit = 100; return true; }
+    if (kind === 'papers') { (CORE.recipes || []).forEach(function(r){ S.core.recipes[r.id] = S.core.recipes[r.id] || Date.now(); }); return true; }
+    return false;
+  }
+  // every material the machines need: the five departure machines, or everything buildable at the base
+  function devKit(full){
+    var need = {}, add = function(c){ Object.keys(c || {}).forEach(function(k){ need[k] = (need[k] || 0) + c[k]; }); };
+    (CORE.starter || []).forEach(function(m){ add(m.cost); });
+    if (full) { (HQ.facilities || []).forEach(function(f){ add(f.cost); }); (HQ.research || []).forEach(function(r){ add(r.cost); }); (HQ.airTanks || []).forEach(function(t){ add(t.cost); }); SUITX.modules.forEach(function(m){ add(m.cost); }); add(DRIVE_COST); add(HQ.regions && HQ.regions[0] && HQ.regions[0].cost); }
+    return need;
+  }
+  function renderDevMachine(body){
+    var kit = devKit(false), full = devKit(true), q = devQuery.toLowerCase();
+    var items = Object.keys(ITEMS.byId).map(function(k){ return ITEMS.byId[k]; }).filter(function(t){ return !t.sealed && (!q || itemName(t).toLowerCase().indexOf(q) >= 0 || String(t.id).indexOf(q) >= 0); }).slice(0, 60);
+    body.innerHTML = '<p class="x-crt">DEVELOPER ONLY · not part of the game. Everything goes to the ' + (devDest === 'bag' ? 'BAG' : 'STORES · ' + esc(hqName())) + '.</p>' +
+      '<div class="x-sh-btns"><button class="x-btn small' + (devDest === 'stores' ? '' : ' ghost') + '" data-dv="dest" data-v="stores">TO STORES</button><button class="x-btn small' + (devDest === 'bag' ? '' : ' ghost') + '" data-dv="dest" data-v="bag">TO BAG</button></div>' +
+      '<section class="x-arc riv"><h3>KITS</h3><ul class="x-hqlist">' +
+        '<li><b>MACHINE KIT</b><span>Every material the five departure machines need: ' + esc(costText(kit)) + '.</span><div><button class="x-btn small" data-dv="kit">GIVE</button></div></li>' +
+        '<li><b>FULL BASE KIT</b><span>Machines, facilities, research, air tanks, suit modules, the drive and the ridge: ' + esc(costText(full)) + '.</span><div><button class="x-btn small" data-dv="full">GIVE</button></div></li>' +
+        '<li><b>ALL MACHINE PAPERS</b><span>Recovers every recipe paper at once.</span><div><button class="x-btn small" data-dv="papers">GIVE</button></div></li>' +
+        '<li><b>OIL ×5 · FLARES · AIR</b><span>Fuel, a full flare rack, full air and suit.</span><div><button class="x-btn small" data-dv="oil">OIL ×5</button><button class="x-btn small" data-dv="flare">FLARES</button><button class="x-btn small" data-dv="air">AIR</button></div></li>' +
+      '</ul></section>' +
+      '<section class="x-arc riv"><h3>MATERIALS · ×5 EACH</h3><div class="x-inv">' + MATS.map(function(m){ return '<button class="x-slot" data-dv="mat" data-v="' + m[0] + '" title="+5 ' + m[1] + '"><img class="x-pix" alt="" src="' + ART.url('it_' + m[0], 3) + '"><b>×5</b><span>' + m[1] + '</span></button>'; }).join('') +
+        '</div><div class="x-sh-btns"><button class="x-btn small" data-dv="allmats">ALL MATERIALS ×5</button></div></section>' +
+      '<section class="x-arc riv"><h3>ANY ITEM · ×5 <b>' + (ITEMS.ready ? Object.keys(ITEMS.byId).filter(function(k){ return !ITEMS.byId[k].sealed; }).length : '…') + '</b></h3>' +
+        '<input class="x-dev-q" type="search" placeholder="search the item catalog" value="' + esc(devQuery) + '" aria-label="Search items">' +
+        '<div class="x-inv x-dev-items">' + (ITEMS.ready ? items.map(function(t){ return '<button class="x-slot" data-dv="item" data-v="' + esc(t.id) + '" title="+5 ' + esc(itemName(t)) + '"><img class="x-pix" alt="" src="' + ART.url(t.icon || 'it_relic', 3) + '"><b>×5</b><span>' + esc(itemName(t)) + '</span></button>'; }).join('') : '<p class="x-mono light">Loading the catalog…</p>') + '</div>' +
+        '<p class="x-mono light">Showing ' + items.length + ' · search to find any other.</p></section>';
+    if (!ITEMS.ready) loadItems(function(){ if (body.isConnected) renderDevMachine(body); });
+    var qi = $('.x-dev-q', body);
+    if (qi) qi.addEventListener('input', function(){ devQuery = qi.value; var pos = qi.selectionStart; renderDevMachine(body); var q2 = $('.x-dev-q', body); if (q2) { q2.focus(); try { q2.setSelectionRange(pos, pos); } catch(e){} } });
+    body.onclick = function(e){
+      var b = e.target.closest('[data-dv]'); if (!b) return;
+      var d = b.dataset.dv, v = b.dataset.v, msg = '';
+      if (d === 'dest') { devDest = v; renderDevMachine(body); return; }
+      if (d === 'kit' || d === 'full') { var c = d === 'kit' ? kit : full; Object.keys(c).forEach(function(k){ devGive('mat', k, c[k]); }); msg = (d === 'kit' ? 'MACHINE KIT' : 'FULL BASE KIT') + ' · ' + costText(c); }
+      else if (d === 'allmats') { MATS.forEach(function(m){ devGive('mat', m[0], 5); }); msg = 'ALL MATERIALS ×5'; }
+      else if (d === 'mat') { devGive('mat', v, 5); msg = '+5 ' + matName(v); }
+      else if (d === 'item') { if (devGive('item', v, 5)) msg = '+5 ' + itemName(ITEMS.byId[v]); }
+      else if (d === 'papers') { devGive('papers'); msg = 'ALL MACHINE PAPERS'; }
+      else { devGive(d, null, 5); msg = { oil:'OIL +5', flare:'FLARES FULL', air:'AIR AND SUIT FULL' }[d]; }
+      save(); hudRefresh(); sfx.reveal(); toast('DEV · ' + msg + (d !== 'papers' && d !== 'oil' && d !== 'flare' && d !== 'air' ? ' · ' + (devDest === 'bag' ? 'BAG' : 'STORES') : ''));
+    };
+  }
+
   // ── THE TOUCHPAD · the one way into the AstraNav (keyboard Tab/J/M and the on-screen NAV button stand in for it) ──
   function touchpad(){
     if (doc.querySelector('.x-nav-tabs:not(.x-cockpit-tabs)')) { if (doc.querySelector('.x-modal')) return; if (onFoot()) backToField(); else if (S.stage === 'nav') cockpit(); return; }
@@ -3176,6 +3255,7 @@
   var STATION_CP = { research:['cp-clone'], archive:['cp-party', 'cp-roster'] };
   function stationInfo(id){
     if (id === 'rocket') return { name:'YOUR ROCKETSHIP', spr:'ship', does:'Fly it, or read the star map.' };
+    if (id === 'dev:replicator') return { name:'DEV REPLICATOR', spr:'dev_replicator', does:'Developer only. ×5 of any item, and every material the machines need.' };
     if (/^core:/.test(id)) { var cm = coreStarter(id.slice(5)) || {}; return { name:cm.name || id, spr:cm.spr || 'machine_workstation', does:cm.does || '' }; }
     var f = (HQ.facilities || []).filter(function(x){ return x.id === id; })[0] || {};
     return { name:f.name || id.toUpperCase(), spr:f.spr || 'hq_crate', does:f.does || '' };
@@ -3186,7 +3266,7 @@
     held = null; path = [];
     var info = stationInfo(id);
     var m = el('div', 'x-modal x-station', '<div class="x-station-in" role="dialog" aria-label="' + esc(info.name) + '">' +
-      '<header class="x-station-top"><img class="x-pix" alt="" src="' + ART.url(info.spr, 3) + '"><div><p class="x-man-k">' + (id === 'rocket' ? 'THE SHIP' : /^core:/.test(id) ? 'MACHINE' : 'STATION') + ' · ' + esc(hqName()) + '</p><h2>' + esc(info.name) + '</h2><p class="x-mono light">' + esc(info.does) + '</p></div>' +
+      '<header class="x-station-top"><img class="x-pix" alt="" src="' + ART.url(info.spr, 3) + '"><div><p class="x-man-k">' + (id === 'rocket' ? 'THE SHIP' : id === 'dev:replicator' ? 'DEVELOPER' : /^core:/.test(id) ? 'MACHINE' : 'STATION') + ' · ' + esc(hqName()) + '</p><h2>' + esc(info.name) + '</h2><p class="x-mono light">' + esc(info.does) + '</p></div>' +
       '<button class="x-btn ghost small" data-t="close" aria-label="Leave">✕ LEAVE</button></header><div class="x-station-body"></div></div>');
     ui.appendChild(m);
     stationNow = { id:id, el:m, refresh:function(s2){ if (!m.isConnected) { openStation(id, s2); return; } renderStation(id, $('.x-station-body', m), s2); } };
@@ -3214,9 +3294,10 @@
     return tmp.onclick;
   }
   function renderStation(id, body, sel){
-    deposit(true);
+    if (id !== 'dev:replicator') deposit(true);
     body.innerHTML = ''; body.onclick = null; helmCtx = 'station';
     var handlers = [];
+    if (id === 'dev:replicator') { renderDevMachine(body); return; }
     if (id === 'rocket') {
       helmCtx = 'rocket';
       body.innerHTML = '<div class="x-sh-btns x-rocket-btns">' + (S.hq.drive || !M.hq ? '<button class="x-btn" data-st="fly"' + (navOnline() ? '' : ' disabled') + '>FLY</button>' : '') +
@@ -4308,7 +4389,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

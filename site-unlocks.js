@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.3', title:'Every world, from the Codex',
+      notes:[
+        'Every world now has its peoples, named figures and the places of its history, all from the Master Codex',
+        'Origon in its ten lands, each with its dominant race: Dragonlords, Crystalborn, Aetherelves and seven more',
+        'Zyraxis: the Wild March, the Green Divide, ten routes with their Gemlord Caves, and the road to the Throne',
+        'Something lies south of Baelgor and Xilnar. Its gate is shut for now',
+        'Visit all nine district shrines for ANCIENT GEMSIGHT, and see what was hidden from you'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.2', title:'Worlds of many lands',
       notes:[
         'Every world is now laid out in its named regions, and you will see where you are as you cross from one to the next',

@@ -170,6 +170,7 @@
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
   // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
   if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.codex = S.codex || {}; S.codexPages = S.codexPages || {}; S.codexIdx = S.codexIdx || {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
+  if (S && S.v === 3) { S.ship = S.ship || { fuel:0 }; }   // the rocket's fuel tank (0–100 %), filled from OIL at the rocket
   if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; S.flags.charted = true; S.flags.hqNew = true; }
   if (S && S.v === 3) {
     S.core = S.core || { enabled:false, recipes:{}, machines:{}, oil:0, astralites:{}, automation:{}, gameOver:false };
@@ -1142,6 +1143,7 @@
       else act = navOnline() ? '<button class="x-btn" data-a="go">SET COURSE</button>' : '<p class="x-sh-note">NAVIGATION OFFLINE · repair the drive and build the Navigation Center on ' + esc(hqName()) + '.</p>';
       html = '<p class="x-sh-k">' + (kn2 || vis ? esc(setName(no)) : 'CATALOGUE ENTRY') + '</p><h3>' + esc(term(w.term)) + '</h3>' + (kn2 && w.title ? '<p class="x-sh-sub">' + esc(w.title.toUpperCase()) + '</p>' : '') +
         '<dl><dt>' + (here ? 'POSITION' : 'COURSE') + '</dt><dd>' + (here ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : au(no) + ' A.U.') + '</dd>' +
+          (!here && S.core && S.core.enabled ? '<dt>FUEL</dt><dd>' + courseFuel(no) + '% · TANK ' + shipFuel() + '%' + (coreHomeDistance(no) > coreNavRadius() * 70 ? ' · OUT OF RANGE' : '') + '</dd>' : '') +
           '<dt>STATUS</dt><dd>' + (vis ? 'VISITED' : kn2 ? 'NAMED' : 'UNVISITED') + '</dd><dt>SURVEY</dt><dd>' + setPct(no) + '%</dd><dt>CARDS</dt><dd>' + setCards(no) + ' / ???</dd>' +
           '<dt>FAUNA SIGNALS</dt><dd>' + fauna(no) + '</dd>' +
           (vis && no <= WORLDS_ALL ? '<dt>VAULT</dt><dd>' + esc(sysOf(no).part) + ' · ' + vaultState(no) + '</dd>' : '') +
@@ -1186,12 +1188,13 @@
   function travel(no){
     if (!navOnline()) { toast('NAVIGATION OFFLINE', 'red'); return; }
     if (S.core && S.core.enabled && no !== 'nasarus') {
-      var fuel = coreOilCost(no), beyond = coreHomeDistance(no) > coreNavRadius() * 70;
+      var fuel = courseFuel(no), beyond = coreHomeDistance(no) > coreNavRadius() * 70, tank = shipFuel();
       // inside the safe radius the AstraNav knows the cost and will not launch short; beyond it the reading is static
-      if (!coreReady() || (!beyond && S.core.oil < fuel)) { toast('INSUFFICIENT OIL · produce fuel at NASARUS before departure', 'red'); return; }
-      if (beyond && S.core.oil < fuel) return stranded(no);
-      S.core.oil -= fuel; hqRecord('Spent ' + fuel + ' OIL on the course to ' + placeName(no) + '.'); save();
-      if (coreHomeDistance(no) > coreNavRadius() * 70) toast('ASTRANAV INTERFERENCE · out-of-range course · OIL ' + fuel, 'red');
+      if (!coreChainReady()) { toast('DEPARTURE LOCKED · build all five machines: ' + coreMissing().join(', '), 'red'); return; }
+      if (!beyond && tank < fuel) { toast('NOT ENOUGH FUEL · this course needs ' + fuel + '%, the tank holds ' + tank + '%. Refuel at the rocket (1 OIL = 20%).', 'red'); return; }
+      if (beyond && tank < fuel) return stranded(no);
+      S.ship.fuel = tank - fuel; hqRecord('Burned ' + fuel + '% of the tank on the course to ' + placeName(no) + '.'); save();
+      if (beyond) toast('ASTRANAV INTERFERENCE · out-of-range course · FUEL −' + fuel + '%', 'red');
     }
     var from = placeName(S.at), d = hopDist(no);
     if (no !== 'nasarus' && airPct() < 40) toast('AIR ' + Math.round(airPct()) + '% · there is no oxygen out there. Refill at ' + hqName() + ' first.', 'red');
@@ -2250,7 +2253,23 @@
     S.core.recipes[id] = Date.now(); hqRecord('Recovered the ' + r.name + ' from ' + r.source + '. The recipe is recorded in the Journal.'); save(); toast('RECIPE RECOVERED · ' + r.name); return true;
   }
   function coreBuiltCount(){ return (CORE.starter || []).filter(function(m){ return coreMachine(m.id); }).length; }
-  function coreReady(){ return (CORE.starter || []).every(function(m){ return coreMachine(m.id); }) && S.core.oil > 0; }
+  function coreReady(){ return coreChainReady() && (S.core.oil > 0 || shipFuel() > 0); }
+  function coreChainReady(){ return (CORE.starter || []).every(function(m){ return coreMachine(m.id); }); }
+  function coreMissing(){ return (CORE.starter || []).filter(function(m){ return !coreMachine(m.id); }).map(function(m){ return m.name; }); }
+  // THE ROCKET'S TANK (Creator 2026-10-10): "add a refuel option when interacting with rocket. pulls from oil inventory.
+  // 1 oil fill up 20% of the rocket". A course burns tank fuel (courseFuel).
+  var FUEL_PER_OIL = 20;
+  function shipFuel(){ return (S.ship && S.ship.fuel) || 0; }
+  // a course's fuel, as % of the tank: 4 % per unit of the old oil cost (so 1 OIL = 20 % carries 5 units of distance).
+  // Most courses from NASARUS take 30–100 % of a full tank; out-of-range courses cost 2.5× and can strand you.
+  var FUEL_PER_UNIT = 4;
+  function courseFuel(no){ return coreOilCost(no) * FUEL_PER_UNIT; }
+  function refuel(n){
+    S.ship = S.ship || { fuel:0 }; var used = 0;
+    while ((n == null || used < n) && (S.core.oil || 0) > 0 && S.ship.fuel < 100) { S.core.oil--; S.ship.fuel = Math.min(100, S.ship.fuel + FUEL_PER_OIL); used++; }
+    if (used) { hqRecord('Refuelled the rocket with ' + used + ' OIL (tank ' + S.ship.fuel + '%).'); save(); }
+    return used;
+  }
   function coreHomeDistance(no){ var a = POS.nasarus, b = POS[no]; return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0; }
   // AA:1936 handoff: beyond the AstraNav's safe connection radius the interface fills with static
   function outOfRange(){ return !!(S.core && S.core.enabled && typeof S.at === 'number' && coreHomeDistance(S.at) > coreNavRadius() * 70); }
@@ -3209,7 +3228,10 @@
     return '<ul class="x-hqlist x-shipstat">' +
       '<li class="' + (S.hq.drive ? 'done' : '') + '"><b>DRIVE</b><span>' + (S.hq.drive ? 'Repaired. The ship can lift.' : 'Dead. The Rocketship Repair Station can restore it.') + '</span><div>' + (S.hq.drive ? '<em class="ok">READY</em>' : '<em class="dim">OFFLINE</em>') + '</div></li>' +
       '<li class="' + (navOnline() ? 'done' : '') + '"><b>NAVIGATION</b><span>' + (navOnline() ? 'Courses can be plotted.' : 'Build the Navigation Center on ' + esc(hqName()) + '.') + '</span><div>' + (navOnline() ? '<em class="ok">ONLINE</em>' : '<em class="dim">OFFLINE</em>') + '</div></li>' +
-      (S.core && S.core.enabled ? '<li><b>OIL</b><span>Fuel for each course. Safe radius ' + coreNavRadius() + '.</span><div><em>' + (S.core.oil || 0) + '</em></div></li>' : '') +
+      (S.core && S.core.enabled ? '<li class="' + (coreChainReady() ? 'done' : '') + '"><b>FIVE MACHINES</b><span>' + (coreChainReady() ? 'The departure chain is complete.' : 'Still to build: ' + esc(coreMissing().join(', ')) + '.') + '</span><div>' + (coreChainReady() ? '<em class="ok">READY</em>' : '<em class="dim">' + coreBuiltCount() + ' / ' + CORE.starter.length + '</em>') + '</div></li>' +
+        '<li class="x-fuel-row' + (shipFuel() > 0 ? ' done' : '') + '"><b>FUEL TANK</b><span>1 OIL fills 20%. OIL in inventory: ' + (S.core.oil || 0) + '. Safe radius ' + coreNavRadius() + '.</span><div><em>' + shipFuel() + '%</em>' +
+          '<button class="x-btn small" data-fuel="1"' + ((S.core.oil || 0) && shipFuel() < 100 ? '' : ' disabled') + '>REFUEL +20%</button><button class="x-btn small ghost" data-fuel="all"' + ((S.core.oil || 0) && shipFuel() < 100 ? '' : ' disabled') + '>FILL UP</button></div>' +
+          '<i class="x-fuelbar"><i style="width:' + shipFuel() + '%"></i></i></li>' : '') +
       '<li><b>AIR</b><span>Only ' + esc(hqName()) + ' refills it.</span><div><em>' + Math.round(airPct()) + '%</em></div></li>' +
       '<li><b>THE WAY HOME</b><span>Ship restored for hyperspace.</span><div><em>' + shipPct() + '%</em></div></li>' +
       '<li><b>RECALL FLARES</b><span>Fire one to be hauled back aboard.</span><div><em>' + S.flares + ' / ' + flaresMax() + '</em></div></li></ul>';
@@ -3241,6 +3263,11 @@
       if (t.dataset.ck === 'out') { disembark(); return; }
       if (t.dataset.ck === 'an') { touchpad(); return; }
       cockpitTab = t.dataset.ck; cockpit();
+    });
+    body.addEventListener('click', function(e){
+      var fb = e.target.closest('[data-fuel]'); if (!fb || fb.disabled) return;
+      var u = refuel(fb.dataset.fuel === 'all' ? null : 1); if (u) { sfx.reveal(); toast('REFUELLED · ' + u + ' OIL · TANK ' + shipFuel() + '%'); } else sfx.bump();
+      cockpit();
     });
     if (padOn) setTimeout(focusFirst, 30);
     return s;
@@ -3303,9 +3330,12 @@
       body.innerHTML = '<div class="x-sh-btns x-rocket-btns">' + (S.hq.drive || !M.hq ? '<button class="x-btn" data-st="fly"' + (navOnline() ? '' : ' disabled') + '>FLY</button>' : '') +
         '<button class="x-btn ghost" data-st="map">STAR MAP</button></div>' +
         (navOnline() ? '' : '<p class="x-mono light">NAVIGATION OFFLINE · ' + (S.hq.drive ? 'build the Navigation Center at camp.' : 'the drive is dead. Restore it at the Rocketship Repair Station.') + '</p>') +
+        (navOnline() && S.core && S.core.enabled && !coreChainReady() ? '<p class="x-mono light">DEPARTURE LOCKED · still to build: ' + esc(coreMissing().join(', ')) + '.</p>' : '') +
+        (navOnline() && S.core && S.core.enabled && coreChainReady() && !shipFuel() ? '<p class="x-mono light">THE TANK IS EMPTY · refuel below: 1 OIL = 20%.</p>' : '') +
         '<section class="x-arc riv"><h3>SHIP STATUS</h3>' + shipStatusHtml() + '</section><div class="x-rocket-map"></div>';
       if (sel || stationNow && stationNow.map) { var mp = $('.x-rocket-map', body); stationNow.map = true; navSystem(mp, sel); }
       body.onclick = function(e){
+        var fb = e.target.closest('[data-fuel]'); if (fb && !fb.disabled) { var u = refuel(fb.dataset.fuel === 'all' ? null : 1); if (u) { sfx.reveal(); toast('REFUELLED · ' + u + ' OIL · TANK ' + shipFuel() + '%'); } else { sfx.bump(); toast((S.core.oil || 0) ? 'THE TANK IS FULL' : 'NO OIL · make it at the Fuel Generator', 'red'); } renderStation(id, body); return; }
         var b = e.target.closest('[data-st]'); if (!b || b.disabled) return;
         if (b.dataset.st === 'fly') { flyFromRocket(); return; }
         if (b.dataset.st === 'map') { stationNow.map = true; sfx.click(); renderStation(id, body); }
@@ -4389,7 +4419,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

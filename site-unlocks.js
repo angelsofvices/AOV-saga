@@ -84,6 +84,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.16', title:'Refuel the rocket',
+      notes:[
+        'The rocket has a fuel tank. At the rocket (or in the cockpit), REFUEL: 1 OIL fills 20%, or FILL UP',
+        'Every course burns tank fuel; the star map shows what a course costs against the tank',
+        'The rocket tells you exactly what still blocks departure: the drive, the Navigation Center, or which of the five machines is missing'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.15', title:'Developer tools',
       notes:[
         'For playtesting only: a developer machine, switched on in SETUP once the Developer Room is unlocked. Players never see it'

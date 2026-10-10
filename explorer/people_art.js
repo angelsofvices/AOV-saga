@@ -93,7 +93,7 @@
     if (t.leaf) { if (f === 'side') { px(g, 6, 0, 'G'); px(g, 7, -1, 'G'); } else { px(g, 5, 0, 'G'); px(g, 8, -1, 'G'); px(g, 10, 0, 'G'); } }
     if (t.tail && f !== 'down') { if (f === 'side') { px(g, 4, 11, 'h'); px(g, 3, 12, 'h'); px(g, 2, 12, 'h'); } else { px(g, 8, 13, 'h'); px(g, 8, 14, 'h'); px(g, 9, 15, 'h'); } }
   }
-  function build(seed, text, base){
+  function build(seed, text, base, vs){
     var r = rng(seed), t = traitsOf(text), outfit = outfitOf(text, r);
     // a people shares a colour family: base is a hex colour or a word (their people's name)
     var hue = base ? ((base.charAt(0) === '#' ? hexHue(base) : rng(base)() * 360) + (r() * 50 - 25) + 360) % 360 : r() * 360, acc = (hue + 150 + r() * 60) % 360;
@@ -103,18 +103,24 @@
     var pal = { k:'#1c1626', s:skins[0], S:skins[1], h:hsl((hue + 200) % 360, 30 + r() * 30, 18 + r() * 25), c:hsl(hue, 40 + r() * 30, 34 + r() * 14), C:hsl(hue, 45, 52 + r() * 8), d:hsl(hue, 45, 22 + r() * 6),
       a:hsl(acc, 60, 42), A:hsl(acc, 75, 62), b:hsl(hue, 25, 18), e:'#1c1626', w:'#ffffff', m:hsl(210, 10, 62), G:'#7ab83a' };
     if (t.glow) pal.c = hsl(hue, 45, 70), pal.C = '#ffffff', pal.d = hsl(hue, 40, 52);
+    // a ViceWorld portrait spec (explorer/vice_art.js) sets the same skin, hair and clothes in the field
+    if (vs) { pal.s = vs.skin[0]; pal.S = vs.skin[1]; pal.h = vs.hairc[0]; pal.c = vs.cloth[0]; pal.C = vs.cloth[1]; pal.a = vs.hatc[0]; pal.A = vs.hatc[1]; P.vice = vs; pal.r = '#ec3a50'; pal.l = '#101014'; }
     var out = {};
     ['down', 'up', 'side'].forEach(function(f){
       var g = body(f, P); dress(g, f, P); traits(g, f, P);
+      if (P.vice && f === 'down' && !t.cyclops && !t.visor) {   // the ViceWorld face: blush, or pixel shades
+        if (P.vice.eyes === 'shades') { rect(g, 4, 3, 8, 1, 'l'); px(g, 5, 3, 'w'); px(g, 9, 3, 'w'); }
+        else { px(g, 5, 4, 'r'); px(g, 10, 4, 'r'); }
+      }
       out[f] = { rows:outline(g).map(function(r){ return r.join(''); }), pal:pal };
     });
     return out;
   }
   var made = {};
   // the sprite for a person: key is their stable id; text is everything known about them (class, people, Codex words)
-  function person(key, text, base, dir){
+  function person(key, text, base, dir, vs){
     if (!made[key]) {
-      var sp = build(key, text || '', base);
+      var sp = build(key, text || '', base, vs);
       ['down', 'up', 'side'].forEach(function(f){ A.SPRITES['pp_' + key + '_' + f] = sp[f]; });
       made[key] = 1;
     }

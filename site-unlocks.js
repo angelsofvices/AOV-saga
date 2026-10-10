@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.6', title:'ViceWorld',
+      notes:[
+        'The saga’s origin returns: everyone you meet has a ViceWorld portrait when they speak',
+        'Haemen wear the colour of their district’s gem: ruby, pearl, citrine, emerald, amethyst, sapphire, onyx, amber, topaz and gold',
+        'Humans keep human skin; the hybrid peoples wear bold colours of their own',
+        'CUSTOMIZE PILOT: a new widget on the AstraNav home screen opens a full character builder for your astronaut',
+        'Shades, tongues, bucket hats with gem badges, halos, horns, a 1936 aviator cap and more'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.5', title:'The item catalog',
       notes:[
         'Every planet has its own resources: gather its plants and outcrops for materials found nowhere else',

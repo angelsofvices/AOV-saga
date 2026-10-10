@@ -208,13 +208,35 @@
     if (n.key === 'furtrader' || !PEOPLE) return n.key === 'furtrader' ? ART.frame('haemen', n.dir, 0) : withRc(ART.frame('haemen', n.dir, 0), 'ppl-' + n.env);
     if (!n.look) {
       var b = n.codex && CXB[n.codex], no = M && M.world, pe = FAUNA.peoples && FAUNA.peoples[no] || {};
-      if (b) n.look = ['cx_' + b.id, [b.cls, b.name, b.tierName, (b.types || []).join(' '), b.blurb].join(' '), (b.home && b.home.region) || b.cls || 'person'];
+      if (b) n.look = ['cx_' + b.id, [b.cls, b.name, b.tierName, b.blurb].join(' '), (b.home && b.home.region) || b.cls || 'person'];   // (their Codex types are powers, not looks)
       else if (n.folk || n.figure) { var w = n.folk || n.figure; n.look = [n.key + '_' + n.n, w.name + ' ' + w.text, w.name]; }
       else if (n.refugee || n.resident) n.look = [n.key + '_' + n.n, (pe.race || 'people') + ' refugee', pe.race || n.key];
       else n.look = [n.key + '_' + (n.n || 0), (no === 9 ? 'Haemen ' + n.env : (pe.race || 'people')) + (n.warden ? ' warden guard' : ''), no === 9 ? 'haemen-' + n.env : pe.race || n.key];
     }
-    return PEOPLE.person(n.look[0], n.look[1], n.look[2], n.dir);
+    return PEOPLE.person(n.look[0], n.look[1], n.look[2], n.dir, viceOf(n));
   }
+  // ── VICEWORLD · how a person looks (explorer/vice_art.js): humans keep human skin, Haemen wear their district's gem,
+  //    every other people bold colours of its own ──
+  var VICE = window.AOV_VICE;
+  function hueOf(word){ var h = 0; for (var i = 0; i < word.length; i++) h = (h * 31 + word.charCodeAt(i)) >>> 0; return h % 360; }
+  function viceOf(n){
+    if (!VICE) return null;
+    if (n.vice) return n.vice;
+    if (n.key === 'furtrader') return (n.vice = VICE.specFor('furtrader', 'Haemen malezor fur trader', { kind:'haemen', district:'malezor' }));
+    if (!n.look) npcSprite(n);
+    var b = n.codex && CXB[n.codex], no = M && M.world, text = n.look ? n.look[1] : '', T = PEOPLE ? PEOPLE.traitsOf(text) : {};
+    var animal = T.beak || T.snout || T.ears || T.fins || T.antennae || T.visor || T.cyclops;   // a body unlike a human's makes a hybrid
+    var kind = no === 9 || /haemen/i.test(text) ? 'haemen' : !animal && (no === 27 || (b && b.kind === 'humanoid' && !/beast|reptil|avian|aquatic|insect/i.test(text)) || /humanoid|human|viridian|nexyrosillian|elves|aetherelv|congregation/i.test(text)) ? 'human' : 'hybrid';
+    var district = b && b.home && b.home.district || (no === 9 ? n.env : null);
+    return (n.vice = VICE.specFor(n.look[0], text, { kind:kind, district:district, hue:hueOf(String(n.look[2] || n.key)) }));
+  }
+  // a speaker's portrait in the dialog box
+  function faceOn(n){
+    var box = $('.x-dialog'), sp = n && viceOf(n); if (!box || !sp) return;
+    var c = $('.x-dface', box); if (!c) { c = el('canvas', 'x-dface'); c.width = c.height = 96; box.insertBefore(c, box.firstChild); }
+    VICE.render(c, sp); box.classList.add('has-face');
+  }
+  function faceOff(){ var box = $('.x-dialog'); if (box) box.classList.remove('has-face'); }
   function withRc(spec, rc){ var p = spec.split('|'); return p[0] + '@' + rc + (p[1] ? '|' + p[1] : ''); }
   function heroSpec(dir, n){ return withRc(ART.frame(heroSet(), dir, n), 'player'); }
   function portraitDraw(c, look, gender, scale){
@@ -1162,7 +1184,7 @@
         '<p class="x-mono light">FLARES ' + S.flares + '/' + flaresMax() + ' · BAG ' + (packTotal() + packParts() + pend) + (packParts() ? ' · ' + packParts() + ' SHIP PART' + (packParts() > 1 ? 'S' : '') : '') + '</p>' +
         '<div class="x-sh-btns">' + (onFoot() ? '<button class="x-btn" data-a="field">RETURN TO FIELD</button><button class="x-btn ghost" data-a="flare">RECALL FLARE (' + S.flares + ')</button>' :
           landed ? '<button class="x-btn" data-a="out">DISEMBARK</button>' : '<button class="x-btn" data-go="stars">SET A COURSE</button>') + '</div></section>' +
-      invPanel() +
+      pilotWidget() + invPanel() +
       ((landed || S.at) ? '<section class="x-wd x-wd-sketch riv"><h4>LIVE SCANNER · ' + esc(placeName(S.at || (M && M.world))) + ' <b class="x-scanner-clock"></b></h4><canvas class="x-live-scanner" width="640" height="400" aria-label="Live scanner of the current world"></canvas></section>' : '') +
       w('hq', 'HEADQUARTERS', '<p class="x-crt">' + esc(hqName()) + ' · STAGE ' + hqStage() + '</p><p class="x-mono light">' + esc(stageName(hqStage())) + ' · SHIP ' + shipPct() + '% · ' + Object.keys(S.hq.residents).length + ' groups · ' + Object.keys(S.hq.settled).length + ' species</p><i class="x-shipbar"><i style="width:' + shipPct() + '%"></i></i>') +
       w('stars', 'NAVIGATION', '<p class="x-crt">' + (navOnline() ? 'DRIVE ONLINE' : 'NAVIGATION OFFLINE') + '</p><p class="x-mono light">' + visited + ' / 27 worlds visited · ' + Object.keys(S.hq.installed).length + ' parts home</p>') +
@@ -1175,7 +1197,9 @@
     var scanner = $('.x-live-scanner', body);
     if (scanner) liveScannerReady(scanner, $('.x-scanner-clock', body));
     invWire(body);
+    var mini = $('.x-pilot-mini', body); if (mini && VICE) VICE.render(mini, pilotSpec());
     body.onclick = function(e){
+      if (e.target.closest('[data-pilot]')) { pilotBuilder(function(){ nav('system'); }); return; }
       var a = e.target.closest('[data-a]');
       if (a) { if (a.dataset.a === 'field') backToField(); if (a.dataset.a === 'flare') fireFlare(); if (a.dataset.a === 'out') disembark(); return; }
       var g = e.target.closest('[data-go]'); if (g) { sfx.click(); nav(g.dataset.go); }
@@ -1213,6 +1237,81 @@
     return out.sort(function(a, b){ var ia = ord.indexOf(a.key), ib = ord.indexOf(b.key); return (ia < 0 ? 1e4 : ia) - (ib < 0 ? 1e4 : ib); });
   }
   function itemDesc(t){ return CATNAME[t.c] + ' · ' + RARITY[t.r] + (t.p ? ' · ' + (S.visited[t.no] ? placeName(t.no) : 'an uncharted world') : ' · core catalog') + '. ' + (t.fn || ''); }
+  // ── THE PILOT · a ViceWorld portrait of the astronaut, built in the CUSTOMIZE PILOT screen ──
+  function pilotSpec(){
+    var h = hero(), L = h.look || {};
+    if (h.pilot && VICE) return h.pilot;
+    if (!VICE) return null;
+    var su = SUITS[L.suit] || SUITS[0];
+    return { kind:'human', skin:VICE.HUMAN[Math.min(VICE.HUMAN.length - 1, L.skin || 1)], hair:['short','slick','bob','long'][L.style || 0], hairc:VICE.HAIRC[L.hc || 0],
+      eyes:'dot', mouth:'smile', hat:'aviator', hatc:['#6a4428','#9a6a40'], badge:'gold', acc:h.gender === 'f' ? ['blush'] : [], bg:VICE.BACKDROPS[1], cloth:[su[0], su[1]], traits:{} };
+  }
+  function pilotWidget(){
+    if (!VICE) return '';
+    return '<button class="x-wd x-wd-pilot" data-pilot="1"><h4>PILOT</h4><canvas class="x-pilot-mini" width="96" height="96"></canvas><p class="x-crt">' + esc(heroName()) + '</p><p class="x-mono light">CUSTOMIZE PILOT ▸</p></button>';
+  }
+  var PILOT_TABS = [['face','FACE'],['hair','HAIR'],['eyes','EYES'],['mouth','MOUTH'],['hat','HEADWEAR'],['acc','EXTRAS'],['suit','FLIGHT SUIT'],['bg','BACKDROP']];
+  function pilotBuilder(done){
+    var sp = JSON.parse(JSON.stringify(pilotSpec())), look = Object.assign({}, hero().look), tab = 'face', orig = JSON.stringify(sp), origLook = JSON.stringify(look);
+    var s = el('div', 'x-modal x-pilot', '<div class="x-pilot-in riv"><header class="x-pilot-top"><b>CUSTOMIZE PILOT</b><span class="x-mono">' + esc(heroName()) + ' · U.S. EXPERIMENTAL ROCKET PROGRAM · 1936</span></header>' +
+      '<div class="x-pilot-body"><div class="x-pilot-prev"><canvas class="x-pilot-por" width="256" height="256"></canvas><canvas class="x-pilot-field" width="256" height="72"></canvas>' +
+        '<p class="x-mono light">Portrait in the ViceWorld style · the flight suit, helmet and visor are what you wear in the field.</p></div>' +
+      '<div class="x-pilot-opts"><nav class="x-pilot-tabs">' + PILOT_TABS.map(function(t){ return '<button class="x-btn small" data-pt="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</nav><div class="x-pilot-grid"></div></div></div>' +
+      '<footer class="x-sh-btns"><button class="x-btn ghost" data-pa="random">RANDOMIZE</button><button class="x-btn ghost" data-pa="reset">RESET</button><button class="x-btn ghost" data-pa="cancel">CANCEL</button><button class="x-btn" data-pa="save">SAVE PILOT</button></footer></div>');
+    ui.appendChild(s); sfx.click();
+    function field(){
+      var c = $('.x-pilot-field', s), g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.imageSmoothingEnabled = false;
+      applyLook(look, 'pilotpv'); ['down', 'left', 'up', 'right'].forEach(function(d, i){ ART.draw(g, withRc(ART.frame(heroSet(), d, 0), 'pilotpv'), 32 + i * 64, 68, 3); });
+    }
+    function thumb(mod){ var t = JSON.parse(JSON.stringify(sp)); mod(t); return VICE.url(t, 2); }
+    function swatch(cols, on, attr, i){ return '<button class="x-swatch' + (on ? ' on' : '') + '" ' + attr + '="' + i + '" style="background:linear-gradient(135deg,' + cols[0] + ',' + (cols[1] || cols[0]) + ')"></button>'; }
+    function opt(attr, val, img, label, on){ return '<button class="x-popt' + (on ? ' on' : '') + '" ' + attr + '="' + val + '"><img class="x-pix" alt="" src="' + img + '"><span>' + label + '</span></button>'; }
+    function same(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
+    function draw(){
+      VICE.render($('.x-pilot-por', s), sp); field();
+      $$('[data-pt]', s).forEach(function(b){ b.classList.toggle('ghost', b.dataset.pt !== tab); });
+      var h = '';
+      if (tab === 'face') h = '<h5>SKIN</h5><div class="x-popts">' + VICE.HUMAN.map(function(c, i){ return opt('data-skin', i, thumb(function(t){ t.skin = c; }), 'TONE ' + (i + 1), same(sp.skin, c)); }).join('') + '</div>';
+      if (tab === 'hair') h = '<h5>STYLE</h5><div class="x-popts">' + VICE.OPTIONS.hair.map(function(v){ return opt('data-hair', v, thumb(function(t){ t.hair = v; t.hat = 'none'; }), v.toUpperCase(), sp.hair === v); }).join('') + '</div>' +
+        '<h5>COLOUR</h5><div class="x-swatches">' + VICE.HAIRC.map(function(c, i){ return swatch(c, same(sp.hairc, c), 'data-hairc', i); }).join('') + '</div>';
+      if (tab === 'eyes') h = '<div class="x-popts">' + VICE.OPTIONS.eyes.map(function(v){ return opt('data-eyes', v, thumb(function(t){ t.eyes = v; }), v.toUpperCase(), sp.eyes === v); }).join('') + '</div>';
+      if (tab === 'mouth') h = '<div class="x-popts">' + VICE.OPTIONS.mouth.map(function(v){ return opt('data-mouth', v, thumb(function(t){ t.mouth = v; }), v.toUpperCase(), sp.mouth === v); }).join('') + '</div>';
+      if (tab === 'hat') h = '<h5>HEADWEAR</h5><div class="x-popts">' + VICE.OPTIONS.hat.map(function(v){ return opt('data-hat', v, thumb(function(t){ t.hat = v; }), v.toUpperCase(), sp.hat === v); }).join('') + '</div>' +
+        '<h5>COLOUR</h5><div class="x-swatches">' + VICE.HATC.concat([['#6a4428','#9a6a40']]).map(function(c, i){ return swatch(c, same(sp.hatc, c), 'data-hatc', i); }).join('') + '</div>' +
+        '<h5>GEM BADGE</h5><div class="x-swatches">' + Object.keys(VICE.GEMS).map(function(k){ return '<button class="x-swatch' + (sp.badge === k ? ' on' : '') + '" data-badge="' + k + '" title="' + VICE.GEMS[k][1] + '" style="background:' + VICE.GEMS[k][0] + '"></button>'; }).join('') + '</div>';
+      if (tab === 'acc') h = '<p class="x-mono light">Tap to wear or remove.</p><div class="x-popts">' + VICE.OPTIONS.acc.map(function(v){ var on = (sp.acc || []).indexOf(v) >= 0; return opt('data-acc', v, thumb(function(t){ t.acc = (t.acc || []).filter(function(a){ return a !== v; }).concat([v]); }), v.toUpperCase(), on); }).join('') + '</div>';
+      if (tab === 'suit') h = '<h5>FLIGHT SUIT</h5><div class="x-swatches">' + SUITS.map(function(c, i){ return swatch([c[0], c[1]], look.suit === i, 'data-suit', i); }).join('') + '</div>' +
+        '<h5>HELMET</h5><div class="x-swatches">' + HELMS.map(function(c, i){ return swatch([c[0], c[1]], look.helmet === i, 'data-helm', i); }).join('') + '</div>' +
+        '<h5>VISOR</h5><div class="x-swatches">' + VISORS.map(function(c, i){ return swatch([c[0], c[1]], look.visor === i, 'data-visor', i); }).join('') + '</div>';
+      if (tab === 'bg') h = '<div class="x-swatches big">' + VICE.BACKDROPS.map(function(c, i){ return swatch(c, same(sp.bg, c), 'data-bg', i); }).join('') + '</div>';
+      $('.x-pilot-grid', s).innerHTML = h;
+    }
+    s.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+      if (d.pt) { tab = d.pt; sfx.click(); return draw(); }
+      if (d.skin != null) { sp.skin = VICE.HUMAN[+d.skin]; look.skin = Math.min(SKIN.length - 1, +d.skin); }
+      if (d.hair) { sp.hair = d.hair; var si = ['short','slick','bob','long'].indexOf(d.hair); if (si >= 0) look.style = si; }
+      if (d.hairc != null) { sp.hairc = VICE.HAIRC[+d.hairc]; if (+d.hairc < HAIRC.length) look.hc = +d.hairc; }
+      if (d.eyes) sp.eyes = d.eyes;
+      if (d.mouth) sp.mouth = d.mouth;
+      if (d.hat) sp.hat = d.hat;
+      if (d.hatc != null) sp.hatc = VICE.HATC.concat([['#6a4428','#9a6a40']])[+d.hatc];
+      if (d.badge) sp.badge = d.badge;
+      if (d.acc) { sp.acc = sp.acc || []; var k = sp.acc.indexOf(d.acc); if (k >= 0) sp.acc.splice(k, 1); else sp.acc.push(d.acc); }
+      if (d.suit != null) { look.suit = +d.suit; sp.cloth = [SUITS[+d.suit][0], SUITS[+d.suit][1]]; }
+      if (d.helm != null) look.helmet = +d.helm;
+      if (d.visor != null) look.visor = +d.visor;
+      if (d.bg != null) sp.bg = VICE.BACKDROPS[+d.bg];
+      if (d.pa === 'random') { var r = VICE.specFor('pilot' + Date.now(), 'pilot human', { kind:'human' }); r.cloth = sp.cloth; r.traits = {}; sp = r; }
+      if (d.pa === 'reset') { sp = JSON.parse(orig); look = JSON.parse(origLook); }
+      if (d.pa === 'cancel') { s.remove(); sfx.click(); if (done) done(false); return; }
+      if (d.pa === 'save') {
+        S.hero.pilot = sp; S.hero.look = look; applyLook(); save(); s.remove(); sfx.reveal(); toast('PILOT · ' + heroName() + ' · portrait and kit saved'); if (done) done(true); return;
+      }
+      sfx.click(); draw();
+    });
+    draw();
+  }
   function invPanel(){
     var items = invItems();
     return '<section class="x-wd x-wd-inv riv"><h4>INVENTORY <small>drag to arrange · tap for details</small></h4>' +
@@ -1661,12 +1760,13 @@
       row('hand', 'TOUCH CONTROLS', ['D-PAD LEFT', 'D-PAD RIGHT']) + row('alpha', 'CONTROL OPACITY', ['SOLID', 'SOFT', 'FAINT']) +
       '<p class="x-mono light">' + esc(padTxt) + '</p>' +
       '<p class="x-mono light">✕ examine · ○ back / gait (stalk · steady · sprint) · □ scan · TOUCHPAD AstraNav · L1/R1 AstraNav pages · L2/R2 tuning dial and zoom · right stick pans the telescope</p>' +
-      '<div class="x-sh-btns"><button class="x-btn" data-a="kit">REFIT YOUR KIT</button><button class="x-btn ghost" data-a="devroom">DEVELOPER ROOM</button><button class="x-btn ghost" data-a="rename">RENAME ASTRONAUT</button><button class="x-btn ghost" data-a="renamehq">RENAME ' + esc(hqName()) + '</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
+      '<div class="x-sh-btns"><button class="x-btn" data-a="pilot">CUSTOMIZE PILOT</button><button class="x-btn" data-a="kit">REFIT YOUR KIT</button><button class="x-btn ghost" data-a="devroom">DEVELOPER ROOM</button><button class="x-btn ghost" data-a="rename">RENAME ASTRONAUT</button><button class="x-btn ghost" data-a="renamehq">RENAME ' + esc(hqName()) + '</button>' + (coarse ? '<button class="x-btn ghost" data-a="fs">FULL SCREEN · LANDSCAPE</button>' : '') +
         '<button class="x-btn ghost" data-a="reset">ERASE EXPEDITION</button></div>' +
       '<p class="x-mono light">PILOT-OBSERVER: ' + esc(heroName()) + ' · HEADQUARTERS: ' + esc(hqName()) + '</p>' +
       '<p class="x-mono dim">Personal names live in this save only. The canon identities stay Carl Nasaro and NASARUS.</p></div>';
     body.onclick = function(e){
       var b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.a === 'pilot') { pilotBuilder(function(){ nav('setup'); }); return; }
       if (b.dataset.a === 'kit') { kit(hero().gender, hero().look, function(){ nav('setup'); }).then(function(l){ S.hero.look = l; applyLook(); save(); toast('KIT REFITTED'); nav('setup'); }); return; }
       if (b.dataset.a === 'devroom') { developerRoom(); return; }
       if (b.dataset.a === 'fs') { goLandscape(); return; }
@@ -2510,6 +2610,7 @@
     if (c) { encounter(c, false); return; }
     if (n) {
       n.dir = { up:'down', down:'up', left:'right', right:'left' }[P.dir];
+      faceOn(n);
       if (n.warden) return wardenMeet(n);
       if (n.refugee) return talkRefugee(n);
       if (n.resident) return talkResident(n);
@@ -2608,7 +2709,7 @@
     closeDialog(-1);
   }
   function closeDialog(answer){
-    var d = dlg; dlg = null; dialogOpen = false;
+    var d = dlg; dlg = null; dialogOpen = false; faceOff();
     if (d && d.box) { d.box.hidden = true; }
     if (d && answer !== -2) d.res(answer);
     else if (d) d.res(-1);

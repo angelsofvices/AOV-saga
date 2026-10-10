@@ -60,7 +60,7 @@ window.AOV_HQ = {
     { id: 'stores', name: 'CAMP STORES', spr: 'hq_crate', at: [22, 26], w: 1, cost: {}, free: true, requires: ['camp'],
       does: 'The initial storage area. Deposit what you extracted.' },
     { id: 'nav', name: 'NAVIGATION CENTER', spr: 'hq_nav', at: [24, 22], w: 2, cost: { scrap: 4, crystal: 3 }, requires: ['camp', 'drive'],
-      does: 'Provides the physical base link for the AstroNav Terminal. The five-machine chain still controls departure.' },
+      does: 'Provides the physical base link for the AstraNav Terminal. The five-machine chain still controls departure.' },
     { id: 'research', name: 'RESEARCH STATION', spr: 'hq_lab', at: [27, 26], w: 2, cost: { scrap: 4, fibre: 2 }, requires: ['camp'],
       does: 'Turns survey DATA into research, and clones Aethren from their scanned profiles into companions.' },
     { id: 'depot', name: 'RESOURCE DEPOT', spr: 'hq_depot', at: [19, 30], w: 2, cost: { scrap: 6, fibre: 3 }, requires: ['stores'],

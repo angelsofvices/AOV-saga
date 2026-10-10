@@ -1182,11 +1182,11 @@
     if (!navOnline()) { toast('NAVIGATION OFFLINE', 'red'); return; }
     if (S.core && S.core.enabled && no !== 'nasarus') {
       var fuel = coreOilCost(no), beyond = coreHomeDistance(no) > coreNavRadius() * 70;
-      // inside the safe radius the AstroNav knows the cost and will not launch short; beyond it the reading is static
+      // inside the safe radius the AstraNav knows the cost and will not launch short; beyond it the reading is static
       if (!coreReady() || (!beyond && S.core.oil < fuel)) { toast('INSUFFICIENT OIL · produce fuel at NASARUS before departure', 'red'); return; }
       if (beyond && S.core.oil < fuel) return stranded(no);
       S.core.oil -= fuel; hqRecord('Spent ' + fuel + ' OIL on the course to ' + placeName(no) + '.'); save();
-      if (coreHomeDistance(no) > coreNavRadius() * 70) toast('ASTRONAV INTERFERENCE · out-of-range course · OIL ' + fuel, 'red');
+      if (coreHomeDistance(no) > coreNavRadius() * 70) toast('ASTRANAV INTERFERENCE · out-of-range course · OIL ' + fuel, 'red');
     }
     var from = placeName(S.at), d = hopDist(no);
     if (no !== 'nasarus' && airPct() < 40) toast('AIR ' + Math.round(airPct()) + '% · there is no oxygen out there. Refill at ' + hqName() + ' first.', 'red');
@@ -1350,7 +1350,7 @@
       if (tab === 'mouth') h = '<div class="x-popts">' + VICE.OPTIONS.mouth.map(function(v){ return opt('data-mouth', v, thumb(function(t){ t.mouth = v; }), v.toUpperCase(), sp.mouth === v); }).join('') + '</div>';
       if (tab === 'hat') h = '<h5>HEADWEAR</h5><div class="x-popts">' + VICE.OPTIONS.hat.map(function(v){ return opt('data-hat', v, thumb(function(t){ t.hat = v; }), v.toUpperCase(), sp.hat === v); }).join('') + '</div>' +
         '<h5>COLOUR</h5><div class="x-swatches">' + VICE.HATC.concat([['#6a4428','#9a6a40']]).map(function(c, i){ return swatch(c, same(sp.hatc, c), 'data-hatc', i); }).join('') + '</div>' +
-        '<h5>GEM BADGE</h5><div class="x-swatches">' + Object.keys(VICE.GEMS).map(function(k){ return '<button class="x-swatch' + (sp.badge === k ? ' on' : '') + '" data-badge="' + k + '" title="' + VICE.GEMS[k][1] + '" style="background:' + VICE.GEMS[k][0] + '"></button>'; }).join('') + '</div>';
+        '<h5>GEM BADGE</h5><div class="x-swatches">' + Object.keys(VICE.GEMS).map(function(k){ var q = VICE.GEMS[k][3]; return '<button class="x-swatch' + (sp.badge === k ? ' on' : '') + '" data-badge="' + k + '" title="' + VICE.GEMS[k][1] + '" style="background:' + (q ? 'conic-gradient(' + q[0] + ' 0 25%,' + q[1] + ' 0 50%,' + q[3] + ' 0 75%,' + q[2] + ' 0)' : VICE.GEMS[k][0]) + '"></button>'; }).join('') + '</div>';
       if (tab === 'acc') h = '<p class="x-mono light">Tap to wear or remove.</p><div class="x-popts">' + VICE.OPTIONS.acc.map(function(v){ var on = (sp.acc || []).indexOf(v) >= 0; return opt('data-acc', v, thumb(function(t){ t.acc = (t.acc || []).filter(function(a){ return a !== v; }).concat([v]); }), v.toUpperCase(), on); }).join('') + '</div>';
       if (tab === 'suit') h = '<h5>FLIGHT SUIT</h5><div class="x-swatches">' + SUITS.map(function(c, i){ return swatch([c[0], c[1]], look.suit === i, 'data-suit', i); }).join('') + '</div>' +
         '<h5>HELMET</h5><div class="x-swatches">' + HELMS.map(function(c, i){ return swatch([c[0], c[1]], look.helmet === i, 'data-helm', i); }).join('') + '</div>' +
@@ -2244,13 +2244,13 @@
   function coreBuiltCount(){ return (CORE.starter || []).filter(function(m){ return coreMachine(m.id); }).length; }
   function coreReady(){ return (CORE.starter || []).every(function(m){ return coreMachine(m.id); }) && S.core.oil > 0; }
   function coreHomeDistance(no){ var a = POS.nasarus, b = POS[no]; return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0; }
-  // AA:1936 handoff: beyond the AstroNav's safe connection radius the interface fills with static
+  // AA:1936 handoff: beyond the AstraNav's safe connection radius the interface fills with static
   function outOfRange(){ return !!(S.core && S.core.enabled && typeof S.at === 'number' && coreHomeDistance(S.at) > coreNavRadius() * 70); }
   function stranded(no){
     // not saved: the save keeps the moment before this launch (the Creator has not yet ruled on Game Over saves)
     stopWorld && stopWorld(); vibrate(600, 1);
     var s = screen('x-recall x-death x-static', '<div class="x-paper"><p class="x-stamp red">GAME OVER</p><h2 class="x-death-h">STRANDED IN DEEP SPACE</h2>' +
-      '<p class="x-mono">Beyond the AstroNav’s safe radius the course to ' + esc(placeName(no)) + ' burned OIL faster than the gauge could read. The tanks ran dry between the stars, and the ship dropped out of hyperspace with nowhere to land.</p>' +
+      '<p class="x-mono">Beyond the AstraNav’s safe radius the course to ' + esc(placeName(no)) + ' burned OIL faster than the gauge could read. The tanks ran dry between the stars, and the ship dropped out of hyperspace with nowhere to land.</p>' +
       '<p class="x-mono light">Your last record is from before this launch.</p><button class="x-btn">RETURN TO THE LAST RECORD</button></div>');
     $('.x-btn', s).addEventListener('click', function(){ location.reload(); });
   }

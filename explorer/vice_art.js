@@ -5,8 +5,11 @@
 // on a bright backdrop. Colour theory decides the skin:
 //   · HUMANS (Viridians, Earth, the pilot) keep human skin tones;
 //   · HAEMEN carry the colour of their district's Mothergem shard (Malezor ruby, Zarvane pearl, Andrannor citrine,
-//     Veridan emerald, Netharion amethyst, Vorashil sapphire, Xilnar onyx, Baelgor amber, Thardin topaz,
-//     Korathen gold);
+//     Veridan emerald, Netharion amethyst, Vorashil sapphire, Xilnar onyx, Baelgor amber, Thardin the WORLD GEM,
+//     Korathen the SPACE GEM). Canon (GEM_COLOR_PSYCHOLOGY_CANON.md §7c, Creator 2026-09-01): "the world gem can have
+//     red blue yellow and green and the space gem has white orange purple and black". The two composites are
+//     quartered in four colours, and each Thardin or Korathen Haemen carries one of its gem's four colours as skin.
+//     (Creator ruling 2026-10-10: Thardin = World Gem, Korathen = Space Gem. Topaz and gold stay as badges.)
 //   · HYBRIDS (every other people) wear bold colours from their world, and the backdrop is the complement.
 // Portraits are 32 × 32 pixel data drawn at runtime. Nothing is a PNG.
 (function(){
@@ -22,7 +25,10 @@
   var GEMS = {
     ruby:['#d8343c','RUBY','malezor'], pearl:['#ece4d8','PEARL','zarvane'], citrine:['#ecc432','CITRINE','andrannor'], emerald:['#2fae64','EMERALD','veridan'],
     amethyst:['#8c4ad8','AMETHYST','netharion'], sapphire:['#2f62d8','SAPPHIRE','vorashil'], onyx:['#2e2a36','ONYX','xilnar'], amber:['#e8842c','AMBER','baelgor'],
-    topaz:['#3fd2c8','TOPAZ','thardin'], gold:['#e8c440','GOLD','korathen'], diamond:['#d8f0ff','DIAMOND',null], jade:['#6ac88a','JADE',null]
+    topaz:['#3fd2c8','TOPAZ',null], gold:['#e8c440','GOLD',null], diamond:['#d8f0ff','DIAMOND',null], jade:['#6ac88a','JADE',null],
+    // the two composite gems: [lead colour, name, district, the four colours]
+    world:['#d8343c','WORLD GEM','thardin',['#d8343c','#2f62d8','#ecc432','#2fae64']],
+    space:['#ece8f4','SPACE GEM','korathen',['#ece8f4','#e8842c','#8c4ad8','#1e1a26']]
   };
   var DISTRICT_GEM = {}; Object.keys(GEMS).forEach(function(k){ if (GEMS[k][2]) DISTRICT_GEM[GEMS[k][2]] = k; });
   var BACKDROPS = [['#7a2cff','#a64dff'], ['#20c8f0','#3a7cf0'], ['#a8f06a','#30c8a0'], ['#ffd84a','#ffb02a'], ['#ff6a8a','#c83aff'], ['#30d8c8','#2a8ae8'], ['#ff8a3a','#ff4a6a'], ['#3a3a6a','#7a2cff'], ['#e8e8e8','#b8c8d8']];
@@ -143,13 +149,19 @@
     rect(g, 4, 27, 24, 3, 'q'); rect(g, 4, 27, 24, 1, 'j'); [7, 12, 19, 24].forEach(function(x){ px(g, x, 28, 'p'); });   // collar ring and spec lights
     px(g, 3, 14, 'p'); px(g, 28, 14, 'p');
   }
-  function gem(g, x, y, sp){ px(g, x, y, 'g'); px(g, x + 1, y, 'g'); px(g, x - 1, y + 1, 'g'); px(g, x, y + 1, 'G'); px(g, x + 1, y + 1, 'g'); px(g, x + 2, y + 1, 'g'); px(g, x, y + 2, 'g'); px(g, x + 1, y + 2, 'g'); px(g, x + 1, y - 0, 'G'); }
+  function gem(g, x, y, sp){
+    if ((GEMS[sp.badge] || [])[3]) {   // a composite: quartered in its four colours
+      px(g, x, y, '1'); px(g, x + 1, y, '2'); px(g, x - 1, y + 1, '3'); px(g, x, y + 1, '1'); px(g, x + 1, y + 1, '2'); px(g, x + 2, y + 1, '4'); px(g, x, y + 2, '3'); px(g, x + 1, y + 2, '4');
+      return;
+    }
+    px(g, x, y, 'g'); px(g, x + 1, y, 'g'); px(g, x - 1, y + 1, 'g'); px(g, x, y + 1, 'G'); px(g, x + 1, y + 1, 'g'); px(g, x + 2, y + 1, 'g'); px(g, x, y + 2, 'g'); px(g, x + 1, y + 2, 'g'); px(g, x + 1, y - 0, 'G'); }
 
   function palette(sp){
     var gm = GEMS[sp.badge] || GEMS.gold;
     return { k:'#101014', s:sp.skin[0], S:sp.skin[1], h:sp.hairc[0], H:sp.hairc[1], e:'#101014', w:'#ffffff', r:'#ec3a50', t:'#f05878', T:'#b02848', m:'#3a1418',
       a:sp.hatc[0], A:sp.hatc[1], g:gm[0], G:shade(gm[0], 22), x:'#ffd23a', y:'#c8c8c8', l:'#101014', c:sp.cloth[0], C:sp.cloth[1], b:'#6a4428', Q:'#5fc04a',
       // the space helmet: rim in the helmet colour, glass tinted by the visor, trim and spec lights from the suit
+      '1':(gm[3] || [])[0] || gm[0], '2':(gm[3] || [])[1] || gm[0], '3':(gm[3] || [])[2] || gm[0], '4':(gm[3] || [])[3] || gm[0],
       j:sp.helmc || sp.hatc[0], n:shade(sp.helmc || sp.hatc[0], -18), v:shade(sp.visorc || '#9fd2e6', 8), u:shade(sp.visorc || '#9fd2e6', 30), q:sp.trim || '#9aa2a8', p:sp.spec || '#e8b830' };
   }
   var cache = {};
@@ -175,9 +187,9 @@
   function specFor(key, text, o){
     o = o || {}; var r = rng(key), T = window.AOV_PEOPLE_ART ? window.AOV_PEOPLE_ART.traitsOf(text || '') : {};
     var kind = o.kind || kindOf(text || ''), skin, bg, badge;
-    if (kind === 'haemen') { badge = o.gem || DISTRICT_GEM[o.district] || Object.keys(GEMS)[(r() * 10) | 0]; var gc = GEMS[badge][0]; skin = [gc, shade(gc, -16)]; }
+    if (kind === 'haemen') { badge = o.gem || DISTRICT_GEM[o.district] || Object.keys(GEMS)[(r() * 10) | 0]; var gq = GEMS[badge][3], gc = gq ? gq[(r() * 4) | 0] : GEMS[badge][0]; skin = [gc, shade(gc, -16)]; }
     else if (kind === 'human') { skin = HUMAN[(r() * HUMAN.length) | 0]; badge = ['ruby','sapphire','emerald','gold','amethyst'][(r() * 5) | 0]; }
-    else { var hue = o.hue != null ? o.hue : r() * 360; var c = hsl(hue, 55 + r() * 25, 50 + r() * 12); skin = [c, shade(c, -16)]; badge = Object.keys(GEMS)[(r() * 12) | 0]; }
+    else { var hue = o.hue != null ? o.hue : r() * 360; var c = hsl(hue, 55 + r() * 25, 50 + r() * 12); skin = [c, shade(c, -16)]; badge = Object.keys(GEMS)[(r() * 12) | 0]; }   // hybrids never wear the composites: those belong to Thardin and Korathen
     var sh = toHsl(skin[0]);
     // the backdrop: humans any bright pair; gems and hybrids the complement of the skin, for contrast
     if (kind === 'human') bg = BACKDROPS[(r() * BACKDROPS.length) | 0];

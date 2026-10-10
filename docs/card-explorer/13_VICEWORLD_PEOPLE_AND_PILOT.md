@@ -19,7 +19,8 @@ The saga's origin characters are rebuilt as native pixel data: 32 × 32 busts dr
 
 **Colour theory**
 - **Humans:** Viridians, the humanoid peoples, Codex humanoids (other than Haemen) and the pilot keep **human skin**: eight natural tones from fair to deep.
-- **Haemen** wear the colour of their **district's Mothergem shard**: Malezor ruby, Zarvane pearl, Andrannor citrine, Veridan emerald, Netharion amethyst, Vorashil sapphire, Xilnar onyx, Baelgor amber, Thardin topaz, Korathen gold.
+- **Haemen** wear the colour of their **district's Mothergem shard**: Malezor ruby, Zarvane pearl, Andrannor citrine, Veridan emerald, Netharion amethyst, Vorashil sapphire, Xilnar onyx, Baelgor amber, Thardin the **World Gem**, Korathen the **Space Gem**.
+  - *Creator ruling 2026-10-10* (canon: `data/GEM_COLOR_PSYCHOLOGY_CANON.md` §7c). The World Gem is red, blue, yellow and green; the Space Gem is white, orange, purple and black. Both are drawn quartered in their four colours, and each Thardin or Korathen Haemen carries one of the four as skin. Topaz and gold remain as badges.
 - **Hybrids** are every people whose body is not human-shaped (beaks, snouts, fins, antennae, visors, cyclops eyes). They wear bold colours, and members of one people share a colour family. Their backdrop is the **complement** of their skin, for contrast; humans get any bright backdrop pair.
 
 **In the game**

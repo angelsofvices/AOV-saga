@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.18', title:'The party fights',
+      notes:[
+        'Your party walks with you: it follows your trail, hurries to catch up, and idles around you when you stop',
+        'You bring up to nine. Every other clone lives on NASARUS: working at the machines, keeping each other company, resting, and gathering materials while you are away',
+        'No more card battles. Your Aethren fight on the field, on their own: strikes, bolts, hit flashes, damage numbers, HP bars',
+        'Enemies from canon: Mori, Daemon, Seer Grunts, Nova Guardians and the Penumbra',
+        'Wardens, vault guardians and charging Aethren are met live too, and calmed, not killed'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.17', title:'Ship levels',
       notes:[
         'The ship has five levels. Level 1 is built on NASARUS before the first take-off; level 5 reaches hyperspace',

@@ -547,7 +547,7 @@
     }).join('') + '</ol></div>';
   }
   function peoplesMet(){ return Object.keys(S.lore).length; }
-  function battlesWon(){ return Object.keys(S.archive).filter(function(id){ return S.archive[id].battled; }).length; }
+  function battlesWon(){ return Object.keys(S.archive).filter(function(id){ return S.archive[id].battled; }).length + (S.fightsWon || 0); }
   function objectives(){
     var list = baseObjectives();
     list.forEach(function(o, i){ if (!o.log) o.log = OBJ_LOG[i]; });
@@ -1204,6 +1204,7 @@
       if (tank < fuel) { toast('NOT ENOUGH FUEL · this course needs ' + fuel + '%, the tank holds ' + tank + '% of ' + tankMax() + '%. Refuel at the rocket (1 OIL = 20%).', 'red'); return; }
       S.ship.fuel = tank - fuel; hqRecord('Burned ' + fuel + '% of the tank on the course to ' + placeName(no) + '.'); save();
     }
+    if (S.at === 'nasarus' && no !== 'nasarus') S.hq.awayAt = Date.now();
     var from = placeName(S.at), d = hopDist(no);
     if (no !== 'nasarus' && airPct() < 40) toast('AIR ' + Math.round(airPct()) + '% · there is no oxygen out there. Refill at ' + hqName() + ' first.', 'red');
     var s = screen('x-hyper', '<p class="x-hyper-t x-travel"></p>');
@@ -2778,6 +2779,7 @@
     if (who && who.flies) return ch === '#' || x <= 0 || y <= 0 || x >= M.W - 1 || y >= M.H - 1 || !!critterAt(x, y) || !!npcAt(x, y) || (P && P.x === x && P.y === y);
     if (SOLID[ch]) return true;
     if (critterAt(x, y) || npcAt(x, y)) return true;
+    if (who === P && foeAt(x, y)) return true;
     if (who !== P && P && P.x === x && P.y === y) return true;
     return false;
   }
@@ -2799,6 +2801,7 @@
     if (SOLID[at(start.x, start.y)]) start = { x:M.ship.x, y:M.ship.y + 1, dir:'down' };
     P = { x:start.x, y:start.y, fx:start.x, fy:start.y, dir:start.dir || 'down', t:0, moving:false, gait:S.gait || 'steady', dust:[], anim:0 };
     placeDevMachine();
+    spawnAllies(); spawnHomebodies(); spawnFoes(); awayReport();
     critters = M.spawns.map(function(sp){
       var s = SP[sp.id] || {};
       return { id:sp.id, lv:sp.lv, x:sp.x, y:sp.y, fx:sp.x, fy:sp.y, fromX:sp.x, fromY:sp.y, t:1, home:{ x:sp.x, y:sp.y }, dir:'down', cool:Math.random() * 2,
@@ -2988,6 +2991,7 @@
       if (want) step(want);
     }
     for (var i = 0; i < critters.length && mode === 'surface'; i++) updateCritter(critters[i], dt, now);
+    if (mode === 'surface') updateLive(dt);
     if (mode !== 'surface') return;
     airTimer += dt;
     if (airTimer > 1) {
@@ -3011,6 +3015,7 @@
     P.dir = dir;
     var d = DIRS[dir], nx = P.x + d[0], ny = P.y + d[1];
     if (blocked(nx, ny, P)) return;
+    trail.unshift({ x:P.x, y:P.y }); if (trail.length > 24) trail.length = 24; lastMoveAt = performance.now();
     P.px0 = P.x; P.py0 = P.y; P.x = nx; P.y = ny; P.t = 0; P.moving = true;
     if ((nx + ny) % 2) sfx.step();
   }
@@ -3082,6 +3087,380 @@
     if (choice) { c.fromX = c.x; c.fromY = c.y; c.x += choice[1]; c.y += choice[2]; c.dir = choice[0]; c.t = 0; }
   }
 
+  // ═════════════════════════ LIVE WORLD ═════════════════════════
+  // Creator 2026-10-10: "give party aethren natural follow cycles, not just floating whenever you move. also make all
+  // aethren not in party naturally roam nasarus. they will eventually do work and socialize on planet while youre gone.
+  // you only bring 9 with you. the rest are stored on home planet after cloning. also, no more card battles. no turn
+  // based. I wanna see how it looks if the aethren actually fight the enemies on the overworld."
+  // The party walks the field as real bodies; the clones left at home live on NASARUS; fights happen on the map, live.
+  var LIVE = true;                                  // card battles retired: battle() stays in the code but is never called
+  var ENEMY = window.AOV_ENEMIES || { kinds:{}, zyraxis:{}, elsewhere:[] };
+  var allies = [], homebodies = [], foes = [], shots = [], fxs = [], trail = [], foeGroups = {}, quietT = 0, lastMoveAt = 0;
+  function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+  function mdist(a, b){ return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
+  function ent(o){ return Object.assign({ fx:o.x, fy:o.y, fromX:o.x, fromY:o.y, t:1, stepT:.2, dir:'down', anim:0, cd:Math.random(), flash:0, lunge:0 }, o); }
+  function entStep(e, nx, ny){ e.fromX = e.x; e.fromY = e.y; e.x = nx; e.y = ny; e.t = 0; e.dir = nx > e.fromX ? 'right' : nx < e.fromX ? 'left' : ny > e.fromY ? 'down' : 'up'; }
+  function entTween(e, dt){ if (e.t < 1) { e.t = Math.min(1, e.t + dt / e.stepT); e.fx = e.fromX + (e.x - e.fromX) * e.t; e.fy = e.fromY + (e.y - e.fromY) * e.t; e.anim += dt * 8; return true; } e.fx = e.x; e.fy = e.y; return false; }
+  function bodyAt(list, x, y, self){ for (var i = 0; i < list.length; i++) { var o = list[i]; if (o !== self && o.x === x && o.y === y && o.state !== 'dead' && o.state !== 'gone') return o; } return null; }
+  function foeAt(x, y){ return bodyAt(foes, x, y); }
+  function homeAt(x, y){ return bodyAt(homebodies, x, y); }
+  function freeFor(e, x, y){
+    if (!M || x <= 0 || y <= 0 || x >= M.W - 1 || y >= M.H - 1) return false;
+    var ch = at(x, y);
+    if (e.flies) { if (ch === '#' || ch === 'F' || ch === 'S') return false; }
+    else if (!(e.swims && ch === '~') && SOLID[ch]) return false;
+    if (npcAt(x, y) || critterAt(x, y) || (P && P.x === x && P.y === y)) return false;
+    return !bodyAt(allies, x, y, e) && !bodyAt(foes, x, y, e) && !bodyAt(homebodies, x, y, e);
+  }
+  function stepToward(e, tx, ty, away){
+    var here = Math.abs(e.x - tx) + Math.abs(e.y - ty);
+    var opts = [[0,-1],[0,1],[-1,0],[1,0]].map(function(d){ return { x:e.x + d[0], y:e.y + d[1] }; }).filter(function(o){ return freeFor(e, o.x, o.y); });
+    if (!opts.length) return false;
+    opts.forEach(function(o){ o.d = Math.abs(o.x - tx) + Math.abs(o.y - ty) + Math.random() * .4; });
+    opts.sort(function(a, b){ return away ? b.d - a.d : a.d - b.d; });
+    var best = opts[0];
+    if (!away && best.d > here + .5 && Math.random() < .6) return false;   // no good way: wait a beat rather than wander off
+    entStep(e, best.x, best.y); return true;
+  }
+  function freeNear(e, cx, cy, maxR){
+    for (var r = 1; r <= (maxR || 6); r++) for (var k = 0; k < 16; k++) {
+      var x = cx + Math.round((Math.random() * 2 - 1) * r), y = cy + Math.round((Math.random() * 2 - 1) * r);
+      if (freeFor(e, x, y)) return { x:x, y:y };
+    }
+    return null;
+  }
+  function faceTo(e, t){ var dx = t.x - e.x, dy = t.y - e.y; e.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down'); }
+
+  // ── the party: up to nine, walking with the pilot ──
+  function allyStats(id){
+    var s = subj(id) || {}, sp = SP[s.sp] || {}, b = sp.base || { atk:60, def:60, spd:60 }, lv = (S.cards[id] && S.cards[id].lv) || 3, types = sp.types || [];
+    var ranged = types.some(function(t){ return /Aura|Astral|Radiant|Spirit|Elemental|Tech|Crystal|Divine|Chrono/.test(t); });
+    return { atk:2 + b.atk * lv / 55, def:2 + b.def * lv / 55, spd:b.spd || 60, range:ranged ? 4 : 1, type:types[0] || 'Creature', ranged:ranged, lv:lv };
+  }
+  function spawnAllies(){
+    allies = []; trail = [];
+    if (!LIVE || !COMPANIONS.follow || !P) return;
+    teamReady().slice(0, teamMax()).forEach(function(id, i){
+      var s = subj(id) || {}, sp = SP[s.sp] || {};
+      var e = ent({ kind:'ally', id:id, sp:s.sp, x:P.x, y:P.y, slot:i, state:'follow', flies:sp.body === 'wing', swims:sp.body === 'amph', idleCd:Math.random() * 2 });
+      var spot = freeNear(e, P.x, P.y, 5); if (!spot) return;
+      e.x = e.fx = e.fromX = spot.x; e.y = e.fy = e.fromY = spot.y; allies.push(e);
+    });
+  }
+  function pickFoeFor(e){
+    var best = null, bd = 1e9;
+    foes.forEach(function(f){ if (f.state === 'dead') return; var dP = dist(f, P), d = dist(f, e); if (!(f.engaged || dP <= 7)) return; if (d < bd) { bd = d; best = f; } });
+    return bd <= 12 ? best : null;
+  }
+  function updateAlly(e, dt){
+    e.flash = Math.max(0, e.flash - dt); e.lunge = Math.max(0, e.lunge - dt);
+    var c = S.cards[e.id]; if (!c) { e.state = 'gone'; return; }
+    if (c.hp != null && c.hp <= 0) { e.state = 'down'; return; }
+    if (entTween(e, dt)) return;
+    e.cd -= dt;
+    var dP = dist(e, P);
+    if (dP > 16) { var w = freeNear(e, P.x, P.y, 4); if (w) { e.x = e.fx = e.fromX = w.x; e.y = e.fy = e.fromY = w.y; fxs.push({ k:'poof', x:w.x, y:w.y, t:0, life:.4 }); } return; }
+    var foe = pickFoeFor(e);
+    if (foe) {
+      e.state = 'fight'; var st = allyStats(e.id), d = dist(e, foe), inRange = st.range > 1 ? d <= st.range + .4 : mdist(e, foe) <= 1;
+      if (inRange) { faceTo(e, foe); if (e.cd <= 0) { attack(e, foe, { dmg:hitAlly(st, foe), ranged:st.ranged, type:st.type, color:typeCol(st.type) }); e.cd = Math.max(.55, 1.7 - st.spd / 160) + Math.random() * .25; } }
+      else { e.stepT = .15; stepToward(e, foe.x, foe.y); }
+      return;
+    }
+    var moving = performance.now() - lastMoveAt < 900;
+    if (moving || dP > 3.5) {
+      e.state = 'follow';
+      var tg = trail[Math.min(trail.length - 1, e.slot)] || P;
+      e.stepT = dP > 6 ? .1 : .17;
+      if (mdist(e, tg) > (e.slot ? 0 : 0)) stepToward(e, tg.x, tg.y);
+    } else {
+      e.state = 'idle'; e.idleCd -= dt;
+      if (e.idleCd <= 0) {
+        e.idleCd = 1.4 + Math.random() * 3.2; e.sit = Math.random() < .35;
+        if (!e.sit) { var o = [[0,-1],[0,1],[-1,0],[1,0]][(Math.random() * 4) | 0], nx = e.x + o[0], ny = e.y + o[1]; e.stepT = .3; if (Math.hypot(nx - P.x, ny - P.y) <= 3.2 && freeFor(e, nx, ny)) entStep(e, nx, ny); else faceTo(e, P); }
+        else faceTo(e, P);
+      }
+    }
+  }
+
+  // ── the clones left at home: they live on NASARUS, work, and keep each other company ──
+  function spawnHomebodies(){
+    homebodies = [];
+    if (!LIVE || !M || !M.hq) return;
+    var ids = aethrenCards().filter(function(id){ return S.team.indexOf(id) < 0; }).slice(0, 40);
+    ids.forEach(function(id){
+      var s = subj(id) || {}, sp = SP[s.sp] || {};
+      var e = ent({ kind:'home', id:id, sp:s.sp, x:24, y:27, state:'idle', timer:Math.random() * 3, flies:sp.body === 'wing' });
+      var spot = freeNear(e, 26 + ((Math.random() * 10) | 0) - 5, 27 + ((Math.random() * 8) | 0) - 4, 8); if (!spot) return;
+      e.x = e.fx = e.fromX = spot.x; e.y = e.fy = e.fromY = spot.y; homebodies.push(e);
+    });
+  }
+  function workSpots(){ return (M.structs || []).filter(function(st){ return st.kind === 'fac' || st.kind === 'core'; }); }
+  function updateHome(e, dt){
+    if (entTween(e, dt)) return;
+    e.timer -= dt;
+    if (e.state === 'walk') {
+      if (mdist(e, e.goal) <= 1 || e.timer < -14) { e.state = e.next; e.timer = 6 + Math.random() * 9; if (e.lookAt) faceTo(e, e.lookAt); return; }
+      e.stepT = .32; if (!stepToward(e, e.goal.x, e.goal.y)) e.timer -= .2; return;
+    }
+    if (e.timer > 0) return;
+    var r = Math.random(), ws = workSpots();
+    if (r < .38 && ws.length) {
+      var st = ws[(Math.random() * ws.length) | 0];
+      e.goal = { x:st.x + ((Math.random() * st.w) | 0), y:st.y + 1 }; e.lookAt = { x:st.x, y:st.y }; e.next = 'work'; e.job = (st.ref && (st.ref.name || st.ref.label)) || 'the camp';
+    } else if (r < .66 && homebodies.length > 1) {
+      var b = homebodies[(Math.random() * homebodies.length) | 0];
+      if (b === e || b.state === 'walk') { e.timer = 1; return; }
+      e.goal = { x:b.x + 1, y:b.y }; e.lookAt = b; e.next = 'social'; e.partner = b; b.state = 'social'; b.timer = 9; faceTo(b, e);
+    } else if (r < .8) {
+      e.goal = { x:20 + ((Math.random() * 4) | 0), y:26 }; e.lookAt = null; e.next = 'rest';
+    } else { e.state = 'idle'; e.timer = 1 + Math.random() * 2; var o = [[0,-1],[0,1],[-1,0],[1,0]][(Math.random() * 4) | 0]; e.stepT = .34; if (freeFor(e, e.x + o[0], e.y + o[1])) entStep(e, e.x + o[0], e.y + o[1]); return; }
+    e.state = 'walk'; e.timer = 0;
+  }
+  function homeLine(e){
+    var n = subjName(e.id);
+    return e.state === 'work' ? n + ' is busy at the ' + e.job + '. It barely looks up.'
+      : e.state === 'social' ? n + ' is keeping ' + (e.partner ? subjName(e.partner.id) : 'another Aethren') + ' company.'
+      : e.state === 'rest' ? n + ' is resting by the camp.'
+      : n + ' wanders the camp. It lives on ' + hqName() + ' while you are away.';
+  }
+  // while you were away: the Aethren at home kept working
+  function awayReport(){
+    if (!M || !M.hq || !S.hq.awayAt) return;
+    var mins = (Date.now() - S.hq.awayAt) / 60000, n = homebodies.length; S.hq.awayAt = null;
+    if (!n || mins < 2) { save(); return; }
+    var each = Math.min(10, Math.floor(mins / 5) + 1), got = {}, kinds = ['scrap', 'fibre', 'crystal', 'terra'];
+    for (var i = 0; i < n * each; i++) { var k = kinds[(Math.random() * kinds.length) | 0]; got[k] = (got[k] || 0) + 1; }
+    Object.keys(got).forEach(function(k){ S.hq.store[k] = (S.hq.store[k] || 0) + got[k]; });
+    hqRecord('While you were away, ' + n + ' Aethren at home gathered ' + costText(got) + '.'); save();
+    setTimeout(function(){ toast('WHILE YOU WERE AWAY · ' + n + ' Aethren at home gathered ' + costText(got)); }, 900);
+  }
+
+  // ── enemies on the field ──
+  function foeLevel(){ return Math.max(2, (GEN.levelFor && M.world ? GEN.levelFor(M.world) : 5) || 5); }
+  function makeFoe(k, x, y, lv, group, extra){
+    var d = ENEMY.kinds[k]; if (!d && !(extra && extra.sp)) return null;
+    var base = d || { hp:110, atk:5, def:50, spd:55, range:1, aggro:7, behavior:'guard', size:1, attack:'ATTACK', fx:'slash', name:'AETHREN' };
+    var maxHp = extra && extra.sp ? hpOf(extra.sp, lv) + 10 : Math.round(base.hp / 125 * (lv * 1.7 + 20));
+    var e = ent({ kind:'foe', k:k, def:base, x:x, y:y, lv:lv, hp:maxHp, maxHp:maxHp, home:{ x:x, y:y }, state:'idle', group:group, timer:Math.random() * 2, engaged:false });
+    if (base.variants) { var vs = Object.keys(base.variants); e.variant = vs[(Math.random() * vs.length) | 0]; }
+    if (extra) Object.assign(e, extra);
+    return e;
+  }
+  function spawnGroup(k, cx, cy, lv, opts){
+    var d = ENEMY.kinds[k] || {}, gid = 'g' + Math.random().toString(36).slice(2, 7), n = opts && opts.count || (d.group ? d.group[0] + ((Math.random() * (d.group[1] - d.group[0] + 1)) | 0) : 1);
+    foeGroups[gid] = Object.assign({ k:k, name:(opts && opts.name) || d.name || 'THEY', total:0 }, opts || {});
+    for (var i = 0; i < n; i++) {
+      var probe = { flies:false }, spot = i === 0 && freeFor(probe, cx, cy) ? { x:cx, y:cy } : freeNear(probe, cx, cy, 3); if (!spot) continue;
+      var f = makeFoe(k, spot.x, spot.y, lv + ((Math.random() * 3) | 0) - 1, gid, opts && opts.extra && opts.extra[i]); if (!f) continue;
+      foes.push(f); foeGroups[gid].total++;
+    }
+    return gid;
+  }
+  function spawnFoes(){
+    foes = []; shots = []; fxs = []; foeGroups = {};
+    if (!LIVE || !M || M.hq || M.indoor || typeof M.world !== 'number' || M.world > 27) return;
+    var lv = foeLevel(), r = rng(M.world * 7919 + (Date.now() / 3.6e6 | 0)), groups = [];
+    if (M.world === 9 && M.districts) M.districts.forEach(function(dd){
+      var list = (ENEMY.zyraxis || {})[dd.id]; if (!list) return;
+      for (var g = 0; g < 2; g++) groups.push({ k:list[(r() * list.length) | 0], area:dd });
+    });
+    else {
+      var pool = (ENEMY.elsewhere || []).slice(); if (S.seen && S.seen.thardin) pool.push('penumbra');   // Penumbra spreads once you have reached Thardin
+      var n = 3 + (M.world % 3); for (var g2 = 0; g2 < n; g2++) groups.push({ k:pool[(r() * pool.length) | 0] });
+    }
+    groups.forEach(function(g){
+      for (var tries = 0; tries < 60; tries++) {
+        var a = g.area, x = a ? a.x + 2 + ((r() * Math.max(1, a.w - 4)) | 0) : 2 + ((r() * (M.W - 4)) | 0), y = a ? a.y + 2 + ((r() * Math.max(1, a.h - 4)) | 0) : 2 + ((r() * (M.H - 4)) | 0);
+        var sh = M.ship || P; if (Math.hypot(x - sh.x, y - sh.y) < 16 || Math.hypot(x - P.x, y - P.y) < 14) continue;
+        if (!freeFor({}, x, y)) continue;
+        spawnGroup(g.k, x, y, lv + (ENEMY.kinds[g.k] ? ENEMY.kinds[g.k].tier - 1 : 0)); break;
+      }
+    });
+  }
+  function foeTargets(){ return allies.filter(function(a){ return a.state !== 'down' && a.state !== 'gone'; }).concat([{ x:P.x, y:P.y, pilot:true }]); }
+  function updateFoe(e, dt){
+    e.flash = Math.max(0, e.flash - dt); e.lunge = Math.max(0, e.lunge - dt);
+    if (e.state === 'dead') { e.deadT = (e.deadT || 0) + dt; return; }
+    if (entTween(e, dt)) return;
+    e.cd -= dt; e.timer -= dt;
+    var d = e.def, aggro = (d.behavior === 'lurk' && !e.engaged ? .65 : 1) * (d.aggro || 7), tgt = null, bd = 1e9;
+    foeTargets().forEach(function(t){ var dd = dist(e, t); if (dd < bd) { bd = dd; tgt = t; } });
+    var leash = dist(e, e.home) > 16;
+    if (tgt && (bd <= aggro || (e.engaged && bd <= aggro + 6)) && !leash) {
+      if (!e.engaged) alertGroup(e);
+      var range = d.range || 1, inRange = range > 1 ? bd <= range + .4 : mdist(e, tgt) <= 1;
+      if (d.behavior === 'kite' && bd < 2.6) { e.stepT = .26; stepToward(e, tgt.x, tgt.y, true); return; }
+      if (inRange) { faceTo(e, tgt); if (e.cd <= 0) { attack(e, tgt, { dmg:hitFoe(e, tgt), ranged:range > 1, color:d.bolt || '#ff5a6e', fx:d.fx }); e.cd = Math.max(.7, 2 - (d.spd || 50) / 70) + Math.random() * .3; } }
+      else { e.stepT = Math.max(.16, .42 - (d.spd || 50) / 300); stepToward(e, tgt.x, tgt.y); }
+      return;
+    }
+    if (e.engaged && (leash || !tgt || bd > aggro + 6)) { e.engaged = false; }
+    if (dist(e, e.home) > 1.5) { e.stepT = .3; stepToward(e, e.home.x, e.home.y); e.hp = Math.min(e.maxHp, e.hp + e.maxHp * .02); return; }
+    if (e.timer <= 0) {
+      e.timer = 1.5 + Math.random() * 2.5;
+      if (d.behavior === 'patrol' || d.behavior === 'kite') { var o = [[0,-1],[0,1],[-1,0],[1,0]][(Math.random() * 4) | 0], nx = e.x + o[0], ny = e.y + o[1]; e.stepT = .4; if (Math.hypot(nx - e.home.x, ny - e.home.y) <= 4 && freeFor(e, nx, ny)) entStep(e, nx, ny); }
+      else e.dir = ['up', 'down', 'left', 'right'][(Math.random() * 4) | 0];
+    }
+  }
+  function alertGroup(e){
+    var g = foeGroups[e.group]; foes.forEach(function(f){ if (f.group === e.group) f.engaged = true; });
+    if (g && !g.alerted) { g.alerted = true; sfx.warn(); vibrate(160, .5); toast((g.name || 'THEY') + ' ATTACK!' + (allies.length ? ' Your Aethren move in.' : ' You have no party with you. Run.'), 'red'); }
+  }
+  // damage: a simple, readable model · attack against defence, scaled by level, with type advantage for Aethren foes
+  function hitAlly(st, foe){
+    var def = foe.sp ? ((SP[foe.sp] || {}).base || {}).def || 60 : foe.def.def || 50, m = foe.sp ? mult(st.type, (SP[foe.sp] || {}).types || []) : 1;
+    return Math.max(1, Math.round((3 + st.atk * 1.1) * 60 / (40 + def) * m * (.85 + Math.random() * .3)));
+  }
+  function hitFoe(e, t){
+    var atk = e.sp ? 2 + ((SP[e.sp] || {}).base || {}).atk * e.lv / 55 : (e.def.atk || 5) / 5 * (2 + e.lv * .55);
+    var def = t.pilot ? 20 : allyStats(t.id).def;
+    return Math.max(1, Math.round(atk * 1.4 * 45 / (35 + def) * (.85 + Math.random() * .3)));
+  }
+  function attack(src, tgt, o){
+    src.lunge = .22;
+    if (o.ranged) shots.push({ x:src.fx, y:src.fy - .3, tgt:tgt, from:src, dmg:o.dmg, color:o.color || '#fff28a', speed:o.color ? 10 : 9, life:2 });
+    else { fxs.push({ k:o.fx || (src.kind === 'ally' ? 'slash' : 'bite'), x:tgt.x, y:tgt.y, t:0, life:.3, dir:src.dir, color:o.color }); applyHit(tgt, o.dmg, src); }
+    if (src.kind === 'ally' && (src.x + src.y) % 2) sfx.hit(); else if (src.kind === 'foe') sfx.bump();
+  }
+  function applyHit(t, dmg, src){
+    if (t.pilot) {
+      S.suit = Math.max(0, S.suit - suitDmg(Math.max(1, Math.round(dmg * .6)))); vibrate(90, .5);
+      fxs.push({ k:'num', x:P.fx, y:P.fy - 1, t:0, life:.8, txt:'-' + dmg, color:'#ff6a5a' }); hudRefresh();
+      if (S.suit <= 0) { save(); recall('SUIT'); }
+      return;
+    }
+    if (t.kind === 'ally') {
+      var c = S.cards[t.id]; if (!c) return; if (c.hp == null) c.hp = maxHp(t.id);
+      c.hp = Math.max(0, c.hp - dmg); t.flash = .16; fxs.push({ k:'num', x:t.fx, y:t.fy - 1, t:0, life:.8, txt:'-' + dmg, color:'#ff6a5a' });
+      if (c.hp <= 0) { t.state = 'down'; fxs.push({ k:'poof', x:t.x, y:t.y, t:0, life:.5 }); toast(subjName(t.id) + ' is down. It will get up when the fighting stops.', 'red'); }
+      return;
+    }
+    if (t.kind === 'foe' && t.state !== 'dead') {
+      t.hp = Math.max(0, t.hp - dmg); t.flash = .16; if (!t.engaged) alertGroup(t);
+      fxs.push({ k:'num', x:t.fx, y:t.fy - 1.1, t:0, life:.8, txt:String(dmg), color:'#fff4c8' });
+      if (t.hp <= 0) foeDown(t, src);
+    }
+  }
+  function foeDown(e, killer){
+    e.state = 'dead'; e.deadT = 0;
+    fxs.push({ k:e.sp ? 'calm' : 'burst', x:e.x, y:e.y, t:0, life:e.sp ? 1.4 : .7, color:e.def.bolt || '#b86aff' });
+    if (e.sp) { mark(e.sp, 'battled'); S.notes[e.sp] = 1; }
+    S.kills = S.kills || {}; S.kills[e.k] = (S.kills[e.k] || 0) + 1;
+    // experience for every party member close enough to have fought
+    var xp = Math.round(10 + e.lv * 3 * Math.sqrt((e.def.tier || (e.sp && SP[e.sp] && SP[e.sp].tier) || 1)));
+    allies.forEach(function(a){
+      if (a.state === 'down' || dist(a, e) > 9) return; var cd = S.cards[a.id]; if (!cd) return;
+      cd.xp = (cd.xp || 0) + xp;
+      while (cd.xp >= cd.lv * 12 + 20 && cd.lv < Math.min(100, aethrenCap())) { cd.xp -= cd.lv * 12 + 20; var oldMax = maxHp(a.id); cd.lv++; cd.hp = Math.min(maxHp(a.id), (cd.hp == null ? oldMax : cd.hp) + maxHp(a.id) - oldMax); fxs.push({ k:'num', x:a.fx, y:a.fy - 1.4, t:0, life:1.4, txt:'LV ' + cd.lv, color:'#8fe0a0' }); }
+    });
+    if (!e.sp && Math.random() < .55) gain(['scrap', 'scrap', 'crystal', 'relic', 'data'][(Math.random() * 5) | 0], 1, true);
+    var g = foeGroups[e.group], left = foes.filter(function(f){ return f.group === e.group && f.state !== 'dead'; }).length;
+    if (g && !left && !g.done) {
+      g.done = true; S.fightsWon = (S.fightsWon || 0) + 1; save(); sfx.reveal();
+      if (g.onWin) g.onWin(); else toast((g.name || 'THEY') + (e.sp ? ' ARE CALMED' : ' DEFEATED') + ' · your party gained ' + xp + ' XP each');
+      hudRefresh();
+    } else save();
+  }
+  function updateShots(dt){
+    shots = shots.filter(function(s){
+      s.life -= dt; if (s.life <= 0) return false;
+      var tx = s.tgt.pilot ? P.fx : s.tgt.fx, ty = (s.tgt.pilot ? P.fy : s.tgt.fy) - .3, dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy), stp = s.speed * dt;
+      if (d <= stp + .05 || (s.tgt.state === 'dead' || s.tgt.state === 'down')) { if (s.tgt.state !== 'dead' && s.tgt.state !== 'down') { fxs.push({ k:'spark', x:tx, y:ty + .3, t:0, life:.3, color:s.color }); applyHit(s.tgt.pilot ? { pilot:true } : s.tgt, s.dmg, s.from); } return false; }
+      s.px = s.x; s.py = s.y; s.x += dx / d * stp; s.y += dy / d * stp; return true;
+    });
+    fxs = fxs.filter(function(f){ f.t += dt; return f.t < f.life; });
+    foes = foes.filter(function(f){ return !(f.state === 'dead' && f.deadT > 1.6); });
+  }
+  function updateLive(dt){
+    if (!LIVE || !M || dialogOpen || encounterOpen || doc.querySelector('.x-modal')) return;
+    allies.forEach(function(a){ updateAlly(a, dt); });
+    homebodies.forEach(function(h){ updateHome(h, dt); });
+    foes.forEach(function(f){ updateFoe(f, dt); });
+    updateShots(dt);
+    // when the fighting stops, the fallen get back up
+    var fighting = foes.some(function(f){ return f.engaged && f.state !== 'dead'; });
+    quietT = fighting ? 0 : quietT + dt;
+    if (quietT > 6) allies.forEach(function(a){ var c = S.cards[a.id]; if (a.state === 'down' && c) { c.hp = Math.max(1, Math.round(maxHp(a.id) * .25)); a.state = 'follow'; fxs.push({ k:'num', x:a.fx, y:a.fy - 1, t:0, life:1, txt:'UP', color:'#8fe0a0' }); } });
+  }
+  // a wild Aethren that charges, or a vault's guardian: the party meets it on the field. Beaten Aethren are calmed, not killed.
+  function hostileAethren(c, opts){
+    critters = critters.filter(function(x){ return x !== c; });
+    var gid = 'g' + Math.random().toString(36).slice(2, 7);
+    foeGroups[gid] = Object.assign({ k:'aethren', name:subjName(c.id).toUpperCase(), total:1 }, opts || {});
+    var f = makeFoe('aethren', c.x, c.y, c.lv || 5, gid, { sp:c.id, critter:c, flies:c.flies, swims:c.swims });
+    f.engaged = true; foes.push(f); foeGroups[gid].alerted = true;
+    return gid;
+  }
+
+  // ── drawing ──
+  function drawLiveBody(o, X, Y, z, now){
+    var e = o.e, flip = 0;
+    if (e.kind === 'foe' && !fogArr[e.y * M.W + e.x]) return;
+    var lx = 0, ly = 0;
+    if (e.lunge > 0) { var d = DIRS[e.dir] || [0, 0], k = Math.sin((1 - e.lunge / .22) * Math.PI) * 5 * z; lx = d[0] * k; ly = d[1] * k; }
+    if (e.kind === 'foe') {
+      var size = e.def.size || 1, alpha = e.state === 'dead' ? Math.max(0, 1 - e.deadT / 1.4) : (e.def.behavior === 'lurk' && !e.engaged ? .55 : 1);
+      ctx.globalAlpha = alpha;
+      shadow(X, Y, z, 12 * size);
+      if (e.engaged && e.state !== 'dead') { ctx.fillStyle = 'rgba(255,60,60,.22)'; ctx.beginPath(); ctx.ellipse(X, Y - z, 8 * z * size, 3 * z, 0, 0, 7); ctx.fill(); }
+      var spec = e.sp ? critterSpec(e.sp, e.dir, e.t < 1 ? e.anim * .6 : 0) : 'foe_' + e.k + (e.variant ? '_' + e.variant : '');
+      var bob = e.state === 'dead' ? e.deadT * 6 * z : Math.round(Math.sin(now / 240 + e.x) * .6 * z);
+      ART.draw(ctx, spec, X + lx, Y + ly + bob, Math.max(1, Math.round(z * size * 2) / 2));
+      if (e.flash > 0) { ctx.globalAlpha = .55 * alpha; ctx.fillStyle = '#ffffff'; ctx.fillRect(X - 7 * z * size, Y - 15 * z * size, 14 * z * size, 14 * z * size); }
+      ctx.globalAlpha = 1;
+      if (e.state !== 'dead' && (e.engaged || e.hp < e.maxHp)) hpBar(X, Y - (17 * size + 2) * z, z, e.hp / e.maxHp, '#ff5a5a', e.lv);
+      return;
+    }
+    var sp = e.sp; if (!sp) return;
+    if (e.kind === 'ally' && e.state === 'down') {
+      ctx.globalAlpha = .45; ART.draw(ctx, critterSpec(sp, 'down', 0), X, Y + 2 * z, z); ctx.globalAlpha = 1;
+      ctx.fillStyle = '#d8cfb4'; ctx.font = (6 * z) + 'px monospace'; ctx.fillText('z', X + 4 * z, Y - 14 * z + Math.sin(now / 300) * 2 * z); return;
+    }
+    shadow(X, Y, z, e.flies ? 8 : 10);
+    var walking = e.t < 1, lift = e.flies ? Math.round(4 + Math.sin(now / 170 + e.slot) * 2) * z : 0;
+    var sit = e.state === 'idle' && e.sit, bob2 = walking ? Math.abs(Math.sin(e.anim * 1.6)) * z : sit ? z : Math.round(Math.sin(now / 420 + (e.slot || 0)) * .5 * z);
+    ART.draw(ctx, critterSpec(sp, e.dir, walking ? e.anim * .6 : 0), X + lx, Y + ly - lift - bob2 + (sit ? z : 0), z);
+    if (e.flash > 0) { ctx.globalAlpha = .5; ctx.fillStyle = '#ff6a5a'; ctx.fillRect(X - 6 * z, Y - 14 * z - lift, 12 * z, 12 * z); ctx.globalAlpha = 1; }
+    if (e.kind === 'ally') { var c = S.cards[e.id]; if (c && (e.state === 'fight' || (c.hp != null && c.hp < maxHp(e.id)))) hpBar(X, Y - 18 * z - lift, z, (c.hp == null ? 1 : c.hp / maxHp(e.id)), '#8fe0a0', c.lv); }
+    if (e.kind === 'home') bubble(e, X, Y - 18 * z - lift, z, now);
+  }
+  function hpBar(X, Y, z, k, col, lv){
+    var w = 14 * z; ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(X - w / 2 - z, Y - z, w + 2 * z, 3 * z);
+    ctx.fillStyle = col; ctx.fillRect(X - w / 2, Y, Math.max(0, w * Math.max(0, Math.min(1, k))), z);
+  }
+  function bubble(e, X, Y, z, now){
+    var icon = e.state === 'work' ? 'work' : e.state === 'social' ? 'social' : e.state === 'rest' ? 'rest' : null; if (!icon) return;
+    var ph = Math.floor(now / 500 + e.x) % 2;
+    ctx.fillStyle = '#efe6d0'; ctx.fillRect(X - 4 * z, Y - 6 * z, 8 * z, 6 * z); ctx.fillRect(X - z, Y, 2 * z, z);
+    ctx.fillStyle = icon === 'social' ? '#e8505a' : icon === 'work' ? '#9b6a2a' : '#5a4a36';
+    if (icon === 'social') { ctx.fillRect(X - 2 * z, Y - 5 * z, z, z); ctx.fillRect(X + z, Y - 5 * z, z, z); ctx.fillRect(X - 3 * z, Y - 4 * z, 6 * z, z); ctx.fillRect(X - 2 * z, Y - 3 * z, 4 * z, z); ctx.fillRect(X - z, Y - 2 * z, 2 * z, z); }
+    else if (icon === 'work') { ctx.fillRect(X - 2 * z, Y - 5 * z + (ph ? z : 0), 4 * z, 2 * z); ctx.fillRect(X - z / 2, Y - 3 * z + (ph ? z : 0), z, 2 * z); }
+    else { ctx.font = (5 * z) + 'px monospace'; ctx.fillText(ph ? 'z' : 'Z', X - 2 * z, Y - z); }
+  }
+  function drawLiveFx(ox, oy, TZ, z, now){
+    shots.forEach(function(s){
+      var X = ox + (s.x + .5) * TZ, Y = oy + (s.y + .5) * TZ;
+      ctx.fillStyle = s.color; ctx.globalAlpha = .35; ctx.beginPath(); ctx.arc(X, Y, 4 * z, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.fillRect(X - z, Y - z, 2 * z, 2 * z);
+      if (s.px != null) { ctx.strokeStyle = s.color; ctx.lineWidth = z; ctx.globalAlpha = .6; ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(ox + (s.px + .5) * TZ, oy + (s.py + .5) * TZ); ctx.stroke(); ctx.globalAlpha = 1; }
+    });
+    fxs.forEach(function(f){
+      var X = ox + (f.x + .5) * TZ, Y = oy + (f.y + .5) * TZ, k = f.t / f.life;
+      if (f.k === 'num') { ctx.globalAlpha = 1 - k; ctx.font = 'bold ' + (6 * z) + 'px monospace'; ctx.fillStyle = '#1c1626'; ctx.fillText(f.txt, X - 3 * z + z / 2, Y - k * 8 * z + z / 2); ctx.fillStyle = f.color; ctx.fillText(f.txt, X - 3 * z, Y - k * 8 * z); ctx.globalAlpha = 1; return; }
+      if (f.k === 'slash' || f.k === 'bite') {
+        ctx.strokeStyle = f.k === 'bite' ? '#ff5a6e' : (f.color || '#ffffff'); ctx.lineWidth = 2 * z; ctx.globalAlpha = 1 - k; ctx.beginPath();
+        if (f.k === 'bite') { ctx.moveTo(X - 4 * z, Y - 6 * z); ctx.lineTo(X - 2 * z, Y - 2 * z); ctx.moveTo(X + 4 * z, Y - 6 * z); ctx.lineTo(X + 2 * z, Y - 2 * z); ctx.moveTo(X - 4 * z, Y + 2 * z); ctx.lineTo(X - 2 * z, Y - z); ctx.moveTo(X + 4 * z, Y + 2 * z); ctx.lineTo(X + 2 * z, Y - z); }
+        else ctx.arc(X, Y - 4 * z, 7 * z, -Math.PI * .9 + k * 1.2, -Math.PI * .2 + k * 1.2);
+        ctx.stroke(); ctx.globalAlpha = 1; return;
+      }
+      if (f.k === 'slam') { ctx.strokeStyle = '#b86aff'; ctx.lineWidth = 2 * z; ctx.globalAlpha = 1 - k; ctx.beginPath(); ctx.ellipse(X, Y, (4 + k * 14) * z, (2 + k * 6) * z, 0, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; return; }
+      if (f.k === 'spark' || f.k === 'poof') { ctx.fillStyle = f.color || '#d8cfb4'; ctx.globalAlpha = 1 - k; for (var i = 0; i < 6; i++) { var a = i * 1.05, r = (2 + k * 9) * z; ctx.fillRect(X + Math.cos(a) * r - z, Y - 4 * z + Math.sin(a) * r - z, 2 * z, 2 * z); } ctx.globalAlpha = 1; return; }
+      if (f.k === 'burst') { ctx.globalAlpha = 1 - k; for (var j = 0; j < 12; j++) { var b = j * .52, rr = (3 + k * 16) * z; ctx.fillStyle = j % 2 ? (f.color || '#b86aff') : '#1c1626'; ctx.fillRect(X + Math.cos(b) * rr - z, Y - 5 * z + Math.sin(b) * rr * .7 - z, 2 * z, 2 * z); } ctx.globalAlpha = 1; return; }
+      if (f.k === 'calm') { ctx.globalAlpha = 1 - k; ctx.fillStyle = '#ff8ab0'; for (var h = 0; h < 3; h++) { var hx = X + (h - 1) * 6 * z, hy = Y - 12 * z - k * 10 * z - h * 2 * z; ctx.fillRect(hx - z, hy, z, z); ctx.fillRect(hx + z, hy, z, z); ctx.fillRect(hx - 2 * z, hy + z, 5 * z, z); ctx.fillRect(hx - z, hy + 2 * z, 3 * z, z); ctx.fillRect(hx, hy + 3 * z, z, z); } ctx.globalAlpha = 1; }
+    });
+  }
+
   // ── A and B ──
   function btnA(){
     if (encounterOpen || doc.querySelector('.x-modal')) return;
@@ -3090,6 +3469,8 @@
     if (P.moving) return;
     var f = facing(), ch = at(f.x, f.y), c = critterAt(f.x, f.y), n = npcAt(f.x, f.y), i = f.y * M.W + f.x;
     if (c && c.resident) { return say([subjName(c.id) + ' lives on ' + hqName() + ' now. It watches you without fear.']); }
+    var hb = LIVE && homeAt(f.x, f.y); if (hb) { faceTo(hb, P); return say([homeLine(hb)]); }
+    var fo = LIVE && foeAt(f.x, f.y); if (fo) return say([(fo.sp ? subjName(fo.sp) : fo.def.name) + ' · LV ' + fo.lv + '. ' + (fo.def.note || 'It is hostile.')]);
     if (c) { encounter(c, false); return; }
     if (n) {
       n.dir = { up:'down', down:'up', left:'right', right:'left' }[P.dir];
@@ -3676,9 +4057,17 @@
     await say(['The ' + wardenName(no) + ' sees you. To them you are the alien, the thing from outside, and they raise the call to kill.',
       team.length ? 'They loose their Aethren on you. Your team stands between you and them.' : 'You have no cards ready to stand between you. Run.']);
     if (!team.length) { S.suit = Math.max(0, S.suit - suitDmg(EXP.warden.suitHit || 35)); save(); hudRefresh(); knockBack(n); if (S.suit <= 0) recall('SUIT'); return; }
-    var foes = wardenTeam(no); if (!foes.length) return;
-    battle({ id:foes[0].sp, lv:foes[0].lv, x:n.x, y:n.y, cool:0, calm:0, state:'idle' }, true, {
-      name:wardenName(no), foes:foes,
+    var wfoes = wardenTeam(no); if (!wfoes.length) return;
+    if (LIVE) {
+      var gid = spawnGroup('aethren', n.x + (P.x < n.x ? -1 : 1), n.y, wfoes[0].lv, { name:wardenName(no).toUpperCase() + '\'S AETHREN', count:wfoes.length, extra:wfoes.map(function(f){ return { sp:f.sp, lv:f.lv }; }),
+        onWin:function(){ S.exp.beaten[no] = Date.now(); gainAll(EXP.warden.reward, true); save(); npcs = npcs.filter(function(x){ return !x.warden; });
+          toast('WARDEN DEFEATED · their Aethren are calmed · +' + costText(EXP.warden.reward) + (hasClue(no) ? ' · the vault is open to you' : ' · now find the clue to its vault')); hudRefresh(); } });
+      foes.forEach(function(f){ if (f.group === gid) f.engaged = true; }); foeGroups[gid].alerted = true;
+      return;
+    }
+    var wardenFoes = wfoes;
+    battle({ id:wardenFoes[0].sp, lv:wardenFoes[0].lv, x:n.x, y:n.y, cool:0, calm:0, state:'idle' }, true, {
+      name:wardenName(no), foes:wardenFoes,
       winLine:'The ' + wardenName(no).toLowerCase() + ' has nothing left to send. They fall back, and do not return.',
       loseLine:'Your party is spent. The warden’s Aethren come for you.',
       onWin:function(){ S.exp.beaten[no] = Date.now(); gainAll(EXP.warden.reward, true); save(); npcs = npcs.filter(function(x){ return !x.warden; });
@@ -3941,6 +4330,10 @@
       toast('It bolted before you got close. Try STALKING (B).', 'red'); return;
     }
     if (charged) { S.suit = Math.max(0, S.suit - suitDmg(18)); save(); hudRefresh(); sfx.warn(); vibrate(220, 1); if (S.suit <= 0) { recall('SUIT'); return; } }
+    if (LIVE && charged && team.length) {
+      hostileAethren(c, c.guardian ? { name:'THE VAULT\'S GUARDIAN', onWin:function(){ S.exp.beaten[M.world] = Date.now(); gainAll(EXP.guardian.reward, true); save(); toast('THE GUARDIAN IS CALMED · the vault is unguarded · +' + costText(EXP.guardian.reward)); } } : null);
+      toast((c.guardian ? 'THE VAULT\'S GUARDIAN' : subjName(c.id).toUpperCase()) + ' CHARGES · your party meets it', 'red'); return;
+    }
     if (COMPANIONS.battle && charged && team.length) { battle(c, true); return; }
     encounterOpen = true; held = null; path = [];
     var dist = 2 + Math.round(Math.random() * 3), acted = 0, gone = false, tune = .5, t0 = performance.now();
@@ -3953,7 +4346,7 @@
       '<p class="x-enc-msg" aria-live="polite"></p>' +
       '<div class="x-enc-acts">' +
         '<button data-e="observe">OBSERVE</button><button data-e="scan">SCAN</button>' +
-        (COMPANIONS.battle ? '<button data-e="battle"' + (team.length ? '' : ' disabled title="Scan and clone an Aethren first"') + '>BATTLE</button>' : '') +
+        (COMPANIONS.battle && !LIVE ? '<button data-e="battle"' + (team.length ? '' : ' disabled title="Scan and clone an Aethren first"') + '>BATTLE</button>' : '') +
         (s.temperament === 'curious' ? '<button data-e="offer">OFFER RATION</button>' : '') +
         '<button data-e="leave" class="ghost">' + (charged ? 'RETREAT' : 'MOVE ON') + '</button></div>' +
       '<div class="x-enc-cam" hidden><div class="x-range"><span>RANGE</span><b>' + dist + ' YD</b></div>' +
@@ -4344,7 +4737,8 @@
     npcs.forEach(function(n){ if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1) list.push({ k:'npc', n:n, x:n.x, y:n.y, s:n.y }); });
     (M.structs || []).forEach(function(st){ if (carry && carry.st === st) return; if (st.x + st.w >= x0 - 2 && st.x <= x1 + 2 && st.y >= y0 - 1 && st.y <= y1 + 4) list.push({ k:'struct', st:st, x:st.x, y:st.y, s:st.y }); });
     critters.forEach(function(c){ if (c.x >= x0 - 1 && c.x <= x1 + 1 && c.y >= y0 - 1 && c.y <= y1 + 1) list.push({ k:'critter', c:c, s:c.fy + (c.flies ? .5 : 0) }); });
-    if (COMPANIONS.follow && onFoot()) {
+    if (LIVE) { allies.concat(homebodies, foes).forEach(function(e){ if (e.x >= x0 - 2 && e.x <= x1 + 2 && e.y >= y0 - 2 && e.y <= y1 + 2) list.push({ k:'live', e:e, x:e.fx, y:e.fy, s:e.fy + (e.state === 'dead' ? -.5 : 0) }); }); }
+    if (COMPANIONS.follow && onFoot() && !LIVE) {
       var party = teamReady(), slots = [[-1,1],[1,1],[-2,2],[2,2],[-1,3],[1,3],[-3,3],[3,3], [0,4]];
       party.forEach(function(id, pi){ var sl = slots[pi] || [0, pi + 2]; list.push({ k:'companion', id:id, x:P.fx + sl[0], y:P.fy + sl[1], s:P.fy + sl[1] }); });
     }
@@ -4363,6 +4757,7 @@
       else if (o.k === 'npc') { shadow(X, Y, z, 10); ART.draw(ctx, npcSprite(o.n), X, Y, z); }
       else if (o.k === 'critter') drawCritter(o.c, X, Y, z, now);
       else if (o.k === 'companion') drawCompanion(o.id, X, Y, z, now);
+      else if (o.k === 'live') drawLiveBody(o, X, Y, z, now);
       else if (o.k === 'player') drawPlayer(X, Y, z);
       else {
         var spc = objSpec(o.k, o.i, M.envs[o.ri] || M.envs[0], now);
@@ -4371,6 +4766,7 @@
       }
     });
     drawCarry(ox, oy, TZ, z, now);
+    if (LIVE) drawLiveFx(ox, oy, TZ, z, now);
     updateActionUI(now);
     for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
       if (fogArr[y * M.W + x]) continue;
@@ -4571,7 +4967,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

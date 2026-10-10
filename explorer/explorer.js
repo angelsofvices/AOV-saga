@@ -19,7 +19,7 @@
 (function(){
   'use strict';
   var D = window.EXP_DATA, STORY = D.story, ENVS = window.AOV_ENV || [], FAUNA = window.AOV_FAUNA, GEN = window.AOV_WORLDGEN, PAD = window.AOV_PAD;
-  var ART = window.AOV_ART, HQ = window.AOV_HQ, MATS = HQ.materials, MACHINES = HQ.machines || [];
+  var ART = window.AOV_ART, HQ = window.AOV_HQ, CORE = window.AOV_CORE || { starter:[], recipes:[], classes:[] }, MATS = HQ.materials, MACHINES = HQ.machines || [];
   var doc = document, ui = doc.getElementById('ui'), cv = doc.getElementById('view'), ctx = cv.getContext('2d');
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -116,11 +116,8 @@
   var KEY = 'aov.explorer.v1';
   var LOOK = { skin:0, hair:0, style:0, hc:0, suit:0, helmet:0, visor:0 };
   function blank(){
-<<<<<<< HEAD
-    return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{}, archive:{}, cards:{}, lex:{}, machines:{}, dev:{ access:false, chests:{} },
-=======
-    return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{ cloneRule:1 }, archive:{}, cards:{}, lex:{},
->>>>>>> 4becc0b75f97583a2d7c0385a435b97465dbcd7d
+    return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{ cloneRule:1 }, archive:{}, cards:{}, lex:{}, machines:{}, dev:{ access:false, chests:{} },
+             core:{ enabled:true, recipes:{}, machines:{}, oil:0, astralites:{}, automation:{}, gameOver:false },
              suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(),
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
@@ -152,19 +149,19 @@
   }
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
   // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
-<<<<<<< HEAD
   if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
   if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; S.flags.charted = true; S.flags.hqNew = true; }
-=======
-  // the cloning rule (Creator, 2026-10-09): a scan is only a profile; an Aethren fights for you only once
-  // its card is cloned at NASARUS. Saves from before the rule keep the companions they already use.
+  if (S && S.v === 3) {
+    S.core = S.core || { enabled:false, recipes:{}, machines:{}, oil:0, astralites:{}, automation:{}, gameOver:false };
+    S.core.recipes = S.core.recipes || {}; S.core.machines = S.core.machines || {}; S.core.astralites = S.core.astralites || {};
+    S.core.automation = S.core.automation || {}; S.core.oil = Math.max(0, S.core.oil || 0);
+  }
+  // The cloning rule: a scan is a profile; an Aethren fights for Carl only
+  // after its card has been cloned at NASARUS. Existing companions survive the migration.
   if (S && S.v === 3 && S.flags && !S.flags.cloneRule) {
     Object.keys(S.cards || {}).forEach(function(id){ var c = S.cards[id]; if (c.lv && c.clone == null) c.clone = Date.now(); });
     S.flags.cloneRule = 1;
   }
-  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); }
-  if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.flags.charted = true; S.flags.hqNew = true; }
->>>>>>> 4becc0b75f97583a2d7c0385a435b97465dbcd7d
   if (fresh || !S || S.v !== 3) S = null;
   function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ /* storage full or blocked: keep playing */ } }
   function opt(k){ return S && S.opts ? S.opts[k] : blank().opts[k]; }
@@ -423,6 +420,8 @@
     var worlds = D.worlds.filter(function(w){ return S.visited[w.no]; }).length;
     return [
       { t:'Make camp beside the wreck on ' + hqName(), done: !!S.hq.built.camp },
+      { t:'Recover the five NASARUS machine papers (' + Object.keys(S.core.recipes || {}).length + '/5)', done: Object.keys(S.core.recipes || {}).length >= 5 },
+      { t:'Build the five-machine departure chain (' + coreBuiltCount() + '/5)', done: coreBuiltCount() >= 5 },
       { t:'Survey the ruins of ' + hqName() + ' (' + Math.min(Object.keys(S.hq.ruins).length, 3) + '/3)', done: Object.keys(S.hq.ruins).length >= 3 },
       { t:'Salvage SCRAP and CRYSTAL, and repair the drive at the wreck', done: !!S.hq.drive },
       { t:'Build the Navigation Center', done: !!S.hq.built.nav },
@@ -997,6 +996,12 @@
   // ── the drive ──
   function travel(no){
     if (!navOnline()) { toast('NAVIGATION OFFLINE', 'red'); return; }
+    if (S.core && S.core.enabled && no !== 'nasarus') {
+      var fuel = coreOilCost(no);
+      if (!coreReady() || S.core.oil < fuel) { toast('INSUFFICIENT OIL · produce fuel at NASARUS before departure', 'red'); return; }
+      S.core.oil -= fuel; hqRecord('Spent ' + fuel + ' OIL on the course to ' + placeName(no) + '.'); save();
+      if (coreHomeDistance(no) > coreNavRadius() * 70) toast('ASTRONAV INTERFERENCE · out-of-range course · OIL ' + fuel, 'red');
+    }
     var from = placeName(S.at), d = hopDist(no);
     if (no !== 'nasarus' && airPct() < 40) toast('AIR ' + Math.round(airPct()) + '% · there is no oxygen out there. Refill at ' + hqName() + ' first.', 'red');
     var s = screen('x-hyper', '<p class="x-hyper-t x-travel"></p>');
@@ -1469,6 +1474,33 @@
   function gain(k, n, quiet){ var o = {}; o[k] = n; return gainAll(o, quiet); }
   // take a tile's material once: the same spot never pays twice
   function takeOnce(x, y, obj){ var key = M.id + ':' + x + ',' + y; if (S.found[key]) return ''; S.found[key] = 1; return gainAll(obj, true); }
+  // ── CORE GAMEPLAY SYSTEMS · the five-machine departure chain ──
+  function coreRecipe(id){ return (CORE.recipes || []).filter(function(r){ return r.id === id; })[0]; }
+  function coreStarter(id){ return (CORE.starter || []).filter(function(m){ return m.id === id; })[0]; }
+  function coreMachine(id){ return !!(S.core && S.core.machines && S.core.machines[id]); }
+  function coreDiscoverRecipe(id){
+    if (!onHQ()) return false;
+    var r = coreRecipe(id); if (!r || S.core.recipes[id]) return false;
+    S.core.recipes[id] = Date.now(); hqRecord('Recovered the ' + r.name + ' from ' + r.source + '. The recipe is recorded in the Journal.'); save(); toast('RECIPE RECOVERED · ' + r.name); return true;
+  }
+  function coreBuiltCount(){ return (CORE.starter || []).filter(function(m){ return coreMachine(m.id); }).length; }
+  function coreReady(){ return (CORE.starter || []).every(function(m){ return coreMachine(m.id); }) && S.core.oil > 0; }
+  function coreHomeDistance(no){ var a = POS.nasarus, b = POS[no]; return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0; }
+  function coreNavRadius(){ return (CORE.navigation.baseRadius || 2) + (S.core.machines.astranav_terminal ? CORE.navigation.upgradeStep : 0); }
+  function coreOilCost(no){
+    var distance = hopDist(no), outside = coreHomeDistance(no) > coreNavRadius() * 70;
+    return Math.max(1, Math.ceil(distance / 70 * (outside ? CORE.oil.outOfRangeMultiplier : CORE.oil.normalPerDistance)));
+  }
+  function coreProduceOil(){
+    if (!onHQ() || !coreMachine('fuel_generator') || (S.hq.store.fibre || 0) < 1) return false;
+    S.hq.store.fibre--; S.core.oil += 1; hqRecord('Produced 1 OIL from 1 FIBRE in the FUEL GENERATOR.'); save(); toast('OIL +1 · FUEL RESERVE ' + S.core.oil); return true;
+  }
+  function coreBuild(id){
+    var m = coreStarter(id); if (!onHQ() || !m || coreMachine(id) || !S.core.recipes[m.recipe] || !canAfford(m.cost)) return false;
+    pay(m.cost); S.core.machines[id] = Date.now();
+    if (id === 'rocketship_repair') { S.hq.drive = true; hqRecord('The ROCKETSHIP REPAIR STATION restored the damaged drive.'); }
+    hqRecord('Built the ' + m.name + '.'); save(); toast('BUILT · ' + m.name); hqChanged('Built: ' + m.name + '.'); return true;
+  }
   function deposit(quiet){
     if ((S.pack.parts || []).length && S.hq.built.stores) {
       S.pack.parts.forEach(function(no){ S.hq.parts[no] = Date.now(); delete S.exp.vault[no]; hqRecord('Brought the ' + sysOf(no).part + ' home from ' + placeName(no) + '.'); });
@@ -1701,6 +1733,15 @@
       MATS.map(function(m){ return '<tr><td><b>' + m[1] + '</b><small>' + esc(m[2]) + '</small></td><td>' + (S.pack[m[0]] || 0) + '</td><td>' + (h.store[m[0]] || 0) + '</td></tr>'; }).join('') + '</table>' +
       '<div class="x-sh-btns">' + (at && h.built.stores ? '<button class="x-btn" data-h="deposit"' + (packTotal() ? '' : ' disabled') + '>DEPOSIT PACK</button>' : '') +
       (at && h.built.depot ? '<span class="x-xch">EXCHANGE <button class="x-btn ghost small" data-h="xfrom">' + matName(xFrom) + ' ×3</button> → <button class="x-btn ghost small" data-h="xto">' + matName(xTo) + ' ×1</button><button class="x-btn small" data-h="xgo">TRADE</button></span>' : '') + '</div></section>';
+    html += '<section class="x-arc riv" id="hq-core"><h3>CORE SYSTEMS <b>' + coreBuiltCount() + '/' + CORE.starter.length + ' STARTER MACHINES · OIL ' + (S.core.oil || 0) + '</b></h3>' +
+      '<p class="x-mono light">NASARUS carries the opening departure sequence. Recover each physical recipe paper, build the machine, then produce OIL from FIBRE in the FUEL GENERATOR.</p>' +
+      '<ul class="x-hqlist">' + CORE.starter.map(function(m){
+        var built=coreMachine(m.id), learned=!!S.core.recipes[m.recipe], r=coreRecipe(m.recipe), can=learned && canAfford(m.cost);
+        return '<li class="' + (built ? 'done' : '') + '"><b>' + esc(m.name) + '</b><span>' + esc(m.does) + ' · ' + (built ? 'operational' : learned ? costText(m.cost) : 'recipe paper not recovered') + '</span><div>' +
+          (built ? '<em class="ok">BUILT</em>' : (!learned ? '<button class="x-btn small" data-core-recipe="' + m.recipe + '">RECOVER PAPER</button>' : '<button class="x-btn small" data-core-build="' + m.id + '"' + (can ? '' : ' disabled') + '>BUILD</button>')) + '</div></li>';
+      }).join('') +
+      (coreMachine('fuel_generator') ? '<li><b>FUEL RESERVE</b><span>FIBRE → FUEL GENERATOR → OIL · safe navigation radius ' + coreNavRadius() + '</span><div><em>FIBRE 1</em><button class="x-btn small" data-core-oil="1"' + ((h.store.fibre || 0) ? '' : ' disabled') + '>PRODUCE OIL</button></div></li>' : '') +
+      '</ul></section>';
     html += '<section class="x-arc riv" id="hq-fac"><h3>FACILITIES</h3><ul class="x-hqlist">' +
       '<li class="' + (h.drive ? 'done' : '') + '"><b>THE DRIVE</b><span>Your ship’s drive, repaired at the wreck.</span><div>' + (h.drive ? '<em class="ok">REPAIRED</em>' : '<em>' + costText(DRIVE_COST) + '</em><em class="dim">AT THE WRECK</em>') + '</div></li>' +
       HQ.facilities.map(function(f){
@@ -1761,7 +1802,10 @@
     body.onclick = function(e){
       var b = e.target.closest('button'); if (!b || b.disabled) return;
       var d = b.dataset, keep = sec, ok = true;
-      if (d.h === 'deposit') { deposit(); keep = 'mats'; }
+      if (d.coreRecipe) { ok = coreDiscoverRecipe(d.coreRecipe); keep = 'core'; }
+      else if (d.coreBuild) { ok = coreBuild(d.coreBuild); keep = 'core'; }
+      else if (d.coreOil) { ok = coreProduceOil(); keep = 'core'; }
+      else if (d.h === 'deposit') { deposit(); keep = 'mats'; }
       else if (d.h === 'xfrom') { xFrom = MATS[(MATS.map(function(m){ return m[0]; }).indexOf(xFrom) + 1) % MATS.length][0]; keep = 'mats'; }
       else if (d.h === 'xto') { xTo = MATS[(MATS.map(function(m){ return m[0]; }).indexOf(xTo) + 1) % MATS.length][0]; keep = 'mats'; }
       else if (d.h === 'xgo') { ok = exchange(xFrom, xTo); keep = 'mats'; }

@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.2', title:'Worlds of many lands',
+      notes:[
+        'Every world is now laid out in its named regions, and you will see where you are as you cross from one to the next',
+        'Viridia in full: the Northern, Eastern, Central, Southern and Western regions, from frozen peaks to fire country, and fifty named districts',
+        'The people of Viridia live in their own regions and districts, close to the places they belong to',
+        'Zyraxis: a shrine in each of nine districts, and the old routes between them marked on the road',
+        'Lumeria’s Halo Archive keeps the records no other world claims'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.1', title:'The whole Codex, out in the worlds',
       notes:[
         'Every entry in the Master Codex now has a place in the worlds, from Anciuxor down to scrap',

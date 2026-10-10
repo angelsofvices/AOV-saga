@@ -2055,7 +2055,7 @@
     if (M.hq) return hqName();
     if (M.indoor) return term(M.location);
     if (M.world === 9) return term(zoneId || 'malezor');
-    return term(WORLD[M.world].term);
+    return term(WORLD[M.world].term) + (zoneId && M.districts ? ' · ' + zoneLabel(zoneId) : '');
   }
   function hudRefresh(){
     var zn = $('.x-zn'); if (!zn || !M) return;
@@ -2071,11 +2071,17 @@
     var b = $('.x-b small'); if (b) b.textContent = GAIT[P.gait].label;
     var bb = $('.x-b'); if (bb) { bb.classList.toggle('on', P.gait !== 'steady'); bb.dataset.gait = P.gait; }
   }
+  // a zone's name: a Zyraxis district by its lexicon term; a world's region by name once you know the world's words
+  function zoneLabel(id){
+    var d = (M.districts || []).filter(function(x){ return x.id === id; })[0];
+    if (!d || !d.name) return term(id);
+    return worldLearned(M.world) ? d.name.toUpperCase() : 'REGION ' + ['I','II','III','IV','V','VI','VII','VIII','IX','X'][d.i];
+  }
   function checkZone(quiet){
-    if (!M || M.indoor || M.world !== 9) return;
+    if (!M || M.indoor || !M.districts) return;
     var z = zoneOf(P.x, P.y); if (!z || z === zoneId) return;
     zoneId = z;
-    if (!quiet) { toast('ENTERING · ' + term(z)); sfx.meet(); }
+    if (!quiet) { toast('ENTERING · ' + zoneLabel(z)); sfx.meet(); }
     if (!S.seen[z]) { S.seen[z] = Date.now(); save(); }
     hudRefresh();
   }
@@ -2446,7 +2452,7 @@
     if (M.hq) for (var ry = vy; ry < vy + VH; ry++) for (var rx = vx; rx < vx + VW; rx++) if (at(rx, ry) === 'X' && fogArr[ry * M.W + rx]) { g.fillStyle = '#9b2a1f'; g.fillRect(ox + (rx - vx) * s, oy + (ry - vy) * s, s, s); }
     if (M.districts) M.districts.forEach(function(d){
       g.strokeStyle = 'rgba(90,60,30,.4)'; g.setLineDash([4, 4]); g.strokeRect(ox + (d.x - vx) * s, oy + (d.y - vy) * s, d.w * s, d.h * s); g.setLineDash([]);
-      if (S.seen[d.id]) { g.fillStyle = '#5a4a36'; g.font = '11px Courier Prime, monospace'; g.fillText(term(d.id), ox + (d.x - vx) * s + 4, oy + (d.y - vy) * s + 13); }
+      if (S.seen[d.id]) { g.fillStyle = '#5a4a36'; g.font = '11px Courier Prime, monospace'; g.fillText(zoneLabel(d.id), ox + (d.x - vx) * s + 4, oy + (d.y - vy) * s + 13); }
     });
     if (M.ship && M.ship.x >= vx && M.ship.x < vx + VW && M.ship.y >= vy && M.ship.y < vy + VH) { g.fillStyle = '#222'; g.font = 'bold 11px Courier Prime, monospace'; g.fillText('▲ SHIP', ox + (M.ship.x - vx - 1) * s, oy + (M.ship.y - vy + 2.5) * s); }
     g.fillStyle = '#9b2a1f'; g.beginPath(); g.arc(ox + (P.x - vx + .5) * s, oy + (P.y - vy + .5) * s, 4, 0, 7); g.fill();
@@ -2628,11 +2634,22 @@
   function redact(t){ return String(t || '').split(/( · |\. |; )/).map(function(c){ return SEALED_RX.test(c) ? '██████' : c; }).join(''); }
   function worldLearned(no){ return no === 9 ? Object.keys(S.lore).some(function(k){ return /^z_/.test(k); }) || S.flags.taught : !!S.lore['w' + no]; }
   async function examineCodexLandmark(lm){
+    if (lm.shrine) return visitShrine(lm);
     var first = ixUnlock(lm.codexTerm, 'reached'); save();
     if (first) { gainAll({ relic:1, data:4 }); toast('MASTER CODEX · ' + lm.codexTerm); }
     await new Promise(function(res){ loadCanon(res); });
     var d = ixDesc(lm.codexTerm);
     await say([lm.codexTerm.toUpperCase() + '.', d ? d.slice(0, 420) : 'A place the Master Codex names.'].concat(first ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON · INDEX.)'] : []));
+  }
+  // the nine district shrines of Zyraxis: visiting all nine gives ANCIENT GEMSIGHT (Codex · District Shrine)
+  async function visitShrine(lm){
+    var key = 'shrine:' + lm.id, first = !S.seen[key];
+    if (first) { S.seen[key] = Date.now(); ixUnlock('District Shrine', 'reached'); gainAll({ relic:1, data:4 }); }
+    var n = Object.keys(S.seen).filter(function(k){ return /^shrine:/.test(k); }).length;
+    var lines = [lm.shrine.toUpperCase() + '. A district shrine of Zyraxis.', 'Shrines visited: ' + n + ' of 9.'];
+    if (n >= 9 && !S.flags.gemsight) { S.flags.gemsight = Date.now(); lines.push('Every shrine of the nine districts has seen you. ANCIENT GEMSIGHT.'); toast('ANCIENT GEMSIGHT'); hqRecord('All nine district shrines of Zyraxis visited: Ancient Gemsight.'); }
+    save(); if (first) toast('SHRINE · ' + lm.shrine);
+    await say(lines);
   }
   async function pickCodexFind(hid, term){
     S.found[hid] = 1; var first = ixUnlock(term, 'found'); sfx.reveal(); vibrate(60, .3); gain('relic', 1); save(); hudRefresh();

@@ -611,6 +611,12 @@
       if (built[f.id]) hqStructure(m, st, { id:f.id, kind:'fac', ref:f, x:f.at[0], y:f.at[1], w:f.w, spr:f.spr, clear:2 });
       else if (f.future ? stage >= 3 : ok) hqStructure(m, st, { id:f.id, kind:'plot', ref:f, x:f.at[0], y:f.at[1], w:f.w, spr:'hq_plot', clear:1 });
     });
+    // the departure machines: each built one stands as a station of its own (AOV_CORE.starter · at, w, spr)
+    ((window.AOV_CORE || {}).starter || []).forEach(function(cm){
+      if (!(st.core || {})[cm.id] || !cm.at) return;
+      hqStructure(m, st, { id:'core:' + cm.id, kind:'core', ref:cm, x:cm.at[0], y:cm.at[1], w:cm.w || 1, spr:cm.spr || 'machine_workstation', clear:2 });
+      for (var k = -1; k <= (cm.w || 1); k++) { var cx = cm.at[0] + k, cy = cm.at[1] + 1, c0 = m.at(cx, cy); if (c0 !== 'F' && c0 !== 'S' && cx > 0 && cx < W - 1) { m.set(cx, cy, '.'); delete m.props[cy * W + cx]; } }   // room to stand in front of it
+    });
     HQ.ruins.forEach(function(u){
       var rs = ruins[u.id] || {};
       hqStructure(m, st, { id:u.id, kind:'ruin', ref:u, x:u.at[0], y:u.at[1], w:u.w, spr:(rs.restored ? 'rest_' : 'ruin_') + u.spr, clear:u.spr === 'obelisk' || u.spr === 'spire_old' ? 3 : 2 });

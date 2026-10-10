@@ -84,6 +84,10 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.19', title:'The field survives the AstraNav',
+      notes:[
+        'Opening the AstraNav no longer resets the overworld or a fight: enemies, your party and their damage carry on when you return'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.18', title:'The party fights',
       notes:[
         'Your party walks with you: it follows your trail, hurries to catch up, and idles around you when you stop',

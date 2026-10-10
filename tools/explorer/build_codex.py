@@ -142,7 +142,7 @@ SEALED = re.compile(r'ovauron|primalutonia|drift planet|aep[- ]?28|\bae-28\b', r
 places = []
 for letter, term, desc in index:
     k = norm(term)
-    if k in being_keys or k in WORLD_KEYS: continue                     # beings are placed already; worlds are the worlds
+    if k in being_keys or norm(term.split('·')[0]) in being_keys or k in WORLD_KEYS: continue   # 'Zurelea · Malezor Potion Maker' is the being Zurelea                     # beings are placed already; worlds are the worlds
     if SEALED.search(term): continue   # sealed: AEP-28 under every name (descriptions that mention it are redacted in game)
     kind = 'rec' if META_RX.search(term) else 'lm' if PLACE_RX.search(term) or REGION_RX.search(desc[:80]) else 'find' if ITEM_RX.search(term) else 'rec'
     places.append({'t': kind, 'home': home_or(term + ' ' + desc, LUMERIA), 'term': term})

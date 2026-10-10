@@ -459,7 +459,7 @@
     if (s.sp && c.lv) rows.push(['LEVEL', String(c.lv)], ['VIGOUR', Math.max(0, c.hp == null ? maxHp(id) : c.hp) + ' / ' + maxHp(id)]);
     // a habitat variant: its Codex record (habitat, body plan, colours, feature, tier, source species)
     var vr = window.AOV_AETHREN_VARIANTS && window.AOV_AETHREN_VARIANTS.get(id);
-    if (vr) rows.push(['HABITAT', vr.habitatName], ['BODY PLAN', vr.body.toUpperCase()], ['FEATURE', String(vr.feature).toUpperCase()], ['TIER', String(vr.tier)],
+    if (vr) rows.push(['HABITAT', vr.habitatName], ['BODY PLAN', vr.body.toUpperCase()], ['FEATURES', String(vr.feature).toUpperCase() + (vr.feature2 && vr.feature2 !== vr.feature ? ' · ' + String(vr.feature2).toUpperCase() : '')], ['PATTERN', String(vr.pattern || 'none').toUpperCase()], ['TIER', String(vr.tier)],
       ['SOURCE BODY', vr.sourceSpecies && subj(vr.sourceSpecies) ? (known(subj(vr.sourceSpecies).term) ? subjName(vr.sourceSpecies) : '— a canon Aethren, not yet named —') : String(vr.sourceSpecies || '—')]);
     rows.push(['RARITY', rarity(s)], ['QUANTITY', String(c.qty)]);
     return '<div class="x-card' + (c.foil ? ' foil' : '') + (big ? ' big' : '') + (c.pend ? ' pend' : '') + '" data-card="' + id + '">' +

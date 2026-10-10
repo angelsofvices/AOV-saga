@@ -1999,7 +1999,24 @@
     function pair(y, ch, spread){ for (var i=0;i<=spread;i++){ put(Math.floor(w/2)-i,y,ch); put(Math.floor(w/2)+i,y,ch); } }
     var f = cfg.feature || 'crest', ac = cfg.accent || '#ffe08a';
     var featureChar = '!';
-    var pal = Object.assign({}, cfg.pal || {}, {'!':ac});
+    var pal = Object.assign({}, cfg.pal || {}, {'!':ac, '¡':cfg.accent2 || ac, '%':cfg.patternColor || '#1c1626'});
+    // ── PATTERN · painted inside the outline only, so the silhouette stays crisp (spots, stripes, bands, speckle, mottle, belly)
+    var BODY_SKIP = { '.':1, 'k':1, 'Y':1, 'w':1, 'y':1, 'e':1 };
+    function interior(x, y){ return y > 0 && y < h - 1 && x > 0 && x < w - 1 && !BODY_SKIP[out[y][x]] && out[y-1][x] !== '.' && out[y+1][x] !== '.' && out[y][x-1] !== '.' && out[y][x+1] !== '.'; }
+    var pat = cfg.pattern, seed = 0; String(id).split('').forEach(function(c){ seed = (seed * 31 + c.charCodeAt(0)) >>> 0; });
+    var top = h, bot = 0; out.forEach(function(r, y){ if (r.some(function(c){ return c !== '.'; })) { top = Math.min(top, y); bot = Math.max(bot, y); } });
+    if (pat && pat !== 'none') for (var py = 0; py < h; py++) for (var px = 0; px < w; px++) {
+      if (!interior(px, py)) continue;
+      var on = pat === 'spots' ? ((px * 5 + py * 3 + seed) % 7 === 0)
+        : pat === 'stripes' ? ((py + seed) % 3 === 0)
+        : pat === 'bands' ? ((px + seed) % 4 === 1)
+        : pat === 'speckle' ? (((px * 73856093) ^ (py * 19349663) ^ seed) % 5 === 0)
+        : pat === 'mottle' ? ((((px >> 1) + (py >> 1) + seed) % 3) === 0)
+        : pat === 'belly' ? (py >= top + Math.ceil((bot - top) * .55))
+        : false;
+      if (on) out[py][px] = '%';
+    }
+    function drawFeat(f, featureChar){
     if (f === 'horns') { put(3,2,featureChar); put(w-4,2,featureChar); put(4,1,featureChar); put(w-5,1,featureChar); }
     else if (f === 'crest') { pair(1,featureChar,2); pair(2,featureChar,1); }
     else if (f === 'fins') { put(1,7,featureChar); put(w-2,7,featureChar); put(0,8,featureChar); put(w-1,8,featureChar); }
@@ -2015,6 +2032,24 @@
     else if (f === 'scar') { for (var sy=3;sy<8;sy++) put(4+sy%2,sy,featureChar); }
     else if (f === 'beak') { put(Math.floor(w/2),6,featureChar); put(Math.floor(w/2)+1,6,featureChar); }
     else if (f === 'webbing') { put(1,4,featureChar); put(2,3,featureChar); put(w-2,3,featureChar); put(w-1,4,featureChar); }
+    // contour features: they follow the body's own outline, so every body plan wears them differently
+    else if (f === 'spikes') { for (var cx = 1; cx < w - 1; cx += 2) { var ty = colTop(cx); if (ty > 0) put(cx, ty - 1, featureChar); } }
+    else if (f === 'mane') { var a0 = Math.floor(w * .3), a1 = Math.ceil(w * .7); for (var mx2 = a0; mx2 < a1; mx2++) { var my = colTop(mx2); if (my > 0) { put(mx2, my - 1, featureChar); if (mx2 % 2) put(mx2, my - 2, featureChar); } } }
+    else if (f === 'tendrils') { for (var tx = 2; tx < w - 1; tx += 3) { var by = colBot(tx); if (by >= 0 && by < h - 1) { put(tx, by + 1, featureChar); put(tx + (tx % 2 ? 1 : -1), by + 2, featureChar); } } }
+    else if (f === 'aura') { for (var ay = 0; ay < h; ay++) for (var ax = 0; ax < w; ax++) if (out[ay][ax] === '.' && (ax + ay) % 2 === 0 && touches(ax, ay)) out[ay][ax] = featureChar; }
+    else if (f === 'tusks') { var ey = eyeRow(); put(colLeft(ey + 2) - 1, ey + 2, featureChar); put(colLeft(ey + 2) - 1, ey + 3, featureChar); put(colRight(ey + 2) + 1, ey + 2, featureChar); put(colRight(ey + 2) + 1, ey + 3, featureChar); }
+    else if (f === 'plates') { for (var qx = 2; qx < w - 2; qx += 3) { var qy = colTop(qx); if (qy > 0) { put(qx, qy - 1, featureChar); put(qx + 1, qy - 1, featureChar); put(qx, qy - 2, featureChar); } } }
+    else if (f === 'halo') { var hy = Math.max(0, top - 2), hc = Math.floor(w / 2); for (var hx = hc - 3; hx <= hc + 3; hx++) if (Math.abs(hx - hc) > 1) put(hx, hy, featureChar); put(hc - 3, hy + 1, featureChar); put(hc + 3, hy + 1, featureChar); }
+    else if (f === 'whiskers') { var wy = eyeRow() + 1; put(colLeft(wy) - 1, wy, featureChar); put(colLeft(wy) - 2, wy - 1, featureChar); put(colRight(wy) + 1, wy, featureChar); put(colRight(wy) + 2, wy - 1, featureChar); }
+    }
+    function colTop(x){ for (var y = 0; y < h; y++) if (out[y][x] !== '.' && out[y][x] !== '!' && out[y][x] !== '¡') return y; return -1; }
+    function colBot(x){ for (var y = h - 1; y >= 0; y--) if (out[y][x] !== '.' && out[y][x] !== '!' && out[y][x] !== '¡') return y; return -1; }
+    function colLeft(y){ for (var x = 0; x < w; x++) if (out[y] && out[y][x] !== '.') return x; return 1; }
+    function colRight(y){ for (var x = w - 1; x >= 0; x--) if (out[y] && out[y][x] !== '.') return x; return w - 2; }
+    function eyeRow(){ for (var y = 0; y < h; y++) if (out[y].indexOf('Y') >= 0) return y; return top + 2; }
+    function touches(x, y){ return [[1,0],[-1,0],[0,1],[0,-1]].some(function(d){ var c = (out[y + d[1]] || [])[x + d[0]]; return c && c !== '.' && c !== '!' && c !== '¡'; }); }
+    drawFeat(f, featureChar);
+    if (cfg.feature2 && cfg.feature2 !== f) drawFeat(cfg.feature2, '¡');
     var full = out.map(function(r){ return r.join(''); });
     SPRITES[id] = { group:'creatures', rows:full, pal:pal, note:cfg.note || 'Native Aethren variant' };
     ANIM[id] = { down:[id], up:[id], right:[id], left:[id] };

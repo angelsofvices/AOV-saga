@@ -195,7 +195,7 @@
     var here = CX.beings.filter(function(b){
       if (b.kind !== 'humanoid' || !b.home || b.home.world !== no) return false;
       if (no !== 9) return true;
-      var d = b.home.district && b.home.district !== 'malezor' ? b.home.district : ZD9[hashStr(b.id) % 9];   // Malezor is the hand-built opening district
+      var d = b.home.district || ZD9[hashStr(b.id) % 9];   // Malezor's own people live in the hand-built meadow (malezorPeople)
       return d === district;
     });
     pts = pts || [{ x:area.sx, y:area.sy }];
@@ -231,6 +231,19 @@
       var d = pl.home.district && pl.home.district !== 'malezor' ? pl.home.district : ZD9[hashStr(pl.term || (pl.terms || []).concat(pl.pages || []).join('|')) % 9];
       return d === district;
     };
+  }
+  // Malezor is built by hand, so its Codex people stand on open ground beside its road, clear of the ship
+  function malezorPeople(m, ox, oy, rows){
+    var CX = window.AOV_CODEX; if (!CX) return;
+    var folk = CX.beings.filter(function(b){ return b.kind === 'humanoid' && b.place === 'npc' && b.home && b.home.world === 9 && b.home.district === 'malezor'; });
+    var slots = [], taken = m.npcs.concat(m.spawns, [m.ship]);
+    for (var y = 1; y < rows.length - 1; y++) for (var x = 1; x < rows[y].length - 1; x++) {
+      if (rows[y][x] !== '.' || rows[y + 1][x] !== 'd') continue;   // stand just above the road, facing it
+      var gx = ox + x, gy = oy + y;
+      if (taken.concat(slots).some(function(t){ return Math.abs(t.x - gx) + Math.abs(t.y - gy) < 4; })) continue;
+      slots.push({ x:gx, y:gy });
+    }
+    folk.forEach(function(b, i){ var p = slots[i]; if (p) m.npcs.push({ x:p.x, y:p.y, dir:'down', key:'cx_' + b.id, codex:b.id, env:'malezor', n:i, person:true }); });
   }
   function codexLore(test, fn){
     var PL = (window.AOV_CODEX || {}).placements || [];
@@ -306,6 +319,7 @@
     var sh = null;
     for (y = 0; y < rows.length && !sh; y++) { var sxi = rows[y].indexOf('S'); if (sxi >= 0) sh = { x:ox + sxi, y:oy + y }; }
     m.ship = sh;
+    malezorPeople(m, ox, oy, rows);
     // the roads of the Z, district to district
     road(m, ox + 30, oy + 12, centres[1].x, centres[1].y, r);
     for (var d = 1; d < DIST.length - 1; d++) road(m, centres[d].x, centres[d].y, centres[d + 1].x, centres[d + 1].y, r);

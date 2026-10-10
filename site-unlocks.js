@@ -90,7 +90,8 @@ window.AOV_UNLOCKS = {
         'Reach the Codex’s landmarks: Ashen Fields, the Temple of Anciuxor, the Tree of Elyssia and dozens more',
         'Pick up glinting relics: the Phoenaris Crown, the Key of Anciuxor, the Astralite Prisms',
         'Read record stones once you know a world’s words: concepts, events, book and game pages, and the saga’s timeline',
-        'A new TIMELINE tab in the Master Canon, and the Index tells you which world a sealed entry is on'
+        'A new TIMELINE tab in the Master Canon, and the Index tells you which world a sealed entry is on',
+        'Zurelea, the potion maker of Malezor, now keeps to the Malezor road'
       ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10', title:'The Master Codex',
       notes:[

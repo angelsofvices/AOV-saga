@@ -61,7 +61,7 @@
       else if (hasSpecial && mo < .36 && r() < .5) ch = ',';
       else if (r() < .006) ch = 'B';
       m.grid[i] = ch;
-      if (ch === 'P') m.props[i] = e.props[(r() * e.props.length) | 0];
+      if (ch === 'P') { var wx = (window.AOV_WORLD_ART || { env:{} }).env[e.id], pool = wx && wx.extra ? e.props.concat([[wx.extra.key, '__x']]) : e.props; m.props[i] = pool[(r() * pool.length) | 0]; }
     }
     if (cloud) for (y = y0; y < y0 + h; y++) for (x = x0; x < x0 + w; x++) if (m.grid[y * m.W + x] === '#' && r() < .5) m.grid[y * m.W + x] = '~';
   }

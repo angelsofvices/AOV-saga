@@ -84,6 +84,17 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.10', title:'Tightened up',
+      notes:[
+        'On touch screens the NAV button is the touchpad; the cockpit has one too',
+        'INVENTORY is the one full item list; the System screen shows a glance, Research keeps its records',
+        'Stations split cleanly: the Workstation builds machines and tools, the Workshop fits suit and air gear, the Repair Station works on the ship',
+        'A names what it will do (OPEN, TALK, TAKE, BOARD…), with a prompt above the buttons; □ dims when nothing can be moved',
+        'One message at a time',
+        'The HEADQUARTERS page reads in tabs',
+        'The next objective points the way: how many paces, and which direction. The live scanner marks the machine papers',
+        'SETUP · RESET MOVED OBJECTS puts every moved object and station back'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.9', title:'Stations, the cockpit and the inventory',
       notes:[
         'A new AstraNav tab: INVENTORY. All items, bag, stores, ship parts and machine papers, each with its icon',

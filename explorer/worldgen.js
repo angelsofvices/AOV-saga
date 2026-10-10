@@ -662,5 +662,5 @@
     return null;
   }
 
-  window.AOV_WORLDGEN = { build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus, biomesForWorld:biomesForWorld };
+  window.AOV_WORLDGEN = { reset:function(){ cache = {}; }, build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus, biomesForWorld:biomesForWorld };
 })();

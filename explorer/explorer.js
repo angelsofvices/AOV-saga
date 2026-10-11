@@ -2987,9 +2987,11 @@
   function updateSurface(dt, now){
     if (!P) return;
     updateFlight(dt);
+    // stride: a step starts slow and builds to full pace while you keep going, and drops back when you stop
+    P.spd = clamp((P.spd == null ? 1 : P.spd) + ((held || path.length) ? dt / .3 : -dt / .25), .55, 1);
     if (P.moving) {
       var G = GAIT[P.gait];
-      P.t += dt / (P.alt >= JET.crossAlt ? JET.flyStep : G.step);
+      P.t += dt / (P.alt >= JET.crossAlt ? JET.flyStep : G.step / P.spd);
       P.anim += dt * G.anim;
       if (P.t >= 1) { P.moving = false; P.fx = P.x; P.fy = P.y; arrived(); if (mode !== 'surface') return; }
       else { P.fx = P.px0 + (P.x - P.px0) * P.t; P.fy = P.py0 + (P.y - P.py0) * P.t; }
@@ -3579,12 +3581,13 @@
     var dir = held === 'left' ? -1 : held === 'right' ? 1 : 0;
     if (dir) p.face = dir;
     var thrust = jetOn(), gm = GAIT_SIDE[S.gait || 'steady'] || 1;
-    p.vx = dir * SIDE_RUN * gm; p.moving = !!dir; p.gait = S.gait || 'steady';
+    var want = dir * SIDE_RUN * gm, rate = dir ? (p.ground ? SIDE_ACC : SIDE_AIRACC) : (p.ground ? SIDE_FRIC : SIDE_AIRACC * .5);
+    p.vx = approach(p.vx || 0, want, rate * dt); p.moving = !!dir; p.gait = S.gait || 'steady';
     // the JETPACK: lift builds while □ is held and fades when it is let go, so the fall starts smoothly
     p.lift = approach(p.lift || 0, thrust ? JSIDE.thrust : 0, (thrust ? JSIDE.accel : JSIDE.decel) * dt);
     p.vy = Math.min(18, p.vy + (SIDE_G - p.lift) * dt);
     if (p.lift > 0) p.vy = Math.max(-JSIDE.rise, p.vy);   // the climb is capped while the lift lasts, so a release glides into the fall
-    if (p.jumpBuf > 0 && p.ground) { p.vy = -SIDE_JUMP; p.ground = false; p.jumpBuf = 0; sfx.step(); }
+    if (p.jumpBuf > 0 && (p.ground || p.coyote > 0)) { p.vy = -SIDE_JUMP; p.ground = false; p.coyote = 0; p.jumpBuf = 0; sfx.step(); }
     var nx = p.x + p.vx * dt;
     if (!sBlocked(nx, p.y)) p.x = Math.max(.2, Math.min(s.C.W - 1.1, nx));
     var ny = p.y + p.vy * dt;
@@ -3627,6 +3630,7 @@
     // climb out at the mouth
     if (held === 'up' && p.x < 3.2) { cavePassOut('You climb back out to the cave mouth.'); return; }   // at the mouth, up is out
     updateBolts(dt); updateUtilities(dt);
+    p.coyote = p.ground ? SIDE_COYOTE : Math.max(0, (p.coyote || 0) - dt);
     p.dust = p.dust.filter(function(d2){ return now - d2.t < 380; }); if (p.moving && p.ground && (!p.dust.length || now - p.dust[p.dust.length - 1].t > 90)) p.dust.push({ x:p.x, y:p.y, t:now });
     hudRefresh();
   }
@@ -3785,8 +3789,10 @@
     var hint = id === 'astrablaster' ? 'fires it' : id === 'jetpack' ? 'hold □ to fly' : 'uses it';
     return { name:d.name, short:id === 'astrablaster' ? 'FIRE' : id === 'jetpack' ? 'FLY' : 'USE', toast:'ACTIVE UTILITY · ' + d.name.toUpperCase() + ' · □ ' + hint };
   }
-  var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.6, accel:2.2, decel:2.6, sink:1, altMax:2, crossAlt:.6, flyStep:.15 };
-  var JSIDE = { thrust:52, accel:90, rise:8, decel:60 };
+  var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.6, accel:2.2, decel:2.6, sink:1, altMax:2, crossAlt:.6, flyStep:.105, hold:.18, hop:.8 };
+  var JSIDE = { thrust:52, accel:90, rise:11, decel:60 };
+  // Stage 1 movement feel: side-view acceleration, friction, air control, and coyote time after a ledge
+  var SIDE_ACC = 40, SIDE_FRIC = 50, SIDE_AIRACC = 25, SIDE_COYOTE = .12;
   var GAIT_SIDE = { stalk:.5, steady:1, sprint:1.6 };
   // the tiles the JETPACK cannot cross: walls, structures, the vault, landmarks, the ship and the marker stones
   var FLY_STOP = { '#':1, F:1, K:1, L:1, S:1, M:1, w:1 };
@@ -3874,12 +3880,16 @@
     if (!surfaceFree()) return;
     var u = activeUtil();
     if (u === 'astrablaster') { fireBlaster(); return; }
-    if (u === 'jetpack') return;
+    if (u === 'jetpack') { UTIL_DATA.jetT = 0; return; }
     if (!u) { toast('No utility in hand. Equip one from the Inventory, then △ to cycle.'); sfx.bump(); return; }
     useUtil(u);
   }
   function squareRelease(){
     var was = squareHeld, u = activeUtil(); squareHeld = false;
+    if (was && u === 'jetpack' && mode === 'surface' && P && (UTIL_DATA.jetT || 0) < JET.hold) {
+      // a tap: a short hop over low ground; it settles back down on its own
+      P.alt = Math.min(JET.altMax, (P.alt || 0) + JET.hop); P.lift = 0; sfx.step();
+    }
     if (was && u && UTIL_FX[u] && UTIL_FX[u].release) UTIL_FX[u].release(utilCtx());
   }
   // where a utility acts: in the field, on the tile you face; in the cave, on Carl's own spot, facing left or right
@@ -3901,6 +3911,7 @@
   function updateUtilities(dt){
     Object.keys(UTIL_CD).forEach(function(k){ if (UTIL_CD[k] > 0) UTIL_CD[k] = Math.max(0, UTIL_CD[k] - dt); });
     var u = activeUtil();
+    if (squareHeld && u === 'jetpack') UTIL_DATA.jetT = Math.min(1, (UTIL_DATA.jetT || 0) + dt);
     if (squareHeld && !surfaceFree()) { squareHeld = false; if (u && UTIL_FX[u] && UTIL_FX[u].release) UTIL_FX[u].release(utilCtx()); }
     if (u && squareHeld && UTIL_FX[u] && UTIL_FX[u].hold && surfaceFree()) UTIL_FX[u].hold(utilCtx(), dt);
     utilTimers(dt);
@@ -3925,7 +3936,7 @@
     if (tap) el.addEventListener('click', tap);
   }
   // the JETPACK is on while □ is held, the utility is active, and Carl is free to act
-  function jetOn(){ return squareHeld && activeUtil() === 'jetpack' && surfaceFree() && !carry; }
+  function jetOn(){ return squareHeld && activeUtil() === 'jetpack' && (UTIL_DATA.jetT || 0) >= JET.hold && surfaceFree() && !carry; }
   // the field: lift builds to a steady climb while □ is held and fades when it is let go; gravity brings Carl down
   function updateFlight(dt){
     var thrust = jetOn();

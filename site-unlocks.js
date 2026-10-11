@@ -84,7 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-        { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.22', title:'The jetpack and the new controls',
+            { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.23', title:'The planetary utilities',
+      notes:[
+        'Each planet holds a signature utility. Twenty-seven are registered and show in the UTILITY tab',
+        'Life Seed, AstraBlaster MK1, Jetpack, Boomfists and Star Satellite are built. The other 22 can be equipped, but their abilities are not written yet',
+        'Triangle cycles the equipped utilities. Square uses the active one, and each utility keeps its own cooldown',
+        'Boomfists breaks rock, not mountains. Star Satellite needs open sky, so it does not fire in a cave'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.22', title:'The jetpack and the new controls',
       notes:[
         'The JETPACK is a second utility. Assemble it at the Workstation, then equip it from the Inventory',
         'Triangle cycles your equipped utilities. Square uses the active one: it fires the ASTRABLASTER, or flies the JETPACK while held',

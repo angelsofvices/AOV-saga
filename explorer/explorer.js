@@ -2042,7 +2042,7 @@
   function needLabel(k){ var m = /^(restored|residents|settled):(\d+)$/.exec(k), L = { restored:'RUINS RESTORED', residents:'REFUGEE GROUPS HOME', settled:'AETHREN SPECIES SETTLED' };
     return (stageNeedMet(k) ? '✓ ' : '') + (m ? m[2] + ' ' + L[m[1]] + ' (' + (m[1] === 'restored' ? hqRestored() : Object.keys(S.hq[m[1]] || {}).length) + ')' : nameOf(k)); }
   function hqState(){ return { core:S.core.machines, built:S.hq.built, ruins:S.hq.ruins, regions:S.hq.regions, found:S.found, stage:hqStage(), drive:S.hq.drive, research:S.hq.research, residents:residentsList(), settled:Object.keys(S.hq.settled) }; }
-  function buildMap(id){ var m = id === 'nasarus' ? GEN.build('nasarus', hqState()) : GEN.build(id); if (m) { placePapers(m); applyMoves(m); } return m; }
+  function buildMap(id){ var m = id === 'nasarus' ? GEN.build('nasarus', hqState()) : GEN.build(id); if (m) { placePapers(m); applyMoves(m); applyHoles(m); } return m; }
   // ── SANDBOX · GRAB, DRAG, SET ──
   // □ (C on a keyboard, MOVE on touch) lifts the movable thing you face: a prop, boulder, plant, crystal, wreckage or a
   // HEADQUARTERS station. It rides in front of you as you walk. □ again sets it on the tile you face; ○ while carrying
@@ -3491,7 +3491,7 @@
   }
   function openCave(lm){
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal, .x-battle')) return;
-    S.mouth = S.mouth || {}; S.mouth[lm.dungeon] = { x:lm.stand.x, y:lm.stand.y };
+    if (!lm.hole) { S.mouth = S.mouth || {}; S.mouth[lm.dungeon] = { x:lm.stand.x, y:lm.stand.y }; }
     var zone = !!(S.iz && S.iz[lm.dungeon]), nm = placeName(lm.dungeon);
     var lines = ['A cave mouth in the rock of ' + nm + '. Cold air comes out of it, and the stone is worn smooth on the inside.',
       zone ? 'The Immortal Zone beyond it is already charted in your records.' : 'Something lies at the far end. The Expanse has a name for it, and you have not yet found it.'];
@@ -3505,7 +3505,8 @@
     closeStation(true); held = null; path = [];
     parkField();
     var C = GEN.cave(no);
-    SIDE = { no:no, C:C, g:C.rows.map(function(r){ return r.split(''); }), p:{ x:C.start.x, y:C.start.y, vx:0, vy:0, ground:true, face:1, safe:{ x:C.start.x, y:C.start.y }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
+    var viaHole = !!(lm && lm.hole);
+    SIDE = { no:no, C:C, viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:C.rows.map(function(r){ return r.split(''); }), p:{ x:C.start.x, y:C.start.y, vx:0, vy:0, ground:true, face:1, safe:{ x:C.start.x, y:C.start.y }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
     SIDE.en = C.enemies.map(function(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round(40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:d.atk || 5, range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; });
     mode = 'side';
     sideScreen(no);
@@ -3538,8 +3539,11 @@
   }
   // you leave the cave by the mouth (rescue or climb out): the overworld is exactly as you left it
   function cavePassOut(msg){
+    var rg = SIDE && SIDE.viaHole ? SIDE.regular : null;
     SIDE = null; S.suit = Math.max(S.suit, 40); save();
     if (msg) toast(msg, 'red');
+    // a cave entered through a broken mouth returns to the planet's regular mouth
+    if (rg && S.pos) { S.pos = { map:S.pos.map, x:rg.x, y:rg.y, dir:S.pos.dir || 'down' }; if (parked && parked.P) { parked.P.x = parked.P.fx = rg.x; parked.P.y = parked.P.fy = rg.y; parked.P.moving = false; } }
     if (parked && parked.map === S.pos.map) resumeField(); else surface(S.pos.map);
   }
   function enterZone(no, fromOutside){
@@ -3970,23 +3974,62 @@
   };
   // BOOMFISTS (Rhyzor): a melee strike in front. It breaks a breakable_rock and hits foes in reach
   function boomReach(c){
-    var hits = [], breaks = null;
+    var hits = [], breaks = null, hole = null;
     if (c.side) {
       SIDE.en.forEach(function(e){ if (!e.dead && (e.x - c.p.x) * c.p.face > -.2 && (e.x - c.p.x) * c.p.face < 1.6 && Math.abs(e.y - c.p.y) < 1.2) hits.push(e); });
     } else {
       (foes || []).forEach(function(f){ if (f.state !== 'dead' && Math.hypot(f.x - (c.tx + .5), f.y - (c.ty + .5)) <= 1.2) hits.push(f); });
       var ch = at(c.tx, c.ty); if (UTILS.hasTag(ch, 'breakable_rock')) breaks = { x:c.tx, y:c.ty, ch:ch };
+      var stand = !breaks && holeSpot(c.tx, c.ty); if (stand) hole = { x:c.tx, y:c.ty, stand:stand };
     }
-    return { hits:hits, breaks:breaks };
+    return { hits:hits, breaks:breaks, hole:hole || null };
+  }
+  // BOOMFISTS · HOLE: a rock tile in any border of a planet, with exactly one walkable side and no other mouth within 10 tiles,
+  // breaks open into a cave mouth. The fixed NASARUS terrain cannot be broken. Returns the walkable stand tile, or null.
+  function holeSpot(x, y){
+    if (!M || M.id === 'nasarus' || M.world == null || !inMap(x, y)) return null;
+    if (x < 1 || y < 1 || x > M.W - 2 || y > M.H - 2) return null;
+    var i = y * M.W + x;
+    if (at(x, y) !== '#' || M.props[i] || (M.sidx && M.sidx[i] != null)) return null;
+    var open = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(function(d){ var ch = at(x + d[0], y + d[1]); return ch && !SOLID[ch]; });
+    if (open.length !== 1) return null;
+    if (M.landmarks.some(function(l){ return Math.abs(l.x - x) + Math.abs(l.y - y) < 10; })) return null;
+    return { x:x + open[0][0], y:y + open[0][1] };
+  }
+  // the holes a player has made on this map, saved with the utilities so they return on every visit
+  function holeList(mid){ var d = utils().data; d.holes = d.holes || {}; return (d.holes[mid] = d.holes[mid] || []); }
+  function applyHoles(m){
+    var d = S && S.utilities && S.utilities.data;
+    ((d && d.holes && d.holes[m.id]) || []).forEach(function(h){
+      m.set(h.x, h.y, 'L');
+      m.landmarks.push({ x:h.x, y:h.y, name:'A broken cave mouth', id:'dcave_' + h.no + '_b' + h.x + '_' + h.y, env:'dungeon', dungeon:h.no, stand:h.stand, hole:true });
+    });
+  }
+  // the regular cave mouth of this planet: where a cave entered through a hole returns to
+  function regularStand(no){
+    var r = (M.landmarks || []).filter(function(l){ return l.dungeon === no && !l.hole; })[0];
+    return r ? r.stand : (S.mouth && S.mouth[no]) || null;
+  }
+  function makeHole(x, y, stand){
+    var no = M.world, lm = { x:x, y:y, name:'A broken cave mouth', id:'dcave_' + no + '_b' + x + '_' + y, env:'dungeon', dungeon:no, stand:stand, hole:true };
+    M.set(x, y, 'L'); M.landmarks.push(lm);
+    holeList(M.id).push({ x:x, y:y, no:no, stand:stand }); save();
+    return lm;
   }
   UTIL_FX.boomfists = {
-    can: function(c){ var r = boomReach(c); return r.hits.length || r.breaks ? { ok:true } : { ok:false, reason:'Boomfists need a foe or a breakable rock within reach.' }; },
+    can: function(c){
+      var r = boomReach(c);
+      if (r.hits.length || r.breaks || r.hole) return { ok:true };
+      if (!c.side && M.id === 'nasarus') return { ok:false, reason:'The NASARUS rock is fixed. It will not break.' };
+      return { ok:false, reason:'Boomfists need a foe, a breakable rock, or a rock on a planet edge to open.' };
+    },
     press: function(c){
       var r = boomReach(c);
       r.hits.forEach(function(e){ if (c.side) hitSideFoe(e, 40); else hitFieldFoe(e, 60); });
       if (r.breaks) { M.grid[r.breaks.y * M.W + r.breaks.x] = '.'; gain('scrap', 2, true); fxs.push({ k:'burst', x:r.breaks.x + .5, y:r.breaks.y + .5, t:0, life:.6, color:'#d9a441' }); }
       sfx.hit(); vibrate(80, .5); UTIL_CD.boomfists = .6;
       if (r.breaks) toast('BOOMFISTS · the rock breaks');
+      if (r.hole) { makeHole(r.hole.x, r.hole.y, r.hole.stand); fxs.push({ k:'burst', x:r.hole.x + .5, y:r.hole.y + .5, t:0, life:.8, color:'#b86aff' }); toast('BOOMFISTS · the rock breaks open. A cave mouth is in the edge of the planet'); }
     }
   };
   // STAR SATELLITE (Elythera): an orbital strike on a spot four tiles ahead, after a short delay. Needs open sky, so not in a cave
@@ -5923,7 +5966,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

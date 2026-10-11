@@ -71,6 +71,7 @@ The registry is `explorer/utilities.js` (`window.AOV_UTILS`). The abilities are 
 - **Gravity Inverter:** foes within 3 tiles are thrown two tiles away from Carl. Cooldown 8 s.
 - **Magnetron:** pulls the nearest wreckage (tagged magnetic) within five tiles in line to the tile in front of you. Cooldown 3 s.
 - **Bio Scanner:** counts the living nearby and rings the biological traces for 6 s. Cooldown 3 s.
+- **Boomfists:** a strike in front. Hits foes in reach and breaks a rock tagged breakable_rock. Border holes: a rock on the edge of any planet, with exactly one walkable side and no other mouth within 10 tiles, breaks open into a cave mouth. The hole is saved per planet and is there on every visit. Going in through it opens the same cave; leaving the cave, or being carried out of it, returns Carl to the planet’s regular cave mouth. NASARUS terrain is fixed and does not open.
 - **AstraBlaster MK1, Jetpack, Life Seed, Boomfists, Star Satellite:** as in docs 25, 26 and above.
 
 ## Tags: a utility only affects what carries its tag

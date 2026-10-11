@@ -84,7 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-                                    { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.29', title:'Caves fade in, and finds sparkle',
+                                        { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.30', title:'Carl moves with his own animations',
+      notes:[
+        'Carl has a separate animation for each action: walking, running, crouching, jumping, landing, climbing, the jetpack, shooting and punching',
+        'The animation follows what Carl is doing, so a shot, a punch or a flight shows its own motion',
+        'The poses are still the first drawn set. The art pass will draw each one',
+        'Jumps, landings and steps now carry their sounds and dust on the frame they belong to'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.29', title:'Caves fade in, and finds sparkle',
       notes:[
         'Going into a cave, or climbing out of one, fades in from black instead of cutting',
         'Every find sparkles where you stand, in the field and underground',

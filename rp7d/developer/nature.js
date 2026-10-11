@@ -428,6 +428,13 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
       woodDebris.add({ x, y: T.heightAt(x, z) + r + 0.25, z, vx: dx * 0.6 + (Math.random() - 0.5) * 1.6, vy: 1.6 + Math.random() * 1.6, vz: dz * 0.6 + (Math.random() - 0.5) * 1.6, sx: r * 2, sy: len * 0.92, sz: r * 2,
         rx: Math.PI / 2, ry: 0, rz: -head + (Math.random() - 0.5) * 0.5, spin: 0, ay: 0, color: woodColor(), half: r, life: 6 + Math.random() * 2, wood: 1 }); // wood: a length of Fresh Wood, until it sinks
     }
+    // A living tree has a 10% chance to release one Life Seed as it breaks apart.
+    // It uses the same falling debris and run-over pickup window as Fresh Wood.
+    if (Math.random() < 0.10) {
+      const x = tree.x + dx * tree.trunkR * 2, z = tree.z + dz * tree.trunkR * 2;
+      woodDebris.add({ x, y: T.heightAt(x, z) + 0.35, z, vx: (Math.random() - 0.5) * 1.1, vy: 1.1, vz: (Math.random() - 0.5) * 1.1,
+        sx: 0.16, sy: 0.22, sz: 0.16, color: new THREE.Color('#76c94b'), half: 0.1, life: 7, lifeSeed: 1 });
+    }
     for (let i = 0, n = 5 + Math.round(s * 3); i < n; i++) { // split wood and branches
       const d = K.trunkH * s * (0.3 + Math.random() * 1.1), x = tree.x + dx * d + (Math.random() - 0.5), z = tree.z + dz * d + (Math.random() - 0.5), sz = s * (0.07 + Math.random() * 0.07);
       woodDebris.add({ x, y: T.heightAt(x, z) + 0.4, z, vx: (Math.random() - 0.5) * 4, vy: 2 + Math.random() * 3, vz: (Math.random() - 0.5) * 4, sx: sz, sy: sz * (4 + Math.random() * 5), sz: sz, color: woodColor(Math.random() < 0.4), half: sz * 0.5, life: 4 + Math.random() * 2 });
@@ -588,6 +595,15 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
         const q = L[i]; if (!q.wood || q.t > q.life || Math.abs(q.y - y) > 2.2) continue;
         const dx = q.x - x, dz = q.z - z, reach = r + q.sy * 0.4;
         if (dx * dx + dz * dz < reach * reach) { out.push({ x: q.x, y: q.y, z: q.z }); L.splice(i, 1); }
+      }
+      return out;
+    },
+    collectLifeSeeds(x, y, z, r) {
+      const out = []; if (!woodDebris) return out; const L = woodDebris.list;
+      for (let i = L.length - 1; i >= 0; i--) {
+        const q = L[i]; if (!q.lifeSeed || q.t > q.life || Math.abs(q.y - y) > 2.2) continue;
+        const dx = q.x - x, dz = q.z - z;
+        if (dx * dx + dz * dz < (r + 0.45) ** 2) { out.push({ x: q.x, y: q.y, z: q.z }); L.splice(i, 1); }
       }
       return out;
     },

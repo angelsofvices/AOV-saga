@@ -84,7 +84,13 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-                                        { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.30', title:'Carl moves with his own animations',
+                                            { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.31', title:'People share one body',
+      notes:[
+        'Every person is built on the same skeleton as Carl, so their shapes read the same way',
+        'Each person is taller or shorter, wider or thinner within limits; their colours and traits are kept',
+        'Each person has a standing frame and a stride frame, ready for the same walk cycle as Carl'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.30', title:'Carl moves with his own animations',
       notes:[
         'Carl has a separate animation for each action: walking, running, crouching, jumping, landing, climbing, the jetpack, shooting and punching',
         'The animation follows what Carl is doing, so a shot, a punch or a flight shows its own motion',

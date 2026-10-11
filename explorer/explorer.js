@@ -224,7 +224,8 @@
       else if (n.refugee || n.resident) n.look = [n.key + '_' + n.n, (pe.race || 'people') + ' refugee', pe.race || n.key];
       else n.look = [n.key + '_' + (n.n || 0), (no === 9 ? 'Haemen ' + n.env : (pe.race || 'people')) + (n.warden ? ' warden guard' : ''), no === 9 ? 'haemen-' + n.env : pe.race || n.key];
     }
-    return PEOPLE.person(n.look[0], n.look[1], n.look[2], n.dir, viceOf(n));
+    // a person who is walking shows the stride frame, the same cycle as Carl's
+    return PEOPLE.person(n.look[0], n.look[1], n.look[2], n.dir, viceOf(n), n.walking ? Math.floor(performance.now() / 180) % 2 : 0);
   }
   // ── VICEWORLD · how a person looks (explorer/vice_art.js): humans keep human skin, Haemen wear their district's gem,
   //    every other people bold colours of its own ──

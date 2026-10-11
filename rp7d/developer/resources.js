@@ -22,7 +22,9 @@ export const RESOURCES = {
   // Everstone has no piles either: it is the rubble of a smashed stone, gathered by running over the larger pieces
   // before they sink (nature.js · stones.collectStone, game.js · freshWoodTick).
   everstone: { id: 'everstone', name: 'Everstone', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#9a968c',
-    blurb: 'Broken stone gathered from the rubble of a smashed rock. Used in crafting and repairs.' }
+    blurb: 'Broken stone gathered from the rubble of a smashed rock. Used in crafting and repairs.' },
+  life_seed: { id: 'life_seed', name: 'Life Seed', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#7ee36b',
+    blurb: 'A rare seed released when a living tree falls. Equip it in the Armory and press Square on grassy ground to plant a treehouse.' }
 };
 // What a destroyed tech body gives up when its wreck is struck: total scrap, and how many blows it takes to strip it.
 export const SALVAGE = {

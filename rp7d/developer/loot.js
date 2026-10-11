@@ -24,6 +24,7 @@ export const WEAPONS = {
   telescope: { name: 'Stargazer Telescope', tier: 'Uncommon', color: '#6fb4ff', banner: 'EXPLORATION · STARGAZER', blurb: 'A brass-and-glass refractor on a wooden tripod. Draw it, then □ to set it up: Rizer crafts it piece by piece and plants it in the overworld. ○ / E beside it looks through it into the Aethryx Expanse; □ beside it packs it away.' },
   // The crafted Field Workstation, as an Armory tool (game.js · syncWorkstationKit): on the wheel while one is owned; □ builds it.
   workstation: { name: 'Field Workstation', tier: 'Crafted', color: '#7fd6ff', banner: 'FIELD EQUIPMENT · BUILD', blurb: 'The Field Workstation you crafted at your Experiment Table. Draw it, then □ to build it where you look; ○ / E sets it down. It stays in the Armory while you own one.' },
+  life_seed: { name: 'Life Seed', tier: 'Rare', color: '#7ee36b', banner: 'TREEHOUSE · PLANT', blurb: 'A rare seed from a fallen tree. Equip it, then press □ on grassy ground to plant. The treehouse grows in 8 seconds.' },
   // One definition for every owner: a Nova Guardian carries it, drops it when it falls, and Rizer fires the same weapon (thardin-rifle.js).
   blaster: { name: THARDIN_BLASTER_RIFLE.name, tier: 'Rare', color: '#ffb347', banner: 'THARDIN TECH · BLASTER RIFLE', weaponType: THARDIN_BLASTER_RIFLE.weaponType, blurb: 'A high-precision Thardin energy rifle, standard issue for Nova Guardians. Dark alloy, a long scope, and an amber energy chamber. □ shoulders it and fires; hold □ to keep firing. Lock on to choose a target.' }
 };
@@ -92,6 +93,7 @@ export const ITEMS = {
   // Resources (resources.js): stackable crafting materials. One stack each, counted in inventory.items like everything else here.
   scrap_metal: { name: 'Scrap Metal', kind: 'material', resource: true, color: '#a8744a', blurb: 'Salvaged metal and mechanical components used in technological crafting and repairs.' },
   fresh_wood: { name: 'Fresh Wood', kind: 'material', resource: true, color: '#c9a36b', blurb: 'Green timber from a felled tree or a broken bush, gathered before the ground takes it back. Used in field crafting.' },
+  life_seed: { name: 'Life Seed', kind: 'material', resource: true, color: '#7ee36b', blurb: 'A rare seed released when a living tree falls. Equip it in the Armory and press Square on grassy ground to plant a treehouse.' },
   // Everstone: the in-universe word for any stone. Astralite everstones (astralite stones) are the ones that hold an
   // Astralite and are said to keep it forever; every other stone is plain everstone, gathered from the rubble.
   everstone: { name: 'Everstone', kind: 'material', resource: true, color: '#9a968c', blurb: 'Broken stone gathered from the rubble of a smashed rock. "Everstone" is the old word for every stone; the ones that hold an Astralite (astralite stones) are said to keep it forever. Used in crafting and repairs.' },

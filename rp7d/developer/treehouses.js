@@ -1,12 +1,11 @@
 // Player-planted bases. Tree, cabin, room layout and guard assignments have independent persistent state.
 import * as THREE from 'three';
 import { inventory, saveInv } from './loot.js';
-import { LAND_ROUTES, routeDistance } from './overworld-land.js';
 import { worldDistrictAt } from './world-data.js';
 import { storage } from './storage.js';
 import { createFurnitureMover } from './home-furniture.js';
 import { createPartner } from './zyrex2d.js';
-export const TREEHOUSE = Object.freeze({ growth: 8, construction: 4, height: 4.6, maxHP: 240, defenderSlots: 2, guardRadius: 12, recipe: { fresh_wood: 10, scrap_metal: 10, everstone: 10 } });
+export const TREEHOUSE = Object.freeze({ growth: 8, height: 4.6, maxHP: 240, defenderSlots: 2, guardRadius: 12 });
 const V = (x=0,y=0,z=0) => new THREE.Vector3(x,y,z);
 const mat = c => new THREE.MeshStandardMaterial({color:c, roughness:.8});
 const wood=mat('#87532d'), bark=mat('#604027'), green=mat('#306d39'), gold=mat('#d4ad52'), blue=mat('#136699');
@@ -39,24 +38,20 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
   function at(rec,x,z,y=0) { const c=Math.cos(rec.yaw),s=Math.sin(rec.yaw); return V(rec.x+x*c+z*s,rec.y+y,rec.z-x*s+z*c); }
   function disableCabin(L) { L.cabin.traverse(o=>{if(o.isMesh)world.mass.disableInstance(o,-1);}); L.collision=false; L.cabin.visible=false; if(L.platform)L.platform.active=false; }
   function enableCabin(L) { if(L.collision)return; L.cabin.visible=true; L.cabin.scale.setScalar(1); L.root.updateMatrixWorld(true); world.addMesh(L.cabin); const p=at(L.rec,0,1.7);if(!L.platform)L.platform=world.addSurface({shape:'box',x:p.x,z:p.z,y:L.rec.y+TREEHOUSE.height,hw:3.2,hd:2.9,rot:L.rec.yaw,active:true});else L.platform.active=true; L.collision=true; }
-  function restore(rec) { if(live.has(rec.id))return live.get(rec.id); rec.furniture ||= []; rec.defenders ||= []; rec.maxHP ||= TREEHOUSE.maxHP; const L={...prefab(rec),rec,guards:new Map(),attackTimes:new Map(),collision:false}; world.structures.add(L.root); live.set(rec.id,L); L.cabin.visible=rec.cabin==='built'||rec.cabin==='building';if(rec.cabin==='building')L.cabin.scale.setScalar(Math.max(.01,(rec.buildTime||0)/TREEHOUSE.construction)); if(rec.cabin==='built'){enableCabin(L);L.cabin.traverse(o=>{if(o.isMesh&&o.userData.baseColor)o.material.color.copy(o.userData.baseColor).lerp(new THREE.Color('#332b25'),rec.hp<rec.maxHP*.3?.65:rec.hp<rec.maxHP*.65?.3:0);});} L.tree.scale.setScalar(Math.max(.015,Math.min(1,(rec.growth||0)/8))); if(rec.growth>=8)world.addMesh(L.tree); return L; }
+  function restore(rec) { if(live.has(rec.id))return live.get(rec.id); rec.furniture ||= []; rec.defenders ||= []; rec.maxHP ||= TREEHOUSE.maxHP; const L={...prefab(rec),rec,guards:new Map(),attackTimes:new Map(),collision:false}; world.structures.add(L.root); live.set(rec.id,L); L.cabin.visible=rec.cabin==='built'||rec.cabin==='building'||rec.cabin==='growing'; const scale=Math.max(.015,Math.min(1,(rec.growth||0)/8));L.cabin.scale.setScalar(scale); if(rec.cabin==='built'){enableCabin(L);L.cabin.traverse(o=>{if(o.isMesh&&o.userData.baseColor)o.material.color.copy(o.userData.baseColor).lerp(new THREE.Color('#332b25'),rec.hp<rec.maxHP*.3?.65:rec.hp<rec.maxHP*.65?.3:0);});} L.tree.scale.setScalar(scale); if(rec.growth>=8){rec.cabin='built';L.cabin.scale.setScalar(1);world.addMesh(L.tree);enableCabin(L);} return L; }
   for(const rec of inventory.treehouses)restore(rec);
   function validate(x,z) {
-    if(blocked()||rizer.seq||!rizer.onGround||Math.abs(rizer.position.y-world.heightAt(rizer.position.x,rizer.position.z))>.6)return {ok:false,why:'Stand on open ground first'};
-    const y=world.heightAt(x,z), hs=[];
-    for(let i=0;i<16;i++){const a=i*Math.PI/8,px=x+Math.sin(a)*5.8,pz=z+Math.cos(a)*5.8; if(!world.onLand(px,pz)||world.waterAt(px,pz)>world.heightAt(px,pz)-.1)return {ok:false,why:'Keep the whole tree on dry land'}; hs.push(world.heightAt(px,pz)); const p=V(px,y+.5,pz); if(world.resolve(p,.4))return {ok:false,why:'Leave space around existing objects'}; }
-    if(Math.max(...hs)-Math.min(...hs)>.65)return {ok:false,why:'Choose flatter ground'};
-    for(const route of LAND_ROUTES)if(routeDistance(x,z,route)<7)return {ok:false,why:'Keep inter-district routes clear'};
-    for(const p of world.T.pads||[])if(Math.hypot(x-p.x,z-p.z)<p.r+7)return {ok:false,why:'Keep clear of buildings and landmarks'};
-    const district=worldDistrictAt(x,z); if(!district)return {ok:false,why:'Choose a district wilderness location'}; for(let i=0;i<16;i++){const a=i*Math.PI/8;if(worldDistrictAt(x+Math.sin(a)*8,z+Math.cos(a)*8)!==district)return {ok:false,why:'Keep district boundaries clear'};}
-    for(const o of world.obstacles){if(o.active===false||o.top<y)continue;const radius=o.type==='box'?Math.hypot(o.hw,o.hd):o.r;if(Math.hypot(o.x-x,o.z-z)<radius+5.8)return {ok:false,why:'Keep clear of existing structures and props'};}
-    const rd=world.T.roads?.nearest?.(x,z,14); if(rd && rd.d<(rd.line?.width||4)/2+6)return {ok:false,why:'Keep the roads clear'};
-    for(const c of world.cavePlan?.placements||[]) { const p=c.center||c.entrance||c;  if(Number.isFinite(p.x)&&Math.hypot(x-p.x,z-p.z)<(c.footprintR||12)+8)return {ok:false,why:'Keep cave entrances clear'}; }
-    for(const L of live.values())if(Math.hypot(x-L.rec.x,z-L.rec.z)<13)return {ok:false,why:'Too close to another planted tree'};
-    for(const p of occupants())if(Math.hypot(x-p.x,z-p.z)<7)return {ok:false,why:'Someone is standing in the build area'};
-    const center=V(x,y+.5,z);if(world.resolve(center,.5))return {ok:false,why:'An object occupies this ground'};return {ok:true,x,y,z,yaw:rizer.facing,district};
+    if(blocked()||rizer.seq||!rizer.onGround)return {ok:false,why:'Stand on grassy ground to plant'};
+    const y=world.heightAt(x,z);
+    if(!world.onLand(x,z)||world.waterAt(x,z)>y-.1)return {ok:false,why:'Plant on grass, away from water'};
+    const road=world.T.roads?.nearest?.(x,z,3);if(road&&road.d<(road.line?.width||4)/2+.45)return {ok:false,why:'Plant beside the road, on grass'};
+    for(const site of world.T.pads||[])if(Math.hypot(x-site.x,z-site.z)<site.r+.45)return {ok:false,why:'Plant on grass outside buildings and landmarks'};
+    const center=V(x,y+.35,z);if(world.resolve(center,.38))return {ok:false,why:'Choose a clear patch of grass'};
+    if(occupants().some(p=>Math.hypot(x-p.x,z-p.z)<1.2))return {ok:false,why:'Move clear of other characters'};
+    for(const L of live.values())if(Math.hypot(x-L.rec.x,z-L.rec.z)<3.5)return {ok:false,why:'There is already a treehouse here'};
+    return {ok:true,x,y,z,yaw:rizer.facing,district:worldDistrictAt(x,z)};
   }
-  function start() { if(blocked()||motion)return toast('Step into the wilderness to plant a tree'); close(); placing=true; toast('Plant tree · choose open ground · ○ / E plant · △ / Escape cancel'); }
+  function start() { if(blocked()||motion)return toast('Stand on grass with a Life Seed equipped'); plantSeed(); }
   function cancel() { placing=false; ghost.visible=false; }
   function beginMotion(kind,rec,from,to,duration,done) {
     const slot=kind==='plant'?'plantTree':'ladderClimb', action=rizer.actor?.acts[slot];
@@ -64,23 +59,26 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
     const clip=action?.getClip(); 
     motion={kind,rec,from,to,t:0,duration:duration||clip?.duration||1,clip,done,align:true}; rizer.actor?.stopPreview(); const m=motion;const ready=()=>{if(motion!==m)return;m.align=false;if(clip)rizer.actor.startPreview(clip,{loop:true,speed:0});};if(Math.hypot(rizer.position.x-from.x,rizer.position.z-from.z)>.12){if(!rizer.walkTo(from,rec.yaw+Math.PI,ready)){motion=null;return false;}}else ready();rizer.vel.set(0,0,0); rizer.vy=0;rizer.speed=0;return true;
   }
-  function plant() {
-    if(candidate)candidate=validate(candidate.previewX??candidate.x,candidate.previewZ??candidate.z);
-    if(!candidate?.ok)return toast(candidate?.why||'Choose open ground');
-    const rec={id:'treehouse-'+(globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2)),...candidate,growth:0,cabin:'unbuilt',hp:TREEHOUSE.maxHP,maxHP:TREEHOUSE.maxHP,furniture:[],defenders:[]}; delete rec.ok;delete rec.checkedAt;delete rec.previewX;delete rec.previewZ;
-    const foot=at(rec,0,5.9);foot.y=world.groundAt(foot.x,foot.z,rizer.position.y+1);
-    const a=rizer.actor?.acts.plantTree;if(!a)return toast('Planting animation is still loading');
-    if(beginMotion('plant',rec,foot,foot,a.getClip().duration,()=>{inventory.treehouses.push(rec);restore(rec);persist();toast('Seed planted · magical growth begins');})){cancel();rizer.facing=rec.yaw+Math.PI;}
-  }
-  function build(rec) { if(rec.growth<8)return toast('Let the tree finish growing'); if(rec.cabin==='built')return;
-    if(!storage.consumeResources(TREEHOUSE.recipe).ok)return toast('INSUFFICIENT BUILDING MATERIALS · 10 Fresh Wood · 10 Scrap Metal · 10 Everstone');
-    close();rec.cabin='building';rec.paid={...TREEHOUSE.recipe};rec.buildTime=0;rec.hp=rec.maxHP;persist();const L=live.get(rec.id);L.cabin.visible=true;toast('Building your treehouse');
+  function plantSeed() {
+    if(rizer.weapon!=='life_seed')return toast('Equip your Life Seed from the Armory wheel first');
+    if((inventory.items?.life_seed||0)<1||!inventory.owned.includes('life_seed'))return toast('Find a Life Seed when a tree falls · then equip it in the Armory');
+    if(motion||blocked()||!rizer.onGround)return false;
+    const x=rizer.position.x+Math.sin(rizer.facing)*1.5,z=rizer.position.z+Math.cos(rizer.facing)*1.5,valid=validate(x,z);
+    if(!valid.ok){toast(valid.why);return false;}
+    const rec={id:'treehouse-'+(globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2)),...valid,growth:0,cabin:'growing',hp:TREEHOUSE.maxHP,maxHP:TREEHOUSE.maxHP,furniture:[],defenders:[]};delete rec.ok;
+    const foot=V(x,world.groundAt(x,z,rizer.position.y+1),z),a=rizer.actor?.acts.plantTree;if(!a)return toast('Planting animation is still loading');
+    if(beginMotion('plant',rec,foot,foot,a.getClip().duration,()=>{inventory.treehouses.push(rec);restore(rec);persist();toast('Life Seed planted · magical growth begins · 8 seconds');})){
+      inventory.items.life_seed--;
+      if(inventory.items.life_seed<=0){inventory.items.life_seed=0;inventory.owned=inventory.owned.filter(k=>k!=='life_seed');inventory.wheel=inventory.wheel.map(k=>k==='life_seed'?null:k);if(inventory.equipped==='life_seed'){inventory.equipped='fists';rizer.setWeapon('fists');}}
+      persist();rizer.facing=rec.yaw+Math.PI;return true;
+    }
+    return false;
   }
   function dismantle(rec) {
     if(rec.cabin!=='built')return;
     const refunds=Object.fromEntries(Object.entries(rec.paid||{}).map(([id,n])=>[id,Math.floor(n*.5)]));
-    if(!storage.refundResources(refunds).ok)return toast('Make room in your Zycube before dismantling');
-    rec.cabin='dismantled';rec.paid=null;rec.defenders=[];disableCabin(live.get(rec.id));persist();close();toast('Treehouse dismantled · 50% materials recovered · planted tree kept');
+    if(Object.keys(refunds).length&&!storage.refundResources(refunds).ok)return toast('Make room in your Zycube before dismantling');
+    rec.cabin='dismantled';rec.paid=null;rec.defenders=[];disableCabin(live.get(rec.id));persist();close();toast('Treehouse removed · planted tree kept');
   }
   function destroy(rec) { fx?.emit(rec.x,rec.y+TREEHOUSE.height,rec.z,30,{color:'#a08359',speed:3,up:1.4,size:.25,life:1});rec.cabin='destroyed';rec.hp=0;rec.defenders=[];disableCabin(live.get(rec.id));persist();toast('Treehouse destroyed · your tree, furnishings and saved progress remain');if(activeInterior?.rec===rec){exit();rizer.position.copy(at(rec,0,5.5));} }
   function ascend(rec) { close(); const from=at(rec,0,4.7),to=at(rec,0,3.8,TREEHOUSE.height);from.y=world.groundAt(from.x,from.z,rec.y+1); const duration=rizer.actor?.acts.ladderClimb?.getClip().duration; rizer.facing=rec.yaw+Math.PI;
@@ -94,15 +92,14 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
   }
   function close(){if(panel)panel.remove();panel=null;panelRec=null;}
   function open(rec) {close();panelRec=rec;panelIndex=0;panel=document.createElement('section'); panel.style.cssText='position:fixed;z-index:65;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,90vw);max-height:85vh;overflow:auto;background:#101d23;color:#eee;border:2px solid #c6a559;border-radius:12px;padding:24px;font:16px system-ui;box-shadow:0 15px 80px #000a';
-    const built=rec.cabin==='built';panel.innerHTML=`<h2>Rizer’s Treehouse</h2><p>${rec.growth<8?'Growing · '+Math.round(rec.growth/8*100)+'%':built?'Integrity '+Math.ceil(rec.hp)+' / '+rec.maxHP:'Mature planted tree · ready to build'}</p><div data-actions></div><p style="font-size:12px">↑ ↓ select · ✕ / Enter choose · ○ / Escape close</p>`;
+    const built=rec.cabin==='built';panel.innerHTML=`<h2>Rizer’s Treehouse</h2><p>${rec.growth<8?'Growing · '+Math.round(rec.growth/8*100)+'%':built?'Integrity '+Math.ceil(rec.hp)+' / '+rec.maxHP:'Mature planted tree'}</p><div data-actions></div><p style="font-size:12px">↑ ↓ select · ✕ / Enter choose · ○ / Escape close</p>`;
     const actions=panel.querySelector('[data-actions]');const button=(label,fn)=>{const b=document.createElement('button');b.textContent=label;b.style.cssText='display:block;width:100%;margin:8px 0;padding:12px;background:#203640;color:white;border:1px solid #b29c66;border-radius:5px;text-align:left';b.onclick=fn;actions.append(b);};
-    if(!built&&rec.growth>=8&&rec.cabin!=='building')button('Build · 10 wood + 10 scrap + 10 stone',()=>build(rec));
     if(built&&!activeInterior)button('Climb ladder',()=>ascend(rec));
     if(built){if(activeInterior)button('Exit via ladder',()=>{close();leaveDoor(activeInterior);});button('Save progress here',()=>{if(!activeInterior)return toast('Enter your treehouse to save here');persist();saveGame();toast('TREEHOUSE · progress saved');});
       if(activeInterior) {for(const id of ['plant','coffee','lamp1','sofa','bed'])button('Place '+(home.furn.byId(id)?.name||id),()=>{const I=interior(rec);if(I.addFurniture(id))toast('Furniture placed · R lock · □ / J move · use management to rotate');});
         for(const p of interior(rec).furn.pieces)button('Rotate '+p.name,()=>{const old=p.yaw;p.yaw+=Math.PI/2;if(!interior(rec).furn.check(p,p.dx,p.dz).ok){p.yaw=old;return toast('Keep the exit and other furniture clear');}interior(rec).furn.apply(p,p.dx,p.dz);interior(rec).furn.save();open(rec);}); }
       for(const a of inventory.bondedZyrex||[])button((rec.defenders.includes(a.id)?'Recall ':'Assign defender · ')+a.name+(rec.guardStates?.[a.id]?' · '+rec.guardStates[a.id]:''),()=>assign(rec,a.id));
-      button('Dismantle · recover 50% of construction materials',()=>{actions.replaceChildren();button('Confirm dismantle · returns 5 wood, 5 scrap, 5 stone',()=>{if(activeInterior)return toast('Exit via the ladder before dismantling your treehouse');dismantle(rec);});button('Cancel',()=>open(rec));});
+      button('Remove treehouse',()=>{actions.replaceChildren();button('Confirm removal',()=>{if(activeInterior)return toast('Exit via the ladder before removing your treehouse');dismantle(rec);});button('Cancel',()=>open(rec));});
     }button('Close',close);document.body.append(panel);select(0);document.exitPointerLock?.(); }
   function select(n){const bs=[...panel?.querySelectorAll('button')||[]];if(!bs.length)return;panelIndex=(n+bs.length)%bs.length;bs.forEach((b,i)=>b.style.background=i===panelIndex?'#466579':'#203640');}
   function pad(p){if(!panel)return;if(p.edge(12))select(panelIndex-1);if(p.edge(13))select(panelIndex+1);if(p.edge(0))panel.querySelectorAll('button')[panelIndex]?.click();if(p.edge(1))close();}
@@ -148,13 +145,11 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
 
   }
   function update(dt,t,outdoors) {
-    for(const L of live.values()){const rec=L.rec;if(rec.growth<8){rec.growth=Math.min(8,rec.growth+dt);const u=Math.max(.015,rec.growth/8),s=u*u*(3-2*u);L.tree.scale.setScalar(s);if(rec.growth===8){L.tree.scale.setScalar(1);L.root.updateMatrixWorld(true);world.addMesh(L.tree);persist();toast('Tree mature · approach the ladder to build');}}
-      if(rec.cabin==='building'){rec.buildTime=Math.min(TREEHOUSE.construction,(rec.buildTime||0)+dt);L.cabin.scale.setScalar(Math.max(.01,rec.buildTime/TREEHOUSE.construction));if(rec.buildTime===TREEHOUSE.construction){rec.cabin='built';enableCabin(L);persist();toast('TREEHOUSE COMPLETE · climb the ladder to enter');}}
+    for(const L of live.values()){const rec=L.rec;if(rec.growth<8){rec.growth=Math.min(8,rec.growth+dt);const u=Math.max(.015,rec.growth/8),s=u*u*(3-2*u);L.tree.scale.setScalar(s);L.cabin.visible=true;L.cabin.scale.setScalar(s);if(rec.growth===8){L.tree.scale.setScalar(1);L.cabin.scale.setScalar(1);L.root.updateMatrixWorld(true);world.addMesh(L.tree);rec.cabin='built';enableCabin(L);persist();toast('TREEHOUSE GROWN · climb the ladder to enter');}}
       if(outdoors)guards(L,dt,t);
     }
-    if(placing){const x=rizer.position.x+Math.sin(rizer.facing)*8,z=rizer.position.z+Math.cos(rizer.facing)*8;if(!candidate||t-(candidate.checkedAt||0)>.2||Math.hypot(x-(candidate.previewX??x),z-(candidate.previewZ??z))>.4){candidate={...validate(x,z),checkedAt:t,previewX:x,previewZ:z};}ghost.visible=true;ghost.position.set(x,world.heightAt(x,z)+.08,z);ghost.material.color.set(candidate.ok?'#7ed9a1':'#ef5962');prompt('PLANT TREE',candidate.ok?'○ / E plant · △ cancel':candidate.why);}
     if(motion){const m=motion;if(rizer.hp<=0){rizer.actor?.stopPreview();motion=null;return;}if(m.align){if(!rizer.auto){motion=null;toast('Could not reach the planting / ladder position');}return;}m.t+=dt;const u=Math.min(1,m.t/m.duration);rizer.position.copy(m.from).lerp(m.to,u);rizer.vel.set(0,0,0);rizer.vy=rizer.speed=0;if(m.clip&&rizer.actor.preview)rizer.actor.preview.t=m.kind==='ladder'&&m.to.y<m.from.y?(1-u)*(m.clip.duration-.001):u*(m.clip.duration-.001);rizer.actor?.update(0,0,false);rizer.body.root.rotation.y=rizer.facing;cam.snapBehind(rizer,3.6);if(u===1){rizer.actor?.stopPreview();motion=null;m.done();}}
-    if(!placing&&!motion&&!panel&&outdoors){const n=nearest();if(n)prompt('RIZER’S TREEHOUSE',n.rec.growth<8?'Magical tree growing':n.rec.cabin==='built'?'○ / E manage or enter · △ descend from platform':'○ / E build treehouse');}
+    if(!motion&&!panel&&outdoors){const n=nearest();if(n)prompt('RIZER’S TREEHOUSE',n.rec.growth<8?'Magical growth · '+Math.round(n.rec.growth/8*100)+'%':n.rec.cabin==='built'?'○ / E manage or climb ladder · △ descend':'Planted tree');}
   }
-  return {start,cancel,plant,interact,nearest,ascend,descend,open,close,pad,update,interior,attackTarget,damage,get placing(){return placing;},get busy(){return !!motion;},get isOpen(){return !!panel;},get activeInterior(){return activeInterior;},get live(){return live;},save:persist};
+  return {start,cancel,plantSeed,interact,nearest,ascend,descend,open,close,pad,update,interior,attackTarget,damage,get placing(){return placing;},get busy(){return !!motion;},get isOpen(){return !!panel;},get activeInterior(){return activeInterior;},get live(){return live;},save:persist};
 }

@@ -1232,6 +1232,7 @@ const ICONS = {
   bow: '<svg viewBox="0 0 48 48"><path d="M34 5Q8 14 20 24Q8 34 34 43" fill="none" stroke="#f6e9f5" stroke-width="5" stroke-linecap="round"/><path d="M34 5V43" stroke="#d6a746" stroke-width="1.8"/><path d="M9 24h32m-6-5 6 5-6 5" fill="none" stroke="#d6a746" stroke-width="2.2"/><circle cx="19" cy="24" r="3" fill="#fff2ff" stroke="#d6a746"/></svg>',
   guitar: '<svg viewBox="0 0 48 48"><path d="M29 17l12-12" stroke="#4a2a17" stroke-width="4" stroke-linecap="round"/><path d="M38 4l5 5-3 2-4-4z" fill="#d11c26"/><path d="M26 16c-4-2-8 0-9 4-1 2-3 2-5 3-5 2-6 9-2 13s11 3 13-2c1-2 1-4 3-5 4-1 6-5 4-9l-2 2-4-4z" fill="#d11c26" stroke="#ffb3b3" stroke-width="1.2"/><path d="M14 26l5 5" stroke="#f1ece2" stroke-width="3"/><path d="M18 34l12-12" stroke="#d9dde2" stroke-width="0.9"/><circle cx="14" cy="34" r="2" fill="#d7a745"/></svg>',
   workstation: '<svg viewBox="0 0 48 48"><rect x="7" y="18" width="34" height="5" rx="1" fill="#7fd6ff" stroke="#d7f4ff" stroke-width="1"/><path d="M11 23v15M37 23v15M11 31h26" stroke="#9aa7b8" stroke-width="3" stroke-linecap="round"/><path d="M17 18l4-8h6l4 8" fill="none" stroke="#d7a745" stroke-width="2"/><circle cx="24" cy="13" r="2.4" fill="#5ef2ff"/></svg>',
+  life_seed: '<svg viewBox="0 0 48 48"><path d="M24 40C12 35 10 25 20 18c1-7 8-11 17-10 0 10-4 17-13 19" fill="#347c39" stroke="#9bea72" stroke-width="2"/><path d="M12 39c7-9 14-14 22-20" fill="none" stroke="#d4aa58" stroke-width="2.5" stroke-linecap="round"/><circle cx="34" cy="12" r="2" fill="#e7f7a0"/></svg>',
   telescope: '<svg viewBox="0 0 48 48"><path d="M24 29 13 45M24 29 35 45M24 29V45" stroke="#a0774a" stroke-width="2.4" stroke-linecap="round"/><g transform="rotate(-38 24 26)"><rect x="7" y="21.5" width="31" height="9" rx="2" fill="#1b3166" stroke="#c9a64f" stroke-width="1.4"/><rect x="33" y="19.5" width="7" height="13" rx="1.6" fill="#58c4ff" stroke="#c9a64f" stroke-width="1"/><path d="M17 21.5v9M25 21.5v9" stroke="#c9a64f" stroke-width="1.6"/></g><circle cx="24" cy="29" r="2.6" fill="#c9a64f"/></svg>',
   blaster: '<svg viewBox="0 0 48 48"><path d="M4 27h9l3-4h14v6H16l-3 4H6z" fill="#2a2f38" stroke="#59616e" stroke-width="1"/><rect x="22" y="22.5" width="13" height="5" rx="2" fill="#ffab45"/><path d="M35 25h9" stroke="#59616e" stroke-width="2.6" stroke-linecap="round"/><rect x="15" y="17" width="13" height="3.6" rx="1.6" fill="#23272e" stroke="#39d8ff" stroke-width="0.9"/><path d="M17 29l-2 8h4l2-7" fill="#23272e"/><path d="M20 30q3 4 6 0" fill="none" stroke="#39d8ff" stroke-width="1.3"/></svg>'
 };
@@ -1240,7 +1241,7 @@ function syncWheel() {
   let w = Array.isArray(inventory.wheel) ? inventory.wheel.slice(0, 6) : null;
   if (!w) w = ['fists', ...inventory.owned.filter(k => k !== 'fists')].slice(0, 6); // first run: everything owned, in order
   while (w.length < 6) w.push(null);
-  w = w.map(k => k && inventory.owned.includes(k) ? k : null);
+  w = w.map(k => k && (inventory.owned.includes(k) || k === 'life_seed' && (inventory.items?.life_seed || 0) > 0) ? k : null);
   if (!w.includes('fists')) { const e = w.indexOf(null); w[e >= 0 ? e : 0] = 'fists'; }
   for (const k of inventory.owned) if (!(inventory.seen ||= []).includes(k)) { inventory.seen.push(k); if (!w.includes(k)) { const e = w.indexOf(null); if (e >= 0) w[e] = k; } } // new finds go on the wheel if there's room
   if (!inventory.hip) inventory.hip = [...inventory.owned].reverse().find(k => BLADES[k] && w.includes(k)) || null; // nothing used yet: the newest blade rides on the hip
@@ -1556,6 +1557,15 @@ function freshWoodTick() {
     sound(); showToast(`+${got.length} ${name} · ${total} carried`);
   };
   if (N?.trees?.collectWood && room('fresh_wood')) gather('fresh_wood', N.trees.collectWood(p.x, p.y, p.z, 0.9), '#e2c08a', 'FRESH WOOD', () => { sfx.play('land', 0.4, 1.25); sfx.play('light', 0.3, 0.7); });
+  if (N?.trees?.collectLifeSeeds && room('life_seed')) {
+    const seeds = N.trees.collectLifeSeeds(p.x, p.y, p.z, 0.9);
+    if (seeds.length) {
+      const total = addResource('life_seed', seeds.length);
+      if (!inventory.owned.includes('life_seed')) inventory.owned.push('life_seed');
+      for (const g of seeds) fx.emit(g.x, g.y + 0.2, g.z, 10, { color: '#86ed65', speed: 1.4, up: 1.4, size: 0.2, life: 0.5 });
+      syncWheel(); wheel.render(); sfx.play('light', 0.55, 1.2); showToast(`LIFE SEED ×${seeds.length} · ${total} carried · added to Armory`);
+    }
+  }
   if (N?.stones?.collectStone && room('everstone')) gather('everstone', N.stones.collectStone(p.x, p.y, p.z, 0.9), '#cfcac0', 'EVERSTONE', () => { sfx.play('land', 0.5, 0.8); sfx.play('light', 0.3, 0.55); });
 }
 function resourceEvent(type, w, n) {
@@ -2146,13 +2156,11 @@ function update(dt, t, realDt = dt) {
   const act = started && !scopeView && !menu && !ko && !lab.previewing && !buildLab?.isOpen && !bondGame?.active && !ufoTransition && !rizer.seq && !treehouses?.busy && !rizer.bail && !rizer.prayer && !astral.rollingCast && !pcUse && !seating?.active; // prayer and the authored Rolling Thunder cast own Rizer until the clip ends
   // a lab preview / hologram transition / walking through a door holds Rizer still
   if (!act) { inp.x = inp.z = 0; inp.jumpPressed = false; inp.dodgePressed = inp.emotePressed = inp.crouchPressed = false; }
-  if (!menu && started && !treehouses?.busy && pressed.has('KeyN')) { if (homeMode && indoor.treehouse) indoor.manage(); else if (!homeMode) { const near=treehouses?.nearest(); if(near) treehouses.open(near.rec); else treehouses?.start(); } pressed.delete('KeyN'); }
-  const treePlanting = !!treehouses?.placing;
-  const treeNear = !homeMode && !menu && !treePlanting && act ? treehouses?.nearest() : null;
-  if (!menu && treePlanting) { if (pressed.has('KeyE') || pad?.interact) treehouses.plant(); else if (pressed.has('Escape') || pad?.kick) treehouses.cancel(); }
-  else if (treeNear && (pressed.has('KeyE') || pad?.interact)) treehouses.interact();
+  if (!menu && started && !treehouses?.busy && pressed.has('KeyN')) { if (homeMode && indoor.treehouse) indoor.manage(); else if (!homeMode) { const near=treehouses?.nearest(); if(near) treehouses.open(near.rec); } pressed.delete('KeyN'); }
+  const treeNear = !homeMode && !menu && act ? treehouses?.nearest() : null;
+  if (treeNear && (pressed.has('KeyE') || pad?.interact)) treehouses.interact();
   else if (treeNear && (pad?.kick || pressed.has('KeyK')) && Math.abs(rizer.position.y-treeNear.rec.y-4.6)<.7) treehouses.descend(treeNear.rec);
-  const treeConsumed = treePlanting || !!treehouses?.busy || !!treehouses?.isOpen || (!!treeNear && !!rizer.seq);
+  const treeConsumed = !!treehouses?.busy || !!treehouses?.isOpen || (!!treeNear && !!rizer.seq);
   if (treeConsumed) { inp.x=inp.z=0; inp.jumpPressed=inp.jumpHeld=inp.crouchPressed=inp.dodgePressed=inp.emotePressed=false; for(const k of ['KeyE','KeyF','KeyJ','KeyK','MousePunch','MouseKick']) pressed.delete(k); }
   if (homeMode && indoor.treehouse) indoor.mover.update(dt,inp,{active:act&&!menu,lock:pressed.has('KeyR')||pressed.has('MouseLock')||!!pad?.lock,square:pressed.has('KeyJ')||pressed.has('MousePunch')||!!pad?.punch,cancel:pressed.has('KeyE')||!!pad?.interact});
   const placingNow = !!dep?.placing; // placing: ○ / E confirms, △ cancels, and nothing else acts on those buttons
@@ -2236,7 +2244,8 @@ function update(dt, t, realDt = dt) {
       else if (it?.door) { rizer.playInteract(true); showToast(`◈ ${it.name} · sealed for now`); }
     }
     const square = pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch;
-    if (square && tryAirSlam()) {} // in the air + locked on an enemy: the aerial slam
+    if (square && rizer.weapon === 'life_seed' && !rizer.flying) { treehouses?.plantSeed(); pressed.delete('KeyJ'); pressed.delete('MousePunch'); }
+    else if (square && tryAirSlam()) {} // in the air + locked on an enemy: the aerial slam
     else if (!rizer.flying && square) {
       if (rizer.weapon === 'bow') firePearlbow(); else if (rizer.weapon === 'guitar') toggleGuitar(); else if (rizer.weapon === 'telescope') toggleScope(); else if (rizer.weapon === 'workstation') buildWorkstation(); else if (rizer.weapon === 'blaster') rifleUp = Math.max(rifleUp, 0.01); else rizer.strike('punch');
     }

@@ -66,8 +66,8 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
     const x=rizer.position.x+Math.sin(rizer.facing)*1.5,z=rizer.position.z+Math.cos(rizer.facing)*1.5,valid=validate(x,z);
     if(!valid.ok){toast(valid.why);return false;}
     const rec={id:'treehouse-'+(globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2)),...valid,growth:0,cabin:'growing',hp:TREEHOUSE.maxHP,maxHP:TREEHOUSE.maxHP,furniture:[],defenders:[]};delete rec.ok;
-    const foot=V(x,world.groundAt(x,z,rizer.position.y+1),z),a=rizer.actor?.acts.plantTree;if(!a)return toast('Planting animation is still loading');
-    if(beginMotion('plant',rec,foot,foot,a.getClip().duration,()=>{inventory.treehouses.push(rec);restore(rec);persist();toast('Life Seed planted · magical growth begins · 8 seconds');})){
+    const standing=rizer.position.clone(),a=rizer.actor?.acts.plantTree;if(!a)return toast('Planting animation is still loading');
+    if(beginMotion('plant',rec,standing,standing,a.getClip().duration,()=>{inventory.treehouses.push(rec);restore(rec);persist();toast('Life Seed planted · magical growth begins · 8 seconds');})){
       inventory.items.life_seed--;
       if(inventory.items.life_seed<=0){inventory.items.life_seed=0;inventory.owned=inventory.owned.filter(k=>k!=='life_seed');inventory.wheel=inventory.wheel.map(k=>k==='life_seed'?null:k);if(inventory.equipped==='life_seed'){inventory.equipped='fists';rizer.setWeapon('fists');}}
       persist();rizer.facing=rec.yaw+Math.PI;return true;

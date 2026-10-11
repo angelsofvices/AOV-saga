@@ -1243,7 +1243,20 @@ function syncWheel() {
   while (w.length < 6) w.push(null);
   w = w.map(k => k && (inventory.owned.includes(k) || k === 'life_seed' && (inventory.items?.life_seed || 0) > 0) ? k : null);
   if (!w.includes('fists')) { const e = w.indexOf(null); w[e >= 0 ? e : 0] = 'fists'; }
-  for (const k of inventory.owned) if (!(inventory.seen ||= []).includes(k)) { inventory.seen.push(k); if (!w.includes(k)) { const e = w.indexOf(null); if (e >= 0) w[e] = k; } } // new finds go on the wheel if there's room
+  for (const k of inventory.owned) if (!(inventory.seen ||= []).includes(k)) {
+    inventory.seen.push(k);
+    if (!w.includes(k)) {
+      let e = w.indexOf(null);
+      // Life Seeds must remain usable on a full wheel; temporarily free the last non-fists slot.
+      if (e < 0 && k === 'life_seed') e = [...w.keys()].reverse().find(i => w[i] && w[i] !== 'fists' && w[i] !== inventory.equipped) ?? [...w.keys()].reverse().find(i => w[i] !== 'fists');
+      if (e >= 0) w[e] = k;
+    }
+  }
+  if ((inventory.items?.life_seed || 0) > 0 && !w.includes('life_seed')) {
+    let e = w.indexOf(null);
+    if (e < 0) e = [...w.keys()].reverse().find(i => w[i] && w[i] !== 'fists' && w[i] !== inventory.equipped) ?? [...w.keys()].reverse().find(i => w[i] !== 'fists');
+    if (e >= 0) w[e] = 'life_seed';
+  }
   if (!inventory.hip) inventory.hip = [...inventory.owned].reverse().find(k => BLADES[k] && w.includes(k)) || null; // nothing used yet: the newest blade rides on the hip
   inventory.wheel = w; saveInv();
 }
@@ -1781,6 +1794,7 @@ function devMenu() {
     { head: 'PLAYER' },
     { act: 'god', label: 'God mode (HP · STM · AE never drop)', value: onOff(settings.god) },
     { act: 'heal', label: 'Heal to full', value: 'GO' },
+    { act: 'life-seed', label: 'Give a Life Seed', note: `Carried: ${getResourceCount('life_seed')} · adds it to the Armory wheel`, value: 'GIVE' },
     { act: 'sword', label: 'Give the Tearsword of Azurel', value: hasWeapon('sword') ? 'OWNED' : 'GIVE' },
     { act: 'axe', label: 'Give the Jaded Axe of Emeralix', value: hasWeapon('axe') ? 'OWNED' : 'GIVE' },
     { act: 'bow', label: 'Give the Pearlbow of Ivirium', value: hasWeapon('bow') ? 'OWNED' : 'GIVE' },
@@ -1859,6 +1873,7 @@ function menuAction(act) {
   if (act === 'stats') settings.stats = !settings.stats;
   if (act === 'hitboxes') settings.hitboxes = !settings.hitboxes;
   if (act === 'heal') rizer.heal();
+  if (act === 'life-seed') { const total = addResource('life_seed', 1); if (!inventory.owned.includes('life_seed')) inventory.owned.push('life_seed'); saveInv(); syncWheel(); wheel.render(); showToast(`LIFE SEED ×1 · ${total} carried · added to Armory`); }
   if (act.startsWith('rxp:') && !awardRizerXP(Number(act.slice(4)), 'dev')) showToast('RXP is locked until Rizer first steps into the overworld');
   if (act === 'rxpreset') progression.set(0);
   if (act === 'sword' && !hasWeapon('sword')) { inventory.owned.push('sword'); inventory.chestOpen = true; saveInv(); syncWheel(); wheel.render(); showToast('Tearsword of Azurel added · R1 to draw'); }
@@ -2244,7 +2259,7 @@ function update(dt, t, realDt = dt) {
       else if (it?.door) { rizer.playInteract(true); showToast(`◈ ${it.name} · sealed for now`); }
     }
     const square = pressed.has('KeyJ') || pressed.has('MousePunch') || !!padAct?.punch;
-    if (square && rizer.weapon === 'life_seed' && !rizer.flying) { treehouses?.plantSeed(); pressed.delete('KeyJ'); pressed.delete('MousePunch'); }
+    if (square && rizer.weapon === 'life_seed' && !rizer.flying) { if(treehouses?.plantSeed()){syncWheel();wheel.render();} pressed.delete('KeyJ'); pressed.delete('MousePunch'); }
     else if (square && tryAirSlam()) {} // in the air + locked on an enemy: the aerial slam
     else if (!rizer.flying && square) {
       if (rizer.weapon === 'bow') firePearlbow(); else if (rizer.weapon === 'guitar') toggleGuitar(); else if (rizer.weapon === 'telescope') toggleScope(); else if (rizer.weapon === 'workstation') buildWorkstation(); else if (rizer.weapon === 'blaster') rifleUp = Math.max(rifleUp, 0.01); else rizer.strike('punch');

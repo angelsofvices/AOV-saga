@@ -84,7 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-            { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.23', title:'The planetary utilities',
+                { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.24', title:'All 27 planetary utilities work',
+      notes:[
+        'Every planet’s utility now has an ability, in simple form. Art and sound come in a later pass',
+        'Shields, decoys, freezes, grapples, vines, a return beacon and a bio scanner are all usable',
+        'Cave-only and field-only limits are shown when a utility cannot act where you stand',
+        'Breaking, melting and harvesting changes last until the field reloads'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.23', title:'The planetary utilities',
       notes:[
         'Each planet holds a signature utility. Twenty-seven are registered and show in the UTILITY tab',
         'Life Seed, AstraBlaster MK1, Jetpack, Boomfists and Star Satellite are built. The other 22 can be equipped, but their abilities are not written yet',

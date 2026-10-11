@@ -2780,6 +2780,8 @@
   function blocked(x, y, who){
     var ch = at(x, y);
     if (who === P && P && P.alt >= JET.crossAlt) return !!FLY_STOP[ch] || x <= 0 || y <= 0 || x >= M.W - 1 || y >= M.H - 1 || !!npcAt(x, y);
+    if (who === P && P && utilOn('tidewalker-shell') && ch === '~') return !!npcAt(x, y);
+    if (who === P && P && utilOn('phase-dial') && ch === 'M') return !!npcAt(x, y);
     if (who && who.swims && ch === '~') return !!critterAt(x, y);
     if (who && who.flies) return ch === '#' || x <= 0 || y <= 0 || x >= M.W - 1 || y >= M.H - 1 || !!critterAt(x, y) || !!npcAt(x, y) || (P && P.x === x && P.y === y);
     if (SOLID[ch]) return true;
@@ -3008,7 +3010,7 @@
     airTimer += dt;
     if (airTimer > 1) {
       airTimer = 0;
-      if (!dialogOpen && !encounterOpen) { var hz = hazardDrain(); S.air = Math.max(0, S.air - hz.air); S.suit = Math.max(0, S.suit - hz.suit); }
+      if (!dialogOpen && !encounterOpen) { var hz = hazardDrain(); S.air = Math.max(0, S.air - (utilOn('tidewalker-shell') ? 0 : hz.air)); S.suit = Math.max(0, S.suit - hz.suit); }
       hudRefresh();
       if (S.air <= 0) return airDeath();
       if (S.suit <= 0) return recall('SUIT');
@@ -3175,7 +3177,7 @@
     var foe = pickFoeFor(e);
     if (foe) {
       e.state = 'fight'; var st = allyStats(e.id), d = dist(e, foe), inRange = st.range > 1 ? d <= st.range + .4 : mdist(e, foe) <= 1;
-      if (inRange) { faceTo(e, foe); if (e.cd <= 0) { attack(e, foe, { dmg:hitAlly(st, foe), ranged:st.ranged, type:st.type, color:typeCol(st.type) }); e.cd = Math.max(.55, 1.7 - st.spd / 160) + Math.random() * .25; } }
+      if (inRange) { faceTo(e, foe); if (e.cd <= 0) { attack(e, foe, { dmg:ampDmg(e.id, hitAlly(st, foe)), ranged:st.ranged, type:st.type, color:typeCol(st.type) }); e.cd = Math.max(.55, 1.7 - st.spd / 160) + Math.random() * .25; } }
       else { e.stepT = .15; stepToward(e, foe.x, foe.y); }
       return;
     }
@@ -3294,10 +3296,12 @@
   function updateFoe(e, dt){
     e.flash = Math.max(0, e.flash - dt); e.lunge = Math.max(0, e.lunge - dt);
     if (e.state === 'dead') { e.deadT = (e.deadT || 0) + dt; return; }
+    if (e.frozen > 0) { e.frozen -= dt; return; }
+    if (e.slowT > 0) { e.slowT -= dt; dt *= .4; }
     if (entTween(e, dt)) return;
     e.cd -= dt; e.timer -= dt;
     var d = e.def, aggro = (d.behavior === 'lurk' && !e.engaged ? .65 : 1) * (d.aggro || 7), tgt = null, bd = 1e9;
-    foeTargets().forEach(function(t){ var dd = dist(e, t); if (dd < bd) { bd = dd; tgt = t; } });
+    utilTargets(foeTargets()).forEach(function(t){ var dd = dist(e, t); if (dd < bd) { bd = dd; tgt = t; } });
     var leash = dist(e, e.home) > 16;
     if (tgt && (bd <= aggro || (e.engaged && bd <= aggro + 6)) && !leash) {
       if (!e.engaged) alertGroup(e);
@@ -3336,6 +3340,8 @@
     if (src.kind === 'ally' && (src.x + src.y) % 2) sfx.hit(); else if (src.kind === 'foe') sfx.bump();
   }
   function applyHit(t, dmg, src){
+    if (t.decoy) { fxs.push({ k:'spark', x:t.x, y:t.y - .4, t:0, life:.3, color:'#9fd8ff' }); return; }
+    if (t.pilot && utilOn('warshield') && UTIL_DATA.shield && src && ((src.x - P.fx) * UTIL_DATA.shield[0] + (src.y - P.fy) * UTIL_DATA.shield[1]) > 0) { fxs.push({ k:'spark', x:P.fx, y:P.fy - .4, t:0, life:.3, color:'#9fe6ff' }); return; }
     if (t.pilot) {
       S.suit = Math.max(0, S.suit - suitDmg(Math.max(1, Math.round(dmg * .6)))); vibrate(90, .5);
       fxs.push({ k:'num', x:P.fx, y:P.fy - 1, t:0, life:.8, txt:'-' + dmg, color:'#ff6a5a' }); hudRefresh();
@@ -3523,8 +3529,9 @@
     return pts.some(function(q){ return SIDE_SOLID[sTile(q[0], q[1])]; });
   }
   function sHurt(dmg, kx){
-    var p = SIDE.p; if (p.inv > 0) return; p.inv = .9;
-    S.suit = Math.max(0, S.suit - suitDmg(dmg)); p.vx = (kx || -p.face) * 3; p.vy = -4; sfx.hit(); vibrate(120, .5);
+    var p = SIDE.p; if (utilOn('warshield') && (kx || -p.face) === -p.face) { fxs.push({ k:'spark', x:p.x + .3, y:p.y + .2, t:0, life:.3, color:'#9fe6ff' }); return; }
+    if (p.inv > 0) return; p.inv = .9;
+    S.suit = Math.max(0, S.suit - suitDmg(dmg)); if (!utilOn('balance-gyro')) { p.vx = (kx || -p.face) * 3; p.vy = -4; } sfx.hit(); vibrate(120, .5);
     fxs.push({ k:'num', x:p.x + .3, y:p.y - .3, t:0, life:.8, txt:'-' + suitDmg(dmg), color:'#ff6a5a' });
     hudRefresh();
     if (S.suit <= 0) cavePassOut('CARRIED BACK TO THE CAVE MOUTH · your suit gave out. You wake at the mouth with 40% suit.');
@@ -3598,10 +3605,11 @@
     // enemies
     s.en.forEach(function(e){
       if (e.dead) return; e.cd -= dt; e.flash = Math.max(0, e.flash - dt);
+      if (e.frozen > 0) { e.frozen -= dt; return; }
       var dx = p.x - e.x, dy = p.y - e.y, d = Math.abs(dx);
       e.face = dx < 0 ? -1 : 1;
       var floorAhead = s.g[H - 3] && s.g[H - 3][Math.floor(e.x + e.face * .8)] === 'G';
-      if (Math.abs(dy) < 2.2 && d < 9) {
+      if (Math.abs(dy) < 2.2 && d < 9 && !utilOn('mirage-veil')) {
         if (e.range > 1) { if (d > 3.4 && floorAhead) e.x += e.face * e.spd * dt; else if (d < 2.4) e.x -= e.face * e.spd * dt; }
         else if (d > .9 && floorAhead) e.x += e.face * e.spd * dt;
         if (e.cd <= 0 && d <= e.range + .4 && Math.abs(dy) < 1.8) { e.cd = 1.1 + Math.random() * .4; sHurt(Math.round(3 + e.atk * .9 + e.lv * .12), e.face); }
@@ -3747,6 +3755,7 @@
   }
   // the weapon is in Carl's hands only while it fires; the shots and the gun are drawn over the field
   function drawBlasterFx(ox, oy, TZ, z){
+    drawUtilFx(ox, oy, TZ, z);
     bolts.forEach(function(b){
       var X = ox + b.x * TZ, Y = oy + b.y * TZ;
       ctx.fillStyle = 'rgba(255,211,106,.35)'; ctx.fillRect(X - b.dx * 6 * z - 2 * z, Y - b.dy * 6 * z - 2 * z, 4 * z, 4 * z);
@@ -3890,6 +3899,7 @@
     var u = activeUtil();
     if (squareHeld && !surfaceFree()) { squareHeld = false; if (u && UTIL_FX[u] && UTIL_FX[u].release) UTIL_FX[u].release(utilCtx()); }
     if (u && squareHeld && UTIL_FX[u] && UTIL_FX[u].hold && surfaceFree()) UTIL_FX[u].hold(utilCtx(), dt);
+    utilTimers(dt);
     UTIL_PENDING = UTIL_PENDING.filter(function(st){ st.t -= dt; if (st.t > 0) return true; st.fire(); return false; });
   }
   function btnMove(){ squarePress(); }
@@ -3993,6 +4003,377 @@
       toast('STAR SATELLITE · the transponder is locked. Stand clear.');
     }
   };
+  // ── THE REST OF THE PLANETARY UTILITIES · procedural: simple, readable effects. The art pass comes later ──
+  var UTIL_ON = {}, UTIL_DATA = {};   // UTIL_ON: timed states, seconds left. UTIL_DATA: decoy, amp, shield, melt, scan pings, beacon hold
+  function utilOn(id){ return (UTIL_ON[id] || 0) > 0; }
+  function utilToggle(id, secs, msgOn, msgOff){
+    if (utilOn(id)) { UTIL_ON[id] = 0; toast(msgOff); } else { UTIL_ON[id] = secs; toast(msgOn); }
+    sfx.click();
+  }
+  // targets: the foes that can see Carl (the veil hides him), plus a decoy when one stands in the field
+  function utilTargets(list){
+    var out = list.filter(function(t){ return !(t.pilot && !t.decoy && utilOn('mirage-veil')); });
+    if (UTIL_DATA.decoy) out.push(UTIL_DATA.decoy);
+    return out;
+  }
+  function liveFoes(){ return (foes || []).filter(function(f){ return f.state !== 'dead'; }); }
+  function sideLive(){ return SIDE ? SIDE.en.filter(function(e){ return !e.dead; }) : []; }
+  // a point in front of Carl, and the foes within r of it (field: tiles; cave: cells on Carl's row)
+  function frostPoint(c){
+    if (c.side) return { x:c.p.x + c.p.face * 2.5 + .3, y:c.p.y + .45, r:2.5 };
+    return { x:P.x + c.dir[0] * 2 + .5, y:P.y + c.dir[1] * 2 + .5, r:2.5 };
+  }
+  function within(c, q, e){ return c.side ? Math.abs(e.x - q.x) <= q.r && Math.abs(e.y - q.y) < 1.2 : Math.hypot(e.x - q.x, e.y - q.y) <= q.r; }
+  function nearCarl(c, r){
+    if (c.side) return sideLive().filter(function(e){ return Math.abs(e.x - c.p.x) <= r && Math.abs(e.y - c.p.y) < 1.2; });
+    return liveFoes().filter(function(f){ return Math.hypot(f.x - P.fx, f.y - P.fy) <= r; });
+  }
+  function inMap(x, y){ return x >= 0 && y >= 0 && x < M.W && y < M.H; }
+  function refuse(reason){ return { ok:false, reason:reason }; }
+  // a delayed effect that lands on the map it was started on
+  function laterOn(secs, fire){ var mid = M.id; UTIL_PENDING.push({ t:secs, fire:function(){ if (M.id === mid) fire(); } }); }
+
+  // ORIGIN COMPASS (Origon): for 25 s, the concealed places within 14 tiles are marked on the field
+  UTIL_FX['origin-compass'] = {
+    can: function(c){ return c.side ? refuse('The compass reads the surface. Nothing is charted underground.') : { ok:true }; },
+    press: function(c){
+      utilToggle('origin-compass', 25, 'ORIGIN COMPASS · concealed places are marked for 25 s', 'ORIGIN COMPASS · off');
+      if (utilOn('origin-compass')) {
+        var near = (M.landmarks || []).filter(function(l){ return Math.hypot(l.x - P.x, l.y - P.y) <= 14; }).length;
+        toast('ORIGIN COMPASS · ' + near + ' concealed place' + (near === 1 ? '' : 's') + ' within 14 tiles');
+      }
+    }
+  };
+  // LUMELYS LANTERN (Lumeria): hold to light the way around Carl
+  UTIL_FX['lumelys-lantern'] = {
+    can: function(){ return { ok:true }; },
+    press: function(){ toast('LUMELYS LANTERN · hold □ to light the way around you'); },
+    hold: function(){ UTIL_ON['lumelys-lantern'] = .15; }
+  };
+  // DRAGONFLARE HORN (Draevos): a fire strike three tiles ahead, after a short delay
+  function strikeLater(secs, side, cx, cy, r, dmg){
+    var mid = M.id;
+    UTIL_PENDING.push({ t:secs, fire:function(){
+      fxs.push({ k:'burst', x:cx, y:cy, t:0, life:.7, color:'#ff8a3a' });
+      if (side) sideLive().forEach(function(e){ if (Math.abs(e.x - cx) <= r && Math.abs(e.y - cy) < 1.2) hitSideFoe(e, dmg); });
+      else if (M.id === mid) liveFoes().forEach(function(f){ if (Math.hypot(f.x - cx, f.y - cy) <= r) hitFieldFoe(f, dmg); });
+    } });
+  }
+  UTIL_FX['dragonflare-horn'] = {
+    can: function(){ return { ok:true }; },
+    press: function(c){
+      if (c.side) strikeLater(.4, true, c.p.x + c.dir[0] * 3 + .3, c.p.y + .45, 1.5, 50);
+      else strikeLater(.4, false, P.x + c.dir[0] * 3 + .5, P.y + c.dir[1] * 3 + .5, 1.5, 50);
+      UTIL_CD['dragonflare-horn'] = 10; sfx.shutter(); toast('DRAGONFLARE · the strike is on its way');
+    }
+  };
+  // TIDEWALKER SHELL (Thallassar): wade deep water and breathe under it, for 30 s
+  UTIL_FX['tidewalker-shell'] = {
+    can: function(c){ return c.side ? refuse('No water in the caves for the Tidewalker Shell.') : { ok:true }; },
+    press: function(){ utilToggle('tidewalker-shell', 30, 'TIDEWALKER SHELL · you can wade deep water and breathe under it for 30 s', 'TIDEWALKER SHELL · off'); }
+  };
+  // MAGMA FORGE (Pyrauna): hold on meltable metal in front of you; it melts after 1.5 s of steady heat
+  UTIL_FX['magma-forge'] = {
+    can: function(c){
+      if (c.side) return refuse('No metal to melt in the caves.');
+      return UTILS.hasTag(at(c.tx, c.ty), 'meltable_metal') ? { ok:true } : refuse('Magma Forge needs meltable metal in front of you.');
+    },
+    press: function(c){ UTIL_DATA.melt = { x:c.tx, y:c.ty, t:0 }; toast('MAGMA FORGE · hold □ to melt the metal'); },
+    hold: function(c, dt){
+      if (c.side || !UTILS.hasTag(at(c.tx, c.ty), 'meltable_metal')) return;
+      var m = UTIL_DATA.melt;
+      if (!m || m.x !== c.tx || m.y !== c.ty) m = UTIL_DATA.melt = { x:c.tx, y:c.ty, t:0 };
+      m.t += dt;
+      if (m.t >= 1.5) {
+        M.grid[c.ty * M.W + c.tx] = '.'; UTIL_DATA.melt = null;
+        fxs.push({ k:'burst', x:c.tx + .5, y:c.ty + .5, t:0, life:.6, color:'#ff8a3a' }); toast('MAGMA FORGE · the barrier melts');
+      }
+    },
+    release: function(){ UTIL_DATA.melt = null; }
+  };
+  // PHASE DIAL (Quorauna): for 3 s, marker stones (tagged phaseable) let Carl through. Ends with Carl out of them
+  UTIL_FX['phase-dial'] = {
+    can: function(c){ return c.side ? refuse('Nothing to phase through in the caves.') : { ok:true }; },
+    press: function(){ utilToggle('phase-dial', 3, 'PHASE DIAL · marker stones let you through for 3 s', 'PHASE DIAL · solid again'); }
+  };
+  // GEMLINK PRISM (Zyraxis): sync with the nearest Aethren of your party; its next strike is amplified
+  function nearestAlly(r){
+    var best = null, bd = r;
+    (allies || []).forEach(function(a){
+      if (a.kind !== 'ally' || !a.id || a.state === 'down') return;
+      var d = Math.hypot(a.x - P.fx, a.y - P.fy); if (d <= bd) { bd = d; best = a; }
+    });
+    return best;
+  }
+  function ampDmg(id, dmg){
+    var a = UTIL_DATA.amp;
+    if (!a || a.id !== id) return dmg;
+    UTIL_DATA.amp = null; fxs.push({ k:'spark', x:P.fx, y:P.fy - .4, t:0, life:.4, color:'#ffd36a' });
+    return Math.round(dmg * 1.5);
+  }
+  UTIL_FX['gemlink-prism'] = {
+    can: function(c){
+      if (c.side) return refuse('No party in the caves to synchronize with.');
+      return nearestAlly(5) ? { ok:true } : refuse('No Aethren of your party within 5 tiles to synchronize with.');
+    },
+    press: function(){
+      var a = nearestAlly(5); UTIL_DATA.amp = { id:a.id, t:20 }; sfx.reveal();
+      toast('GEMLINK PRISM · ' + subjName(a.id) + ' is synchronized. Its next strike is amplified');
+    }
+  };
+  // ECHO DECOY (Myraclese): a false Carl stands three tiles ahead for 8 s; foes may target it instead
+  UTIL_FX['echo-decoy'] = {
+    can: function(c){
+      if (c.side) return refuse('No room to project a decoy in the caves.');
+      return (at(c.tx, c.ty) === '.' || at(c.tx, c.ty) === ',') ? { ok:true } : refuse('The decoy needs open ground in front of you.');
+    },
+    press: function(c){
+      var x = P.x + c.dir[0] * 3 + .5, y = P.y + c.dir[1] * 3 + .5;
+      UTIL_DATA.decoy = { x:x, y:y, fx:x, fy:y, pilot:true, decoy:true, id:'decoy', t:8, state:'idle' };
+      UTIL_CD['echo-decoy'] = 15; sfx.click(); toast('ECHO DECOY · a false Carl stands for 8 s');
+    }
+  };
+  // WARSHIELD (Bellatora): hold to keep the shield up in the direction you face; it stops hits from in front
+  UTIL_FX.warshield = {
+    can: function(){ return { ok:true }; },
+    press: function(){ toast('WARSHIELD · hold □ to keep the shield up in front of you'); },
+    hold: function(c){ UTIL_ON.warshield = .15; UTIL_DATA.shield = c.side ? [c.p.face, 0] : [c.dir[0], c.dir[1]]; }
+  };
+  // FROST ANCHOR (Yvoris): freeze foes in a spot two tiles ahead, for 4 s
+  UTIL_FX['frost-anchor'] = {
+    can: function(c){ var q = frostPoint(c), n = (c.side ? sideLive() : liveFoes()).filter(function(e){ return within(c, q, e); }).length; return n ? { ok:true } : refuse('Nothing to freeze in front of you.'); },
+    press: function(c){
+      var q = frostPoint(c), n = 0;
+      (c.side ? sideLive() : liveFoes()).forEach(function(e){ if (within(c, q, e)) { e.frozen = 4; n++; fxs.push({ k:'spark', x:e.x, y:e.y - .4, t:0, life:.5, color:'#9fe6ff' }); } });
+      UTIL_CD['frost-anchor'] = 8; toast('FROST ANCHOR · ' + n + ' frozen for 4 s');
+    }
+  };
+  // TRUTH LENS (Kyrathos): read the nearest inscription within 4 tiles
+  UTIL_FX['truth-lens'] = {
+    can: function(c){ return c.side ? refuse('No inscriptions below ground.') : { ok:true }; },
+    press: function(){
+      var best = null, bd = 5;
+      for (var y = P.y - 4; y <= P.y + 4; y++) for (var x = P.x - 4; x <= P.x + 4; x++) {
+        if (!inMap(x, y)) continue;
+        var d = Math.hypot(x - P.x, y - P.y), s = M.signs && M.signs[y * M.W + x];
+        if (s && d < bd) { bd = d; best = s; }
+      }
+      if (!best) (M.records || []).forEach(function(r){ var d = Math.hypot(r.x - P.x, r.y - P.y); if (d <= 4 && d < bd) { bd = d; best = 'A record, filed under ' + r.key + '.'; } });
+      toast('TRUTH LENS · ' + (best || 'nothing inscribed within 4 tiles'));
+      UTIL_CD['truth-lens'] = 1.5;
+    }
+  };
+  // RETURN BEACON (Nexyros): the first press marks this spot. Press again to return to it. Hold for 1.2 s to move the mark here
+  UTIL_FX['return-beacon'] = {
+    can: function(c){
+      if (c.side) return refuse('Beacons do not reach underground.');
+      var b = utils().data['return-beacon'];
+      if (!b) return (at(P.x, P.y) === '.' || at(P.x, P.y) === ',') ? { ok:true } : refuse('Set the beacon on open ground.');
+      if (b.map !== M.id) return refuse('Your beacon is set on another planet.');
+      return { ok:true };
+    },
+    press: function(c){
+      var u = utils(), b = u.data['return-beacon'];
+      if (!b) { u.data['return-beacon'] = { map:M.id, x:P.x, y:P.y }; save(); toast('RETURN BEACON · marked here. Press □ again to return'); return; }
+      UTIL_DATA.bt = 0; UTIL_DATA.bReset = false;
+    },
+    hold: function(c, dt){
+      UTIL_DATA.bt = (UTIL_DATA.bt || 0) + dt;
+      if (UTIL_DATA.bt >= 1.2 && !UTIL_DATA.bReset && !c.side) {
+        UTIL_DATA.bReset = true; utils().data['return-beacon'] = { map:M.id, x:P.x, y:P.y }; save();
+        toast('RETURN BEACON · the mark moved here');
+      }
+    },
+    release: function(c){
+      var b = utils().data['return-beacon'];
+      if (!b || UTIL_DATA.bReset || c.side || b.map !== M.id || UTIL_DATA.bt === undefined) return;
+      UTIL_DATA.bt = undefined;
+      if (blocked(b.x, b.y, P)) { toast('RETURN BEACON · the mark is blocked', 'red'); return; }
+      P.x = P.fx = b.x; P.y = P.fy = b.y; P.moving = false; path = []; revealFog();
+      fxs.push({ k:'burst', x:b.x + .5, y:b.y + .5, t:0, life:.6, color:'#9fe6ff' }); UTIL_CD['return-beacon'] = 5;
+      toast('RETURN BEACON · back at your mark');
+    }
+  };
+  // CHRONO DIAL (Jynaera): foes within 6 tiles move at 40% for 6 s
+  UTIL_FX['chrono-dial'] = {
+    can: function(c){ return nearCarl(c, 6).length ? { ok:true } : refuse('No foe within 6 tiles to slow.'); },
+    press: function(c){
+      var list = nearCarl(c, 6);
+      list.forEach(function(e){
+        if (c.side) { if (!e.spd0) e.spd0 = e.spd; e.spd = e.spd0 * .4; } else e.slowT = 6;
+      });
+      if (c.side) laterOn(6, function(){ list.forEach(function(e){ if (e.spd0) e.spd = e.spd0; }); });
+      UTIL_CD['chrono-dial'] = 10; toast('CHRONO DIAL · ' + list.length + ' slowed for 6 s');
+    }
+  };
+  // ROOTCALLER (Sylvanir): vines root across up to three tiles of water ahead, for 15 s
+  UTIL_FX.rootcaller = {
+    can: function(c){ return c.side ? refuse('Vines will not root in the cave stone.') : (at(c.tx, c.ty) === '~' ? { ok:true } : refuse('Rootcaller needs water in front of you to bridge.')); },
+    press: function(c){
+      var cells = [];
+      for (var k = 0; k < 3; k++) { var x = c.tx + c.dir[0] * k, y = c.ty + c.dir[1] * k; if (!inMap(x, y) || at(x, y) !== '~') break; cells.push({ x:x, y:y }); }
+      cells.forEach(function(q){ M.grid[q.y * M.W + q.x] = ','; });
+      laterOn(15, function(){ cells.forEach(function(q){ if (at(q.x, q.y) === ',') M.grid[q.y * M.W + q.x] = '~'; }); });
+      UTIL_CD.rootcaller = 3; toast('ROOTCALLER · ' + cells.length + ' vine' + (cells.length === 1 ? '' : 's') + ' take root for 15 s');
+    }
+  };
+  // TITAN GAUNTLET (Velkryn): lifts a heavy object (tagged heavy_lift) in front of you
+  UTIL_FX['titan-gauntlet'] = {
+    can: function(c){
+      if (c.side) return refuse('Nothing heavy to lift in the caves.');
+      return UTILS.hasTag(at(c.tx, c.ty), 'heavy_lift') ? { ok:true } : refuse('Titan Gauntlet needs a heavy object in front of you.');
+    },
+    press: function(){ pickupObject(); }
+  };
+  // MIRAGE VEIL (Uralyx): for 12 s, hostile foes do not see Carl
+  UTIL_FX['mirage-veil'] = {
+    can: function(){ return { ok:true }; },
+    press: function(){ utilToggle('mirage-veil', 12, 'MIRAGE VEIL · hostile eyes slide past you for 12 s', 'MIRAGE VEIL · off'); }
+  };
+  // BALANCE GYRO (Halcyra): for 20 s, knockback does not move Carl
+  UTIL_FX['balance-gyro'] = {
+    can: function(){ return { ok:true }; },
+    press: function(){ utilToggle('balance-gyro', 20, 'BALANCE GYRO · knockback will not move you for 20 s', 'BALANCE GYRO · off'); }
+  };
+  // SKYHOOK (Wyvera): grapples to an anchor up to six tiles away in the line you face, and reels Carl in over the ground
+  function skyAnchor(c){
+    var x = P.x, y = P.y;
+    for (var k = 1; k <= 6; k++) {
+      x += c.dir[0]; y += c.dir[1];
+      if (!inMap(x, y)) return null;
+      if (UTILS.hasTag(at(x, y), 'grapple_anchor')) return { x:x, y:y, k:k };
+      if (SOLID[at(x, y)]) return null;
+    }
+    return null;
+  }
+  UTIL_FX.skyhook = {
+    can: function(c){ return c.side ? refuse('No grapple anchors in the caves.') : (skyAnchor(c) ? { ok:true } : refuse('No grapple anchor within 6 tiles in that line.')); },
+    press: function(c){
+      var a = skyAnchor(c), cells = [], x = P.x, y = P.y;
+      for (var k = 1; k < a.k; k++) { x += c.dir[0]; y += c.dir[1]; cells.push({ x:x, y:y }); }
+      P.alt = Math.max(P.alt || 0, JET.crossAlt + .4); path = cells; UTIL_CD.skyhook = 3;
+      toast('SKYHOOK · reeling in');
+    }
+  };
+  // CRYSTAL HARVESTER (Xylos): take two crystal from the seam in front of you
+  UTIL_FX['crystal-harvester'] = {
+    can: function(c){
+      if (c.side) return refuse('No crystal seams in the caves.');
+      return UTILS.hasTag(at(c.tx, c.ty), 'crystal_resource') ? { ok:true } : refuse('Crystal Harvester needs a crystal seam in front of you.');
+    },
+    press: function(c){
+      M.grid[c.ty * M.W + c.tx] = '.'; gain('crystal', 2, true); UTIL_CD['crystal-harvester'] = 4;
+      fxs.push({ k:'spark', x:c.tx + .5, y:c.ty + .5, t:0, life:.5, color:'#9fe6ff' }); hudRefresh(); toast('CRYSTAL HARVESTER · +2 crystal');
+    }
+  };
+  // GRAVITY INVERTER (Gravaron): foes within 3 tiles are thrown two tiles away from Carl
+  UTIL_FX['gravity-inverter'] = {
+    can: function(c){ return nearCarl(c, 3).length ? { ok:true } : refuse('No foe within 3 tiles to throw.'); },
+    press: function(c){
+      var list = nearCarl(c, 3);
+      list.forEach(function(e){
+        if (c.side) { var s = e.x >= c.p.x ? 1 : -1, nx = Math.max(2, Math.min(SIDE.C.W - 2, e.x + s * 2)); e.x = nx; return; }
+        var dx = e.x - P.fx, dy = e.y - P.fy, d = Math.hypot(dx, dy) || 1, nx2 = e.x + dx / d * 2, ny2 = e.y + dy / d * 2;
+        if (inMap(Math.round(nx2), Math.round(ny2)) && !SOLID[at(Math.round(nx2), Math.round(ny2))]) { e.x = nx2; e.y = ny2; }
+      });
+      UTIL_CD['gravity-inverter'] = 8; fxs.push({ k:'burst', x:c.side ? c.p.x : P.fx + .5, y:c.side ? c.p.y : P.fy + .5, t:0, life:.6, color:'#b86aff' });
+      toast('GRAVITY INVERTED · ' + list.length + ' thrown back');
+    }
+  };
+  // MAGNETRON (Ferros): pulls the nearest wreckage in line (within 5 tiles) to the tile in front of you
+  function magnetTarget(c){
+    for (var k = 2; k <= 5; k++) {
+      var x = P.x + c.dir[0] * k, y = P.y + c.dir[1] * k;
+      if (!inMap(x, y)) break;
+      if (UTILS.hasTag(at(x, y), 'magnetic')) return { x:x, y:y };
+      if (SOLID[at(x, y)]) break;
+    }
+    return null;
+  }
+  UTIL_FX.magnetron = {
+    can: function(c){
+      if (c.side) return refuse('Nothing metallic in the caves.');
+      var dest = { x:P.x + c.dir[0], y:P.y + c.dir[1] };
+      if (!magnetTarget(c)) return refuse('Nothing metallic in line within 5 tiles.');
+      return (at(dest.x, dest.y) === '.' || at(dest.x, dest.y) === ',') ? { ok:true } : refuse('Clear the tile in front of you first.');
+    },
+    press: function(c){
+      var t = magnetTarget(c), dest = { x:P.x + c.dir[0], y:P.y + c.dir[1] };
+      M.grid[t.y * M.W + t.x] = '.'; M.grid[dest.y * M.W + dest.x] = 'w';
+      UTIL_CD.magnetron = 3; toast('MAGNETRON · the wreckage comes to you');
+    }
+  };
+  // BIO SCANNER (Viridia): counts the living nearby and marks the traces for 6 s
+  UTIL_FX['bio-scanner'] = {
+    can: function(){ return { ok:true }; },
+    press: function(c){
+      var living = 0, traces = 0, pings = [];
+      if (c.side) living = sideLive().length;
+      else {
+        living = liveFoes().filter(function(f){ return Math.hypot(f.x - P.fx, f.y - P.fy) <= 12; }).length
+               + (critters || []).filter(function(k){ return Math.hypot(k.x - P.x, k.y - P.y) <= 12; }).length;
+        for (var y = P.y - 8; y <= P.y + 8; y++) for (var x = P.x - 8; x <= P.x + 8; x++) {
+          if (!inMap(x, y) || !UTILS.hasTag(at(x, y), 'biological_trace')) continue;
+          traces++; if (pings.length < 40) pings.push({ x:x, y:y });
+        }
+      }
+      UTIL_DATA.scan = { t:6, pings:pings }; UTIL_CD['bio-scanner'] = 3;
+      toast('BIO SCANNER · ' + living + ' living nearby' + (c.side ? '' : ' · ' + traces + ' traces'));
+    }
+  };
+  // the utilities' timers, decoy, amplification and phase, once a frame
+  var PHASING = false;
+  function utilTimers(dt){
+    Object.keys(UTIL_ON).forEach(function(k){ if (UTIL_ON[k] > 0) UTIL_ON[k] = Math.max(0, UTIL_ON[k] - dt); });
+    var ph = utilOn('phase-dial');
+    if (PHASING && !ph && P && at(P.x, P.y) === 'M') {
+      // the phase has ended with Carl inside a marker stone: step to the nearest open ground
+      var spot = null;
+      for (var r = 1; r <= 3 && !spot; r++) for (var y = P.y - r; y <= P.y + r && !spot; y++) for (var x = P.x - r; x <= P.x + r && !spot; x++) {
+        if (inMap(x, y) && !SOLID[at(x, y)] && !npcAt(x, y)) spot = { x:x, y:y };
+      }
+      if (spot) { P.x = P.fx = spot.x; P.y = P.fy = spot.y; P.moving = false; path = []; }
+      else UTIL_ON['phase-dial'] = 1;
+    }
+    PHASING = utilOn('phase-dial');
+    if (UTIL_DATA.decoy) { UTIL_DATA.decoy.t -= dt; if (UTIL_DATA.decoy.t <= 0) UTIL_DATA.decoy = null; }
+    if (UTIL_DATA.amp) { UTIL_DATA.amp.t -= dt; if (UTIL_DATA.amp.t <= 0) UTIL_DATA.amp = null; }
+    if (UTIL_DATA.scan) { UTIL_DATA.scan.t -= dt; if (UTIL_DATA.scan.t <= 0) UTIL_DATA.scan = null; }
+  }
+  // what the utilities draw on the field: the compass marks, the lantern light, the decoy, the shield, the scan and the frost
+  function drawUtilFx(ox, oy, TZ, z){
+    if (mode !== 'surface' || !P || !M) return;
+    var now = performance.now();
+    if (utilOn('origin-compass')) (M.landmarks || []).forEach(function(l){
+      if (Math.hypot(l.x - P.x, l.y - P.y) > 14) return;
+      ctx.strokeStyle = 'rgba(255,211,106,' + (.55 + .35 * Math.sin(now / 260)) + ')'; ctx.lineWidth = Math.max(1, z);
+      ctx.beginPath(); ctx.arc(ox + (l.x + .5) * TZ, oy + (l.y + .5) * TZ, TZ * .9, 0, Math.PI * 2); ctx.stroke();
+    });
+    if (utilOn('lumelys-lantern')) {
+      var lx = ox + (P.fx + .5) * TZ, ly = oy + (P.fy + .5) * TZ, g = ctx.createRadialGradient(lx, ly, 0, lx, ly, TZ * 4);
+      g.addColorStop(0, 'rgba(255,240,190,.35)'); g.addColorStop(1, 'rgba(255,240,190,0)');
+      ctx.fillStyle = g; ctx.fillRect(lx - TZ * 4, ly - TZ * 4, TZ * 8, TZ * 8);
+    }
+    if (UTIL_DATA.decoy) {
+      var dx = ox + (UTIL_DATA.decoy.x) * TZ, dy = oy + (UTIL_DATA.decoy.y) * TZ;
+      ctx.globalAlpha = .45 + .25 * Math.sin(now / 200); ctx.fillStyle = '#9fd8ff';
+      ctx.beginPath(); ctx.moveTo(dx, dy - TZ * .7); ctx.lineTo(dx + TZ * .35, dy); ctx.lineTo(dx, dy + TZ * .5); ctx.lineTo(dx - TZ * .35, dy); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+    }
+    if (utilOn('warshield') && UTIL_DATA.shield) {
+      var sx = UTIL_DATA.shield[0], sy = UTIL_DATA.shield[1], cx = ox + (P.fx + .5) * TZ, cy = oy + (P.fy + .5) * TZ;
+      ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = Math.max(2, z * 2);
+      ctx.beginPath(); ctx.arc(cx, cy, TZ * .8, sx === 0 ? (sy > 0 ? .3 : 3.4) : (sx > 0 ? -1.2 : 2.0), (sx === 0 ? (sy > 0 ? 2.8 : 6.0) : (sx > 0 ? 1.2 : 4.1))); ctx.stroke();
+    }
+    if (UTIL_DATA.scan) (UTIL_DATA.scan.pings || []).forEach(function(q){
+      ctx.strokeStyle = 'rgba(143,224,160,' + Math.max(0, UTIL_DATA.scan.t / 6) + ')'; ctx.lineWidth = Math.max(1, z);
+      ctx.beginPath(); ctx.arc(ox + (q.x + .5) * TZ, oy + (q.y + .5) * TZ, TZ * .4, 0, Math.PI * 2); ctx.stroke();
+    });
+    liveFoes().forEach(function(f){
+      if (!f.frozen || f.frozen <= 0) return;
+      ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = Math.max(1, z);
+      ctx.beginPath(); ctx.arc(ox + (f.x + .5) * TZ, oy + (f.y + .5) * TZ, TZ * .6, 0, Math.PI * 2); ctx.stroke();
+    });
+  }
   // ── A and B ──
   function btnA(){
     if (mode === 'side') { sideAct('interact'); return; }
@@ -5542,7 +5923,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

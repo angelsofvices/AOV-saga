@@ -2085,9 +2085,7 @@
     return f;
   }
   function carryOk(){ var t = carryTarget(); return carry.st ? structFits(M, carry.st, t.x, t.y) : floorFree(M, t.x, t.y); }
-  function btnMove(){
-    if (blasterReady() && !dialogOpen && !encounterOpen && !doc.querySelector('.x-modal')) { fireBlaster(); return; }   // armed: Square fires, and cannot move objects
-    if (mode === 'side') { sideAct('interact'); return; }
+  function pickupObject(){
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal') || P.moving) return;
     if (carry) return setCarry();
     var f = facing(), i = f.y * M.W + f.x, ch = at(f.x, f.y);
@@ -2095,12 +2093,12 @@
       var st = M.structs[M.sidx[i]];
       if (!M.hq) { sfx.bump(); return toast('That will not move.'); }
       carry = { st:st, f:[st.x, st.y], spr:st.spr }; liftStruct(M, st);
-      sfx.click(); vibrate(50, .3); hudRefresh(); return toast('LIFTED · ' + ((st.ref && (st.ref.name || st.ref.label)) || 'THE STATION') + ' · □ SET · ○ CANCEL');
+      sfx.click(); vibrate(50, .3); hudRefresh(); return toast('LIFTED · ' + ((st.ref && (st.ref.name || st.ref.label)) || 'THE STATION') + ' · X SET · ○ CANCEL');
     }
-    if (!MOVABLE[ch]) { sfx.bump(); return toast(ch === '.' || ch === ',' || ch === 'd' ? 'Nothing here to move. Face a prop, plant, stone or station and press □.' : 'That will not move.'); }
+    if (!MOVABLE[ch]) { sfx.bump(); return toast(ch === '.' || ch === ',' || ch === 'd' ? 'Nothing here to move. Face a prop, plant, stone or station and hold X.' : 'That will not move.'); }
     var spec = objSpec(ch, i, M.env(f.x, f.y), performance.now()), name = movableName(ch, i), wasFound = !!S.found[M.id + ':' + f.x + ',' + f.y];
     carry = { c:ch, f:[f.x, f.y], o:liftTile(M, f.x, f.y), spec:spec, found:wasFound };
-    sfx.click(); vibrate(50, .3); hudRefresh(); toast('LIFTED · ' + name.toUpperCase() + ' · □ SET · ○ CANCEL');
+    sfx.click(); vibrate(50, .3); hudRefresh(); toast('LIFTED · ' + name.toUpperCase() + ' · X SET · ○ CANCEL');
   }
   function setCarry(){
     var t = carryTarget();
@@ -2127,7 +2125,7 @@
   // what A would do, for the thing you face (and □, whether it can be moved)
   function actionAt(){
     if (!M || !P) return ['EXAMINE', ''];
-    if (carry) return ['—', 'CARRYING · □ SET · ○ PUT BACK'];
+    if (carry) return ['—', 'CARRYING · X SET · ○ PUT BACK'];
     var f = facing(), ch = at(f.x, f.y), i = f.y * M.W + f.x, c = critterAt(f.x, f.y), n = npcAt(f.x, f.y);
     if (paperHere(f.x, f.y) || paperHere(P.x, P.y)) return ['PICK UP', 'PICK UP THE PAPER'];
     if (c) return c.resident ? ['LOOK', 'A RESIDENT AETHREN'] : ['MEET', 'APPROACH THE CREATURE'];
@@ -2781,6 +2779,7 @@
   function npcAt(x, y){ for (var i = 0; i < npcs.length; i++) if (npcs[i].x === x && npcs[i].y === y) return npcs[i]; return null; }
   function blocked(x, y, who){
     var ch = at(x, y);
+    if (who === P && P && P.alt >= JET.crossAlt) return !!FLY_STOP[ch] || x <= 0 || y <= 0 || x >= M.W - 1 || y >= M.H - 1 || !!npcAt(x, y);
     if (who && who.swims && ch === '~') return !!critterAt(x, y);
     if (who && who.flies) return ch === '#' || x <= 0 || y <= 0 || x >= M.W - 1 || y >= M.H - 1 || !!critterAt(x, y) || !!npcAt(x, y) || (P && P.x === x && P.y === y);
     if (SOLID[ch]) return true;
@@ -2805,9 +2804,9 @@
         '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
         '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
       '<p class="x-objhint" aria-live="polite"></p>' +
-      '<p class="x-padhint" aria-hidden="true">✕ EXAMINE · ○ GAIT · □ MOVE · TOUCHPAD ASTRANAV</p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ INTERACT · ○ CROUCH · WALK · RUN · □ USE · △ UTILITY · TOUCHPAD ASTRANAV</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-sq" aria-label="Square: grab, set or move">□<small>MOVE</small></button><button class="x-b" aria-label="B: back, or change gait">B<small>STEADY</small></button><button class="x-a" aria-label="A: examine">A<small>EXAMINE</small></button></div>' +
+      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-tri" aria-label="Triangle: cycle utility">△<small>UTILITY</small></button><button class="x-sq" aria-label="Square: use the active utility">□<small>FIRE</small></button><button class="x-b" aria-label="Circle: crouch, walk or run">○<small>WALK</small></button><button class="x-a" aria-label="X: interact">✕<small>INTERACT</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI();
     startWorld('surface');
@@ -2877,9 +2876,10 @@
     });
     var lead = $('.x-lead'), team = teamReady();
     if (lead) lead.innerHTML = team.length ? '<img class="x-pix" alt="" src="' + ART.url(subjArt(team[0]), 2) + '"><b>LV ' + S.cards[team[0]].lv + '</b>' : '';
-    var b = $('.x-b small'); if (b) b.textContent = GAIT[P.gait].label;
-    var bb = $('.x-b'); if (bb) { bb.classList.toggle('on', P.gait !== 'steady'); bb.dataset.gait = P.gait; }
-    var sq = $('.x-sq'); if (sq) { sq.classList.toggle('on', !!carry); var sl = sq.querySelector('small'); if (sl) sl.textContent = carry ? 'SET' : 'MOVE'; }
+    var gk = GAIT[S.gait] ? S.gait : 'steady';
+    var b = $('.x-b small'); if (b) b.textContent = GAIT[gk].label;
+    var bb = $('.x-b'); if (bb) { bb.classList.toggle('on', gk !== 'steady'); bb.dataset.gait = gk; }
+    var au = activeUtil(), sq = $('.x-sq'); if (sq) { sq.classList.toggle('on', !!au && squareHeld); var sl = sq.querySelector('small'); if (sl) sl.textContent = au ? UTIL[au].short : 'NONE'; }
   }
   // a zone's name: a Zyraxis district by its lexicon term; a world's region by name once you know the world's words
   function zoneLabel(id){
@@ -2904,9 +2904,10 @@
       b.addEventListener('pointerdown', function(e){ e.preventDefault(); held = b.dataset.d; path = []; try { b.setPointerCapture(e.pointerId); } catch(err){} });
       b.addEventListener('pointerup', release); b.addEventListener('pointercancel', release); b.addEventListener('lostpointercapture', release);
     });
-    $('.x-a').addEventListener('click', btnA);
+    bindHold($('.x-a'), xPress, xRelease, function(){ if (!surfaceFree()) btnA(); });
     $('.x-b').addEventListener('click', btnB);
-    var sqb = $('.x-sq'); if (sqb) sqb.addEventListener('click', btnMove);
+    bindHold($('.x-sq'), squarePress, squareRelease);
+    var tb = $('.x-tri'); if (tb) tb.addEventListener('click', cycleUtil);
     // AstraNav access is the DualSense touchpad. On a touch screen the NAV button stands in for it (Creator-approved 2026-10-10).
     var mb = $('.x-hud .x-menu'); if (mb) mb.addEventListener('click', function(e){ e.stopPropagation(); touchpad(); });
     $('.x-dialog').addEventListener('click', function(e){ if (!e.target.closest('[data-c]')) advanceDialog(); });
@@ -2983,9 +2984,10 @@
   }
   function updateSurface(dt, now){
     if (!P) return;
+    updateFlight(dt);
     if (P.moving) {
       var G = GAIT[P.gait];
-      P.t += dt / G.step;
+      P.t += dt / (P.alt >= JET.crossAlt ? JET.flyStep : G.step);
       P.anim += dt * G.anim;
       if (P.t >= 1) { P.moving = false; P.fx = P.x; P.fy = P.y; arrived(); if (mode !== 'surface') return; }
       else { P.fx = P.px0 + (P.x - P.px0) * P.t; P.fy = P.py0 + (P.y - P.py0) * P.t; }
@@ -3501,15 +3503,15 @@
     SIDE.en = C.enemies.map(function(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round(40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:d.atk || 5, range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; });
     mode = 'side';
     sideScreen(no);
-    toast(placeName(no) + ' · CAVE · ' + C.W + ' cells long. Left and right to move, ✕ jump, ○ attack, □ interact.');
+    toast(placeName(no) + ' · CAVE · ' + C.W + ' cells long. Left and right to walk, ▲ jump, ✕ interact, □ use, ○ crouch, walk or run.');
   }
   function sideScreen(no){
     screen('x-surface x-side',
       '<div class="x-hud riv"><div class="x-zone"><b class="x-zn">CAVE</b><span class="x-zw">' + esc(placeName(no)) + ' · ' + (SIDE.C.W) + ' CELLS</span></div>' +
         '<div class="x-gauges">' + gauge('SUIT','suit') + '</div>' + blasterHudHtml() + '</div>' +
-      '<p class="x-padhint" aria-hidden="true">✕ JUMP · ○ ATTACK · □ INTERACT · ◀ ▶ WALK</p>' +
+      '<p class="x-padhint" aria-hidden="true">▲ JUMP · ✕ INTERACT · □ USE · ○ CROUCH · WALK · RUN · △ UTILITY</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<div class="x-ab"><button class="x-sq" aria-label="Square: interact">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: attack">○<small>ATTACK</small></button><button class="x-a" aria-label="Cross: jump">✕<small>JUMP</small></button></div>' +
+      '<div class="x-ab"><button class="x-tri" aria-label="Triangle: cycle utility">△<small>UTILITY</small></button><button class="x-sq" aria-label="Square: use the active utility">□<small>FIRE</small></button><button class="x-b" aria-label="Circle: crouch, walk or run">○<small>WALK</small></button><button class="x-a" aria-label="X: interact">✕<small>INTERACT</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI();
     startWorld('side');
@@ -3565,8 +3567,12 @@
     p.inv = Math.max(0, p.inv - dt); p.atkT = Math.max(0, p.atkT - dt); p.atkCd = Math.max(0, p.atkCd - dt); p.jumpBuf = Math.max(0, p.jumpBuf - dt); p.anim += dt * 8;
     var dir = held === 'left' ? -1 : held === 'right' ? 1 : 0;
     if (dir) p.face = dir;
-    p.vx = dir * SIDE_RUN; p.moving = !!dir; p.gait = 'steady';
-    p.vy = Math.min(18, p.vy + SIDE_G * dt);
+    var thrust = jetOn(), gm = GAIT_SIDE[S.gait || 'steady'] || 1;
+    p.vx = dir * SIDE_RUN * gm; p.moving = !!dir; p.gait = S.gait || 'steady';
+    // the JETPACK: lift builds while □ is held and fades when it is let go, so the fall starts smoothly
+    p.lift = approach(p.lift || 0, thrust ? JSIDE.thrust : 0, (thrust ? JSIDE.accel : JSIDE.decel) * dt);
+    p.vy = Math.min(18, p.vy + (SIDE_G - p.lift) * dt);
+    if (p.lift > 0) p.vy = Math.max(-JSIDE.rise, p.vy);   // the climb is capped while the lift lasts, so a release glides into the fall
     if (p.jumpBuf > 0 && p.ground) { p.vy = -SIDE_JUMP; p.ground = false; p.jumpBuf = 0; sfx.step(); }
     var nx = p.x + p.vx * dt;
     if (!sBlocked(nx, p.y)) p.x = Math.max(.2, Math.min(s.C.W - 1.1, nx));
@@ -3677,6 +3683,7 @@
     w.equipped = !!on; save(); syncBlasterHud(); return true;
   }
   function blasterAction(a){
+    if (a.indexOf('jet-') === 0) return jetAction(a.slice(4));
     if (a === 'repair') return repairBlaster();
     if (a === 'equip') return equipBlaster(true);
     if (a === 'unequip') return equipBlaster(false);
@@ -3728,15 +3735,9 @@
     syncBlasterHud();
   }
   // the charge meter on the HUD: shown only while the blaster is equipped and working
-  function syncBlasterHud(){
-    var el = $('.x-weapon'); if (!el) return;
-    var w = blaster(), on = blasterReady(); el.hidden = !on; if (!on) return;
-    var k = Math.round(w.charge / BLASTER.maxCharge * 100), bar = $('.x-wbar > i', el), lab = $('span', el);
-    if (bar) bar.style.width = k + '%';
-    if (lab) lab.textContent = k + '% · ' + (w.charge < BLASTER.shotCost ? 'RECHARGING' : 'READY');
-  }
+  function syncBlasterHud(){ syncUtilHud(); }
   function blasterHudHtml(){ return '<div class="x-weapon" hidden><b>' + BLASTER.name + ' · CHARGE</b><i class="x-wbar"><i></i></i><span>100%</span></div>'; }
-  function blasterCardHtml(){
+  function blasterOnlyCardHtml(){
     var w = blaster(), k = Math.round(w.charge / BLASTER.maxCharge * 100), ws = coreMachine('workstation'), act = '';
     var state = !w.repaired ? 'BROKEN · it cannot fire' : w.equipped ? 'EQUIPPED · SQUARE fires it' : 'STORED · equip it to fire';
     if (!w.repaired) act = !ws ? '<em class="dim">BUILD THE WORKSTATION FIRST</em>' : canAfford(BLASTER.repair) ? '<button class="x-btn small" data-wpn="repair">REPAIR · ' + esc(costText(BLASTER.repair)) + '</button>' : '<em class="dim">NEEDS ' + esc(costText(BLASTER.repair)) + '</em>';
@@ -3761,12 +3762,111 @@
     }
   }
 
+  // ── UTILITIES · the ASTRABLASTER and the JETPACK. △ cycles the equipped ones; □ uses the active one ──
+  // Provisional numbers, not yet approved (see docs/card-explorer/26_JETPACK_AND_CONTROLS.md): assembly cost, lift and altitude.
+  var UTIL = { blaster:{ name:'ASTRABLASTER MK1', short:'FIRE', toast:'ACTIVE UTILITY · ASTRABLASTER MK1 · □ fires it' },
+               jetpack:{ name:'JETPACK', short:'FLY', toast:'ACTIVE UTILITY · JETPACK · hold □ to fly' } };
+  var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.6, accel:2.2, decel:2.6, sink:1, altMax:2, crossAlt:.6, flyStep:.15 };
+  var JSIDE = { thrust:52, accel:90, rise:8, decel:60 };
+  var GAIT_SIDE = { stalk:.5, steady:1, sprint:1.6 };
+  // the tiles the JETPACK cannot cross: walls, structures, the vault, landmarks, the ship and the marker stones
+  var FLY_STOP = { '#':1, F:1, K:1, L:1, S:1, M:1, w:1 };
+  var squareHeld = false, xDown = false, xTimer = null;
+  function approach(v, t, d){ return v < t ? Math.min(t, v + d) : Math.max(t, v - d); }
+  function jet(){ if (!S.jet) S.jet = { repaired:false, equipped:false }; return S.jet; }
+  function jetReady(){ var j = jet(); return !!(j.repaired && j.equipped); }
+  function utilList(){ var a = []; if (blasterReady()) a.push('blaster'); if (jetReady()) a.push('jetpack'); return a; }
+  function activeUtil(){ var a = utilList(), s = S.util && S.util.active; return a.indexOf(s) >= 0 ? s : (a[0] || null); }
+  function cycleUtil(){
+    var a = utilList();
+    if (!a.length) { toast('No utility equipped. Equip one from the Inventory.', 'red'); sfx.bump(); return; }
+    if (a.length < 2) { toast(UTIL[a[0]].name + ' is the only utility equipped. Equip the other from the Inventory to cycle.'); return; }
+    var n = a[(a.indexOf(activeUtil()) + 1) % a.length];
+    S.util = { active:n }; save(); sfx.click(); vibrate(30, .2); toast(UTIL[n].toast); syncUtilHud();
+  }
+  function jetAction(a){
+    var j = jet();
+    if (a === 'repair') {
+      if (j.repaired || !coreMachine('workstation') || !canAfford(JET.cost)) return false;
+      pay(JET.cost); j.repaired = true;
+      hqRecord('Assembled the JETPACK at the Workstation. Hold □ to lift off.'); save(); syncUtilHud(); return true;
+    }
+    if (a === 'equip') { if (!j.repaired) { toast('The JETPACK is not assembled yet. Build it at the Workstation first.', 'red'); sfx.bump(); return false; } j.equipped = true; save(); syncUtilHud(); return true; }
+    if (a === 'unequip') { j.equipped = false; save(); syncUtilHud(); return true; }
+    return false;
+  }
+  function utilToast(a){
+    var jn = a.indexOf('jet-') === 0, act = jn ? a.slice(4) : a, who = jn ? 'JETPACK' : 'ASTRABLASTER MK1';
+    return who + ' · ' + (act === 'repair' ? (jn ? 'ASSEMBLED' : 'REPAIRED') : act === 'equip' ? 'EQUIPPED' : 'STORED');
+  }
+  function jetCardHtml(){
+    var j = jet(), ws = coreMachine('workstation'), act = '';
+    var state = !j.repaired ? 'NOT ASSEMBLED' : j.equipped ? 'EQUIPPED · hold □ to fly' : 'STORED · equip it to fly';
+    if (!j.repaired) act = !ws ? '<em class="dim">BUILD THE WORKSTATION FIRST</em>' : canAfford(JET.cost) ? '<button class="x-btn small" data-wpn="jet-repair">ASSEMBLE · ' + esc(costText(JET.cost)) + '</button>' : '<em class="dim">NEEDS ' + esc(costText(JET.cost)) + '</em>';
+    else act = j.equipped ? '<button class="x-btn small ghost" data-wpn="jet-unequip">UNEQUIP</button>' : '<button class="x-btn small" data-wpn="jet-equip">EQUIP</button>';
+    return '<ul class="x-hqlist"><li class="' + (j.repaired ? 'done' : '') + '"><img class="x-pix x-ico" alt="" src="' + ART.url('it_relic', 2) + '"><b>JETPACK</b><span>' + state + ' · lifts Carl over low ground</span><div>' + act + '</div></li></ul>';
+  }
+  function blasterCardHtml(){ return blasterOnlyCardHtml() + jetCardHtml(); }
+  // □ uses the active utility: the ASTRABLASTER fires once per press; the JETPACK flies while □ is held (updateFlight)
+  function squarePress(){
+    squareHeld = true;
+    if (!surfaceFree()) return;
+    var u = activeUtil();
+    if (u === 'blaster') { fireBlaster(); return; }
+    if (u === 'jetpack') return;
+    toast('No utility in hand. Equip one from the Inventory, then △ to cycle.'); sfx.bump();
+  }
+  function squareRelease(){ squareHeld = false; }
+  function btnMove(){ squarePress(); }
+  // X: a tap interacts; holding it lifts the object you face, or sets it down (see pickupObject)
+  function xPress(){
+    if (xDown || !surfaceFree()) return;
+    xDown = true; clearTimeout(xTimer);
+    xTimer = setTimeout(function(){ xTimer = null; if (surfaceFree() && mode === 'surface') { if (carry) setCarry(); else pickupObject(); } }, 420);
+  }
+  function xRelease(){
+    if (!xDown) return; xDown = false;
+    if (xTimer) { clearTimeout(xTimer); xTimer = null; if (surfaceFree()) btnA(); }
+  }
+  // touch: a button you press and hold, the way a pad does
+  function bindHold(el, down, up, tap){
+    if (!el) return;
+    el.addEventListener('pointerdown', function(e){ e.preventDefault(); down(); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function(t){ el.addEventListener(t, up); });
+    if (tap) el.addEventListener('click', tap);
+  }
+  // the JETPACK is on while □ is held, the utility is active, and Carl is free to act
+  function jetOn(){ return squareHeld && activeUtil() === 'jetpack' && surfaceFree() && !carry; }
+  // the field: lift builds to a steady climb while □ is held and fades when it is let go; gravity brings Carl down
+  function updateFlight(dt){
+    var thrust = jetOn();
+    P.lift = approach(P.lift || 0, thrust ? JET.maxLift : 0, (thrust ? JET.accel : JET.decel) * dt);
+    P.alt = clamp((P.alt || 0) + (P.lift - JET.sink) * dt, 0, JET.altMax);
+    // no landing on an obstacle: Carl hovers above it until open ground is under him
+    if (SOLID[at(P.x, P.y)] && P.alt < JET.crossAlt) P.alt = JET.crossAlt;
+  }
+  // the HUD's utility panel: the name, its place in the cycle, and the blaster's charge or the jetpack's lift
+  function syncUtilHud(){
+    var el = $('.x-weapon'); if (!el) return;
+    var a = utilList(), cur = activeUtil(); el.hidden = !cur; if (!cur) return;
+    var b = $('b', el), bar = $('.x-wbar > i', el), lab = $('span', el), idx = a.indexOf(cur) + 1;
+    if (b) b.textContent = 'UTILITY ' + idx + '/' + a.length + ' · ' + UTIL[cur].name;
+    if (cur === 'blaster') {
+      var w = blaster(), k = Math.round(w.charge / BLASTER.maxCharge * 100);
+      if (bar) bar.style.width = k + '%';
+      if (lab) lab.textContent = k + '% · ' + (w.charge < BLASTER.shotCost ? 'RECHARGING' : 'READY · □ fires');
+    } else {
+      var lift = mode === 'side' && SIDE ? SIDE.p.lift / JSIDE.thrust : (P && P.alt ? P.alt / JET.altMax : 0);
+      if (bar) bar.style.width = Math.round(clamp(lift, 0, 1) * 100) + '%';
+      if (lab) lab.textContent = squareHeld ? 'AIRBORNE · release □ to settle' : 'READY · hold □ to fly';
+    }
+  }
   // ── A and B ──
   function btnA(){
-    if (mode === 'side') { sideAct('jump'); return; }
+    if (mode === 'side') { sideAct('interact'); return; }
     if (encounterOpen || doc.querySelector('.x-modal')) return;
     if (dialogOpen) { advanceDialog(); return; }
-    if (carry) { toast('Carrying · □ SET · ○ CANCEL'); return; }
+    if (carry) return setCarry();
     if (P.moving) return;
     var f = facing(), ch = at(f.x, f.y), c = critterAt(f.x, f.y), n = npcAt(f.x, f.y), i = f.y * M.W + f.x;
     if (c && c.resident) { return say([subjName(c.id) + ' lives on ' + hqName() + ' now. It watches you without fear.']); }
@@ -3822,19 +3922,18 @@
       tree:'A tree. Its bark is warm.', shrub:'A thicket, too dense to push through.', boulder:'A boulder.' }[k] || 'Something strange, and too heavy to move.';
   }
   function btnB(){
-    if (mode === 'side') { if (blasterReady()) fireBlaster(); else toast('No fists in AA:1936. Equip a weapon, then press □ to fire.', 'red'); return; }
     if (dialogOpen) { advanceDialog(true); return; }
     if (carry && !encounterOpen && !doc.querySelector('.x-modal')) { cancelCarry(); return; }
     if (encounterOpen || doc.querySelector('.x-modal')) return;
     var order = ['stalk', 'steady', 'sprint'];
-    P.gait = S.gait = order[(order.indexOf(P.gait) + 1) % order.length]; hudRefresh(); sfx.click(); vibrate(40, P.gait === 'sprint' ? .5 : .2);
-    toast(GAIT[P.gait].toast);
+    S.gait = order[(order.indexOf(S.gait || 'steady') + 1) % order.length]; if (P) P.gait = S.gait; hudRefresh(); sfx.click(); vibrate(40, S.gait === 'sprint' ? .5 : .2);
+    toast(GAIT[S.gait].toast);
   }
-  // the three gaits: ○ / B cycles STALK → STEADY → SPRINT
+  // the three gaits: ○ cycles CROUCH → WALK → RUN
   var GAIT = {
-    stalk:  { label:'STALK',  step:.3,  anim:5,  toast:'STALK · slow and quiet. Skittish creatures let you near.' },
-    steady: { label:'STEADY', step:.17, anim:9,  toast:'STEADY · an ordinary walking pace.' },
-    sprint: { label:'SPRINT', step:.095, anim:17, toast:'SPRINT · fast and loud. Burns AIR twice as fast, and creatures hear you coming.' }
+    stalk:  { label:'CROUCH', step:.3,  anim:5,  toast:'CROUCH · slow and quiet. Skittish creatures let you near.' },
+    steady: { label:'WALK',   step:.17, anim:9,  toast:'WALK · an ordinary pace. Circle again for RUN.' },
+    sprint: { label:'RUN',    step:.095, anim:17, toast:'RUN · fast and loud. Burns AIR twice as fast, and creatures hear you coming.' }
   };
   function stalking(){ return P && P.gait === 'stalk'; }
 
@@ -4275,7 +4374,7 @@
       '<section class="x-arc riv" id="inv-stores"><h3>STORES <b>' + store.length + '</b></h3><p class="x-mono light">Kept safe at ' + esc(hqName()) + '.</p>' + invGrid(store, 'stores') + '</section>' +
       '<section class="x-arc riv" id="inv-parts"><h3>SHIP PARTS <b>' + parts.length + '</b></h3>' + invGrid(parts, 'parts') + '</section>' +
       '<section class="x-arc riv" id="inv-papers"><h3>MACHINE PAPERS <b>' + papers.filter(function(p2){ return p2.n === '✓'; }).length + ' / ' + papers.length + '</b></h3>' + invGrid(papers, 'papers') + '</section>' +
-      '<section class="x-arc riv" id="inv-weapon"><h3>WEAPON</h3><p class="x-mono light">Equip a weapon here, then press □ in the field or a cave to fire it. Square moves objects only when you are bare-handed.</p>' + blasterCardHtml() + '</section>' +
+      '<section class="x-arc riv" id="inv-weapon"><h3>UTILITY</h3><p class="x-mono light">Equip utilities here. △ cycles the equipped ones. □ uses the active one: it fires the ASTRABLASTER, or flies the JETPACK while held.</p>' + blasterCardHtml() + '</section>' +
       '<section class="x-arc riv" id="inv-craft"><h3>CRAFT</h3><p class="x-mono light">Craft from what you hold: the bag first, then the stores.</p><ul class="x-hqlist">' +
         '<li class="' + (wsBuilt ? 'done' : '') + '"><img class="x-pix x-ico" alt="" src="' + ART.url('machine_workstation', 2) + '"><b>WORKSTATION</b><span>' + esc(ws.does) + ' Every other machine is built at the Workstation.</span><div><em>' + costText(ws.cost) + ' · have ' + Object.keys(ws.cost).map(function(k){ return matName(k) + ' ' + ((S.pack[k] || 0) + (S.hq.store[k] || 0)); }).join(' · ') + '</em>' + craftable + '</div></li>' +
       '</ul></section>';
@@ -4288,7 +4387,7 @@
       if (kind === 'bag' || kind === 'stores') sortable([box], '.x-slot', 'data-inv', function(keys){ if (kind === 'stores') S.storeOrder = keys[0]; else S.invOrder = keys[0]; save(); });
     });
     body.onclick = function(e){
-      var wb = e.target.closest('[data-wpn]'); if (wb && !wb.disabled) { if (blasterAction(wb.dataset.wpn)) { sfx.reveal(); toast(wb.dataset.wpn === 'repair' ? 'ASTRABLASTER MK1 · REPAIRED' : wb.dataset.wpn === 'equip' ? 'ASTRABLASTER MK1 · EQUIPPED' : 'ASTRABLASTER MK1 · STORED'); } else sfx.bump(); nav('inventory', 'inv-weapon'); return; }
+      var wb = e.target.closest('[data-wpn]'); if (wb && !wb.disabled) { if (blasterAction(wb.dataset.wpn)) { sfx.reveal(); toast(utilToast(wb.dataset.wpn)); } else sfx.bump(); nav('inventory', 'inv-weapon'); return; }
       var c = e.target.closest('[data-craft]'); if (!c || c.disabled) return;
       if (coreBuild(c.dataset.craft)) { sfx.reveal(); toast('CRAFTED · WORKSTATION · it stands beside the camp. Walk up to it and press A to build machines.'); } else { sfx.bump(); toast('Not enough materials', 'red'); }
       nav('inventory', 'inv-craft');
@@ -5146,6 +5245,7 @@
   }
   function drawPlayer(X, Y, z){
     shadow(X, Y, z, 10);
+    Y -= (P && P.alt > 0 ? P.alt : 0) * 14 * z;   // the JETPACK lifts Carl off his shadow
     var stp = P.moving ? Math.floor(P.anim / 1.6) % 4 : 0, g = P.gait, now = performance.now();
     // sprint: kicked-up dust behind the boots
     if (g === 'sprint' && P.moving && (!P.dust.length || now - P.dust[P.dust.length - 1].t > 70)) P.dust.push({ x:P.fx, y:P.fy, t:now, j:(Math.random() - .5) * 6 });
@@ -5233,10 +5333,11 @@
       return;
     }
     if (surfaceFree()) {
-      if (d) { e.preventDefault(); keys[d] = true; held = d; path = []; return; }
-      if (k === 'z' || k === 'enter' || k === ' ') { e.preventDefault(); btnA(); }
+      if (d) { e.preventDefault(); keys[d] = true; held = d; path = []; if (d === 'up' && mode === 'side' && !e.repeat) sideAct('jump'); return; }
+      if (k === 'z' || k === 'enter' || k === ' ') { e.preventDefault(); if (!e.repeat) xPress(); }
       if (k === 'x' || k === 'escape' || k === 'backspace') { e.preventDefault(); btnB(); }
-      if (k === 'c') { e.preventDefault(); btnMove(); }
+      if (k === 'c') { e.preventDefault(); if (!e.repeat) squarePress(); }
+      if (k === 'q') { e.preventDefault(); if (!e.repeat) cycleUtil(); }
       if (k === 'j' || k === 'm' || k === 'tab') { e.preventDefault(); touchpad(); }
       return;
     }
@@ -5247,6 +5348,9 @@
     if (k === 'escape' || (k === 'backspace' && !doc.querySelector('.x-name'))) { e.preventDefault(); goBack(); }
   });
   addEventListener('keyup', function(e){
+    var kk = e.key.toLowerCase();
+    if (kk === 'z' || kk === 'enter' || kk === ' ') xRelease();
+    if (kk === 'c') squareRelease();
     var d = KEYDIR[e.key.toLowerCase()];
     if (d) { keys[d] = false; if (held === d) held = ['up','down','left','right'].filter(function(x){ return keys[x]; })[0] || null; }
   });
@@ -5259,6 +5363,7 @@
     });
     PAD.on('disconnect', function(){ padOn = false; doc.body.classList.remove('pad', 'dualsense'); toast('CONTROLLER DISCONNECTED'); });
     PAD.on('dir', function(d){
+      if (d === 'up' && mode === 'side' && surfaceFree()) sideAct('jump');
       if (surfaceFree()) { if (d) { held = d; padHeld = true; path = []; } else if (padHeld) { held = null; padHeld = false; } }
       else if (padHeld) { held = null; padHeld = false; }
     });
@@ -5268,15 +5373,15 @@
       if (doc.querySelector('.x-name') && b === 'triangle') { var ok = $('[data-k="OK"]'); if (ok) ok.focus(); return; }
       if (doc.querySelector('.x-name') && b === 'square') { var del = $('[data-k="DEL"]'); if (del) del.click(); return; }
       var ask = dlg && dlg.box.classList.contains('ask');
-      if (b === 'cross') { if (dlg && !ask) advanceDialog(); else if (surfaceFree()) btnA(); else activate(); }
+      if (b === 'cross') { if (dlg && !ask) advanceDialog(); else if (surfaceFree()) xPress(); else activate(); }
       else if (b === 'circle') { if (dlg && !ask) advanceDialog(true); else if (ask) closeDialog(dlg.choices.length - 1); else if (surfaceFree()) btnB(); else goBack(); }
       else if (b === 'square') {
         var ph = doc.querySelector('.x-encounter .x-shutter'); if (ph && visible(ph)) { ph.click(); return; }
         ph = doc.querySelector('.x-encounter [data-e="scan"]'); if (ph && visible(ph)) { ph.click(); return; }
         ph = doc.querySelector('.x-battle [data-b="photo"]'); if (ph && visible(ph)) { ph.click(); return; }
-        if (surfaceFree()) btnMove();
+        if (surfaceFree()) squarePress();
       }
-      else if (b === 'triangle') { if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
+      else if (b === 'triangle') { if (surfaceFree()) { cycleUtil(); return; } if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
       else if (b === 'options') { if (!surfaceFree()) goBack(); }
       else if (b === 'touchpad') touchpad();
       else if ((b === 'l1' || b === 'r1') && doc.querySelector('.x-nav-tabs') && !doc.querySelector('.x-modal') && !(doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.x-kit-row'))) navCycle(b === 'l1' ? -1 : 1);
@@ -5285,6 +5390,7 @@
         if (row) { var bt = row.querySelector('[data-d="' + (b === 'l1' ? -1 : 1) + '"]'); if (bt) bt.click(); }
       }
     });
+    PAD.on('release', function(b){ if (b === 'cross') xRelease(); else if (b === 'square') squareRelease(); });
     PAD.on('frame', function(st){
       var sv = doc.querySelector('.x-spiral'), trig = st.r2 - st.l2;
       if (sv && (st.rx || st.ry || Math.abs(trig) > .05)) {
@@ -5302,7 +5408,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

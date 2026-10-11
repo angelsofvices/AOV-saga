@@ -84,7 +84,16 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-    { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.21', title:'The AstraBlaster MK1',
+        { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.22', title:'The jetpack and the new controls',
+      notes:[
+        'The JETPACK is a second utility. Assemble it at the Workstation, then equip it from the Inventory',
+        'Triangle cycles your equipped utilities. Square uses the active one: it fires the ASTRABLASTER, or flies the JETPACK while held',
+        'Hold Square to fly. Let go and Carl settles back down, and lands on open ground',
+        'The JETPACK clears plants, stones and props. Walls, structures and people still stop you',
+        'X interacts. Hold X to lift an object, and tap it to set it down. Circle cycles crouch, walk and run',
+        'In caves, Up jumps and holding Square flies. Energy and flight duration are not yet decided'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.21', title:'The AstraBlaster MK1',
       notes:[
         'The MK1 was left at the crash site. It starts broken: repair it at the Workstation from NASARUS materials',
         'Equip it from the Inventory’s WEAPON tab. Square fires it in the direction you face; bare-handed, Square still moves objects',

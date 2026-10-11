@@ -84,7 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-                { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.24', title:'All 27 planetary utilities work',
+                    { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.25', title:'Boomfists open the edge of the planet',
+      notes:[
+        'Boomfists can break a rock on the edge of any planet open into a new cave mouth',
+        'A broken mouth is saved on that planet, and it is there on every visit',
+        'Going in through a broken mouth opens the same cave. Leaving it, or being carried out, puts you back at the planet’s regular mouth',
+        'The fixed rock of NASARUS does not break'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.24', title:'All 27 planetary utilities work',
       notes:[
         'Every planet’s utility now has an ability, in simple form. Art and sound come in a later pass',
         'Shields, decoys, freezes, grapples, vines, a return beacon and a bio scanner are all usable',

@@ -706,7 +706,18 @@
     }
     g[H - 4][W - 6] = '.'; g[H - 5][W - 6] = '.'; g[H - 6][W - 6] = '.';
     g[H - 4][W - 5] = 'E'; g[H - 5][W - 5] = 'E';
-    return { no:no, W:W, H:H, rows:g.map(function(row){ return row.join(''); }), enemies:en, start:{ x:2, y:H - 4 }, exit:{ x:W - 5, y:H - 4 } };
+    // the world's teacher: ONE person deep in the cave, on open floor clear of the enemies (the main mission of the world)
+    var teachers = [], tp = FAUNA.peoples[no] || {};
+    if (tp.race && no !== 9) {
+      var tx = -1;
+      for (var q = Math.floor(W * .55); q < W - 20 && tx < 0; q++) {
+        if (g[H - 4][q] !== '.' || g[H - 3][q] !== 'G' || g[H - 4][q - 1] !== '.' || g[H - 4][q + 1] !== '.') continue;
+        if (en.some(function(e){ return Math.abs(e.x - q) < 6; })) continue;
+        tx = q;
+      }
+      if (tx >= 0) teachers.push({ x:tx, y:H - 4, dir:'down', key:'w' + no, env:'cave' + no, n:7, cave:true });
+    }
+    return { no:no, W:W, H:H, rows:g.map(function(row){ return row.join(''); }), enemies:en, npcs:teachers, start:{ x:2, y:H - 4 }, exit:{ x:W - 5, y:H - 4 } };
   }
   // the Immortal Zone: a secret top-down region of the planet, with its deity, rare Aethren and rare caches
   function buildImmortal(no){

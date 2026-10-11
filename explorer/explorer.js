@@ -3611,6 +3611,7 @@
     var zone = !!(S.iz && S.iz[lm.dungeon]), nm = placeName(lm.dungeon);
     var lines = ['A cave mouth in the rock of ' + nm + '. Cold air comes out of it, and the stone is worn smooth on the inside.',
       zone ? 'The Immortal Zone beyond it is already charted in your records.' : 'Something lies at the far end. The Expanse has a name for it, and you have not yet found it.'];
+    if (!worldLearned(lm.dungeon) && lm.dungeon !== 9 && (FAUNA.peoples[lm.dungeon] || {}).race) lines.splice(1, 0, 'Voices carry up from somewhere inside. Someone down there may teach you this world’s words.');
     var choices = zone ? ['ENTER THE CAVE', 'GO TO THE IMMORTAL ZONE', 'NOT NOW'] : ['ENTER THE CAVE', 'NOT NOW'];
     say(lines, choices).then(function(i){
       if (i === 0) enterCave(lm.dungeon, lm);
@@ -3622,7 +3623,7 @@
     parkField();
     var C = GEN.cave(no);
     var viaHole = !!(lm && lm.hole);
-    SIDE = { no:no, C:C, viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:C.rows.map(function(r){ return r.split(''); }), p:{ x:C.start.x, y:C.start.y, vx:0, vy:0, ground:true, face:1, safe:{ x:C.start.x, y:C.start.y }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
+    SIDE = { no:no, C:C, npcs:C.npcs || [], viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:C.rows.map(function(r){ return r.split(''); }), p:{ x:C.start.x, y:C.start.y, vx:0, vy:0, ground:true, face:1, safe:{ x:C.start.x, y:C.start.y }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
     SIDE.en = C.enemies.map(function(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round(40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:d.atk || 5, range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; });
     mode = 'side'; fadeIn(.45);
     sideScreen(no);
@@ -3678,6 +3679,8 @@
     if (a === 'jump') p.jumpBuf = .16;
     if (a === 'attack') { if (blasterReady()) fireBlaster(); else toast('No fists in AA:1936. Equip a weapon, then press □ to fire.', 'red'); }
     if (a === 'interact') {
+      var near = SIDE.npcs.filter(function(n){ return Math.abs(n.x - p.x) <= 2.2; })[0];
+      if (near) return talkPeople(near);
       if (p.x >= SIDE.C.exit.x - 1.4) return enterZone(SIDE.no, false);
       if (p.x < 3.4) return cavePassOut('You climb back out to the cave mouth.');
       toast('Nothing here to open. Loot is picked up as you walk over it.');
@@ -3762,6 +3765,21 @@
   }
   // ── MINIMAP · the field around Carl, or the cave ahead and behind him ──
   var MMT = 0;
+  // the way to this world’s teacher: its cave mouth, until the world’s words are learned (not in the immortal zones)
+  function teachTarget(){
+    var no = M && M.world;
+    if (!M || M.immortal || !no || no === 9 || worldLearned(no) || !(FAUNA.peoples[no] || {}).race) return null;
+    return (M.landmarks || []).filter(function(l){ return l.id === 'dcave_' + no; })[0] || null;
+  }
+  function markRing(g, cx, cy, r){ g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke(); }
+  // a gold ring where the target is on the minimap; a pulsing pip on the edge when it lies beyond the view
+  function markTarget(g, dx, dy, R, cell, W, H){
+    var pulse = .5 + .5 * Math.sin(Date.now() / 220);
+    g.strokeStyle = g.fillStyle = '#ffd84a'; g.lineWidth = 1.5;
+    if (Math.abs(dx) <= R && Math.abs(dy) <= R) return markRing(g, (dx + R + .5) * cell, (dy + R + .5) * cell, cell * (.9 + .4 * pulse));
+    var a = Math.atan2(dy, dx), ex = W / 2 + Math.cos(a) * (W / 2 - 9), ey = H / 2 + Math.sin(a) * (H / 2 - 9);
+    g.beginPath(); g.arc(ex, ey, 3 + pulse, 0, Math.PI * 2); g.fill();
+  }
   function drawMinimap(){
     var cv2 = $('.x-minimap'); if (!cv2 || !M && !SIDE) return;
     var g = cv2.getContext('2d'), W = cv2.width, H = cv2.height;
@@ -3774,6 +3792,8 @@
       }
       SIDE.en.forEach(function(e){ if (!e.dead && Math.abs(e.x - sp.x) <= 30) { g.fillStyle = '#ff5a6e'; g.fillRect((e.x - x0) * cw - 1, e.y * rh, 3, 3); } });
       g.fillStyle = '#ffffff'; g.fillRect((sp.x - x0) * cw - 2, sp.y * rh, 4, 4);
+      // the teacher: a gold ring in the window, or a pulsing pip on the edge that points the way when it lies beyond
+      if (SIDE.no !== 9 && !worldLearned(SIDE.no)) SIDE.npcs.forEach(function(n){ var dx = n.x - sp.x; g.strokeStyle = g.fillStyle = '#ffd84a'; g.lineWidth = 1.5; if (Math.abs(dx) <= 30) markRing(g, (n.x - x0 + .5) * cw, (n.y + .5) * rh, Math.max(cw, rh) * 1.2); else { g.beginPath(); g.arc(dx < 0 ? 4 : W - 4, H / 2, 3 + .5 * (1 + Math.sin(Date.now() / 220)), 0, Math.PI * 2); g.fill(); } });
       return;
     }
     if (!M || !P) return;
@@ -3786,6 +3806,7 @@
     }
     (M.landmarks || []).forEach(function(l){ var dx = l.x - P.x, dy = l.y - P.y; if (Math.abs(dx) <= R && Math.abs(dy) <= R && fogArr && fogArr[l.y * M.W + l.x]) { g.fillStyle = '#ffd36a'; g.fillRect((dx + R) * cell, (dy + R) * cell, cell, cell); } });
     foes.forEach(function(f){ var dx = f.x - P.x, dy = f.y - P.y; if (f.state !== 'dead' && Math.abs(dx) <= R && Math.abs(dy) <= R) { g.fillStyle = '#ff5a6e'; g.fillRect((dx + R + .5) * cell - 1, (dy + R + .5) * cell - 1, 3, 3); } });
+    var tg = teachTarget(); if (tg) markTarget(g, tg.x - P.x, tg.y - P.y, R, cell, W, H);
     g.fillStyle = '#ffffff'; g.fillRect(R * cell + cell / 2 - 2, R * cell + cell / 2 - 2, 4, 4);
   }
   function drawSide(now){
@@ -3814,6 +3835,7 @@
         ctx.fillStyle = '#b86aff'; ctx.globalAlpha = .5 + .3 * Math.sin(now / 300); ctx.fillRect(X + TZ * .3, Y - TZ * .3, TZ * .4, TZ * 1.2); ctx.globalAlpha = 1;
       }
     }
+    SIDE.npcs.forEach(function(n){ var X = ox + (n.x + .5) * TZ, Y = oy + (n.y + 1) * TZ; shadow(X, Y, z, 10); ART.draw(ctx, npcSprite(n), X, Y, z); });
     // the way out, at the mouth
     ctx.fillStyle = '#6e8aa8'; ctx.globalAlpha = .6; ctx.fillRect(ox + 1 * TZ, oy + (H - 5) * TZ, TZ * .3, TZ * 1.2); ctx.globalAlpha = 1;
     s.en.forEach(function(e){
@@ -5266,7 +5288,7 @@
   async function talkRefugee(n){
     var no = M.world, pe = worldPeople(no) || {}, race = known(WORLD[no].term) && pe.race ? pe.race : 'these people';
     if (S.hq.residents[no]) return;
-    if (!S.lore['w' + no]) return say(['A camp at the edge of the fighting. Tired faces, few belongings. They speak fast and low, and you cannot follow it yet.', '(Learn this world’s words from its people first.)']);
+    if (!S.lore['w' + no]) return say(['A camp at the edge of the fighting. Tired faces, few belongings. They speak fast and low, and you cannot follow it yet.', '(This world’s words are taught deep in the cave beyond the mouth. Its mark shows on your minimap.)']);
     if (!S.exp.beaten[no]) return say(['Refugees from the war region. They point toward the vault, and the warden who holds it, and shake their heads. Not while the warden hunts here.']);
     if (!S.hq.built.habitation) return say(['They ask, as far as you can follow, whether there is anywhere else. There is: ' + hqName() + '. But you have nowhere to put them yet.', '(Build the HABITATION ZONE at ' + hqName() + '.)']);
     var a = await say(['They ask whether there is anywhere else, anywhere the war does not reach. There is: ' + hqName() + '. A drifting world, quiet, with room.', 'Take ' + race.toLowerCase() + ' home to ' + hqName() + '?'], ['TAKE THEM', 'NOT NOW']);
@@ -5345,13 +5367,13 @@
     if (lm) out.push('They point ' + compass(lm.x - P.x, lm.y - P.y) + ': ' + title1936(term(lm.id)) + '.');
     return out;
   }
-  async function teach(key, no, district, intro){
+  async function teach(key, no, district, intro, inCave){
     var mapId = M.id;
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save();
     var pid = no === 9 ? 'ppl_z_' + district : 'ppl_w' + no;
     reclassify(teachTerms(no, district), intro, async function(){
       S.lore[key] = Date.now(); gain('data', 10, true); save();
-      surface(mapId);
+      if (inCave && SIDE) sideScreen(SIDE.no); else surface(mapId);
       if (subj(pid)) { mark(pid, 'talk'); var first = manifest(pid, null, false); await cardReveal(pid, first, 'RELATIONSHIP · CARD ACQUIRED'); }
       toast('THE CODEX · ' + term(no === 9 ? district : WORLD[no].term) + ' · new pages');
     });
@@ -5367,7 +5389,7 @@
     var b = CXB[n.codex]; if (!b) return;
     var no = M.world, learned = no === 9 ? Object.keys(S.lore).some(function(k){ return /^z_/.test(k); }) || S.flags.taught : !!S.lore['w' + no];
     sfx.meet();
-    if (!learned) { await say(['A stranger. They watch you with open curiosity, and say something you cannot follow.', '(Learn this world’s words first, from its people or its records.)']); return; }
+    if (!learned) { await say(['A stranger. They watch you with open curiosity, and say something you cannot follow.', '(Learn this world’s words first. Its teacher is deep in the cave beyond the mouth.)']); return; }
     var first = cxUnlock(b.id, 'met');
     if (first) { gain('data', 3, true); toast('MASTER CODEX · ' + b.name + ' · entry unlocked'); }
     await say([cxHeader(b) + '.', b.blurb || 'They tell you a little about themselves.'].concat(first ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON. +3 DATA)'] : []));
@@ -5375,7 +5397,7 @@
   async function examineCodexRecord(rec){
     var bs = rec.codex.map(function(id){ return CXB[id]; }).filter(Boolean);
     var no = M.world, learned = no === 9 ? Object.keys(S.lore).some(function(k){ return /^z_/.test(k); }) || S.flags.taught : !!S.lore['w' + no];
-    if (!learned) { await say(['A worn stone, carved with names and dates in a script you cannot read yet.', '(Learn this world’s words first, from its people or its records.)']); return; }
+    if (!learned) { await say(['A worn stone, carved with names and dates in a script you cannot read yet.', '(Learn this world’s words first. Its teacher is deep in the cave beyond the mouth.)']); return; }
     var fresh = bs.filter(function(b){ return cxUnlock(b.id, 'record'); });
     if (fresh.length) { gain('data', 2 * fresh.length, true); toast('MASTER CODEX · ' + fresh.length + ' historical ' + (fresh.length > 1 ? 'figures' : 'figure') + ' recorded'); }
     await say(['A record stone, carved with the names of people long gone.'].concat(bs.map(function(b){ return cxHeader(b) + (b.blurb ? ': ' + b.blurb : '.'); })));
@@ -5414,7 +5436,7 @@
     await say(['You find something half buried: ' + term + '.', d ? d.slice(0, 420) : 'The Master Codex knows it.', 'RELICS +1'].concat(first ? ['(Recorded in the AstraNav · RESEARCH · MASTER CANON · INDEX.)'] : []));
   }
   async function readCodexStone(rec){
-    if (!worldLearned(M.world)) { await say(['A tall stone, densely inscribed. The script is this world’s, and you cannot read it yet.', '(Learn this world’s words first, from its people or its records.)']); return; }
+    if (!worldLearned(M.world)) { await say(['A tall stone, densely inscribed. The script is this world’s, and you cannot read it yet.', '(Learn this world’s words first. Its teacher is deep in the cave beyond the mouth.)']); return; }
     await new Promise(function(res){ loadCanon(res); });
     var R = window.AOV_CODEX_REF, terms = rec.codexTerms.filter(function(t){ return ixUnlock(t, 'record'); }), pages = rec.codexPages.filter(function(k){ if (S.codexPages[k]) return false; S.codexPages[k] = Date.now(); return true; });
     var n = terms.length + pages.length; if (n) { gain('data', 2 * n, true); toast('MASTER CODEX · ' + n + ' ' + (n > 1 ? 'entries' : 'entry') + ' recorded'); }
@@ -5425,7 +5447,7 @@
   // the peoples and named figures of a world (explorer/world_canon.js): strangers until you know the world's words
   async function talkFolk(n){
     var who = n.folk || n.figure; sfx.meet();
-    if (!worldLearned(M.world)) { await say([n.figure ? 'Someone who carries themselves like no one else here. They regard you, and speak in a tongue you cannot follow.' : 'They gather close and talk among themselves in a tongue you cannot follow.', '(Learn this world’s words first, from its people or its records.)']); return; }
+    if (!worldLearned(M.world)) { await say([n.figure ? 'Someone who carries themselves like no one else here. They regard you, and speak in a tongue you cannot follow.' : 'They gather close and talk among themselves in a tongue you cannot follow.', '(Learn this world’s words first. Its teacher is deep in the cave beyond the mouth.)']); return; }
     var key = (n.figure ? 'fig:' : 'folk:') + M.world + ':' + who.name, first = !S.seen[key];
     if (first) { S.seen[key] = Date.now(); ixUnlock(who.name, 'met'); gain('data', 2, true); toast((n.figure ? 'MET · ' : 'PEOPLE · ') + who.name); save(); }
     await say([who.name.toUpperCase() + '.', who.text || 'They tell you a little of themselves.'].concat(first ? ['(Recorded in your journal. +2 DATA)'] : []));
@@ -5449,13 +5471,15 @@
       await say(['They speak the tongue you began to learn in the meadow. Slowly, with the AstraNav’s scans between you, you understand each other.']);
       return teach(key, no, district, 'The people of this land name it, its creatures, and its places.');
     }
+    // the camp folk and the rest of the world’s people: side talk. Their words are taught by the world’s teacher in the cave.
+    if (!n.cave) { await say(['They speak fast and low. You almost know the shape of it, but not a word you can keep.', '(This world’s words are taught by its teacher, deep in the cave beyond the mouth. Its mark shows on your minimap.)']); return; }
     var have = worldCardsAethren(no);
     if (have.length < 2) {
       await say(['They speak. You cannot follow a word, but you know this dance now: they point at the glowing AstraNav, then at the creatures of this world.', '(Scan at least 2 of this world’s creatures into the AstraNav. You have ' + have.length + '.)']);
       return;
     }
     await say(['You show them the AstraNav, scan by scan. They name each creature, then the land, then themselves, slowly, so you can follow.']);
-    teach(key, no, null, 'First contact. The people of this world name it, its creatures, its places, and themselves.');
+    teach(key, no, null, 'First contact. The people of this world name it, its creatures, its places, and themselves.', true);
   }
   async function examineRecord(rec){
     if (rec.codex) return examineCodexRecord(rec);
@@ -6215,7 +6239,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, hpNow:function(){ return hpNow(); }, setSuit:function(v){ S.suit = v; }, hurt:function(n){ return hurtPilot(n); }, setHp:function(v){ S.hp = v; }, hudRect:function(id){ var m = $('.x-mod[data-mod="' + id + '"]'); if (!m) return null; var r = m.getBoundingClientRect(); return { x:r.left, y:r.top, w:r.width, h:r.height, vw:innerWidth, vh:innerHeight }; }, hudSaved:function(){ return S.hud || null; }, hudEdit:function(on){ hudEditSet(on); }, hudDragBy:function(id, dx, dy){ return null; }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, feel:function(){ return { shakeT: SHAKE.t, hitStop: HITSTOP, sq: (SIDE && SIDE.p.sq) || null }; }, gainRaw:function(k, n){ return gain(k, n, true); }, anim:function(){ return window.AOV_ANIM.resolve(carlAnimState()).id; }, animFrame:function(){ return P && P.ani ? P.ani.frame : -1; }, stage3:function(){ return { fade: TRANS.t, fxN: fxs.length }; }, bgm:function(){ return BGM && { src:BGM.src, paused:BGM.paused, loop:BGM.loop }; }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, hpNow:function(){ return hpNow(); }, setSuit:function(v){ S.suit = v; }, hurt:function(n){ return hurtPilot(n); }, setHp:function(v){ S.hp = v; }, hudRect:function(id){ var m = $('.x-mod[data-mod="' + id + '"]'); if (!m) return null; var r = m.getBoundingClientRect(); return { x:r.left, y:r.top, w:r.width, h:r.height, vw:innerWidth, vh:innerHeight }; }, hudSaved:function(){ return S.hud || null; }, hudEdit:function(on){ hudEditSet(on); }, hudDragBy:function(id, dx, dy){ return null; }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, feel:function(){ return { shakeT: SHAKE.t, hitStop: HITSTOP, sq: (SIDE && SIDE.p.sq) || null }; }, gainRaw:function(k, n){ return gain(k, n, true); }, anim:function(){ return window.AOV_ANIM.resolve(carlAnimState()).id; }, animFrame:function(){ return P && P.ani ? P.ani.frame : -1; }, stage3:function(){ return { fade: TRANS.t, fxN: fxs.length }; }, bgm:function(){ return BGM && { src:BGM.src, paused:BGM.paused, loop:BGM.loop }; }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; }, caveNpcs:function(){ return SIDE && SIDE.npcs; }, teachTarget:function(){ return teachTarget(); }, markOn:function(){ return { ring: typeof markTarget === 'function' }; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

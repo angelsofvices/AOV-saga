@@ -10,10 +10,10 @@
 - **Unlimited rounds, a recharge meter.** A shot costs 20 of a 100-point charge meter. Charge comes back by itself at 16 points a second, after the blaster has been quiet for 0.4 seconds. There is no ammunition to buy or find. A bar labelled CHARGE on the field and in cave HUDs shows READY or RECHARGING.
 - **Fire rate.** One shot per 0.34 seconds at most.
 - **Visible only while firing.** The weapon is drawn in Carl's hands for about a third of a second after each shot. The bolt travels along the line of fire.
-- **Square (□) on the field.**
+- **Square (□) on the field.** (Doc 26 has the full controls.)
   - With the blaster equipped and repaired, □ fires straight in the direction Carl faces (the four cardinal directions in the top-down field).
   - Bare-handed, □ moves objects, as before. It never moves Carl or objects while the blaster is armed.
-- **Circle (○) in a cave.** Fires the blaster in the direction Carl faces (left or right). Bare-handed, ○ says "No fists in AA:1936" and fires nothing. There is no melee.
+- **Square (□) in a cave.** Fires the blaster in the direction Carl faces (left or right). Bare-handed, □ fires nothing. There is no melee. Circle is the crouch, walk and run key (see doc 26).
 - **No fist combat.** The melee swing is gone. Bare-handed attacks do nothing.
 - **Bolts and hits:**
   - A bolt flies 12 tiles a second and stops after 8 tiles.

@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.20', title:'Caves and Immortal Zones',
+      notes:[
+        'Every planet from 1 to 27 has a cave mouth on the edge of its rock',
+        'A cave is a side-scrolling level: left and right, jump, attack, and a far door',
+        'The far door opens onto the planet’s IMMORTAL ZONE: a secret region with its deity, rare Aethren and rare caches',
+        'Once found, a planet’s Immortal Zone stays open from its cave mouth. Caves stay replayable',
+        'Deity encounters are recorded for the Creator; their canon is not yet written'
+      ] },
     { date:'2026-10-10', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.19', title:'The field survives the AstraNav',
       notes:[
         'Opening the AstraNav no longer resets the overworld or a fight: enemies, your party and their damage carry on when you return'

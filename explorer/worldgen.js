@@ -648,10 +648,108 @@
   }
 
   var cache = {};
+
+  // ── CAVE DUNGEONS & IMMORTAL ZONES (Planetary Dungeon System V1.0) ──
+  // Every planet 1–27 has ONE cave mouth on the overworld (a rock tile on the edge of open ground). The cave is a 2D
+  // side-scrolling level, and its far door opens onto the planet's IMMORTAL ZONE, a secret map region.
+  function worldEnv(no){ return (window.AOV_ENV || []).filter(function(e){ return e.no === no; })[0] || (window.AOV_ENV || [])[0]; }
+  // the mouth: a rock tile with exactly one open neighbour, reachable from the ship, away from everything else
+  function placeDungeon(m, no){
+    var r = rng(no * 6151 + 3), seen = reachable(m, m.ship.x, m.ship.y + 1), cands = [];
+    for (var y = 2; y < m.H - 2; y++) for (var x = 2; x < m.W - 2; x++) {
+      var i = y * m.W + x; if (m.grid[i] !== '#' || m.props[i] || m.sidx && m.sidx[i] != null) continue;
+      var open = [[1,0],[-1,0],[0,1],[0,-1]].filter(function(d){ var j = (y + d[1]) * m.W + x + d[0]; return !SOLID[m.grid[j]] && seen[j]; });
+      if (open.length !== 1) continue;
+      if (m.landmarks.some(function(l){ return Math.abs(l.x - x) + Math.abs(l.y - y) < 10; })) continue;
+      cands.push({ x:x, y:y, stand:{ x:x + open[0][0], y:y + open[0][1] } });
+    }
+    if (!cands.length) return null;
+    var c = cands[(r() * cands.length) | 0];
+    m.set(c.x, c.y, 'L');
+    var lm = { x:c.x, y:c.y, name:'The cave mouth', id:'dcave_' + no, env:'dungeon', dungeon:no, stand:c.stand };
+    m.landmarks.push(lm); return lm;
+  }
+  // one cave: a horizontal level, pits, platforms, spikes, loot and enemies, with the door at the far end
+  function buildCave(no){
+    var r = rng(no * 104729 + 31), W = 170 + (no % 6) * 14, H = 16, g = [], x, y;
+    for (y = 0; y < H; y++) { g.push([]); for (x = 0; x < W; x++) g[y].push('.'); }
+    for (x = 0; x < W; x++) { g[0][x] = '#'; }
+    for (y = 0; y < H; y++) { g[y][0] = '#'; g[y][W - 1] = '#'; }
+    var pits = [], x0 = 1;
+    for (x = 1; x < W - 14; ) {
+      var seg = 6 + ((r() * 14) | 0);
+      for (var c = x; c < Math.min(W - 14, x + seg); c++) { g[H - 3][c] = 'G'; g[H - 2][c] = 'G'; }
+      x += seg;
+      if (r() < .55 && x < W - 16) { var pw = 2 + ((r() * 2) | 0); pits.push([x, x + pw]); x += pw; }
+    }
+    // platforms over the floor (one tile above the ground: reachable with one jump)
+    for (x = 8; x < W - 16; ) {
+      x += 9 + ((r() * 16) | 0);
+      var pl = 3 + ((r() * 3) | 0);
+      for (c = x; c < x + pl && c < W - 16; c++) if (g[H - 5][c] === '.') g[H - 5][c] = 'P';
+      x += pl;
+    }
+    // spikes on the floor, and loot in the air
+    for (x = 6; x < W - 16; x++) if (g[H - 4][x] === '.' && g[H - 3][x] === 'G' && r() < .07 && !pits.some(function(p){ return x >= p[0] - 1 && x <= p[1]; })) g[H - 4][x] = 'H';
+    for (var k = 0; k < 14 + ((W / 20) | 0); k++) {
+      var lx = 4 + ((r() * (W - 22)) | 0), ly = H - 4 - ((r() * 4) | 0);
+      if (g[ly][lx] === '.' && g[ly + 1][lx] !== '.') g[ly][lx] = '$';
+    }
+    // enemies: a pair every 30 cells, on the floor, never on a pit or at the start
+    var en = [], lv = levelFor(no) || 5;
+    var kinds = ['mori', 'seer_grunt', 'daemon', 'nova'];
+    for (x = 22; x < W - 22; x += 26 + ((r() * 10) | 0)) {
+      if (pits.some(function(p){ return x >= p[0] - 2 && x <= p[1] + 1; })) continue;
+      var k2 = kinds[(r() * kinds.length) | 0];
+      en.push({ x:x, y:H - 4, k:k2, lv:lv + ((r() * 3) | 0) });
+      if (r() < .5) en.push({ x:x + 2, y:H - 4, k:kinds[(r() * kinds.length) | 0], lv:lv });
+    }
+    g[H - 4][W - 6] = '.'; g[H - 5][W - 6] = '.'; g[H - 6][W - 6] = '.';
+    g[H - 4][W - 5] = 'E'; g[H - 5][W - 5] = 'E';
+    return { no:no, W:W, H:H, rows:g.map(function(row){ return row.join(''); }), enemies:en, start:{ x:2, y:H - 4 }, exit:{ x:W - 5, y:H - 4 } };
+  }
+  // the Immortal Zone: a secret top-down region of the planet, with its deity, rare Aethren and rare caches
+  function buildImmortal(no){
+    var HX = 40, HY = 30, m = new Map('iz' + no, HX, HY), seed = no * 9973 + 61, r = rng(seed);
+    m.world = no; m.name = 'iz' + no; m.immortal = true; m.envs = [worldEnv(no)]; m.structs = []; m.sidx = {};
+    terrain(m, 0, 0, HX, HY, 0, seed, { high:.66, wet:.12 });
+    for (var q = 0; q < m.grid.length; q++) if (m.grid[q] === '~') m.grid[q] = ',';
+    border(m);
+    m.ship = { x:6, y:HY - 8 };   // the arrival point, where the cave's door lets you out
+    clearRect(m, 2, HY - 12, 9, 10);
+    m.records = []; m.codexFinds = {}; m.props = m.props || {}; m.spawns = []; m.npcs = [];
+    finish(m);   // clears the arrival area, so everything below is placed after it
+    var cx = 24, cy = 12, exitX = m.ship.x + 1, exitY = m.ship.y - 1;
+    clearRect(m, cx - 4, cy - 4, 9, 9);
+    m.set(cx, cy, 'L');
+    m.landmarks.push({ x:cx, y:cy, name:'The deity of this world', id:'fig_deity_' + no, env:'immortal', deity:no });
+    m.set(exitX, exitY, 'L');
+    m.landmarks.push({ x:exitX, y:exitY, name:'The way out', id:'dback_' + no, env:'immortal', dungeonExit:no });
+    for (var c = 0; c < 4; c++) {
+      var kx = 8 + ((r() * 28) | 0), ky = 4 + ((r() * 22) | 0);
+      if (Math.hypot(kx - cx, ky - cy) < 6 || m.at(kx, ky) !== '.') continue;
+      m.set(kx, ky, 'L'); m.landmarks.push({ x:kx, y:ky, name:'An ancient cache', id:'lm_izrelic_' + no + '_' + c, env:'immortal', izLoot:no + ':' + c });
+    }
+    var pool = Object.keys(SPECIES_FOR_IZ.list(no));
+    for (var a = 0; a < Math.min(3, pool.length); a++) {
+      var sx = 10 + ((r() * 22) | 0), sy = 8 + ((r() * 14) | 0);
+      if (m.at(sx, sy) !== '.' && m.at(sx, sy) !== ',') continue;
+      m.spawns.push({ x:sx, y:sy, id:pool[(r() * pool.length) | 0], lv:(levelFor(no) || 5) + 4, calm:1 });
+    }
+    return m;
+  }
+  // rare Aethren for an Immortal Zone: the planet's own species, rarest first (tier 3 and up, never sealed or retired)
+  var SPECIES_FOR_IZ = { list:function(no){
+    var sp = (window.AOV_FAUNA || {}).species || {}, out = {};
+    Object.keys(sp).forEach(function(id){ var s = sp[id]; if (s.world === no && !s.retired && !s.hidden && !s.sealed && (s.tier || 1) >= 3 && (s.tier || 1) <= 8) out[id] = s.tier; });
+    return out;
+  } };
   function build(id, st){
     if (id === 'nasarus') return buildNasarus(st);
     if (cache[id]) return cache[id];
+    if (/^iz\d+$/.test(id)) { var zm = buildImmortal(+id.slice(2)); if (zm) cache[id] = zm; return zm; }
     var m = id === 'w9' ? buildZyraxis() : /^w\d+$/.test(id) ? buildWorld(+id.slice(1)) : buildInterior(id);
+    if (m && /^w\d+$/.test(id) && +id.slice(1) >= 1 && +id.slice(1) <= 27 && !m.dungeonPlaced) { placeDungeon(m, +id.slice(1)); m.dungeonPlaced = true; }
     if (m) cache[id] = m;
     return m;
   }
@@ -662,5 +760,5 @@
     return null;
   }
 
-  window.AOV_WORLDGEN = { reset:function(){ cache = {}; }, build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus, biomesForWorld:biomesForWorld };
+  window.AOV_WORLDGEN = { cave:function(no){ return buildCave(no); }, reset:function(){ cache = {}; }, build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus, biomesForWorld:biomesForWorld };
 })();

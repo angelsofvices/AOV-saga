@@ -1154,6 +1154,7 @@
       html = '<p class="x-sh-k">' + (kn2 || vis ? esc(setName(no)) : 'CATALOGUE ENTRY') + '</p><h3>' + esc(term(w.term)) + '</h3>' + (kn2 && w.title ? '<p class="x-sh-sub">' + esc(w.title.toUpperCase()) + '</p>' : '') +
         '<dl><dt>' + (here ? 'POSITION' : 'COURSE') + '</dt><dd>' + (here ? (S.landed ? 'LANDED HERE' : 'IN ORBIT') : au(no) + ' A.U.') + '</dd>' +
           (!here && S.core && S.core.enabled ? '<dt>FUEL</dt><dd>' + courseFuel(no) + '% · TANK ' + shipFuel() + '/' + tankMax() + '%</dd><dt>REACH</dt><dd>' + (inReach(no) ? 'IN REACH' : 'NEEDS SHIP LEVEL ' + levelToReach(no)) + '</dd>' : '') +
+          (vis && no <= 27 && no !== 28 ? '<dt>IMMORTAL ZONE</dt><dd>' + (S.iz && S.iz[no] ? 'CHARTED · reachable from the cave mouth' : 'NOT YET FOUND · a cave mouth lies on this world') + '</dd>' : '') +
           '<dt>STATUS</dt><dd>' + (vis ? 'VISITED' : kn2 ? 'NAMED' : 'UNVISITED') + '</dd><dt>SURVEY</dt><dd>' + setPct(no) + '%</dd><dt>CARDS</dt><dd>' + setCards(no) + ' / ???</dd>' +
           '<dt>FAUNA SIGNALS</dt><dd>' + fauna(no) + '</dd>' +
           (vis && no <= WORLDS_ALL ? '<dt>VAULT</dt><dd>' + esc(sysOf(no).part) + ' · ' + vaultState(no) + '</dd>' : '') +
@@ -2084,6 +2085,7 @@
   }
   function carryOk(){ var t = carryTarget(); return carry.st ? structFits(M, carry.st, t.x, t.y) : floorFree(M, t.x, t.y); }
   function btnMove(){
+    if (mode === 'side') { sideAct('interact'); return; }
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal') || P.moving) return;
     if (carry) return setCarry();
     var f = facing(), i = f.y * M.W + f.x, ch = at(f.x, f.y);
@@ -2747,6 +2749,7 @@
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (mode === 'hyper') drawHyper(now);
     else if (mode === 'surface') { updateSurface(dt, now); if (mode === 'surface') drawSurface(now); }
+    else if (mode === 'side' && SIDE) { updateSide(dt, now); if (mode === 'side' && SIDE) drawSide(now); }
     if (mode) raf = requestAnimationFrame(loop);
   }
   function rng(seed){ return function(){ seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
@@ -3466,8 +3469,204 @@
     });
   }
 
+  // ═════════════════════════ CAVE DUNGEONS & IMMORTAL ZONES ═════════════════════════
+  // Planetary Dungeon System V1.0: each planet has one cave mouth on its overworld. Inside, the game turns into a 2D
+  // side-scroller: left, right, jump, attack, interact. The far door opens onto the planet's IMMORTAL ZONE, a secret
+  // region. Once found, the Immortal Zone stays unlocked from the cave mouth; the cave itself stays replayable.
+  // Deity encounters follow canon, and the canon for each deity is not yet written, so none is named here.
+  var SIDE = null, SIDE_SOLID = { G:1, P:1, '#':1 }, SIDE_RUN = 6.2, SIDE_JUMP = 12.5, SIDE_G = 32;
+  function parkField(){
+    S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save();
+    parked = { map:M.id, M:M, P:P, fogArr:fogArr, critters:critters, veiled:veiled, npcs:npcs, allies:allies, homebodies:homebodies, foes:foes, shots:shots, fxs:fxs, trail:trail, foeGroups:foeGroups, quietT:quietT };
+  }
+  function openCave(lm){
+    if (dialogOpen || encounterOpen || doc.querySelector('.x-modal, .x-battle')) return;
+    S.mouth = S.mouth || {}; S.mouth[lm.dungeon] = { x:lm.stand.x, y:lm.stand.y };
+    var zone = !!(S.iz && S.iz[lm.dungeon]), nm = placeName(lm.dungeon);
+    var lines = ['A cave mouth in the rock of ' + nm + '. Cold air comes out of it, and the stone is worn smooth on the inside.',
+      zone ? 'The Immortal Zone beyond it is already charted in your records.' : 'Something lies at the far end. The Expanse has a name for it, and you have not yet found it.'];
+    var choices = zone ? ['ENTER THE CAVE', 'GO TO THE IMMORTAL ZONE', 'NOT NOW'] : ['ENTER THE CAVE', 'NOT NOW'];
+    say(lines, choices).then(function(i){
+      if (i === 0) enterCave(lm.dungeon, lm);
+      else if (zone && i === 1) enterZone(lm.dungeon, true);
+    });
+  }
+  function enterCave(no, lm){
+    closeStation(true); held = null; path = [];
+    parkField();
+    var C = GEN.cave(no);
+    SIDE = { no:no, C:C, g:C.rows.map(function(r){ return r.split(''); }), p:{ x:C.start.x, y:C.start.y, vx:0, vy:0, ground:true, face:1, safe:{ x:C.start.x, y:C.start.y }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
+    SIDE.en = C.enemies.map(function(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round(40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:d.atk || 5, range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; });
+    mode = 'side';
+    sideScreen(no);
+    toast(placeName(no) + ' · CAVE · ' + C.W + ' cells long. Left and right to move, ✕ jump, ○ attack, □ interact.');
+  }
+  function sideScreen(no){
+    screen('x-surface x-side',
+      '<div class="x-hud riv"><div class="x-zone"><b class="x-zn">CAVE</b><span class="x-zw">' + esc(placeName(no)) + ' · ' + (SIDE.C.W) + ' CELLS</span></div>' +
+        '<div class="x-gauges">' + gauge('SUIT','suit') + '</div></div>' +
+      '<p class="x-padhint" aria-hidden="true">✕ JUMP · ○ ATTACK · □ INTERACT · ◀ ▶ WALK</p>' +
+      '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
+      '<div class="x-ab"><button class="x-sq" aria-label="Square: interact">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: attack">○<small>ATTACK</small></button><button class="x-a" aria-label="Cross: jump">✕<small>JUMP</small></button></div>' +
+      '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
+    bindSurfaceUI();
+    startWorld('side');
+    hudRefresh();
+  }
+  function sTile(x, y){ if (!SIDE) return '#'; var r = SIDE.g[Math.floor(y)]; if (!r) return '#'; var c = r[Math.floor(x)]; return c === undefined ? '#' : c; }
+  function sBlocked(x, y){   // the player's box: 0.6 wide, 0.9 tall, x and y are its top-left
+    var w = .6, h = .9, pts = [[x + .05, y + .02], [x + w - .05, y + .02], [x + .05, y + h - .02], [x + w - .05, y + h - .02]];
+    return pts.some(function(q){ return SIDE_SOLID[sTile(q[0], q[1])]; });
+  }
+  function sHurt(dmg, kx){
+    var p = SIDE.p; if (p.inv > 0) return; p.inv = .9;
+    S.suit = Math.max(0, S.suit - suitDmg(dmg)); p.vx = (kx || -p.face) * 3; p.vy = -4; sfx.hit(); vibrate(120, .5);
+    fxs.push({ k:'num', x:p.x + .3, y:p.y - .3, t:0, life:.8, txt:'-' + suitDmg(dmg), color:'#ff6a5a' });
+    hudRefresh();
+    if (S.suit <= 0) cavePassOut('CARRIED BACK TO THE CAVE MOUTH · your suit gave out. You wake at the mouth with 40% suit.');
+  }
+  // you leave the cave by the mouth (rescue or climb out): the overworld is exactly as you left it
+  function cavePassOut(msg){
+    SIDE = null; S.suit = Math.max(S.suit, 40); save();
+    if (msg) toast(msg, 'red');
+    if (parked && parked.map === S.pos.map) resumeField(); else surface(S.pos.map);
+  }
+  function enterZone(no, fromOutside){
+    SIDE = null; S.iz = S.iz || {};
+    var first = !S.iz[no]; if (first) { S.iz[no] = Date.now(); hqRecord('The IMMORTAL ZONE of ' + placeName(no) + ' is charted.'); save(); }
+    if (fromOutside) { parked = null; S.pos = null; }
+    else { parked = null; }
+    stopWorld && stopWorld();
+    S.pos = null;
+    surface('iz' + no);
+    setTimeout(function(){ toast(first ? 'IMMORTAL ZONE · the first time through. Its deity, its rare Aethren and its caches are here.' : 'IMMORTAL ZONE · ' + placeName(no), first ? '' : undefined); }, 500);
+  }
+  function sideAct(a){
+    if (!SIDE) return;
+    var p = SIDE.p;
+    if (a === 'jump') p.jumpBuf = .16;
+    if (a === 'attack' && p.atkCd <= 0) {
+      p.atkT = .26; p.atkCd = .34; sfx.bump();
+      SIDE.en.forEach(function(e){
+        if (e.dead) return; var dx = e.x - p.x, dy = e.y - p.y;
+        if (Math.abs(dy) < 1.6 && dx * p.face > -.3 && dx * p.face < 1.7) {
+          var dmg = Math.round(22 + S.ship.level * 4 + (S.hq.research && S.hq.research['r-cards'] ? 6 : 0));
+          e.hp -= dmg; e.flash = .16; e.x += p.face * .55; fxs.push({ k:'slash', x:e.x, y:e.y, t:0, life:.3, dir:p.face > 0 ? 'right' : 'left' });
+          fxs.push({ k:'num', x:e.x, y:e.y - 1.1, t:0, life:.7, txt:String(dmg), color:'#fff4c8' });
+          if (e.hp <= 0) caveFoeDown(e);
+        }
+      });
+    }
+    if (a === 'interact') {
+      if (p.x >= SIDE.C.exit.x - 1.4) return enterZone(SIDE.no, false);
+      if (p.x < 3.4) return cavePassOut('You climb back out to the cave mouth.');
+      toast('Nothing here to open. Loot is picked up as you walk over it.');
+    }
+  }
+  function caveFoeDown(e){
+    e.dead = true; e.deadT = 0; sfx.reveal();
+    fxs.push({ k:'burst', x:e.x, y:e.y, t:0, life:.6, color:'#b86aff' });
+    if (Math.random() < .5) gain(['scrap', 'fibre', 'crystal', 'data'][(Math.random() * 4) | 0], 1, true);
+    toast((ENEMY.kinds[e.k] ? ENEMY.kinds[e.k].name : 'FOE') + ' DOWN');
+  }
+  function updateSide(dt, now){
+    var s = SIDE, p = s.p, H = s.C.H;
+    p.inv = Math.max(0, p.inv - dt); p.atkT = Math.max(0, p.atkT - dt); p.atkCd = Math.max(0, p.atkCd - dt); p.jumpBuf = Math.max(0, p.jumpBuf - dt); p.anim += dt * 8;
+    var dir = held === 'left' ? -1 : held === 'right' ? 1 : 0;
+    if (dir) p.face = dir;
+    p.vx = dir * SIDE_RUN; p.moving = !!dir; p.gait = 'steady';
+    p.vy = Math.min(18, p.vy + SIDE_G * dt);
+    if (p.jumpBuf > 0 && p.ground) { p.vy = -SIDE_JUMP; p.ground = false; p.jumpBuf = 0; sfx.step(); }
+    var nx = p.x + p.vx * dt;
+    if (!sBlocked(nx, p.y)) p.x = Math.max(.2, Math.min(s.C.W - 1.1, nx));
+    var ny = p.y + p.vy * dt;
+    if (!sBlocked(p.x, ny)) { p.y = ny; p.ground = false; }
+    else {
+      if (p.vy > 0) { p.y = Math.floor(ny + .9) - .9 - .001; p.ground = true; }
+      else p.y = Math.ceil(p.y) - .001;
+      p.vy = 0;
+    }
+    if (p.ground && !sBlocked(p.x, p.y + .08)) p.ground = false;
+    // standing on solid ground: keep a safe spot to fall back to
+    if (p.ground && (!p.safeT || now - p.safeT > 800)) { p.safe = { x:p.x, y:p.y }; p.safeT = now; }
+    // falls into a pit: back to the last safe ground
+    if (p.y > H - 1.2) { sHurt(10); p.x = p.safe.x; p.y = p.safe.y - .2; p.vy = 0; toast('You fall into the pit. Back to solid ground.', 'red'); }
+    // spikes
+    if (sTile(p.x + .3, p.y + .85) === 'H' && p.inv <= 0) sHurt(8);
+    // loot under you, or in reach
+    var cx = Math.floor(p.x + .3), cy = Math.floor(p.y + .45);
+    for (var yy = cy - 1; yy <= cy + 1; yy++) for (var xx = cx - 1; xx <= cx + 1; xx++) {
+      if (s.g[yy] && s.g[yy][xx] === '$') { s.g[yy][xx] = '.'; s.taken++; var got = ['scrap', 'fibre', 'crystal', 'data', 'terra'][(Math.random() * 5) | 0]; gain(got, 1 + (Math.random() < .3 ? 1 : 0), true); fxs.push({ k:'spark', x:xx + .5, y:yy + .5, t:0, life:.4, color:'#ffe08a' }); }
+    }
+    // enemies
+    s.en.forEach(function(e){
+      if (e.dead) return; e.cd -= dt; e.flash = Math.max(0, e.flash - dt);
+      var dx = p.x - e.x, dy = p.y - e.y, d = Math.abs(dx);
+      e.face = dx < 0 ? -1 : 1;
+      var floorAhead = s.g[H - 3] && s.g[H - 3][Math.floor(e.x + e.face * .8)] === 'G';
+      if (Math.abs(dy) < 2.2 && d < 9) {
+        if (e.range > 1) { if (d > 3.4 && floorAhead) e.x += e.face * e.spd * dt; else if (d < 2.4) e.x -= e.face * e.spd * dt; }
+        else if (d > .9 && floorAhead) e.x += e.face * e.spd * dt;
+        if (e.cd <= 0 && d <= e.range + .4 && Math.abs(dy) < 1.8) { e.cd = 1.1 + Math.random() * .4; sHurt(Math.round(3 + e.atk * .9 + e.lv * .12), e.face); }
+      }
+      if (!floorAhead && e.range === 1 && d > .9) { /* a pit edge: it turns back */ e.x -= e.face * .05; }
+      e.x = Math.max(2, Math.min(s.C.W - 2, e.x));
+    });
+    s.en = s.en.filter(function(e){ return !(e.dead && (e.deadT = (e.deadT || 0) + dt) > 1.4); });
+    // the far door
+    if (p.x >= s.C.exit.x - 1.1 && p.y > H - 6) { enterZone(s.no, false); return; }
+    // climb out at the mouth
+    if (held === 'up' && p.x < 3.2) { cavePassOut('You climb back out to the cave mouth.'); return; }   // at the mouth, up is out
+    p.dust = p.dust.filter(function(d2){ return now - d2.t < 380; }); if (p.moving && p.ground && (!p.dust.length || now - p.dust[p.dust.length - 1].t > 90)) p.dust.push({ x:p.x, y:p.y, t:now });
+    hudRefresh();
+  }
+  function drawSide(now){
+    var w = cv.width, h = cv.height, z = zoom(), TZ = T * z, s = SIDE, H = s.C.H, W = s.C.W;
+    ctx.imageSmoothingEnabled = false;
+    var g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0c0a14'); g.addColorStop(1, '#1d1620'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    var camX = Math.max(0, Math.min(W * TZ - w, s.p.x * TZ + TZ * .3 - w / 2)), camY = Math.max(0, Math.min(H * TZ - h, (s.p.y + .5) * TZ - h / 2));
+    var ox = -Math.round(camX), oy = -Math.round(camY);
+    var x0 = Math.max(0, Math.floor(-ox / TZ) - 1), x1 = Math.min(W - 1, Math.ceil((w - ox) / TZ) + 1), y0 = Math.max(0, Math.floor(-oy / TZ) - 1), y1 = Math.min(H - 1, Math.ceil((h - oy) / TZ) + 1);
+    var base = { G:'#4a3d30', P:'#6c5a44', '#':'#261d18', H:'#2a1f1f', $:'#4a3d30', E:'#1c1420' };
+    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+      var c = s.g[y][x], X = ox + x * TZ, Y = oy + y * TZ;
+      if (c === '.') continue;
+      if (c === 'G' || c === 'P' || c === '#') {
+        ctx.fillStyle = base[c]; ctx.fillRect(X, Y, TZ, TZ);
+        ctx.fillStyle = 'rgba(0,0,0,.18)'; if ((x * 7 + y * 3) % 5 === 0) ctx.fillRect(X + TZ * .2, Y + TZ * .6, TZ * .3, TZ * .15);
+        if (c === 'P') { ctx.fillStyle = '#a58a5e'; ctx.fillRect(X, Y, TZ, Math.max(1, z)); }
+        if (c === 'G' && (y === 0 || s.g[y - 1][x] === '.')) { ctx.fillStyle = '#7a6850'; ctx.fillRect(X, Y, TZ, Math.max(1, z)); }
+      } else if (c === 'H') {
+        ctx.fillStyle = '#a04a4a'; for (var k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(X + k * TZ / 3, Y + TZ); ctx.lineTo(X + (k + .5) * TZ / 3, Y + TZ * .45); ctx.lineTo(X + (k + 1) * TZ / 3, Y + TZ); ctx.fill(); }
+      } else if (c === '$') {
+        var gl = (Math.floor(now / 240) + x) % 2; ctx.fillStyle = gl ? '#ffe08a' : '#d9a441'; ctx.fillRect(X + TZ * .4, Y + TZ * .3, TZ * .2, TZ * .4); ctx.fillRect(X + TZ * .3, Y + TZ * .4, TZ * .4, TZ * .2);
+      } else if (c === 'E') {
+        ctx.fillStyle = '#100a14'; ctx.fillRect(X + TZ * .15, Y - TZ * .6, TZ * .7, TZ * 1.6);
+        ctx.fillStyle = '#b86aff'; ctx.globalAlpha = .5 + .3 * Math.sin(now / 300); ctx.fillRect(X + TZ * .3, Y - TZ * .3, TZ * .4, TZ * 1.2); ctx.globalAlpha = 1;
+      }
+    }
+    // the way out, at the mouth
+    ctx.fillStyle = '#6e8aa8'; ctx.globalAlpha = .6; ctx.fillRect(ox + 1 * TZ, oy + (H - 5) * TZ, TZ * .3, TZ * 1.2); ctx.globalAlpha = 1;
+    s.en.forEach(function(e){
+      var X = ox + (e.x + .5) * TZ, Y = oy + (e.y + 1) * TZ;
+      if (e.dead) { ctx.globalAlpha = Math.max(0, 1 - e.deadT / 1.4); }
+      shadow(X, Y, z, 12);
+      ART.draw(ctx, 'foe_' + e.k, X, Y + (e.dead ? 3 * z : Math.round(Math.sin(now / 240 + e.x) * .5 * z)), Math.max(1, Math.round(z * 2) / 2) * (e.dead ? 1 : 1));
+      if (e.flash > 0 && !e.dead) { ctx.globalAlpha = .5; ctx.fillStyle = '#fff'; ctx.fillRect(X - 6 * z, Y - 13 * z, 12 * z, 12 * z); ctx.globalAlpha = 1; }
+      if (!e.dead) hpBar(X, Y - 18 * z, z, e.hp / e.max, '#ff5a5a', e.lv);
+      ctx.globalAlpha = 1;
+    });
+    // the pilot: the overworld's own pilot drawing, with the cave's position
+    var keepP = P, pp = { x:Math.round(s.p.x), y:Math.round(s.p.y), fx:s.p.x, fy:s.p.y, dir:s.p.face > 0 ? 'right' : 'left', moving:s.p.moving, anim:s.p.anim, gait:'steady', dust:s.p.dust, t:1 };
+    P = pp; try { drawPlayer(ox + (s.p.x + .3) * TZ, oy + (s.p.y + .9) * TZ, z); } finally { P = keepP; }
+    if (s.p.atkT > 0) { ctx.strokeStyle = '#fff4c8'; ctx.lineWidth = 2 * z; ctx.globalAlpha = s.p.atkT / .26; ctx.beginPath(); var ax = ox + (s.p.x + .3 + s.p.face * .7) * TZ, ay = oy + (s.p.y + .4) * TZ; ctx.arc(ax, ay, 5 * z, -1.2 * s.p.face, 1.2 * s.p.face); ctx.stroke(); ctx.globalAlpha = 1; }
+    drawLiveFx(ox, oy, TZ, z, now);
+  }
+  function isSide(){ return mode === 'side' && !!SIDE; }
+
   // ── A and B ──
   function btnA(){
+    if (mode === 'side') { sideAct('jump'); return; }
     if (encounterOpen || doc.querySelector('.x-modal')) return;
     if (dialogOpen) { advanceDialog(); return; }
     if (carry) { toast('Carrying · □ SET · ○ CANCEL'); return; }
@@ -3526,6 +3725,7 @@
       tree:'A tree. Its bark is warm.', shrub:'A thicket, too dense to push through.', boulder:'A boulder.' }[k] || 'Something strange, and too heavy to move.';
   }
   function btnB(){
+    if (mode === 'side') { sideAct('attack'); return; }
     if (dialogOpen) { advanceDialog(true); return; }
     if (carry && !encounterOpen && !doc.querySelector('.x-modal')) { cancelCarry(); return; }
     if (encounterOpen || doc.querySelector('.x-modal')) return;
@@ -3603,6 +3803,18 @@
     if (!S.cards.firstden) { var ok = await say(['Scan the cave into the AstraNav?'], ['SCAN', 'NOT NOW']); if (ok === 0) scanPlace('firstden'); }
   }
   async function examineLandmark(lm){
+    if (lm.dungeon) return openCave(lm);
+    if (lm.dungeonExit) { S.pos = { map:'w' + lm.dungeonExit, x:(S.mouth && S.mouth[lm.dungeonExit] || { x:1 }).x, y:(S.mouth && S.mouth[lm.dungeonExit] || { y:1 }).y, dir:'down' }; surface('w' + lm.dungeonExit); return; }
+    if (lm.deity) {
+      var fd = mark(lm.id, 'reached'); S.notes[lm.id] = 1; save();
+      if (fd) { gainAll({ relic:2, data:4 }); rareFind(3); }
+      return say(['The deity of ' + placeName(lm.deity) + ' is here, in the clearing.', 'Its name, its nature and how it meets the Expanse are not yet written in the canon. This encounter is recorded for the Creator, and nothing in it is decided here.', fd ? 'You are recorded as the first to stand before it.' : 'You have stood before it already.']);
+    }
+    if (lm.izLoot) {
+      var ik = 'iz:' + lm.izLoot; if (S.found[ik]) return say(['The cache is empty. Someone else took it, or it was never full.']);
+      S.found[ik] = 1; gain('relic', 2, true); gain('data', 3, true); rareFind(3); save();
+      return say(['An ancient cache, sealed under stone. Inside: relics, data plates, and a rare find.']);
+    }
     if (lm.codexTerm) return examineCodexLandmark(lm);
     var first = mark(lm.id, 'reached'); S.notes[lm.id] = 1; save();
     if (first) { gainAll({ relic:1, data:4 }); rareFind(2); }
@@ -3703,6 +3915,7 @@
 
   // ── THE TOUCHPAD · the one way into the AstraNav (keyboard Tab/J/M and the on-screen NAV button stand in for it) ──
   function touchpad(){
+    if (mode === 'side') return;   // no AstraNav inside a cave
     if (doc.querySelector('.x-nav-tabs:not(.x-cockpit-tabs)')) { if (doc.querySelector('.x-modal')) return; if (onFoot()) backToField(); else if (S.stage === 'nav') cockpit(); return; }
     if (doc.querySelector('.x-cockpit') && !doc.querySelector('.x-modal')) { sfx.click(); nav('system'); return; }
     if (surfaceFree()) openNav('system');
@@ -3984,6 +4197,7 @@
 
   // the AstraNav, opened in the field
   function openNav(tab){
+    if (mode === 'side') return;
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal, .x-battle')) return;
     held = null; path = [];
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save(); sfx.click();
@@ -4703,7 +4917,7 @@
     if (!lm) return WA.landmarks.monument ? 'lm_monument' : 'spire@lm-gold';
     var id = lm.id || '', n = String(lm.name || '');
     if (lm.shrine) return 'lm_shrine';
-    if (/^cave_/.test(id)) return 'lm_cave';
+    if (/^cave_/.test(id) || /^dcave_/.test(id)) return 'lm_cave';
     if (id === 'zx_throne') return 'lm_throne';
     if (/^rgm_/.test(id) || /^zx_/.test(id)) return 'lm_region';
     if (/^fig_/.test(id)) return 'lm_presence';
@@ -4852,7 +5066,7 @@
 
   // ═════════════════════════ INPUT · keyboard, touch, DualSense ═════════════════════════
   var padOn = false, padHeld = false;
-  function surfaceFree(){ return mode === 'surface' && !dlg && !encounterOpen && !doc.querySelector('.x-modal, .x-battle'); }
+  function surfaceFree(){ return (mode === 'surface' || (mode === 'side' && !!SIDE)) && !dlg && !encounterOpen && !doc.querySelector('.x-modal, .x-battle'); }
   function visible(n){
     if (!n || n.disabled || n.closest('[hidden]')) return false;
     var r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
@@ -4986,7 +5200,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

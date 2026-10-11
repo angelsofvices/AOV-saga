@@ -28,9 +28,15 @@
 
 Shake and freeze are set in one place (`shake`, `hitStop` in `explorer.js`), so new effects use the same two calls.
 
-## Not built (Stage 3)
+## Stage 3 · integration (built with the same pass)
 
-- Side-scrolling utility combat effects beyond the shake and freeze above.
-- Transitions between top-down and platform play.
-- Field collection bursts (the field's finds still show a toast only).
-- Sprite art for the squash and the dust; the art pass replaces these shapes.
+- **Transitions.** Entering a cave and climbing or being carried out of one fade in from black over 0.45 s. The fade works in both directions, so the change of view is never a hard cut.
+- **Collectibles in the field.** Every find now bursts and sparks where Carl stands, both in the field and in the cave.
+- **Utilities in the cave.** The warshield draws an arc in front of Carl, the lantern lights a radius around him, and a frozen foe carries a pulsing ring.
+- **Shared transition.** The fade is one call (`fadeIn` in `explorer.js`).
+
+## Not built
+
+- Combat effects specific to platform play beyond the shake, freeze, and utility visuals above. The attacks themselves are the same as the field's.
+- The field's chase and combat do not change for platforming; caves keep their own side-view combat.
+- Sprite art for the fade, squash, dust, rings, and arcs. The art pass replaces these shapes.

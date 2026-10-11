@@ -46,26 +46,42 @@
     }
     return o;
   }
-  // facing: 'down', 'up' or 'side' (side faces right; left is the mirror)
-  function body(f, P){
-    var g = grid(), big = P.big ? 1 : 0, robe = P.robe;
-    // legs and boots
-    if (!robe) { if (f === 'side') { rect(g, 6, 12, 3, 2, 'c'); rect(g, 6, 14, 3, 1, 'b'); } else { rect(g, 4 - big, 12, 3, 2, 'c'); rect(g, 9 + big, 12, 3, 2, 'c'); rect(g, 4 - big, 14, 3, 1, 'b'); rect(g, 9 + big, 14, 3, 1, 'b'); } }
-    // torso (a robe falls to the ankles)
-    if (f === 'side') { rect(g, 5, 6, 5, robe ? 9 : 6, 'c'); rect(g, 5, 6, 1, robe ? 9 : 6, 'C'); px(g, 9, 9, 's'); px(g, 9, 10, 's'); }
-    else {
-      rect(g, 3 - big, 6, 10 + big * 2, robe ? 9 : 6, 'c'); rect(g, 3 - big, 6, 2, robe ? 9 : 6, 'C'); rect(g, 11 + big, 6, 2, robe ? 9 : 6, 'd');
-      rect(g, 2 - big, 7, 1, 3, 'c'); rect(g, 13 + big, 7, 1, 3, 'c'); px(g, 2 - big, 10, 's'); px(g, 13 + big, 10, 's');
-      if (f === 'down') { rect(g, 3 - big, 10, 10 + big * 2, 1, 'a'); px(g, 7, 10, 'A'); px(g, 8, 10, 'A'); }
+  // ── THE STANDARD HUMANOID RIG · the skeleton Carl is built on. Every person is this rig, scaled by their proportions:
+  // hn (total rows, 12 to 14), headH (head rows, 4 or 5), torsoH, legH (legs and boots), halfW (shoulders, 4 to 6).
+  // Carl is hn 14, headH 5, torsoH 6, legH 3, halfW 5. The boots always stand on row 14, so every figure sits on the ground.
+  // step 0 is the planted pose; step 1 is the stride, the front and back legs swapped by a column each.
+  function rig(f, P, step){
+    var g = grid(), top = 15 - P.hn, hT = top + P.headH, tE = hT + P.torsoH, bot = 14;
+    var W = P.halfW, L = 8 - W, R = 7 + W, lw = P.legW, sd = step ? 1 : 0;
+    if (f === 'side') {
+      var sw = Math.max(4, W), sx = 8 - Math.floor(sw / 2);
+      if (!P.robe) { rect(g, sx, tE, lw, bot - tE, 'c'); rect(g, sx + 2 - sd, tE, lw, bot - tE, 'c'); rect(g, sx, bot, lw + 1, 1, 'b'); }
+      rect(g, sx, hT, sw, P.torsoH + (P.robe ? P.legH : 0), 'c'); rect(g, sx, hT, 1, P.torsoH + (P.robe ? P.legH : 0), 'C');
+      px(g, sx + sw - 1, hT + 3, 's'); px(g, sx + sw - 1, hT + 4, 's');
+      rect(g, 5, top, 6, P.headH, 's'); rect(g, 5, top, 6, 2, 'h'); rect(g, 5, top, 2, P.headH - 1, 'h');
+      px(g, 9, top + 2, 'e'); px(g, 10, top + 3, 'S');
+      return g;
     }
-    // head
-    if (f === 'side') { rect(g, 5, 1, 6, 5, 's'); rect(g, 5, 1, 6, 2, 'h'); rect(g, 5, 1, 2, 4, 'h'); px(g, 9, 3, 'e'); px(g, 10, 4, 'S'); }
-    else {
-      rect(g, 4, 1, 8, 5, 's'); rect(g, 4, 1, 8, 2, 'h'); px(g, 4, 3, 'h'); px(g, 11, 3, 'h');
-      if (f === 'down') { if (P.cyclops) { rect(g, 7, 3, 2, 2, 'e'); px(g, 7, 3, 'w'); } else { px(g, 6, 3, 'e'); px(g, 9, 3, 'e'); } px(g, 7, 5, 'S'); px(g, 8, 5, 'S'); }
-      else rect(g, 4, 1, 8, 5, 'h');
+    // front and back: legs on the outside, a stride swaps them
+    if (!P.robe) {
+      rect(g, L + 1 - sd, tE, lw, bot - tE, 'c'); rect(g, R - lw + sd, tE, lw, bot - tE, 'c');
+      rect(g, L + 1 - sd, bot, lw, 1, 'b'); rect(g, R - lw + sd, bot, lw, 1, 'b');
     }
+    var tl = P.robe ? P.headH + P.torsoH + P.legH - 1 : P.torsoH;
+    rect(g, L, hT, R - L + 1, tl, 'c'); rect(g, L, hT, 2, tl, 'C'); rect(g, R - 1, hT, 2, tl, 'd');
+    rect(g, L - 1, hT + 1, 1, 3, 'c'); rect(g, R + 1, hT + 1, 1, 3, 'c'); px(g, L - 1, hT + 3, 's'); px(g, R + 1, hT + 3, 's');
+    if (f === 'down') { rect(g, L, tE - 1, R - L + 1, 1, 'a'); px(g, 7, tE - 1, 'A'); px(g, 8, tE - 1, 'A'); }
+    rect(g, 4, top, 8, P.headH, 's'); rect(g, 4, top, 8, 2, 'h'); px(g, 4, top + 2, 'h'); px(g, 11, top + 2, 'h');
+    if (f === 'down') { if (P.cyclops) { rect(g, 7, top + 2, 2, 2, 'e'); px(g, 7, top + 2, 'w'); } else { px(g, 6, top + 2, 'e'); px(g, 9, top + 2, 'e'); } px(g, 7, top + P.headH - 1, 'S'); px(g, 8, top + P.headH - 1, 'S'); }
+    else rect(g, 4, top, 8, P.headH, 'h');
     return g;
+  }
+  // a decoration is drawn on the standard head (rows 1 to 5) and moved down onto this person's head
+  function layer(g, src, dy){
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      if (src[y][x] === '.' || src[y][x] === undefined) continue;
+      var ny = y + dy; if (ny >= 0 && ny < 16) g[ny][x] = src[y][x];
+    }
   }
   function dress(g, f, P){
     var o = P.outfit;
@@ -100,6 +116,10 @@
     var skins = t.glow ? ['#fff4c8', '#ffe8a0'] : t.snout ? ['#7ab05a', '#5a8a40'] : t.crystal ? ['#a8d8f0', '#7ab0d0'] : t.visor ? ['#9aa2a8', '#6a727a'] : t.leaf ? ['#a8c878', '#7a9a50']
       : [['#f0c8a0', '#c89a78'], ['#d8a070', '#a87048'], ['#a8704a', '#7a4a2c'], ['#f4d8b8', '#d0a888'], ['#8a5a3a', '#5e3a22']][(r() * 5) | 0];
     var P = { t:t, outfit:outfit, big:!!t.big, robe:/hat|hood/.test(outfit) || (outfit === 'crown' && r() < .5) || r() < .15, cyclops:!!t.cyclops };
+    // proportions: taller people have a smaller head and longer legs; shorter people are taller in the head and stand lower
+    var hnRoll = r(), hn = hnRoll < .3 ? 12 : hnRoll < .7 ? 13 : 14, headH = hn === 14 && r() < .5 ? 4 : 5;
+    P.hn = hn; P.headH = headH; P.legH = headH === 4 ? 4 : 3; P.torsoH = hn - headH - P.legH; P.top = 15 - hn;
+    P.halfW = t.big ? 6 : [4, 5, 5, 6][(r() * 4) | 0]; P.legW = P.halfW === 4 ? 2 : P.halfW === 6 ? 4 : 3;
     var pal = { k:'#1c1626', s:skins[0], S:skins[1], h:hsl((hue + 200) % 360, 30 + r() * 30, 18 + r() * 25), c:hsl(hue, 40 + r() * 30, 34 + r() * 14), C:hsl(hue, 45, 52 + r() * 8), d:hsl(hue, 45, 22 + r() * 6),
       a:hsl(acc, 60, 42), A:hsl(acc, 75, 62), b:hsl(hue, 25, 18), e:'#1c1626', w:'#ffffff', m:hsl(210, 10, 62), G:'#7ab83a' };
     if (t.glow) pal.c = hsl(hue, 45, 70), pal.C = '#ffffff', pal.d = hsl(hue, 40, 52);
@@ -107,25 +127,29 @@
     if (vs) { pal.s = vs.skin[0]; pal.S = vs.skin[1]; pal.h = vs.hairc[0]; pal.c = vs.cloth[0]; pal.C = vs.cloth[1]; pal.a = vs.hatc[0]; pal.A = vs.hatc[1]; P.vice = vs; pal.r = '#ec3a50'; pal.l = '#101014'; }
     var out = {};
     ['down', 'up', 'side'].forEach(function(f){
-      var g = body(f, P); dress(g, f, P); traits(g, f, P);
-      if (P.vice && f === 'down' && !t.cyclops && !t.visor) {   // the ViceWorld face: blush, or pixel shades
-        if (P.vice.eyes === 'shades') { rect(g, 4, 3, 8, 1, 'l'); px(g, 5, 3, 'w'); px(g, 9, 3, 'w'); }
-        else { px(g, 5, 4, 'r'); px(g, 10, 4, 'r'); }
-      }
-      out[f] = { rows:outline(g).map(function(r){ return r.join(''); }), pal:pal };
+      [0, 1].forEach(function(step){
+        var g = rig(f, P, step), dec = grid();
+        dress(dec, f, P); traits(dec, f, P);
+        if (P.vice && f === 'down' && !t.cyclops && !t.visor && !step) {   // the ViceWorld face: blush, or pixel shades
+          if (P.vice.eyes === 'shades') { rect(dec, 4, 3, 8, 1, 'l'); px(dec, 5, 3, 'w'); px(dec, 9, 3, 'w'); }
+          else { px(dec, 5, 4, 'r'); px(dec, 10, 4, 'r'); }
+        }
+        layer(g, dec, P.top - 1);
+        out[f + (step ? '1' : '')] = { rows:outline(g).map(function(r){ return r.join(''); }), pal:pal };
+      });
     });
     return out;
   }
   var made = {};
   // the sprite for a person: key is their stable id; text is everything known about them (class, people, Codex words)
-  function person(key, text, base, dir, vs){
+  function person(key, text, base, dir, vs, step){
     if (!made[key]) {
       var sp = build(key, text || '', base, vs);
-      ['down', 'up', 'side'].forEach(function(f){ A.SPRITES['pp_' + key + '_' + f] = sp[f]; });
+      ['down', 'up', 'side', 'down1', 'up1', 'side1'].forEach(function(k){ A.SPRITES['pp_' + key + '_' + k] = sp[k]; });
       made[key] = 1;
     }
     var f = dir === 'up' ? 'up' : dir === 'down' ? 'down' : 'side';
-    return 'pp_' + key + '_' + f + (dir === 'left' ? '|flip' : '');
+    return 'pp_' + key + '_' + f + (step ? '1' : '') + (dir === 'left' ? '|flip' : '');
   }
   window.AOV_PEOPLE_ART = { person:person, traitsOf:traitsOf };
 })();

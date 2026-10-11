@@ -84,7 +84,12 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-                        { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.26', title:'Movement feel',
+                            { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.27', title:'The soundtrack',
+      notes:[
+        'The soundtrack starts on the first press of PRESS START, and loops from then on',
+        'Nothing plays before that press, so the title screen stays quiet until you begin'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.26', title:'Movement feel',
       notes:[
         'Walking starts slow and builds to full pace, and stops quickly when you let go',
         'In caves, Carl accelerates into a run and slows to a stop instead of moving at a fixed speed',

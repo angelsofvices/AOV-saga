@@ -84,7 +84,13 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-                                { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.28', title:'Feel: landings, strikes and sound',
+                                    { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.29', title:'Caves fade in, and finds sparkle',
+      notes:[
+        'Going into a cave, or climbing out of one, fades in from black instead of cutting',
+        'Every find sparkles where you stand, in the field and underground',
+        'A warshield, a lantern and a frost freeze now show in the caves too'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.28', title:'Feel: landings, strikes and sound',
       notes:[
         'A hard landing in the cave squashes Carl, kicks up dust, and shakes the screen',
         'A jump stretches Carl upward, and every step and landing has its own pitch',

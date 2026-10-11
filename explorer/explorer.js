@@ -2244,8 +2244,14 @@
   function gainAll(obj, quiet){
     var parts = [];
     Object.keys(obj || {}).forEach(function(k){ if (obj[k]) { S.pack[k] = (S.pack[k] || 0) + obj[k]; parts.push('+' + obj[k] + ' ' + matName(k)); } });
+    if (parts.length) collectFx();
     save(); if (parts.length && !quiet) toast(parts.join(' · ') + ' · in your bag');
     return parts.join(' · ');
+  }
+  // a find sparkles and bursts where Carl stands: a glint in the field, a spark in the cave
+  function collectFx(){
+    if (mode === 'side' && SIDE) { var p = SIDE.p; fxs.push({ k:'burst', x:p.x + .3, y:p.y + .45, t:0, life:.5, color:'#fff4c8' }); fxs.push({ k:'spark', x:p.x + .3, y:p.y - .2, t:0, life:.4, color:'#ffe08a' }); }
+    else if (mode === 'surface' && P) { fxs.push({ k:'burst', x:P.fx + .5, y:P.fy + .5, t:0, life:.5, color:'#fff4c8' }); fxs.push({ k:'spark', x:P.fx + .5, y:P.fy + .1, t:0, life:.4, color:'#ffe08a' }); }
   }
   function gain(k, n, quiet){ var o = {}; o[k] = n; return gainAll(o, quiet); }
   // every planet's own materials (the catalog's ten per world): plants give the growing ones, outcrops the rest
@@ -2766,6 +2772,9 @@
   }
   // squash (x wider, y shorter) or stretch, easing back to normal over secs
   function squash(p, x, y, secs){ p.sq = { x:x, y:y, t:secs, T:secs }; }
+  // transitions: a fade in from black after the view changes between the field and a cave
+  var TRANS = { t:0, d:.45 };
+  function fadeIn(secs){ TRANS = { t:secs, d:secs }; }
   function loop(now){
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (HITSTOP > 0) { HITSTOP = Math.max(0, HITSTOP - dt); dt = 0; }   // a freeze frame: the world holds still for a moment
@@ -2773,6 +2782,10 @@
     if (mode === 'hyper') drawHyper(now);
     else if (mode === 'surface') { updateSurface(dt, now); if (mode === 'surface') drawSurface(now); }
     else if (mode === 'side' && SIDE) { updateSide(dt, now); if (mode === 'side' && SIDE) drawSide(now); }
+    if (TRANS.t > 0 && mode) {
+      TRANS.t = Math.max(0, TRANS.t - dt);
+      ctx.globalAlpha = TRANS.t / TRANS.d; ctx.fillStyle = '#05040a'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1;
+    }
     if (mode) raf = requestAnimationFrame(loop);
   }
   function rng(seed){ return function(){ seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
@@ -3533,7 +3546,7 @@
     var viaHole = !!(lm && lm.hole);
     SIDE = { no:no, C:C, viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:C.rows.map(function(r){ return r.split(''); }), p:{ x:C.start.x, y:C.start.y, vx:0, vy:0, ground:true, face:1, safe:{ x:C.start.x, y:C.start.y }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
     SIDE.en = C.enemies.map(function(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round(40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:d.atk || 5, range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; });
-    mode = 'side';
+    mode = 'side'; fadeIn(.45);
     sideScreen(no);
     toast(placeName(no) + ' · CAVE · ' + C.W + ' cells long. Left and right to walk, ▲ jump, ✕ interact, □ use, ○ crouch, walk or run.');
   }
@@ -3570,6 +3583,7 @@
     // a cave entered through a broken mouth returns to the planet's regular mouth
     if (rg && S.pos) { S.pos = { map:S.pos.map, x:rg.x, y:rg.y, dir:S.pos.dir || 'down' }; if (parked && parked.P) { parked.P.x = parked.P.fx = rg.x; parked.P.y = parked.P.fy = rg.y; parked.P.moving = false; } }
     if (parked && parked.map === S.pos.map) resumeField(); else surface(S.pos.map);
+    fadeIn(.45);
   }
   function enterZone(no, fromOutside){
     SIDE = null; S.iz = S.iz || {};
@@ -3630,7 +3644,7 @@
     // loot under you, or in reach
     var cx = Math.floor(p.x + .3), cy = Math.floor(p.y + .45);
     for (var yy = cy - 1; yy <= cy + 1; yy++) for (var xx = cx - 1; xx <= cx + 1; xx++) {
-      if (s.g[yy] && s.g[yy][xx] === '$') { s.g[yy][xx] = '.'; s.taken++; var got = ['scrap', 'fibre', 'crystal', 'data', 'terra'][(Math.random() * 5) | 0]; gain(got, 1 + (Math.random() < .3 ? 1 : 0), true); fxs.push({ k:'spark', x:xx + .5, y:yy + .5, t:0, life:.4, color:'#ffe08a' }); fxs.push({ k:'burst', x:xx + .5, y:yy + .5, t:0, life:.5, color:'#fff4c8' }); }
+      if (s.g[yy] && s.g[yy][xx] === '$') { s.g[yy][xx] = '.'; s.taken++; var got = ['scrap', 'fibre', 'crystal', 'data', 'terra'][(Math.random() * 5) | 0]; gain(got, 1 + (Math.random() < .3 ? 1 : 0), true); fxs.push({ k:'spark', x:xx + .5, y:yy + .5, t:0, life:.4, color:'#ffe08a' }); }
     }
     // enemies
     s.en.forEach(function(e){
@@ -3711,10 +3725,30 @@
     ctx.save(); ctx.translate(fx, fy); ctx.scale(1 + (sq ? (sq.x - 1) * q : 0), 1 + (sq ? (sq.y - 1) * q : 0)); ctx.translate(-fx, -fy);
     P = pp; try { drawPlayer(fx, fy, z); } finally { P = keepP; ctx.restore(); }
     drawBlasterFx(ox, oy, TZ, z);
+    drawUtilSide(ox, oy, TZ, z);
     if (s.p.atkT > 0) { ctx.strokeStyle = '#fff4c8'; ctx.lineWidth = 2 * z; ctx.globalAlpha = s.p.atkT / .26; ctx.beginPath(); var ax = ox + (s.p.x + .3 + s.p.face * .7) * TZ, ay = oy + (s.p.y + .4) * TZ; ctx.arc(ax, ay, 5 * z, -1.2 * s.p.face, 1.2 * s.p.face); ctx.stroke(); ctx.globalAlpha = 1; }
     drawLiveFx(ox, oy, TZ, z, now);
   }
   function isSide(){ return mode === 'side' && !!SIDE; }
+  // the utilities in the cave: the warshield's arc in front of Carl, a ring on each frozen foe, and the lantern's light
+  function drawUtilSide(ox, oy, TZ, z){
+    var p = SIDE.p, now = performance.now();
+    if (utilOn('lumelys-lantern')) {
+      var lx = ox + (p.x + .3) * TZ, ly = oy + (p.y + .45) * TZ, g = ctx.createRadialGradient(lx, ly, 0, lx, ly, TZ * 5);
+      g.addColorStop(0, 'rgba(255,240,190,.3)'); g.addColorStop(1, 'rgba(255,240,190,0)');
+      ctx.fillStyle = g; ctx.fillRect(lx - TZ * 5, ly - TZ * 5, TZ * 10, TZ * 10);
+    }
+    if (utilOn('warshield')) {
+      var cx = ox + (p.x + .3) * TZ, cy = oy + (p.y + .45) * TZ, a0 = p.face > 0 ? -1.1 : 2.04, a1 = p.face > 0 ? 1.1 : 4.18;
+      ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = Math.max(2, z * 2); ctx.globalAlpha = .8;
+      ctx.beginPath(); ctx.arc(cx, cy, TZ * .8, a0, a1); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    SIDE.en.forEach(function(e){
+      if (e.dead || !(e.frozen > 0)) return;
+      ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = Math.max(1, z);
+      ctx.beginPath(); ctx.arc(ox + (e.x + .3) * TZ, oy + (e.y + .45) * TZ, TZ * .6 + Math.sin(now / 150) * z, 0, Math.PI * 2); ctx.stroke();
+    });
+  }
 
   // ── ASTRABLASTER MK1 · Carl's first weapon (Official Player Weapon System V1.0) ──
   // Broken in the hyperspace crash. Repaired at the Workstation from NASARUS materials, then equipped from INVENTORY.
@@ -6015,7 +6049,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, feel:function(){ return { shakeT: SHAKE.t, hitStop: HITSTOP, sq: (SIDE && SIDE.p.sq) || null }; }, bgm:function(){ return BGM && { src:BGM.src, paused:BGM.paused, loop:BGM.loop }; }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, feel:function(){ return { shakeT: SHAKE.t, hitStop: HITSTOP, sq: (SIDE && SIDE.p.sq) || null }; }, gainRaw:function(k, n){ return gain(k, n, true); }, stage3:function(){ return { fade: TRANS.t, fxN: fxs.length }; }, bgm:function(){ return BGM && { src:BGM.src, paused:BGM.paused, loop:BGM.loop }; }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

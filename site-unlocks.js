@@ -84,6 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+    { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.21', title:'The AstraBlaster MK1',
+      notes:[
+        'The MK1 was left at the crash site. It starts broken: repair it at the Workstation from NASARUS materials',
+        'Equip it from the Inventory’s WEAPON tab. Square fires it in the direction you face; bare-handed, Square still moves objects',
+        'Unlimited rounds: each shot draws on a charge meter that recharges by itself',
+        'In caves, Circle fires it left or right. There are no fists in AA:1936',
+        'Upgrades and cloned short, medium and long range variants are not built yet'
+      ] },
     { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.20', title:'Caves and Immortal Zones',
       notes:[
         'Every planet from 1 to 27 has a cave mouth on the edge of its rock',

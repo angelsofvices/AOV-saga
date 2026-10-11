@@ -586,6 +586,7 @@
       { t:'Set course for another world and land there (' + Math.min(worlds, 2) + '/2 worlds)', done: worlds >= 2 },
       { t:'Learn the ways of three peoples (' + Math.min(peoplesMet(), 3) + '/3)', done: peoplesMet() >= 3 },
       { t: known('aenor') ? 'Scan Aenor and Zoryth (AstraNav · SYSTEM)' : 'Scan the radiant body and its satellite (AstraNav · SYSTEM)', done: F.shotAenor && F.shotZoryth, side:true },
+      { t:'Repair the ASTRABLASTER MK1 at the Workstation (NASARUS materials)', done: !!(S.weapon && S.weapon.repaired), log:'jr-log1' },
       { t:'REBUILD THE SHIP FOR HYPERSPACE · THE WAY HOME (SHIP LEVEL ' + shipLevel() + ' / 5 · parts ' + shipPct() + '%)', done: shipLevel() >= 5 || !!S.flags.hyperspace, main:true }
     ];
   }
@@ -2085,6 +2086,7 @@
   }
   function carryOk(){ var t = carryTarget(); return carry.st ? structFits(M, carry.st, t.x, t.y) : floorFree(M, t.x, t.y); }
   function btnMove(){
+    if (blasterReady() && !dialogOpen && !encounterOpen && !doc.querySelector('.x-modal')) { fireBlaster(); return; }   // armed: Square fires, and cannot move objects
     if (mode === 'side') { sideAct('interact'); return; }
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal') || P.moving) return;
     if (carry) return setCarry();
@@ -2799,7 +2801,7 @@
   function fieldScreen(){
     screen('x-surface',
       '<div class="x-hud riv"><div class="x-zone"><b class="x-zn"></b><span class="x-zw"></span></div>' +
-        '<div class="x-gauges">' + gauge('SUIT','suit') + gauge('AIR','air') + '</div>' +
+        '<div class="x-gauges">' + gauge('SUIT','suit') + gauge('AIR','air') + '</div>' + blasterHudHtml() +
         '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
         '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
       '<p class="x-objhint" aria-live="polite"></p>' +
@@ -2999,7 +3001,7 @@
       if (want) step(want);
     }
     for (var i = 0; i < critters.length && mode === 'surface'; i++) updateCritter(critters[i], dt, now);
-    if (mode === 'surface') updateLive(dt);
+    if (mode === 'surface') { updateLive(dt); updateBolts(dt); }
     if (mode !== 'surface') return;
     airTimer += dt;
     if (airTimer > 1) {
@@ -3504,7 +3506,7 @@
   function sideScreen(no){
     screen('x-surface x-side',
       '<div class="x-hud riv"><div class="x-zone"><b class="x-zn">CAVE</b><span class="x-zw">' + esc(placeName(no)) + ' · ' + (SIDE.C.W) + ' CELLS</span></div>' +
-        '<div class="x-gauges">' + gauge('SUIT','suit') + '</div></div>' +
+        '<div class="x-gauges">' + gauge('SUIT','suit') + '</div>' + blasterHudHtml() + '</div>' +
       '<p class="x-padhint" aria-hidden="true">✕ JUMP · ○ ATTACK · □ INTERACT · ◀ ▶ WALK</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
       '<div class="x-ab"><button class="x-sq" aria-label="Square: interact">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: attack">○<small>ATTACK</small></button><button class="x-a" aria-label="Cross: jump">✕<small>JUMP</small></button></div>' +
@@ -3545,18 +3547,7 @@
     if (!SIDE) return;
     var p = SIDE.p;
     if (a === 'jump') p.jumpBuf = .16;
-    if (a === 'attack' && p.atkCd <= 0) {
-      p.atkT = .26; p.atkCd = .34; sfx.bump();
-      SIDE.en.forEach(function(e){
-        if (e.dead) return; var dx = e.x - p.x, dy = e.y - p.y;
-        if (Math.abs(dy) < 1.6 && dx * p.face > -.3 && dx * p.face < 1.7) {
-          var dmg = Math.round(22 + S.ship.level * 4 + (S.hq.research && S.hq.research['r-cards'] ? 6 : 0));
-          e.hp -= dmg; e.flash = .16; e.x += p.face * .55; fxs.push({ k:'slash', x:e.x, y:e.y, t:0, life:.3, dir:p.face > 0 ? 'right' : 'left' });
-          fxs.push({ k:'num', x:e.x, y:e.y - 1.1, t:0, life:.7, txt:String(dmg), color:'#fff4c8' });
-          if (e.hp <= 0) caveFoeDown(e);
-        }
-      });
-    }
+    if (a === 'attack') { if (blasterReady()) fireBlaster(); else toast('No fists in AA:1936. Equip a weapon, then press □ to fire.', 'red'); }
     if (a === 'interact') {
       if (p.x >= SIDE.C.exit.x - 1.4) return enterZone(SIDE.no, false);
       if (p.x < 3.4) return cavePassOut('You climb back out to the cave mouth.');
@@ -3617,6 +3608,7 @@
     if (p.x >= s.C.exit.x - 1.1 && p.y > H - 6) { enterZone(s.no, false); return; }
     // climb out at the mouth
     if (held === 'up' && p.x < 3.2) { cavePassOut('You climb back out to the cave mouth.'); return; }   // at the mouth, up is out
+    updateBolts(dt);
     p.dust = p.dust.filter(function(d2){ return now - d2.t < 380; }); if (p.moving && p.ground && (!p.dust.length || now - p.dust[p.dust.length - 1].t > 90)) p.dust.push({ x:p.x, y:p.y, t:now });
     hudRefresh();
   }
@@ -3659,10 +3651,115 @@
     // the pilot: the overworld's own pilot drawing, with the cave's position
     var keepP = P, pp = { x:Math.round(s.p.x), y:Math.round(s.p.y), fx:s.p.x, fy:s.p.y, dir:s.p.face > 0 ? 'right' : 'left', moving:s.p.moving, anim:s.p.anim, gait:'steady', dust:s.p.dust, t:1 };
     P = pp; try { drawPlayer(ox + (s.p.x + .3) * TZ, oy + (s.p.y + .9) * TZ, z); } finally { P = keepP; }
+    drawBlasterFx(ox, oy, TZ, z);
     if (s.p.atkT > 0) { ctx.strokeStyle = '#fff4c8'; ctx.lineWidth = 2 * z; ctx.globalAlpha = s.p.atkT / .26; ctx.beginPath(); var ax = ox + (s.p.x + .3 + s.p.face * .7) * TZ, ay = oy + (s.p.y + .4) * TZ; ctx.arc(ax, ay, 5 * z, -1.2 * s.p.face, 1.2 * s.p.face); ctx.stroke(); ctx.globalAlpha = 1; }
     drawLiveFx(ox, oy, TZ, z, now);
   }
   function isSide(){ return mode === 'side' && !!SIDE; }
+
+  // ── ASTRABLASTER MK1 · Carl's first weapon (Official Player Weapon System V1.0) ──
+  // Broken in the hyperspace crash. Repaired at the Workstation from NASARUS materials, then equipped from INVENTORY.
+  // While it is equipped and active, SQUARE fires it (and ○ in a cave); Carl has no fists, and bare-handed SQUARE moves
+  // eligible objects again. Unlimited rounds, but each shot draws on a charge meter that recharges on its own.
+  // Shots travel straight in the direction Carl faces. Upgrades and cloned variants are not built yet.
+  var BLASTER = { name:'ASTRABLASTER MK1', maxCharge:100, shotCost:20, regen:16, cooldown:.34, dmg:26, speed:12, range:8, repair:{ scrap:3, crystal:2, data:2 } };
+  var bolts = [], wpnAnim = 0, wpnCd = 0, wpnLastShot = 0;
+  function blaster(){ if (!S.weapon) S.weapon = { repaired:false, equipped:false, charge:BLASTER.maxCharge }; return S.weapon; }
+  function blasterReady(){ var w = blaster(); return !!(w.repaired && w.equipped); }
+  function repairBlaster(){
+    var w = blaster(); if (w.repaired || !coreMachine('workstation') || !canAfford(BLASTER.repair)) return false;
+    pay(BLASTER.repair); w.repaired = true; w.charge = BLASTER.maxCharge;
+    hqRecord('Repaired the ASTRABLASTER MK1 at the Workstation. It can fire again.'); save(); syncBlasterHud(); return true;
+  }
+  function equipBlaster(on){
+    var w = blaster();
+    if (on && !w.repaired) { toast('The ASTRABLASTER MK1 is broken. Repair it at the Workstation first.', 'red'); sfx.bump(); return false; }
+    w.equipped = !!on; save(); syncBlasterHud(); return true;
+  }
+  function blasterAction(a){
+    if (a === 'repair') return repairBlaster();
+    if (a === 'equip') return equipBlaster(true);
+    if (a === 'unequip') return equipBlaster(false);
+    return false;
+  }
+  function fireBlaster(){
+    var w = blaster();
+    if (!blasterReady() || wpnCd > 0) return false;
+    if (w.charge < BLASTER.shotCost) { toast('CHARGE LOW · the ASTRABLASTER is recharging', 'red'); sfx.bump(); return false; }
+    var dir, x, y;
+    if (mode === 'side' && SIDE) { var p = SIDE.p; dir = [p.face, 0]; x = p.x + .3; y = p.y + .45; }
+    else { dir = DIRS[P.dir] || [0, 1]; x = P.fx + .5; y = P.fy + .5; }
+    w.charge -= BLASTER.shotCost; wpnCd = BLASTER.cooldown; wpnAnim = .32; wpnLastShot = performance.now();
+    bolts.push({ x:x + dir[0] * .6, y:y + dir[1] * .6, dx:dir[0], dy:dir[1], left:BLASTER.range });
+    sfx.shutter(); vibrate(40, .2); syncBlasterHud();
+    return true;
+  }
+  function hitFieldFoe(f, dmg){
+    f.hp -= dmg; f.flash = .16; if (!f.engaged) alertGroup(f);
+    fxs.push({ k:'spark', x:f.x, y:f.y - .4, t:0, life:.3, color:'#ffd36a' });
+    fxs.push({ k:'num', x:f.fx, y:f.fy - 1.1, t:0, life:.7, txt:String(dmg), color:'#fff4c8' });
+    if (f.hp <= 0) foeDown(f, null);
+  }
+  function hitSideFoe(e, dmg){
+    e.hp -= dmg; e.flash = .16; fxs.push({ k:'spark', x:e.x, y:e.y - .4, t:0, life:.3, color:'#ffd36a' });
+    fxs.push({ k:'num', x:e.x, y:e.y - 1.1, t:0, life:.7, txt:String(dmg), color:'#fff4c8' });
+    if (e.hp <= 0) caveFoeDown(e);
+  }
+  // each frame: the shots fly, walls and foes stop them, and the charge comes back when you stop firing
+  function updateBolts(dt){
+    wpnCd = Math.max(0, wpnCd - dt); wpnAnim = Math.max(0, wpnAnim - dt);
+    var w = blaster();
+    if (performance.now() - wpnLastShot > 400 && w.charge < BLASTER.maxCharge) w.charge = Math.min(BLASTER.maxCharge, w.charge + BLASTER.regen * dt);
+    var side = mode === 'side' && SIDE;
+    bolts = bolts.filter(function(b){
+      var step = BLASTER.speed * dt; b.x += b.dx * step; b.y += b.dy * step; b.left -= step;
+      if (b.left <= 0) return false;
+      if (side) { if (SIDE_SOLID[sTile(b.x, b.y)]) return false; }
+      else if (M && SOLID[at(Math.floor(b.x), Math.floor(b.y))]) return false;
+      if (side) {
+        var hit = false; SIDE.en.forEach(function(e){ if (!hit && !e.dead && Math.abs(e.x - b.x) < .7 && Math.abs(e.y - b.y) < 1.1) { hit = true; hitSideFoe(e, BLASTER.dmg); } });
+        if (hit) return false;
+      } else if (foes) {
+        var h2 = false; foes.forEach(function(f){ if (!h2 && f.state !== 'dead' && Math.abs(f.x - b.x) < .7 && Math.abs(f.y - b.y) < .7) { h2 = true; hitFieldFoe(f, BLASTER.dmg); } });
+        if (h2) return false;
+      }
+      return true;
+    });
+    syncBlasterHud();
+  }
+  // the charge meter on the HUD: shown only while the blaster is equipped and working
+  function syncBlasterHud(){
+    var el = $('.x-weapon'); if (!el) return;
+    var w = blaster(), on = blasterReady(); el.hidden = !on; if (!on) return;
+    var k = Math.round(w.charge / BLASTER.maxCharge * 100), bar = $('.x-wbar > i', el), lab = $('span', el);
+    if (bar) bar.style.width = k + '%';
+    if (lab) lab.textContent = k + '% · ' + (w.charge < BLASTER.shotCost ? 'RECHARGING' : 'READY');
+  }
+  function blasterHudHtml(){ return '<div class="x-weapon" hidden><b>' + BLASTER.name + ' · CHARGE</b><i class="x-wbar"><i></i></i><span>100%</span></div>'; }
+  function blasterCardHtml(){
+    var w = blaster(), k = Math.round(w.charge / BLASTER.maxCharge * 100), ws = coreMachine('workstation'), act = '';
+    var state = !w.repaired ? 'BROKEN · it cannot fire' : w.equipped ? 'EQUIPPED · SQUARE fires it' : 'STORED · equip it to fire';
+    if (!w.repaired) act = !ws ? '<em class="dim">BUILD THE WORKSTATION FIRST</em>' : canAfford(BLASTER.repair) ? '<button class="x-btn small" data-wpn="repair">REPAIR · ' + esc(costText(BLASTER.repair)) + '</button>' : '<em class="dim">NEEDS ' + esc(costText(BLASTER.repair)) + '</em>';
+    else act = w.equipped ? '<button class="x-btn small ghost" data-wpn="unequip">UNEQUIP</button>' : '<button class="x-btn small" data-wpn="equip">EQUIP</button>';
+    return '<ul class="x-hqlist"><li class="' + (w.repaired ? 'done' : '') + '"><img class="x-pix x-ico" alt="" src="' + ART.url('it_relic', 2) + '"><b>' + BLASTER.name + '</b><span>' + state + ' · charge ' + k + '% · unlimited rounds, recharged</span><div>' + act + '</div></li></ul>';
+  }
+  // the weapon is in Carl's hands only while it fires; the shots and the gun are drawn over the field
+  function drawBlasterFx(ox, oy, TZ, z){
+    bolts.forEach(function(b){
+      var X = ox + b.x * TZ, Y = oy + b.y * TZ;
+      ctx.fillStyle = 'rgba(255,211,106,.35)'; ctx.fillRect(X - b.dx * 6 * z - 2 * z, Y - b.dy * 6 * z - 2 * z, 4 * z, 4 * z);
+      ctx.fillStyle = '#fff4c8'; ctx.fillRect(X - 2 * z, Y - 2 * z, 4 * z, 4 * z);
+    });
+    if (wpnAnim > 0 && blasterReady()) {
+      var cx, cy, d;
+      if (mode === 'side' && SIDE) { cx = ox + (SIDE.p.x + .3) * TZ; cy = oy + (SIDE.p.y + .55) * TZ; d = [SIDE.p.face, 0]; }
+      else if (P) { cx = ox + (P.fx + .5) * TZ; cy = oy + (P.fy + .6) * TZ; d = DIRS[P.dir] || [0, 1]; }
+      else return;
+      var gx = cx + d[0] * 6 * z, gy = cy + d[1] * 6 * z;
+      ctx.fillStyle = '#3a4150'; ctx.fillRect(gx - 4 * z, gy - 2 * z, 8 * z, 3 * z);
+      ctx.fillStyle = '#ffb02a'; ctx.fillRect(gx + (d[0] > 0 ? 4 : -5) * z, gy - z, z, z);
+    }
+  }
 
   // ── A and B ──
   function btnA(){
@@ -3725,7 +3822,7 @@
       tree:'A tree. Its bark is warm.', shrub:'A thicket, too dense to push through.', boulder:'A boulder.' }[k] || 'Something strange, and too heavy to move.';
   }
   function btnB(){
-    if (mode === 'side') { sideAct('attack'); return; }
+    if (mode === 'side') { if (blasterReady()) fireBlaster(); else toast('No fists in AA:1936. Equip a weapon, then press □ to fire.', 'red'); return; }
     if (dialogOpen) { advanceDialog(true); return; }
     if (carry && !encounterOpen && !doc.querySelector('.x-modal')) { cancelCarry(); return; }
     if (encounterOpen || doc.querySelector('.x-modal')) return;
@@ -4071,7 +4168,8 @@
     }
     if (id === 'core:workstation') {
       var list = CORE.starter.filter(function(cm){ return cm.id !== 'workstation'; });
-      body.innerHTML = '<section class="x-arc riv"><h3>BUILD MACHINES <b>' + list.filter(function(cm){ return coreMachine(cm.id); }).length + ' / ' + list.length + '</b></h3>' +
+      body.innerHTML = '<section class="x-arc riv"><h3>ASTRABLASTER MK1</h3><p class="x-mono light">The first repair is made here from NASARUS materials. Once it fires, the blaster is equipped from INVENTORY.</p>' + blasterCardHtml() + '</section>' +
+        '<section class="x-arc riv"><h3>BUILD MACHINES <b>' + list.filter(function(cm){ return coreMachine(cm.id); }).length + ' / ' + list.length + '</b></h3>' +
         '<p class="x-mono light">Each machine needs its recipe paper, recovered from the ground of ' + esc(hqName()) + ', and materials from the stores. Built machines stand beside the camp.</p><ul class="x-hqlist">' +
         list.map(function(cm){
           var built = coreMachine(cm.id), learned = !!S.core.recipes[cm.recipe], r = coreRecipe(cm.recipe), act;
@@ -4083,6 +4181,7 @@
         '<section class="x-arc riv"><h3>TOOLS</h3><ul class="x-hqlist"><li><b>RECALL FLARE</b><span>You carry ' + S.flares + ' of ' + flaresMax() + '.</span><div><em>FIBRE 2 · SCRAP 1</em><button class="x-btn small" data-ws="flare"' + (canAfford({ fibre:2, scrap:1 }) && S.flares < flaresMax() ? '' : ' disabled') + '>CRAFT</button></div></li></ul></section>';
       body.onclick = function(e){
         var b = e.target.closest('button'); if (!b || b.disabled) return;
+        if (b.dataset.wpn) { if (blasterAction(b.dataset.wpn)) sfx.reveal(); else sfx.bump(); setTimeout(function(){ refreshUI('hq'); }, 30); return; }
         var ok = b.dataset.coreBuild ? coreBuild(b.dataset.coreBuild) : b.dataset.ws === 'flare' ? craftFlare() : null;
         if (ok === null) return;
         if (!ok) { toast('Not possible yet: check the stores and requirements', 'red'); sfx.bump(); } else sfx.click();
@@ -4176,6 +4275,7 @@
       '<section class="x-arc riv" id="inv-stores"><h3>STORES <b>' + store.length + '</b></h3><p class="x-mono light">Kept safe at ' + esc(hqName()) + '.</p>' + invGrid(store, 'stores') + '</section>' +
       '<section class="x-arc riv" id="inv-parts"><h3>SHIP PARTS <b>' + parts.length + '</b></h3>' + invGrid(parts, 'parts') + '</section>' +
       '<section class="x-arc riv" id="inv-papers"><h3>MACHINE PAPERS <b>' + papers.filter(function(p2){ return p2.n === '✓'; }).length + ' / ' + papers.length + '</b></h3>' + invGrid(papers, 'papers') + '</section>' +
+      '<section class="x-arc riv" id="inv-weapon"><h3>WEAPON</h3><p class="x-mono light">Equip a weapon here, then press □ in the field or a cave to fire it. Square moves objects only when you are bare-handed.</p>' + blasterCardHtml() + '</section>' +
       '<section class="x-arc riv" id="inv-craft"><h3>CRAFT</h3><p class="x-mono light">Craft from what you hold: the bag first, then the stores.</p><ul class="x-hqlist">' +
         '<li class="' + (wsBuilt ? 'done' : '') + '"><img class="x-pix x-ico" alt="" src="' + ART.url('machine_workstation', 2) + '"><b>WORKSTATION</b><span>' + esc(ws.does) + ' Every other machine is built at the Workstation.</span><div><em>' + costText(ws.cost) + ' · have ' + Object.keys(ws.cost).map(function(k){ return matName(k) + ' ' + ((S.pack[k] || 0) + (S.hq.store[k] || 0)); }).join(' · ') + '</em>' + craftable + '</div></li>' +
       '</ul></section>';
@@ -4188,6 +4288,7 @@
       if (kind === 'bag' || kind === 'stores') sortable([box], '.x-slot', 'data-inv', function(keys){ if (kind === 'stores') S.storeOrder = keys[0]; else S.invOrder = keys[0]; save(); });
     });
     body.onclick = function(e){
+      var wb = e.target.closest('[data-wpn]'); if (wb && !wb.disabled) { if (blasterAction(wb.dataset.wpn)) { sfx.reveal(); toast(wb.dataset.wpn === 'repair' ? 'ASTRABLASTER MK1 · REPAIRED' : wb.dataset.wpn === 'equip' ? 'ASTRABLASTER MK1 · EQUIPPED' : 'ASTRABLASTER MK1 · STORED'); } else sfx.bump(); nav('inventory', 'inv-weapon'); return; }
       var c = e.target.closest('[data-craft]'); if (!c || c.disabled) return;
       if (coreBuild(c.dataset.craft)) { sfx.reveal(); toast('CRAFTED · WORKSTATION · it stands beside the camp. Walk up to it and press A to build machines.'); } else { sfx.bump(); toast('Not enough materials', 'red'); }
       nav('inventory', 'inv-craft');
@@ -5000,6 +5101,7 @@
     });
     drawCarry(ox, oy, TZ, z, now);
     if (LIVE) drawLiveFx(ox, oy, TZ, z, now);
+    drawBlasterFx(ox, oy, TZ, z);
     updateActionUI(now);
     for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
       if (fogArr[y * M.W + x]) continue;
@@ -5200,7 +5302,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

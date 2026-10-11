@@ -344,7 +344,8 @@
   }
   var sfx = {
     key:     function(){ tone(1800 + Math.random()*400, .015, 'square', .015); },
-    step:    function(){ tone(140, .03, 'triangle', .02); },
+    step:    function(){ tone(140 * (.9 + Math.random() * .2), .03, 'triangle', .02); },
+    land:    function(imp){ tone((imp > 4 ? 80 : 110) * (.85 + Math.random() * .3), .09, 'triangle', imp > 4 ? .05 : .025); },
     click:   function(){ tone(420, .05, 'square', .04); tone(180, .06, 'square', .04, .03); },
     shutter: function(){ tone(2400, .02, 'square', .05); tone(900, .05, 'sawtooth', .04, .03); },
     warn:    function(){ tone(220, .25, 'sawtooth', .05); tone(180, .25, 'sawtooth', .05, .25); },
@@ -2754,8 +2755,21 @@
   addEventListener('resize', resize); resize();
   function startWorld(m){ mode = m; cv.classList.add('on'); cancelAnimationFrame(raf); last = performance.now(); raf = requestAnimationFrame(loop); }
   function stopWorld(){ mode = null; cancelAnimationFrame(raf); cv.classList.remove('on'); cv.style.filter = ''; }
+  // ── STAGE 2 · FEEL: screen shake, freeze frames, and the squash of a jump or a landing ──
+  var SHAKE = { m:0, t:0, d:.3 }, HITSTOP = 0;
+  function shake(m, secs){ if (SHAKE.t <= 0 || m >= SHAKE.m) SHAKE = { m:m, t:secs, d:secs }; }
+  function hitStop(secs){ HITSTOP = Math.max(HITSTOP, secs); }
+  function shakeOffset(z){
+    if (SHAKE.t <= 0) return [0, 0];
+    var k = SHAKE.m * (SHAKE.t / SHAKE.d) * z;
+    return [Math.round((Math.random() * 2 - 1) * k), Math.round((Math.random() * 2 - 1) * k)];
+  }
+  // squash (x wider, y shorter) or stretch, easing back to normal over secs
+  function squash(p, x, y, secs){ p.sq = { x:x, y:y, t:secs, T:secs }; }
   function loop(now){
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (HITSTOP > 0) { HITSTOP = Math.max(0, HITSTOP - dt); dt = 0; }   // a freeze frame: the world holds still for a moment
+    SHAKE.t = Math.max(0, SHAKE.t - dt);
     if (mode === 'hyper') drawHyper(now);
     else if (mode === 'surface') { updateSurface(dt, now); if (mode === 'surface') drawSurface(now); }
     else if (mode === 'side' && SIDE) { updateSide(dt, now); if (mode === 'side' && SIDE) drawSide(now); }
@@ -3545,7 +3559,7 @@
     if (p.inv > 0) return; p.inv = .9;
     S.suit = Math.max(0, S.suit - suitDmg(dmg)); if (!utilOn('balance-gyro')) { p.vx = (kx || -p.face) * 3; p.vy = -4; } sfx.hit(); vibrate(120, .5);
     fxs.push({ k:'num', x:p.x + .3, y:p.y - .3, t:0, life:.8, txt:'-' + suitDmg(dmg), color:'#ff6a5a' });
-    hudRefresh();
+    hudRefresh(); shake(3, .2); hitStop(.04);
     if (S.suit <= 0) cavePassOut('CARRIED BACK TO THE CAVE MOUTH · your suit gave out. You wake at the mouth with 40% suit.');
   }
   // you leave the cave by the mouth (rescue or climb out): the overworld is exactly as you left it
@@ -3596,13 +3610,13 @@
     p.lift = approach(p.lift || 0, thrust ? JSIDE.thrust : 0, (thrust ? JSIDE.accel : JSIDE.decel) * dt);
     p.vy = Math.min(18, p.vy + (SIDE_G - p.lift) * dt);
     if (p.lift > 0) p.vy = Math.max(-JSIDE.rise, p.vy);   // the climb is capped while the lift lasts, so a release glides into the fall
-    if (p.jumpBuf > 0 && (p.ground || p.coyote > 0)) { p.vy = -SIDE_JUMP; p.ground = false; p.coyote = 0; p.jumpBuf = 0; sfx.step(); }
+    if (p.jumpBuf > 0 && (p.ground || p.coyote > 0)) { p.vy = -SIDE_JUMP; p.ground = false; p.coyote = 0; p.jumpBuf = 0; sfx.step(); squash(p, .82, 1.2, .14); }
     var nx = p.x + p.vx * dt;
     if (!sBlocked(nx, p.y)) p.x = Math.max(.2, Math.min(s.C.W - 1.1, nx));
     var ny = p.y + p.vy * dt;
     if (!sBlocked(p.x, ny)) { p.y = ny; p.ground = false; }
     else {
-      if (p.vy > 0) { p.y = Math.floor(ny + .9) - .9 - .001; p.ground = true; }
+      if (p.vy > 0) { p.landV = p.vy; p.y = Math.floor(ny + .9) - .9 - .001; p.ground = true; }
       else p.y = Math.ceil(p.y) - .001;
       p.vy = 0;
     }
@@ -3616,7 +3630,7 @@
     // loot under you, or in reach
     var cx = Math.floor(p.x + .3), cy = Math.floor(p.y + .45);
     for (var yy = cy - 1; yy <= cy + 1; yy++) for (var xx = cx - 1; xx <= cx + 1; xx++) {
-      if (s.g[yy] && s.g[yy][xx] === '$') { s.g[yy][xx] = '.'; s.taken++; var got = ['scrap', 'fibre', 'crystal', 'data', 'terra'][(Math.random() * 5) | 0]; gain(got, 1 + (Math.random() < .3 ? 1 : 0), true); fxs.push({ k:'spark', x:xx + .5, y:yy + .5, t:0, life:.4, color:'#ffe08a' }); }
+      if (s.g[yy] && s.g[yy][xx] === '$') { s.g[yy][xx] = '.'; s.taken++; var got = ['scrap', 'fibre', 'crystal', 'data', 'terra'][(Math.random() * 5) | 0]; gain(got, 1 + (Math.random() < .3 ? 1 : 0), true); fxs.push({ k:'spark', x:xx + .5, y:yy + .5, t:0, life:.4, color:'#ffe08a' }); fxs.push({ k:'burst', x:xx + .5, y:yy + .5, t:0, life:.5, color:'#fff4c8' }); }
     }
     // enemies
     s.en.forEach(function(e){
@@ -3640,6 +3654,17 @@
     if (held === 'up' && p.x < 3.2) { cavePassOut('You climb back out to the cave mouth.'); return; }   // at the mouth, up is out
     updateBolts(dt); updateUtilities(dt);
     p.coyote = p.ground ? SIDE_COYOTE : Math.max(0, (p.coyote || 0) - dt);
+    if (p.sq) { p.sq.t -= dt; if (p.sq.t <= 0) p.sq = null; }
+    if (p.ground && !p.wasGround) {
+      var imp = p.landV || 0; p.landV = 0;
+      if (imp > 4) {
+        squash(p, 1 + Math.min(.35, imp * .03), 1 - Math.min(.3, imp * .025), .2);
+        for (var kd = -1; kd <= 1; kd++) p.dust.push({ x:p.x + .3 + kd * .3, y:p.y + .9, t:now });
+        shake(Math.min(4, imp * .25), .18);
+      }
+      sfx.land(imp);
+    }
+    p.wasGround = p.ground;
     p.dust = p.dust.filter(function(d2){ return now - d2.t < 380; }); if (p.moving && p.ground && (!p.dust.length || now - p.dust[p.dust.length - 1].t > 90)) p.dust.push({ x:p.x, y:p.y, t:now });
     hudRefresh();
   }
@@ -3649,6 +3674,7 @@
     var g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0c0a14'); g.addColorStop(1, '#1d1620'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     var camX = Math.max(0, Math.min(W * TZ - w, s.p.x * TZ + TZ * .3 - w / 2)), camY = Math.max(0, Math.min(H * TZ - h, (s.p.y + .5) * TZ - h / 2));
     var ox = -Math.round(camX), oy = -Math.round(camY);
+    var sh = shakeOffset(z); ox += sh[0]; oy += sh[1];
     var x0 = Math.max(0, Math.floor(-ox / TZ) - 1), x1 = Math.min(W - 1, Math.ceil((w - ox) / TZ) + 1), y0 = Math.max(0, Math.floor(-oy / TZ) - 1), y1 = Math.min(H - 1, Math.ceil((h - oy) / TZ) + 1);
     var base = { G:'#4a3d30', P:'#6c5a44', '#':'#261d18', H:'#2a1f1f', $:'#4a3d30', E:'#1c1420' };
     for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
@@ -3681,7 +3707,9 @@
     });
     // the pilot: the overworld's own pilot drawing, with the cave's position
     var keepP = P, pp = { x:Math.round(s.p.x), y:Math.round(s.p.y), fx:s.p.x, fy:s.p.y, dir:s.p.face > 0 ? 'right' : 'left', moving:s.p.moving, anim:s.p.anim, gait:'steady', dust:s.p.dust, t:1 };
-    P = pp; try { drawPlayer(ox + (s.p.x + .3) * TZ, oy + (s.p.y + .9) * TZ, z); } finally { P = keepP; }
+    var fx = ox + (s.p.x + .3) * TZ, fy = oy + (s.p.y + .9) * TZ, sq = s.p.sq, q = sq ? sq.t / sq.T : 0;
+    ctx.save(); ctx.translate(fx, fy); ctx.scale(1 + (sq ? (sq.x - 1) * q : 0), 1 + (sq ? (sq.y - 1) * q : 0)); ctx.translate(-fx, -fy);
+    P = pp; try { drawPlayer(fx, fy, z); } finally { P = keepP; ctx.restore(); }
     drawBlasterFx(ox, oy, TZ, z);
     if (s.p.atkT > 0) { ctx.strokeStyle = '#fff4c8'; ctx.lineWidth = 2 * z; ctx.globalAlpha = s.p.atkT / .26; ctx.beginPath(); var ax = ox + (s.p.x + .3 + s.p.face * .7) * TZ, ay = oy + (s.p.y + .4) * TZ; ctx.arc(ax, ay, 5 * z, -1.2 * s.p.face, 1.2 * s.p.face); ctx.stroke(); ctx.globalAlpha = 1; }
     drawLiveFx(ox, oy, TZ, z, now);
@@ -4047,7 +4075,7 @@
       var r = boomReach(c);
       r.hits.forEach(function(e){ if (c.side) hitSideFoe(e, 40); else hitFieldFoe(e, 60); });
       if (r.breaks) { M.grid[r.breaks.y * M.W + r.breaks.x] = '.'; gain('scrap', 2, true); fxs.push({ k:'burst', x:r.breaks.x + .5, y:r.breaks.y + .5, t:0, life:.6, color:'#d9a441' }); }
-      sfx.hit(); vibrate(80, .5); UTIL_CD.boomfists = .6;
+      sfx.hit(); vibrate(80, .5); UTIL_CD.boomfists = .6; hitStop(.06); shake(r.hits.length ? 3 : 2, .15);
       if (r.breaks) toast('BOOMFISTS · the rock breaks');
       if (r.hole) { makeHole(r.hole.x, r.hole.y, r.hole.stand); fxs.push({ k:'burst', x:r.hole.x + .5, y:r.hole.y + .5, t:0, life:.8, color:'#b86aff' }); toast('BOOMFISTS · the rock breaks open. A cave mouth is in the edge of the planet'); }
     }
@@ -4060,7 +4088,7 @@
       UTIL_PENDING.push({ t:1.2, fire:function(){
         fxs.push({ k:'burst', x:tx + .5, y:ty + .5, t:0, life:.9, color:'#ffd36a' });
         (foes || []).forEach(function(f){ if (f.state !== 'dead' && Math.hypot(f.x - (tx + .5), f.y - (ty + .5)) <= 2) hitFieldFoe(f, 60); });
-        sfx.reveal();
+        sfx.reveal(); shake(5, .4); hitStop(.05);
       } });
       UTIL_CD['star-satellite'] = 15;
       toast('STAR SATELLITE · the transponder is locked. Stand clear.');
@@ -4117,7 +4145,7 @@
   function strikeLater(secs, side, cx, cy, r, dmg){
     var mid = M.id;
     UTIL_PENDING.push({ t:secs, fire:function(){
-      fxs.push({ k:'burst', x:cx, y:cy, t:0, life:.7, color:'#ff8a3a' });
+      fxs.push({ k:'burst', x:cx, y:cy, t:0, life:.7, color:'#ff8a3a' }); shake(3, .25);
       if (side) sideLive().forEach(function(e){ if (Math.abs(e.x - cx) <= r && Math.abs(e.y - cy) < 1.2) hitSideFoe(e, dmg); });
       else if (M.id === mid) liveFoes().forEach(function(f){ if (Math.hypot(f.x - cx, f.y - cy) <= r) hitFieldFoe(f, dmg); });
     } });
@@ -5732,6 +5760,7 @@
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = M.indoor ? '#0d0a08' : '#0b0912'; ctx.fillRect(0, 0, w, h);
     var ox = Math.round((w / 2 - (P.fx + .5) * TZ) / z) * z, oy = Math.round((h / 2 - (P.fy + .5) * TZ) / z) * z;
+    var sh = shakeOffset(z); ox += sh[0]; oy += sh[1];
     var x0 = Math.max(0, Math.floor(-ox / TZ) - 1), x1 = Math.min(M.W - 1, Math.ceil((w - ox) / TZ) + 1),
         y0 = Math.max(0, Math.floor(-oy / TZ) - 1), y1 = Math.min(M.H - 1, Math.ceil((h - oy) / TZ) + 2);
     var fr = Math.floor(now / 650) % 2, list = [], x, y;
@@ -5986,7 +6015,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, bgm:function(){ return BGM && { src:BGM.src, paused:BGM.paused, loop:BGM.loop }; }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, feel:function(){ return { shakeT: SHAKE.t, hitStop: HITSTOP, sq: (SIDE && SIDE.p.sq) || null }; }, bgm:function(){ return BGM && { src:BGM.src, paused:BGM.paused, loop:BGM.loop }; }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

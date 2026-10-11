@@ -84,7 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-                            { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.27', title:'The soundtrack',
+                                { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.28', title:'Feel: landings, strikes and sound',
+      notes:[
+        'A hard landing in the cave squashes Carl, kicks up dust, and shakes the screen',
+        'A jump stretches Carl upward, and every step and landing has its own pitch',
+        'A boomfist strike and a Star Satellite strike shake the screen and hold the world for a moment',
+        'Gems, scrap and other finds in the cave send a burst as well as a spark'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.27', title:'The soundtrack',
       notes:[
         'The soundtrack starts on the first press of PRESS START, and loops from then on',
         'Nothing plays before that press, so the title screen stays quiet until you begin'

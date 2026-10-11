@@ -84,7 +84,14 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
-                                            { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.31', title:'People share one body',
+                                                { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.32', title:'A HUD you can move',
+      notes:[
+        'The top bar is gone. Aethren, Health, Air, Suit, Utility and the minimap are each their own panel',
+        'Health is now Carl’s own HP. Suit takes damage first, and Health takes what the suit cannot absorb',
+        'Life Seed heals Health',
+        'Press HUD, or H, to drag any panel. Positions are kept with your save. RESET HUD restores the default layout'
+      ] },
+{ date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.31', title:'People share one body',
       notes:[
         'Every person is built on the same skeleton as Carl, so their shapes read the same way',
         'Each person is taller or shorter, wider or thinner within limits; their colours and traits are kept',

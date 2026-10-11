@@ -904,7 +904,7 @@
   }
   // climbing aboard repairs the suit and rests the Aethren party. AIR refills only at NASARUS.
   function aboard(){
-    S.stage = 'nav'; S.suit = 100; S.flares = Math.max(S.flares, flaresMax()); healTeam();
+    S.stage = 'nav'; S.suit = 100; S.hp = 100; S.flares = Math.max(S.flares, flaresMax()); healTeam();
     if (S.at === 'nasarus') refillAir();         // the ship carries no oxygen of its own: only the base refills it
     save();
   }
@@ -2449,6 +2449,14 @@
   function navOnline(){ return !!(S.hq.drive && S.hq.built.nav); }
   function teamMax(){ return Math.max(1, COMPANIONS.partySize || 9); }
   function flaresMax(){ return S && S.hq && S.hq.research['r-pack'] ? 4 : 2; }
+  function hpNow(){ if (S.hp == null) S.hp = 100; return S.hp; }
+  // damage to Carl: the suit's shield takes what it can, and the rest comes off Health. Returns what got through.
+  function hurtPilot(n){
+    if (!(n > 0)) return 0;
+    var a = Math.min(S.suit, n); S.suit = Math.max(0, S.suit - a);
+    var rest = n - a; if (rest > 0) S.hp = Math.max(0, hpNow() - rest);
+    return rest;
+  }
   function suitDmg(n){ return Math.round(n * (S.hq.research['r-suit'] ? .65 : 1) * (1 - playerPerks().guard / 100)); }
   var DRIVE_COST = { scrap:6, crystal:2 };
 
@@ -2627,7 +2635,7 @@
     await say([(ch === 'w' ? 'Wreckage from the crash. Twisted, but useful.' : ch === 'A' ? 'A crystal outcrop. You break off what you can carry.' : 'Grey scrub with tough, stringy fibre.') + (got ? ' (' + got + ')' : '')]);
   }
   async function rest(){
-    S.suit = 100; refillAir(); S.flares = Math.max(S.flares, flaresMax()); healTeam(); save(); hudRefresh(); sfx.meet();
+    S.suit = 100; S.hp = 100; refillAir(); S.flares = Math.max(S.flares, flaresMax()); healTeam(); save(); hudRefresh(); sfx.meet();
     await say(['You rest in the shelter. SUIT and AIR refilled, flares restocked, your Aethren party rested. The expedition is saved.']);
   }
 
@@ -2783,6 +2791,7 @@
     if (mode === 'hyper') drawHyper(now);
     else if (mode === 'surface') { updateSurface(dt, now); if (mode === 'surface') drawSurface(now); }
     else if (mode === 'side' && SIDE) { updateSide(dt, now); if (mode === 'side' && SIDE) drawSide(now); }
+    if (mode && now - MMT > 150) { MMT = now; drawMinimap(); }
     if (TRANS.t > 0 && mode) {
       TRANS.t = Math.max(0, TRANS.t - dt);
       ctx.globalAlpha = TRANS.t / TRANS.d; ctx.fillStyle = '#05040a'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1;
@@ -2836,18 +2845,68 @@
   function worldNo(){ return M.world; }
   function zoneOf(x, y){ var d = GEN.zoneAt(M, x, y); return d ? d.id : null; }
   // the field's screen (HUD, pad, action buttons): built for a new map, and rebuilt on return without touching the world
+  // ── HUD · six modules: Aethren (top-left), Health, Air and Suit (top-right), Utility (bottom-left), Minimap (bottom-right) ──
+  function vitalMod(id, label){ return '<section class="x-mod x-vital" data-mod="' + id + '"><span>' + label + '</span><i class="x-vbar" data-v="' + id + '"><i></i></i><b class="x-vnum"></b></section>'; }
+  // ── HUD EDIT · drag any module in edit mode; positions are saved as fractions of the screen ──
+  var HUD_EDIT = false;
+  function hudBox(){ return $('.x-mods'); }
+  function hudLayoutApply(){
+    var box = hudBox(); if (!box) return;
+    $$('.x-mod', box).forEach(function(m){
+      var pos = S.hud && S.hud[m.dataset.mod], w = m.offsetWidth || 0, h = m.offsetHeight || 0;
+      if (!pos) { m.style.left = m.style.top = m.style.right = m.style.bottom = m.style.transform = ''; return; }
+      var x = clamp(pos.x, 0, 1 - w / innerWidth), y = clamp(pos.y, 0, 1 - h / innerHeight);
+      m.style.left = (x * 100).toFixed(2) + '%'; m.style.top = (y * 100).toFixed(2) + '%';
+      m.style.right = m.style.bottom = 'auto'; m.style.transform = 'none';
+    });
+  }
+  function hudEditSet(on){
+    HUD_EDIT = !!on; var box = hudBox(); if (!box) return;
+    box.classList.toggle('editing', HUD_EDIT);
+    var b = $('.x-hudedit'); if (b) { b.setAttribute('aria-pressed', HUD_EDIT ? 'true' : 'false'); b.classList.toggle('on', HUD_EDIT); }
+    var r = $('.x-hudreset'); if (r) r.hidden = !HUD_EDIT;
+    if (HUD_EDIT) toast('HUD EDIT · drag any module. Press HUD again to lock the layout');
+  }
+  function hudBind(){
+    var box = hudBox(); if (!box || box.dataset.bound) return; box.dataset.bound = 1;
+    var b = $('.x-hudedit'); if (b) b.addEventListener('click', function(e){ e.stopPropagation(); sfx.click(); hudEditSet(!HUD_EDIT); });
+    var r = $('.x-hudreset'); if (r) r.addEventListener('click', function(e){ e.stopPropagation(); S.hud = null; save(); hudLayoutApply(); sfx.click(); toast('HUD · the layout is back to its default'); });
+    box.addEventListener('pointerdown', function(e){
+      if (!HUD_EDIT) return; var m = e.target.closest && e.target.closest('.x-mod'); if (!m) return;
+      e.preventDefault();
+      var rc = m.getBoundingClientRect(), dx = e.clientX - rc.left, dy = e.clientY - rc.top;
+      function move(ev){
+        var x = clamp(ev.clientX - dx, 0, innerWidth - rc.width), y = clamp(ev.clientY - dy, 0, innerHeight - rc.height);
+        m.style.left = x + 'px'; m.style.top = y + 'px'; m.style.right = m.style.bottom = 'auto'; m.style.transform = 'none';
+      }
+      function up(){
+        removeEventListener('pointermove', move); removeEventListener('pointerup', up);
+        var r2 = m.getBoundingClientRect(); S.hud = S.hud || {};
+        S.hud[m.dataset.mod] = { x: r2.left / innerWidth, y: r2.top / innerHeight }; save(); hudLayoutApply();
+      }
+      addEventListener('pointermove', move); addEventListener('pointerup', up);
+    });
+    addEventListener('resize', hudLayoutApply);
+  }
+  function hudMarkup(){
+    return '<div class="x-mods">' +
+      '<section class="x-mod x-aethren" data-mod="aethren"><h4>AETHREN <b class="x-acount">0/9</b></h4><div class="x-party"></div></section>' +
+      vitalMod('health', 'HEALTH') + vitalMod('air', 'AIR') + vitalMod('suit', 'SUIT') +
+      '<section class="x-mod x-utilmod" data-mod="utility"><p class="x-noutil">NO UTILITY EQUIPPED · equip one in the Inventory</p>' + blasterHudHtml() + '</section>' +
+      '<section class="x-mod x-minimapmod" data-mod="minimap"><h4 class="x-zn"></h4><span class="x-zw"></span><canvas class="x-minimap" width="132" height="132"></canvas></section>' +
+      '</div>' +
+      '<button class="x-nav-btn" aria-label="Open the AstraNav">NAV</button>' +
+      '<button class="x-hudedit" aria-pressed="false">HUD</button><button class="x-hudreset" hidden>RESET HUD</button>';
+  }
   function fieldScreen(){
     screen('x-surface',
-      '<div class="x-hud riv"><div class="x-zone"><b class="x-zn"></b><span class="x-zw"></span></div>' +
-        '<div class="x-gauges">' + gauge('SUIT','suit') + gauge('AIR','air') + '</div>' + blasterHudHtml() +
-        '<div class="x-counts"><span class="x-lead" title="Lead card"></span></div>' +
-        '<button class="x-menu" aria-label="Open the AstraNav">NAV</button></div>' +
+      hudMarkup() +
       '<p class="x-objhint" aria-live="polite"></p>' +
       '<p class="x-padhint" aria-hidden="true">✕ INTERACT · ○ CROUCH · WALK · RUN · □ USE · △ UTILITY · TOUCHPAD ASTRANAV</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
       '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-tri" aria-label="Triangle: cycle utility">△<small>UTILITY</small></button><button class="x-sq" aria-label="Square: use the active utility">□<small>FIRE</small></button><button class="x-b" aria-label="Circle: crouch, walk or run">○<small>WALK</small></button><button class="x-a" aria-label="X: interact">✕<small>INTERACT</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
-    bindSurfaceUI();
+    bindSurfaceUI(); hudLayoutApply(); hudEditSet(HUD_EDIT);
     startWorld('surface');
     hudRefresh();
   }
@@ -2893,6 +2952,27 @@
     if (S.flags.hqNew) { S.flags.hqNew = false; save(); setTimeout(function(){ toast('A new body on the AstraNav: a drifting world with ruins. Set course for ' + hqName() + ' to make your headquarters.'); }, 800); }
     if (!S.flags.tutorialPad) { S.flags.tutorialPad = 1; save(); say(['Walk with the arrows (or the stick), or tap the ground to walk there.', 'A examines whatever you face: plants, stones, people, creatures. B changes your gait: STALK (slow and quiet), STEADY or SPRINT (fast and loud).', 'The touchpad opens the AstraNav: the star map, your cards, the Codex and everything else.']); }
   }
+  // the three vitals: Health, Air and Suit, each its own module and bar
+  function hudVitals(){
+    var air = Math.round(airPct()), vit = [['health', hpNow(), 100], ['air', air, 100], ['suit', Math.round(S.suit), 100]];
+    vit.forEach(function(v){
+      var bar = $('.x-vbar[data-v="' + v[0] + '"] > i'), mod = $('.x-vital[data-mod="' + v[0] + '"]'), num = mod && $('.x-vnum', mod);
+      var k = clamp(v[1] / v[2], 0, 1);
+      if (bar) bar.style.width = (k * 100).toFixed(1) + '%';
+      if (num) num.textContent = Math.round(v[1]);
+      if (mod) mod.classList.toggle('low', k < .25);
+    });
+  }
+  // the Aethren module: the companions who are with Carl, with their HP. An empty party reads AETHREN 0/9.
+  function hudParty(){
+    var party = $('.x-party'), count = $('.x-acount'), team = teamReady().slice(0, 9);
+    if (count) count.textContent = team.length + '/9';
+    if (!party) return;
+    party.innerHTML = team.length ? team.map(function(id){
+      var c = S.cards[id], mx = maxHp(id) || 1, k = clamp((c.hp == null ? mx : c.hp) / mx, 0, 1);
+      return '<div class="x-pm"><img class="x-pix" alt="" src="' + ART.url(subjArt(id), 1) + '"><div><span>' + esc(subjName(id)) + '</span><i class="x-vbar"><i style="width:' + (k * 100).toFixed(0) + '%"></i></i></div></div>';
+    }).join('') : '<p class="x-mono light">No companions with you.</p>';
+  }
   function gauge(label, id){
     return '<div class="x-g" data-g="' + id + '"><svg viewBox="0 0 60 40" aria-hidden="true"><path d="M6 36 A24 24 0 0 1 54 36" class="x-arc"/><path d="M6 36 A24 24 0 0 1 14 18" class="x-arc red"/>' +
       '<line x1="30" y1="36" x2="30" y2="15" class="x-needle"/><circle cx="30" cy="36" r="3"/></svg><span>' + label + '</span></div>';
@@ -2909,12 +2989,8 @@
     $('.x-zw').textContent = M.hq ? 'HEADQUARTERS · STAGE ' + hqStage() + ' · BAG ' + packTotal() : M.world === 9 ? term('zyraxis') : M.indoor ? term(M.name) : setName(M.world).replace(/ — .*/, '') + ' · BAG ' + packTotal();
     var oh = $('.x-objhint'); if (oh) { var nx = objectives().filter(function(o){ return !o.done && !o.main; })[0]; oh.textContent = nx ? '▸ ' + nx.t : ''; }
     actCache = '';   // the action prompt and the objective's direction redraw on the next frame
-    [['suit', S.suit], ['air', airPct()]].forEach(function(g){
-      var n = $('[data-g="' + g[0] + '"] .x-needle'); if (n) n.style.transform = 'rotate(' + (-80 + clamp(g[1], 0, 100) / 100 * 160) + 'deg)';
-      var box = $('[data-g="' + g[0] + '"]'); if (box) box.classList.toggle('low', g[1] < 25);
-    });
-    var lead = $('.x-lead'), team = teamReady();
-    if (lead) lead.innerHTML = team.length ? '<img class="x-pix" alt="" src="' + ART.url(subjArt(team[0]), 2) + '"><b>LV ' + S.cards[team[0]].lv + '</b>' : '';
+    hudVitals();
+    hudParty();
     var gk = GAIT[S.gait] ? S.gait : 'steady';
     var b = $('.x-b small'); if (b) b.textContent = GAIT[gk].label;
     var bb = $('.x-b'); if (bb) { bb.classList.toggle('on', gk !== 'steady'); bb.dataset.gait = gk; }
@@ -2948,7 +3024,8 @@
     bindHold($('.x-sq'), squarePress, squareRelease);
     var tb = $('.x-tri'); if (tb) tb.addEventListener('click', cycleUtil);
     // AstraNav access is the DualSense touchpad. On a touch screen the NAV button stands in for it (Creator-approved 2026-10-10).
-    var mb = $('.x-hud .x-menu'); if (mb) mb.addEventListener('click', function(e){ e.stopPropagation(); touchpad(); });
+    var mb = $('.x-nav-btn'); if (mb) mb.addEventListener('click', function(e){ e.stopPropagation(); touchpad(); });
+    hudBind();
     $('.x-dialog').addEventListener('click', function(e){ if (!e.target.closest('[data-c]')) advanceDialog(); });
   }
   // tap the ground: walk there; tap a thing: walk next to it, face it, examine it
@@ -3049,10 +3126,10 @@
     airTimer += dt;
     if (airTimer > 1) {
       airTimer = 0;
-      if (!dialogOpen && !encounterOpen) { var hz = hazardDrain(); S.air = Math.max(0, S.air - (utilOn('tidewalker-shell') ? 0 : hz.air)); S.suit = Math.max(0, S.suit - hz.suit); }
+      if (!dialogOpen && !encounterOpen) { var hz = hazardDrain(); S.air = Math.max(0, S.air - (utilOn('tidewalker-shell') ? 0 : hz.air)); hurtPilot(hz.suit); }
       hudRefresh();
       if (S.air <= 0) return airDeath();
-      if (S.suit <= 0) return recall('SUIT');
+      if (hpNow() <= 0) return recall('HEALTH');
       var ap = airPct(), band = ap <= 10 ? 3 : ap <= 25 ? 2 : ap <= 50 ? 1 : 0;
       if (band > (P.airBand || 0)) {
         toast(band === 3 ? 'AIR CRITICAL · ' + Math.round(ap) + '% · get back to ' + hqName() + ' now' : band === 2 ? 'AIR LOW · ' + Math.round(ap) + '% · head home to ' + hqName() : 'AIR HALF GONE · only ' + hqName() + ' can refill the tank', band > 1 ? 'red' : undefined);
@@ -3382,7 +3459,7 @@
     if (t.decoy) { fxs.push({ k:'spark', x:t.x, y:t.y - .4, t:0, life:.3, color:'#9fd8ff' }); return; }
     if (t.pilot && utilOn('warshield') && UTIL_DATA.shield && src && ((src.x - P.fx) * UTIL_DATA.shield[0] + (src.y - P.fy) * UTIL_DATA.shield[1]) > 0) { fxs.push({ k:'spark', x:P.fx, y:P.fy - .4, t:0, life:.3, color:'#9fe6ff' }); return; }
     if (t.pilot) {
-      S.suit = Math.max(0, S.suit - suitDmg(Math.max(1, Math.round(dmg * .6)))); vibrate(90, .5);
+      hurtPilot(suitDmg(Math.max(1, Math.round(dmg * .6)))); vibrate(90, .5);
       fxs.push({ k:'num', x:P.fx, y:P.fy - 1, t:0, life:.8, txt:'-' + dmg, color:'#ff6a5a' }); hudRefresh();
       if (S.suit <= 0) { save(); recall('SUIT'); }
       return;
@@ -3553,13 +3630,12 @@
   }
   function sideScreen(no){
     screen('x-surface x-side',
-      '<div class="x-hud riv"><div class="x-zone"><b class="x-zn">CAVE</b><span class="x-zw">' + esc(placeName(no)) + ' · ' + (SIDE.C.W) + ' CELLS</span></div>' +
-        '<div class="x-gauges">' + gauge('SUIT','suit') + '</div>' + blasterHudHtml() + '</div>' +
+      hudMarkup() +
       '<p class="x-padhint" aria-hidden="true">▲ JUMP · ✕ INTERACT · □ USE · ○ CROUCH · WALK · RUN · △ UTILITY</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
       '<div class="x-ab"><button class="x-tri" aria-label="Triangle: cycle utility">△<small>UTILITY</small></button><button class="x-sq" aria-label="Square: use the active utility">□<small>FIRE</small></button><button class="x-b" aria-label="Circle: crouch, walk or run">○<small>WALK</small></button><button class="x-a" aria-label="X: interact">✕<small>INTERACT</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
-    bindSurfaceUI();
+    bindSurfaceUI(); hudLayoutApply(); hudEditSet(HUD_EDIT);
     startWorld('side');
     hudRefresh();
   }
@@ -3571,15 +3647,15 @@
   function sHurt(dmg, kx){
     var p = SIDE.p; if (utilOn('warshield') && (kx || -p.face) === -p.face) { fxs.push({ k:'spark', x:p.x + .3, y:p.y + .2, t:0, life:.3, color:'#9fe6ff' }); return; }
     if (p.inv > 0) return; p.inv = .9;
-    S.suit = Math.max(0, S.suit - suitDmg(dmg)); if (!utilOn('balance-gyro')) { p.vx = (kx || -p.face) * 3; p.vy = -4; } sfx.hit(); vibrate(120, .5);
+    hurtPilot(suitDmg(dmg)); if (!utilOn('balance-gyro')) { p.vx = (kx || -p.face) * 3; p.vy = -4; } sfx.hit(); vibrate(120, .5);
     fxs.push({ k:'num', x:p.x + .3, y:p.y - .3, t:0, life:.8, txt:'-' + suitDmg(dmg), color:'#ff6a5a' });
     hudRefresh(); shake(3, .2); hitStop(.04);
-    if (S.suit <= 0) cavePassOut('CARRIED BACK TO THE CAVE MOUTH · your suit gave out. You wake at the mouth with 40% suit.');
+    if (hpNow() <= 0) cavePassOut('CARRIED BACK TO THE CAVE MOUTH · your health gave out. You wake at the mouth with 40% health.');
   }
   // you leave the cave by the mouth (rescue or climb out): the overworld is exactly as you left it
   function cavePassOut(msg){
     var rg = SIDE && SIDE.viaHole ? SIDE.regular : null;
-    SIDE = null; S.suit = Math.max(S.suit, 40); save();
+    SIDE = null; S.hp = Math.max(hpNow(), 40); save();
     if (msg) toast(msg, 'red');
     // a cave entered through a broken mouth returns to the planet's regular mouth
     if (rg && S.pos) { S.pos = { map:S.pos.map, x:rg.x, y:rg.y, dir:S.pos.dir || 'down' }; if (parked && parked.P) { parked.P.x = parked.P.fx = rg.x; parked.P.y = parked.P.fy = rg.y; parked.P.moving = false; } }
@@ -3683,6 +3759,34 @@
     p.wasGround = p.ground;
     p.dust = p.dust.filter(function(d2){ return now - d2.t < 380; }); if (p.moving && p.ground && (!p.dust.length || now - p.dust[p.dust.length - 1].t > 90)) p.dust.push({ x:p.x, y:p.y, t:now });
     hudRefresh();
+  }
+  // ── MINIMAP · the field around Carl, or the cave ahead and behind him ──
+  var MMT = 0;
+  function drawMinimap(){
+    var cv2 = $('.x-minimap'); if (!cv2 || !M && !SIDE) return;
+    var g = cv2.getContext('2d'), W = cv2.width, H = cv2.height;
+    g.fillStyle = '#07060b'; g.fillRect(0, 0, W, H); g.imageSmoothingEnabled = false;
+    if (mode === 'side' && SIDE) {
+      var sp = SIDE.p, cols = 61, cw = W / cols, rh = H / SIDE.C.H, x0 = Math.floor(sp.x) - 30;
+      var cc = { G:'#4a3d30', P:'#6c5a44', '#':'#261d18', H:'#a04a4a', $:'#ffe08a', E:'#b86aff' };
+      for (var yy = 0; yy < SIDE.C.H; yy++) for (var xx = 0; xx < cols; xx++) {
+        var ch = sTile(x0 + xx, yy); if (cc[ch]) { g.fillStyle = cc[ch]; g.fillRect(xx * cw, yy * rh, Math.ceil(cw), Math.ceil(rh)); }
+      }
+      SIDE.en.forEach(function(e){ if (!e.dead && Math.abs(e.x - sp.x) <= 30) { g.fillStyle = '#ff5a6e'; g.fillRect((e.x - x0) * cw - 1, e.y * rh, 3, 3); } });
+      g.fillStyle = '#ffffff'; g.fillRect((sp.x - x0) * cw - 2, sp.y * rh, 4, 4);
+      return;
+    }
+    if (!M || !P) return;
+    var R = 16, cell = W / (R * 2 + 1);
+    for (var y = -R; y <= R; y++) for (var x = -R; x <= R; x++) {
+      var tx = P.x + x, ty = P.y + y; if (tx < 0 || ty < 0 || tx >= M.W || ty >= M.H) continue;
+      var i = ty * M.W + tx; if (!fogArr || !fogArr[i]) continue;
+      var c = M.grid[i], col = SOLID[c] ? '#6a5a48' : c === '~' ? '#2d5d8a' : '#3a3328';
+      g.fillStyle = col; g.fillRect((x + R) * cell, (y + R) * cell, Math.ceil(cell), Math.ceil(cell));
+    }
+    (M.landmarks || []).forEach(function(l){ var dx = l.x - P.x, dy = l.y - P.y; if (Math.abs(dx) <= R && Math.abs(dy) <= R && fogArr && fogArr[l.y * M.W + l.x]) { g.fillStyle = '#ffd36a'; g.fillRect((dx + R) * cell, (dy + R) * cell, cell, cell); } });
+    foes.forEach(function(f){ var dx = f.x - P.x, dy = f.y - P.y; if (f.state !== 'dead' && Math.abs(dx) <= R && Math.abs(dy) <= R) { g.fillStyle = '#ff5a6e'; g.fillRect((dx + R + .5) * cell - 1, (dy + R + .5) * cell - 1, 3, 3); } });
+    g.fillStyle = '#ffffff'; g.fillRect(R * cell + cell / 2 - 2, R * cell + cell / 2 - 2, 4, 4);
   }
   function drawSide(now){
     var w = cv.width, h = cv.height, z = zoom(), TZ = T * z, s = SIDE, H = s.C.H, W = s.C.W;
@@ -4022,9 +4126,10 @@
   // the HUD's utility panel: the name, its place in the cycle, and the blaster's charge or the jetpack's lift
   function syncUtilHud(){
     var el = $('.x-weapon'); if (!el) return;
-    var a = utilList(), cur = activeUtil(); el.hidden = !cur; if (!cur) return;
+    var a = utilList(), cur = activeUtil(); el.hidden = !cur; var none = $('.x-noutil'); if (none) none.hidden = !!cur; if (!cur) return;
     var b = $('b', el), bar = $('.x-wbar > i', el), lab = $('span', el), idx = a.indexOf(cur) + 1;
     if (b) b.textContent = 'UTILITY ' + idx + '/' + a.length + ' · ' + utilInfo(cur).name;
+    if (el && !$('em', el)) { var hint = document.createElement('em'); hint.textContent = '△ cycle · □ use'; el.insertBefore(hint, el.firstChild); }
     if (cur === 'astrablaster') {
       var w = blaster(), k = Math.round(w.charge / BLASTER.maxCharge * 100);
       if (bar) bar.style.width = k + '%';
@@ -4032,7 +4137,8 @@
     } else {
       var lift = mode === 'side' && SIDE ? SIDE.p.lift / JSIDE.thrust : (P && P.alt ? P.alt / JET.altMax : 0);
       if (bar) bar.style.width = Math.round(clamp(lift, 0, 1) * 100) + '%';
-      if (lab) lab.textContent = squareHeld ? 'AIRBORNE · release □ to settle' : 'READY · hold □ to fly';
+      var cd = Math.ceil(UTIL_CD[cur] || 0);
+      if (lab) lab.textContent = cd ? 'RECHARGING · ' + cd + 's' : squareHeld ? 'AIRBORNE · release □ to settle' : 'READY · hold □ to fly';
     }
   }
   // ── THE PLANETARY UTILITIES · the abilities of the built ones. Each has can (is the target valid?), press, and optional hold / release ──
@@ -4044,7 +4150,7 @@
       var ch = at(P.x, P.y); return ch === '.' || ch === ',' ? { ok:true } : { ok:false, reason:'Life Seed needs open ground under you to plant in.' };
     },
     press: function(c){
-      S.suit = Math.min(100, (S.suit || 0) + 25);
+      S.hp = Math.min(100, hpNow() + 25);
       var healed = 0;
       if (!c.side) (allies || []).forEach(function(a){
         if (a.kind !== 'ally' || !a.id || Math.hypot(a.x - P.fx, a.y - P.fy) > 3) return;
@@ -4054,7 +4160,7 @@
       var fx = c.side ? c.p.x + .3 : P.fx + .5, fy = c.side ? c.p.y + .6 : P.fy + .5;
       fxs.push({ k:'burst', x:fx, y:fy, t:0, life:.7, color:'#8fe0a0' });
       sfx.reveal(); vibrate(60, .3); UTIL_CD['life-seed'] = 12; save(); hudRefresh();
-      toast('LIFE SEED · Carl +25 suit' + (healed ? ' · ' + healed + ' allied Aethren healed' : ''));
+      toast('LIFE SEED · Carl +25 health' + (healed ? ' · ' + healed + ' allied Aethren healed' : ''));
     }
   };
   // BOOMFISTS (Rhyzor): a melee strike in front. It breaks a breakable_rock and hits foes in reach
@@ -4701,7 +4807,7 @@
     if (kind === 'item') { var t = ITEMS.byId[id]; if (!t || t.sealed) return false; var box = devDest === 'bag' ? (S.pack.items = S.pack.items || {}) : (S.hq.items = S.hq.items || {}); box[id] = (box[id] || 0) + n; S.itemSeen = S.itemSeen || {}; if (!S.itemSeen[id]) S.itemSeen[id] = Date.now(); return true; }
     if (kind === 'oil') { S.core.oil = (S.core.oil || 0) + n; return true; }
     if (kind === 'flare') { S.flares = Math.max(S.flares, flaresMax()); return true; }
-    if (kind === 'air') { refillAir(); S.suit = 100; return true; }
+    if (kind === 'air') { refillAir(); S.suit = 100; S.hp = 100; return true; }
     if (kind === 'papers') { (CORE.recipes || []).forEach(function(r){ S.core.recipes[r.id] = S.core.recipes[r.id] || Date.now(); }); return true; }
     return false;
   }
@@ -5132,7 +5238,7 @@
     var team = teamReady();
     await say(['The ' + wardenName(no) + ' sees you. To them you are the alien, the thing from outside, and they raise the call to kill.',
       team.length ? 'They loose their Aethren on you. Your team stands between you and them.' : 'You have no cards ready to stand between you. Run.']);
-    if (!team.length) { S.suit = Math.max(0, S.suit - suitDmg(EXP.warden.suitHit || 35)); save(); hudRefresh(); knockBack(n); if (S.suit <= 0) recall('SUIT'); return; }
+    if (!team.length) { hurtPilot(suitDmg(EXP.warden.suitHit || 35)); save(); hudRefresh(); knockBack(n); if (hpNow() <= 0) recall('HEALTH'); return; }
     var wfoes = wardenTeam(no); if (!wfoes.length) return;
     if (LIVE) {
       var gid = spawnGroup('aethren', n.x + (P.x < n.x ? -1 : 1), n.y, wfoes[0].lv, { name:wardenName(no).toUpperCase() + '\'S AETHREN', count:wfoes.length, extra:wfoes.map(function(f){ return { sp:f.sp, lv:f.lv }; }),
@@ -5148,8 +5254,8 @@
       loseLine:'Your party is spent. The warden’s Aethren come for you.',
       onWin:function(){ S.exp.beaten[no] = Date.now(); gainAll(EXP.warden.reward, true); save(); npcs = npcs.filter(function(x){ return !x.warden; });
         toast('WARDEN DEFEATED · +' + costText(EXP.warden.reward) + (hasClue(no) ? ' · the vault is open to you' : ' · now find the clue to its vault')); hudRefresh(); },
-      onLose:function(){ S.suit = Math.max(0, S.suit - suitDmg(EXP.warden.suitHit || 35)); save(); hudRefresh(); knockBack(n); if (S.suit <= 0) recall('SUIT'); },
-      onRun:function(){ S.suit = Math.max(0, S.suit - suitDmg(10)); save(); hudRefresh(); knockBack(n); }
+      onLose:function(){ hurtPilot(suitDmg(EXP.warden.suitHit || 35)); save(); hudRefresh(); knockBack(n); if (hpNow() <= 0) recall('HEALTH'); },
+      onRun:function(){ hurtPilot(suitDmg(10)); save(); hudRefresh(); knockBack(n); }
     });
   }
   function knockBack(n){
@@ -5204,7 +5310,7 @@
       '<button class="x-btn">WAKE AT THE BASE · ' + esc(hqName()) + '</button></div>');
     $('.x-btn', s).addEventListener('click', function(){
       var m = buildMap('nasarus');
-      S.at = 'nasarus'; S.landed = true; S.suit = 100; refillAir(); healTeam();
+      S.at = 'nasarus'; S.landed = true; S.suit = 100; S.hp = 100; refillAir(); healTeam();
       var c = S.hq.built.camp ? HQ.facilities.filter(function(f){ return f.id === 'camp'; })[0].at : [m.ship.x + 2, m.ship.y];
       S.pos = { map:'nasarus', x:c[0], y:c[1] + 1, dir:'down' }; S.stage = 'surface'; save();
       fade(function(){ surface('nasarus'); });
@@ -5405,7 +5511,7 @@
       c.state = 'flee';
       toast('It bolted before you got close. Try STALKING (B).', 'red'); return;
     }
-    if (charged) { S.suit = Math.max(0, S.suit - suitDmg(18)); save(); hudRefresh(); sfx.warn(); vibrate(220, 1); if (S.suit <= 0) { recall('SUIT'); return; } }
+    if (charged) { hurtPilot(suitDmg(18)); save(); hudRefresh(); sfx.warn(); vibrate(220, 1); if (hpNow() <= 0) { recall('HEALTH'); return; } }
     if (LIVE && charged && team.length) {
       hostileAethren(c, c.guardian ? { name:'THE VAULT\'S GUARDIAN', onWin:function(){ S.exp.beaten[M.world] = Date.now(); gainAll(EXP.guardian.reward, true); save(); toast('THE GUARDIAN IS CALMED · the vault is unguarded · +' + costText(EXP.guardian.reward)); } } : null);
       toast((c.guardian ? 'THE VAULT\'S GUARDIAN' : subjName(c.id).toUpperCase()) + ' CHARGES · your party meets it', 'red'); return;
@@ -5455,7 +5561,7 @@
     function react(){
       acted++;
       if (s.temperament === 'territorial' && acted >= 2 && !gone) {
-        S.suit = Math.max(0, S.suit - suitDmg(18)); save(); hudRefresh(); sfx.warn(); vibrate(180, 1);
+        hurtPilot(suitDmg(18)); save(); hudRefresh(); sfx.warn(); vibrate(180, 1);
         o.classList.remove('hit'); void o.offsetWidth; o.classList.add('hit');
         typeInto(msg, 'It charges again! SUIT damaged. Time to go, or fight.', 14);
         if (S.suit <= 0) { end(); recall('SUIT'); return true; }
@@ -5685,7 +5791,7 @@
       over = true;
       if (boss) { await say2(boss.loseLine); await wait(400); close(); if (boss.onLose) boss.onLose(); return; }
       await say2('Your party is spent! You fall back, and it lets you go.');
-      S.suit = Math.max(1, S.suit - suitDmg(15)); save(); c.cool = 10; c.calm = 30;
+      hurtPilot(suitDmg(15)); save(); c.cool = 10; c.calm = 30;
       await wait(500); close();
     }
     function close(){ o.remove(); encounterOpen = false; hudRefresh(); }
@@ -6039,6 +6145,7 @@
       if (k === 'c') { e.preventDefault(); if (!e.repeat) squarePress(); }
       if (k === 'q') { e.preventDefault(); if (!e.repeat) cycleUtil(); }
       if (k === 'j' || k === 'm' || k === 'tab') { e.preventDefault(); touchpad(); }
+      if (k === 'h') { e.preventDefault(); hudEditSet(!HUD_EDIT); }
       return;
     }
     if ((k === 'j' || k === 'm') && !doc.querySelector('.x-name') && !(e.target && /INPUT|SELECT/.test(e.target.tagName))) { e.preventDefault(); touchpad(); return; }
@@ -6108,7 +6215,7 @@
   // ───────────────────────── boot ─────────────────────────
   // ?debug exposes internals for automated tests only.
   setTimeout(function(){ loadItems(); }, 600);   // the item catalog arrives in the background
-  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, feel:function(){ return { shakeT: SHAKE.t, hitStop: HITSTOP, sq: (SIDE && SIDE.p.sq) || null }; }, gainRaw:function(k, n){ return gain(k, n, true); }, anim:function(){ return window.AOV_ANIM.resolve(carlAnimState()).id; }, animFrame:function(){ return P && P.ani ? P.ani.frame : -1; }, stage3:function(){ return { fade: TRANS.t, fxN: fxs.length }; }, bgm:function(){ return BGM && { src:BGM.src, paused:BGM.paused, loop:BGM.loop }; }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
+  if (/[?&]debug\b/.test(location.search)) window.__x = { free:function(){ return surfaceFree(); }, mode:function(){ return mode; }, bolts:function(){ return bolts; }, blasterState:function(){ return blaster(); }, side:function(){ return SIDE; }, sideAct:function(a){ sideAct(a); }, enterCave:function(no){ var lm = M.landmarks.filter(function(l){ return l.dungeon === no; })[0]; if (lm) openCave(lm); }, allies:function(){ return allies; }, foes:function(){ return foes; }, homebodies:function(){ return homebodies; }, spawnFoe:function(k, dx, dy, lv){ var g = spawnGroup(k, P.x + (dx || 4), P.y + (dy || 0), lv || 5, { count:1 }); return foes.filter(function(f){ return f.group === g; })[0]; }, liveFx:function(){ return { shots:shots.length, fx:fxs.length }; }, shipLevel:function(){ return shipLevel(); }, tankMax:function(){ return tankMax(); }, inReach:function(n){ return inReach(n); }, levelToReach:function(n){ return levelToReach(n); }, gate:function(n){ return shipGateRows(n); }, shipUp:function(){ return shipUpgrade(); }, playerLevel:function(){ plCache.t = 0; return playerLevel(); }, playerXp:function(){ return playerXp(); }, aethrenCap:function(){ return aethrenCap(); }, train:function(id){ return trainAethren(id); }, hyper:function(){ return hyperspaceJump(); }, fuel:function(){ return shipFuel(); }, courseFuel:function(n){ return courseFuel(n); }, refuel:function(n){ return refuel(n); }, devOn:function(){ return devOn(); }, station:function(id){ openStation(id); }, stationNow:function(){ return stationNow && stationNow.id; }, closeStation:function(){ closeStation(); }, touchpad:function(){ touchpad(); }, cockpit:function(){ cockpit(); }, move:function(){ btnMove(); }, pickup:function(){ pickupObject(); }, util:function(){ return { list:utilList(), active:activeUtil(), alt:P && P.alt, lift:P && P.lift, sideLift:SIDE && SIDE.p.lift, sideVy:SIDE && SIDE.p.vy, jet:jet(), held:squareHeld, gait:S.gait }; }, cycleUtil:function(){ cycleUtil(); }, useUtil:function(id){ return useUtil(id); }, devCopies:function(){ devUtilityCopies(); }, utilOnOf:function(id){ return utilOn(id); }, hpNow:function(){ return hpNow(); }, setSuit:function(v){ S.suit = v; }, hurt:function(n){ return hurtPilot(n); }, setHp:function(v){ S.hp = v; }, hudRect:function(id){ var m = $('.x-mod[data-mod="' + id + '"]'); if (!m) return null; var r = m.getBoundingClientRect(); return { x:r.left, y:r.top, w:r.width, h:r.height, vw:innerWidth, vh:innerHeight }; }, hudSaved:function(){ return S.hud || null; }, hudEdit:function(on){ hudEditSet(on); }, hudDragBy:function(id, dx, dy){ return null; }, holeAt:function(x, y){ return holeSpot(x, y); }, regularStandOf:function(no){ return regularStand(no); }, enterHole:function(x, y){ var lm = (M.landmarks || []).filter(function(l){ return l.x === x && l.y === y; })[0]; if (lm) openCave(lm); }, buildMapId:function(id){ return buildMap(id); }, feel:function(){ return { shakeT: SHAKE.t, hitStop: HITSTOP, sq: (SIDE && SIDE.p.sq) || null }; }, gainRaw:function(k, n){ return gain(k, n, true); }, anim:function(){ return window.AOV_ANIM.resolve(carlAnimState()).id; }, animFrame:function(){ return P && P.ani ? P.ani.frame : -1; }, stage3:function(){ return { fade: TRANS.t, fxN: fxs.length }; }, bgm:function(){ return BGM && { src:BGM.src, paused:BGM.paused, loop:BGM.loop }; }, utilData:function(){ return UTIL_DATA; }, utilFxIds:function(){ return Object.keys(UTIL_FX); }, utilPos:function(){ return { x:P.x, y:P.y, alt:P.alt }; }, pathLen:function(){ return path.length; }, carryOn:function(){ return !!carry; }, setGrid:function(x,y,c){ M.grid[y*M.W+x]=c; }, getGrid:function(x,y){ return M.grid[y*M.W+x]; }, utilAction:function(id, a){ return utilAction(id, a); }, utilsState:function(){ return utils(); }, cdOf:function(id){ return UTIL_CD[id] || 0; }, pendingCount:function(){ return UTIL_PENDING.length; }, squareDown:function(){ squarePress(); }, squareUp:function(){ squareRelease(); }, jetAction:function(a){ return jetAction(a); }, setGait:function(g){ S.gait = g; if (P) P.gait = g; }, carrying:function(){ return carry ? { c:carry.c, st:carry.st && carry.st.id, f:carry.f } : null; }, cancelMove:function(){ return cancelCarry(); }, chapter:function(id){ return openChapter(id); }, papers:function(){ return (M && M.papers || []).map(function(p){ return { id:p.id, x:p.x, y:p.y, left:!!paperHere(p.x, p.y) }; }); }, S:function(){ return S; }, P:function(){ return P; }, M:function(){ return M; }, critters:function(){ return critters; }, items:function(){ return ITEMS; }, gainItem:function(id, n){ return gainItem(id, n, true); }, stranded:function(no){ stranded(no); }, npcs:function(){ return npcs; },
     tp:function(x, y, dir){ P.x = P.fx = x; P.y = P.fy = y; P.dir = dir || P.dir; P.moving = false; path = []; revealFog(); checkZone(); },
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },

@@ -17,7 +17,20 @@
 - **Stopping distance.** Stopping is smooth but not instant. Stage 1 keeps the tile-based field, so a stop finishes the tile in progress.
 - **Values are placeholders.** Accelerations, friction, the hold time and the hop height are tuning numbers, to be adjusted in play.
 
-## Not built (Stages 2 and 3)
+## Stage 2 · feedback (built with the same pass)
 
-- Squash and stretch on jump and landing; dust, screen shake and freeze frames; animation-linked sound with pitch variation; collection sparks and bursts.
-- Side-scrolling utility combat effects and transitions between top-down and platform play.
+- **Squash and stretch.** A jump stretches Carl (0.82 wide, 1.2 tall) and a hard landing squashes him (wider and shorter, up to 1.35 by 0.7). Both ease back to normal in 0.14 to 0.2 s, and they are drawn from the feet.
+- **Landing dust and shake.** A hard landing kicks up three dust puffs and shakes the cave screen. The shake grows with the impact and fades over 0.18 s.
+- **Freeze frames.** A boomfist strike holds the world for 0.06 s. A hit on Carl holds it for 0.04 s, and a Star Satellite strike for 0.05 s.
+- **Screen shake on strikes.** Dragonflare, Star Satellite and Boomfists shake the picture when they land. The field and the cave both use the same shake.
+- **Sound.** Footsteps and landings vary in pitch each time, and a hard landing has a deeper thud.
+- **Collection.** A gem or find in the cave bursts as well as sparks.
+
+Shake and freeze are set in one place (`shake`, `hitStop` in `explorer.js`), so new effects use the same two calls.
+
+## Not built (Stage 3)
+
+- Side-scrolling utility combat effects beyond the shake and freeze above.
+- Transitions between top-down and platform play.
+- Field collection bursts (the field's finds still show a toast only).
+- Sprite art for the squash and the dust; the art pass replaces these shapes.

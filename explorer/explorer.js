@@ -3774,8 +3774,7 @@
     p.vx = approach(p.vx || 0, want, rate * dt); p.moving = !!dir; p.gait = S.gait || 'steady';
     // the JETPACK: lift builds while □ is held and fades when it is let go, so the fall starts smoothly
     p.lift = approach(p.lift || 0, thrust ? JSIDE.thrust : 0, (thrust ? JSIDE.accel : JSIDE.decel) * dt);
-    p.vy = Math.min(18, p.vy + (SIDE_G - p.lift) * dt);
-    if (p.lift > 0) p.vy = Math.max(-JSIDE.rise, p.vy);   // the climb is capped while the lift lasts, so a release glides into the fall
+    p.vy = approach(p.vy || 0, thrust ? -JSIDE.rise : JSIDE.fall, (thrust ? JSIDE.accel : JSIDE.decel) * dt);
     if (jumpHeld && p.ground && p.jumpBuf <= 0) p.jumpBuf = .08;
     if (p.jumpBuf > 0 && (p.ground || p.coyote > 0)) { p.vy = -SIDE_JUMP; p.ground = false; p.coyote = 0; p.jumpBuf = 0; sfx.step(); squash(p, .82, 1.2, .14); }
     var nx = p.x + p.vx * dt;
@@ -4079,7 +4078,7 @@
     return { name:d.name, short:id === 'astrablaster' ? 'FIRE' : id === 'jetpack' ? 'FLY' : 'USE', toast:'ACTIVE UTILITY · ' + d.name.toUpperCase() + ' · ○ ' + hint };
   }
   var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.8, accel:6.5, decel:8.5, sink:.7, altMax:2, crossAlt:.6, flyStep:.075, hold:.08, hop:.8 };
-  var JSIDE = { thrust:72, accel:180, rise:14, decel:140 };
+  var JSIDE = { thrust:72, accel:220, rise:14, decel:180, fall:11 };
   // Stage 1 movement feel: side-view acceleration, friction, air control, and coyote time after a ledge
   var SIDE_ACC = 95, SIDE_FRIC = 120, SIDE_AIRACC = 60, SIDE_COYOTE = .14;
   var GAIT_SIDE = { stalk:.5, steady:1, sprint:1.6 };

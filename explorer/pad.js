@@ -3,9 +3,9 @@
 // DualSense first (any standard-mapping gamepad works). Reads the Gamepad API
 // every frame and turns it into the game's own events:
 //
-//   ✕ Cross     A · confirm · examine        ○ Circle    B · back · gait (stalk/steady/sprint)
-//   □ Square    camera (photograph)           △ Triangle  field journal
-//   L1 / R1     previous / next (cards, tabs)  L2 / R2     focus ring (analog)
+//   ✕ Cross     jump; double-press and hold for jetpack   ○ Circle    use selected utility
+//   □ Square    interact                                △ Triangle  hold for utility overlay
+//   L1 / R1     previous / next utility                 L2 / R2     focus / sprint (R2 hold)
 //   D-pad / left stick   move · menu focus    right stick  aim the telescope
 //   OPTIONS     pause menu                    touchpad    the map board
 //

@@ -138,7 +138,7 @@
   function blank(){
     return { v:3, hero:{ first:'CARL', gender:'m', look:Object.assign({}, LOOK) }, stage:'title', flags:{ cloneRule:1 }, archive:{}, cards:{}, lex:{}, machines:{}, dev:{ access:false, chests:{} },
              core:{ enabled:true, recipes:{}, machines:{}, oil:0, astralites:{}, automation:{}, gameOver:false },
-             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, hq:newHQ(), pack:{}, exp:newExp(), codex:{}, codexPages:{}, codexIdx:{},
+             suit:100, air:100, flares:2, visited:{}, at:null, landed:false, pos:null, fog:{}, notes:{}, found:{}, lore:{}, team:[], seen:{}, seers:{}, hq:newHQ(), pack:{}, exp:newExp(), codex:{}, codexPages:{}, codexIdx:{},
              opts:{ sound:false, haptics:true, text:1, hand:'right', alpha:1 }, started:Date.now() };
   }
   function newHQ(){ return { id:'nasarus', name:HQ.canonicalName, built:{}, drive:false, ruins:{}, regions:[], store:{}, research:{}, records:[], stage:1, equip:{}, parts:{}, installed:{}, residents:{}, settled:{} }; }
@@ -169,7 +169,7 @@
   }
   if (S && S.v === 3 && S.frames) { delete S.frames; delete S.film; }
   // survey build 7 saves: the expedition is already under way, and NASARUS appears on the AstraNav to be claimed
-  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.codex = S.codex || {}; S.codexPages = S.codexPages || {}; S.codexIdx = S.codexIdx || {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
+  if (S && S.v === 3 && S.hq) { ['equip','parts','installed','residents','settled'].forEach(function(k){ S.hq[k] = S.hq[k] || {}; }); S.exp = S.exp || newExp(); S.seers = S.seers || {}; S.codex = S.codex || {}; S.codexPages = S.codexPages || {}; S.codexIdx = S.codexIdx || {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; }
   if (S && S.v === 3) { S.ship = S.ship || { fuel:0 }; S.dev = S.dev || { access:false, chests:{} }; }   // the rocket's fuel tank (0–100 %), filled from OIL at the rocket
   if (S && S.v === 3 && !S.hq) { S.hq = newHQ(); S.hq.drive = true; S.hq.built.nav = Date.now(); S.pack = {}; S.machines = S.machines || {}; S.dev = S.dev || { access:false, chests:{} }; S.dev.chests = S.dev.chests || {}; S.flags.charted = true; S.flags.hqNew = true; }
   if (S && S.v === 3) {
@@ -2902,9 +2902,9 @@
     screen('x-surface',
       hudMarkup() +
       '<p class="x-objhint" aria-live="polite"></p>' +
-      '<p class="x-padhint" aria-hidden="true">✕ INTERACT · ○ CROUCH · WALK · RUN · □ USE · △ UTILITY · TOUCHPAD ASTRANAV</p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ JUMP · double-press + hold JETPACK · □ INTERACT · ○ USE · △ UTILITY OVERLAY · L1/R1 CYCLE · R2 SPRINT · L3 CROUCH</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-tri" aria-label="Triangle: cycle utility">△<small>UTILITY</small></button><button class="x-sq" aria-label="Square: use the active utility">□<small>FIRE</small></button><button class="x-b" aria-label="Circle: crouch, walk or run">○<small>WALK</small></button><button class="x-a" aria-label="X: interact">✕<small>INTERACT</small></button></div>' +
+      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-tri" aria-label="Hold Triangle: utility overlay">△<small>UTILITIES</small></button><button class="x-sq" aria-label="Square: interact">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: use selected utility">○<small>USE</small></button><button class="x-a" aria-label="X: jump, double-press and hold for jetpack">✕<small>JUMP</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI(); hudLayoutApply(); hudEditSet(HUD_EDIT);
     startWorld('surface');
@@ -2994,7 +2994,7 @@
     var gk = GAIT[S.gait] ? S.gait : 'steady';
     var b = $('.x-b small'); if (b) b.textContent = GAIT[gk].label;
     var bb = $('.x-b'); if (bb) { bb.classList.toggle('on', gk !== 'steady'); bb.dataset.gait = gk; }
-    var au = activeUtil(), sq = $('.x-sq'); if (sq) { sq.classList.toggle('on', !!au && squareHeld); var sl = sq.querySelector('small'); if (sl) sl.textContent = au ? utilInfo(au).short : 'NONE'; }
+    var sq = $('.x-sq'); if (sq) { sq.classList.toggle('on', false); var sl = sq.querySelector('small'); if (sl) sl.textContent = 'INTERACT'; }
   }
   // a zone's name: a Zyraxis district by its lexicon term; a world's region by name once you know the world's words
   function zoneLabel(id){
@@ -3019,10 +3019,10 @@
       b.addEventListener('pointerdown', function(e){ e.preventDefault(); held = b.dataset.d; path = []; try { b.setPointerCapture(e.pointerId); } catch(err){} });
       b.addEventListener('pointerup', release); b.addEventListener('pointercancel', release); b.addEventListener('lostpointercapture', release);
     });
-    bindHold($('.x-a'), xPress, xRelease, function(){ if (!surfaceFree()) btnA(); });
-    $('.x-b').addEventListener('click', btnB);
-    bindHold($('.x-sq'), squarePress, squareRelease);
-    var tb = $('.x-tri'); if (tb) tb.addEventListener('click', cycleUtil);
+    bindHold($('.x-a'), xPress, xRelease);
+    $('.x-b').addEventListener('click', useSelectedUtility);
+    $('.x-sq').addEventListener('click', function(){ btnA(); });
+    var tb = $('.x-tri'); if (tb) bindHold(tb, function(){ utilityOverlaySet(true); }, function(){ utilityOverlaySet(false); });
     // AstraNav access is the DualSense touchpad. On a touch screen the NAV button stands in for it (Creator-approved 2026-10-10).
     var mb = $('.x-nav-btn'); if (mb) mb.addEventListener('click', function(e){ e.stopPropagation(); touchpad(); });
     hudBind();
@@ -3368,11 +3368,48 @@
 
   // ── enemies on the field ──
   function foeLevel(){ return Math.max(2, (GEN.levelFor && M.world ? GEN.levelFor(M.world) : 5) || 5); }
+  function seerCount(no){ return 3 + (((no * 7) + 1) % 3); }
+  function seerState(no){
+    S.seers = S.seers || {};
+    var st = S.seers[no];
+    if (!st || st.total !== seerCount(no)) st = S.seers[no] = { total:seerCount(no), defeated:0, cleared:false };
+    return st;
+  }
+  function planetSeersCleared(no){ var st = seerState(no); return !!st.cleared || st.defeated >= st.total; }
+  function seerTeam(no, index){
+    var ids = Object.keys(SP).filter(function(id){ var s = SP[id]; return s.world === no && !s.retired && !s.hidden && !s.sealed && (s.tier || 1) <= 8; });
+    if (ids.length < 3) ids = Object.keys(SP).filter(function(id){ var s = SP[id]; return !s.retired && !s.hidden && !s.sealed && (s.tier || 1) >= 2 && (s.tier || 1) <= 7; });
+    ids.sort(function(a, b){ return (SP[b].tier || 1) - (SP[a].tier || 1) || (a < b ? -1 : 1); });
+    var out = [];
+    for (var i = 0; i < Math.min(3, ids.length); i++) out.push({ sp:ids[(index + i) % ids.length], lv:foeLevel() + 6 + i * 2 });
+    return out;
+  }
+  function freeFoeSpot(cx, cy, r){
+    for (var tries = 0; tries < 80; tries++) {
+      var x = clamp(cx + ((Math.random() * 2 - 1) * r) | 0, 2, M.W - 3), y = clamp(cy + ((Math.random() * 2 - 1) * r) | 0, 2, M.H - 3);
+      if (Math.hypot(x - (M.ship || P).x, y - (M.ship || P).y) < 14 || Math.hypot(x - P.x, y - P.y) < 12) continue;
+      if (freeFor({}, x, y)) return { x:x, y:y };
+    }
+    return null;
+  }
+  function spawnSeerOutpost(no, lv, r, index){
+    var spot = freeFoeSpot(4 + ((r() * (M.W - 8)) | 0), 4 + ((r() * (M.H - 8)) | 0), 3);
+    if (!spot) return;
+    var st = seerState(no), gid = spawnGroup('seer', spot.x, spot.y, lv + 7, { name:'SEER ' + (index + 1), count:1, seerNo:no, seerIndex:index });
+    var team = seerTeam(no, index), flank = freeFoeSpot(spot.x + 3, spot.y, 4);
+    if (flank && team.length) spawnGroup('aethren', flank.x, flank.y, lv + 5, { name:'SEER AETHREN TEAM', count:team.length, extra:team, seerNo:no, seerTeam:true });
+    var guard = freeFoeSpot(spot.x - 3, spot.y, 4), kind = index % 2 ? 'daemon' : 'mori';
+    if (guard) spawnGroup(kind, guard.x, guard.y, lv + 3, { name:'SEER AUXILIARIES', count:3 + ((index + no) % 3), seerNo:no, seerGuard:true });
+    if (foeGroups[gid]) foeGroups[gid].seerNo = no;
+    return gid;
+  }
+  var ENEMY_DIFFICULTY = 1.55;
   function makeFoe(k, x, y, lv, group, extra){
     var d = ENEMY.kinds[k]; if (!d && !(extra && extra.sp)) return null;
     var base = d || { hp:110, atk:5, def:50, spd:55, range:1, aggro:7, behavior:'guard', size:1, attack:'ATTACK', fx:'slash', name:'AETHREN' };
-    var maxHp = extra && extra.sp ? hpOf(extra.sp, lv) + 10 : Math.round(base.hp / 125 * (lv * 1.7 + 20));
-    var e = ent({ kind:'foe', k:k, def:base, x:x, y:y, lv:lv, hp:maxHp, maxHp:maxHp, home:{ x:x, y:y }, state:'idle', group:group, timer:Math.random() * 2, engaged:false });
+    var combat = Object.assign({}, base, { atk:Math.round((base.atk || 5) * 1.5), def:Math.round((base.def || 50) * 1.22) });
+    var maxHp = extra && extra.sp ? Math.round((hpOf(extra.sp, lv) + 10) * 1.3) : Math.round(base.hp / 125 * (lv * 1.7 + 20) * ENEMY_DIFFICULTY);
+    var e = ent({ kind:'foe', k:k, def:combat, x:x, y:y, lv:lv, hp:maxHp, maxHp:maxHp, home:{ x:x, y:y }, state:'idle', group:group, timer:Math.random() * 2, engaged:false });
     if (base.variants) { var vs = Object.keys(base.variants); e.variant = vs[(Math.random() * vs.length) | 0]; }
     if (extra) Object.assign(e, extra);
     return e;
@@ -3383,6 +3420,7 @@
     for (var i = 0; i < n; i++) {
       var probe = { flies:false }, spot = i === 0 && freeFor(probe, cx, cy) ? { x:cx, y:cy } : freeNear(probe, cx, cy, 3); if (!spot) continue;
       var f = makeFoe(k, spot.x, spot.y, lv + ((Math.random() * 3) | 0) - 1, gid, opts && opts.extra && opts.extra[i]); if (!f) continue;
+      if (opts && opts.seerNo != null) f.seerNo = opts.seerNo;
       foes.push(f); foeGroups[gid].total++;
     }
     return gid;
@@ -3391,13 +3429,14 @@
     foes = []; shots = []; fxs = []; foeGroups = {};
     if (!LIVE || !M || M.hq || M.indoor || typeof M.world !== 'number' || M.world > 27) return;
     var lv = foeLevel(), r = rng(M.world * 7919 + (Date.now() / 3.6e6 | 0)), groups = [];
+    var no = M.world, st = seerState(no);
     if (M.world === 9 && M.districts) M.districts.forEach(function(dd){
       var list = (ENEMY.zyraxis || {})[dd.id]; if (!list) return;
       for (var g = 0; g < 2; g++) groups.push({ k:list[(r() * list.length) | 0], area:dd });
     });
     else {
       var pool = (ENEMY.elsewhere || []).slice(); if (S.seen && S.seen.thardin) pool.push('penumbra');   // Penumbra spreads once you have reached Thardin
-      var n = 3 + (M.world % 3); for (var g2 = 0; g2 < n; g2++) groups.push({ k:pool[(r() * pool.length) | 0] });
+      var n = 5 + (M.world % 3); for (var g2 = 0; g2 < n; g2++) groups.push({ k:pool[(r() * pool.length) | 0] });
     }
     groups.forEach(function(g){
       for (var tries = 0; tries < 60; tries++) {
@@ -3407,6 +3446,7 @@
         spawnGroup(g.k, x, y, lv + (ENEMY.kinds[g.k] ? ENEMY.kinds[g.k].tier - 1 : 0)); break;
       }
     });
+    if (!st.cleared) for (var si = 0; si < st.total; si++) spawnSeerOutpost(no, lv, r, si);
   }
   function foeTargets(){ return allies.filter(function(a){ return a.state !== 'down' && a.state !== 'gone'; }).concat([{ x:P.x, y:P.y, pilot:true }]); }
   function updateFoe(e, dt){
@@ -3481,6 +3521,12 @@
     fxs.push({ k:e.sp ? 'calm' : 'burst', x:e.x, y:e.y, t:0, life:e.sp ? 1.4 : .7, color:e.def.bolt || '#b86aff' });
     if (e.sp) { mark(e.sp, 'battled'); S.notes[e.sp] = 1; }
     S.kills = S.kills || {}; S.kills[e.k] = (S.kills[e.k] || 0) + 1;
+    if (e.k === 'seer' && e.seerNo != null) {
+      var ss = seerState(e.seerNo); ss.defeated = Math.min(ss.total, (ss.defeated || 0) + 1); ss.cleared = ss.defeated >= ss.total;
+      save();
+      toast(ss.cleared ? 'PLANET CLEARED · THE REFUGEES CAN COME HOME' : 'SEER DEFEATED · ' + ss.defeated + '/' + ss.total, ss.cleared ? undefined : 'red');
+      hudRefresh();
+    }
     // experience for every party member close enough to have fought
     var xp = Math.round(10 + e.lv * 3 * Math.sqrt((e.def.tier || (e.sp && SP[e.sp] && SP[e.sp].tier) || 1)));
     allies.forEach(function(a){
@@ -3634,7 +3680,7 @@
     var up = C.kind === 'peak';
     toast(fromZone ? 'BACK INTO THE CAVE · ' + C.rooms.length + ' rooms ' + (up ? 'down' : 'up') + ' to the mouth.' : placeName(no) + ' · CAVE · ' + C.rooms.length + ' rooms ' + (up ? 'up to the PEAK' : 'down to the VALLEY') + '. Left and right to walk, ▲ jump, ✕ interact, □ use, ○ crouch, walk or run.');
   }
-  function caveFoe(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round(40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:d.atk || 5, range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; }
+  function caveFoe(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round((40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)) * 1.5); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:Math.round((d.atk || 5) * 1.4), range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; }
   // step into room k from its left or right opening. A room keeps its state (loot taken, foes down) while you are in the cave.
   function caveRoomEnter(k, side){
     var s = SIDE, rm = s.cave.rooms[k], st = s.rooms[k] || (s.rooms[k] = { g:rm.rows.map(function(r){ return r.split(''); }), en:rm.enemies.map(caveFoe), art:null });
@@ -3657,9 +3703,9 @@
   function sideScreen(no){
     screen('x-surface x-side',
       hudMarkup() +
-      '<p class="x-padhint" aria-hidden="true">▲ JUMP · ✕ INTERACT · □ USE · ○ CROUCH · WALK · RUN · △ UTILITY</p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ JUMP · double-press + hold JETPACK · □ INTERACT · ○ USE · △ UTILITY OVERLAY · L1/R1 CYCLE · R2 SPRINT · L3 CROUCH</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<div class="x-ab"><button class="x-tri" aria-label="Triangle: cycle utility">△<small>UTILITY</small></button><button class="x-sq" aria-label="Square: use the active utility">□<small>FIRE</small></button><button class="x-b" aria-label="Circle: crouch, walk or run">○<small>WALK</small></button><button class="x-a" aria-label="X: interact">✕<small>INTERACT</small></button></div>' +
+      '<div class="x-ab"><button class="x-tri" aria-label="Hold Triangle: utility overlay">△<small>UTILITIES</small></button><button class="x-sq" aria-label="Square: interact">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: use selected utility">○<small>USE</small></button><button class="x-a" aria-label="X: jump, double-press and hold for jetpack">✕<small>JUMP</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI(); hudLayoutApply(); hudEditSet(HUD_EDIT);
     startWorld('side');
@@ -3730,6 +3776,7 @@
     p.lift = approach(p.lift || 0, thrust ? JSIDE.thrust : 0, (thrust ? JSIDE.accel : JSIDE.decel) * dt);
     p.vy = Math.min(18, p.vy + (SIDE_G - p.lift) * dt);
     if (p.lift > 0) p.vy = Math.max(-JSIDE.rise, p.vy);   // the climb is capped while the lift lasts, so a release glides into the fall
+    if (jumpHeld && p.ground && p.jumpBuf <= 0) p.jumpBuf = .08;
     if (p.jumpBuf > 0 && (p.ground || p.coyote > 0)) { p.vy = -SIDE_JUMP; p.ground = false; p.coyote = 0; p.jumpBuf = 0; sfx.step(); squash(p, .82, 1.2, .14); }
     var nx = p.x + p.vx * dt;
     if (!sBlocked(nx, p.y)) p.x = Math.max(.2, Math.min(s.C.W - 1.1, nx));
@@ -4023,8 +4070,8 @@
   // what a utility is called, its label on □, and its hint. Built from the registry (utilities.js).
   function utilInfo(id){
     var d = UTILS.byId[id] || { name:String(id || '').toUpperCase(), planet:'', ability:'' };
-    var hint = id === 'astrablaster' ? 'fires it' : id === 'jetpack' ? 'hold □ to fly' : 'uses it';
-    return { name:d.name, short:id === 'astrablaster' ? 'FIRE' : id === 'jetpack' ? 'FLY' : 'USE', toast:'ACTIVE UTILITY · ' + d.name.toUpperCase() + ' · □ ' + hint };
+    var hint = id === 'astrablaster' ? 'fires it' : id === 'jetpack' ? 'double-press + hold ✕ to fly' : 'uses it';
+    return { name:d.name, short:id === 'astrablaster' ? 'FIRE' : id === 'jetpack' ? 'FLY' : 'USE', toast:'ACTIVE UTILITY · ' + d.name.toUpperCase() + ' · ○ ' + hint };
   }
   var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.6, accel:2.2, decel:2.6, sink:1, altMax:2, crossAlt:.6, flyStep:.105, hold:.18, hop:.8 };
   var JSIDE = { thrust:52, accel:90, rise:11, decel:60 };
@@ -4033,18 +4080,19 @@
   var GAIT_SIDE = { stalk:.5, steady:1, sprint:1.6 };
   // the tiles the JETPACK cannot cross: walls, structures, the vault, landmarks, the ship and the marker stones
   var FLY_STOP = { '#':1, F:1, K:1, L:1, S:1, M:1, w:1 };
-  var squareHeld = false, xDown = false, xTimer = null;
+  var squareHeld = false, xDown = false, xTimer = null, xHeld = false, xJet = false, xLastTap = 0, jumpHeld = false;
   function approach(v, t, d){ return v < t ? Math.min(t, v + d) : Math.max(t, v - d); }
   function jet(){ if (!S.jet) S.jet = { repaired:false, equipped:false }; return S.jet; }
   function jetReady(){ var j = jet(); return !!(j.repaired && j.equipped); }
   // the owned and equipped utilities, in registry order: the cycle for △
   function utilList(){ return UTILS.defs.map(function(d){ return d.id; }).filter(function(id){ return utilOwned(id) && utilEquipped(id); }); }
   function activeUtil(){ var a = utilList(), s = S.util && S.util.active; return a.indexOf(s) >= 0 ? s : (a[0] || null); }
-  function cycleUtil(){
+  function cycleUtil(dir){
+    dir = dir < 0 ? -1 : 1;
     var a = utilList();
     if (!a.length) { toast('No utility equipped. Equip one from the Inventory.', 'red'); sfx.bump(); return; }
     if (a.length < 2) { toast(utilInfo(a[0]).name + ' is the only utility equipped. Equip the other from the Inventory to cycle.'); return; }
-    var n = a[(a.indexOf(activeUtil()) + 1) % a.length];
+    var n = a[(a.indexOf(activeUtil()) + dir + a.length) % a.length];
     S.util = { active:n }; save(); sfx.click(); vibrate(30, .2); toast(utilInfo(n).toast); syncUtilHud();
   }
   function jetAction(a){
@@ -4065,7 +4113,7 @@
   }
   function jetCardHtml(){
     var j = jet(), ws = coreMachine('workstation'), act = '';
-    var state = !j.repaired ? 'NOT ASSEMBLED' : j.equipped ? 'EQUIPPED · hold □ to fly' : 'STORED · equip it to fly';
+    var state = !j.repaired ? 'NOT ASSEMBLED' : j.equipped ? 'EQUIPPED · double-press + hold ✕ to fly' : 'STORED · equip it to fly';
     if (!j.repaired) act = !ws ? '<em class="dim">BUILD THE WORKSTATION FIRST</em>' : canAfford(JET.cost) ? '<button class="x-btn small" data-wpn="jet-repair">ASSEMBLE · ' + esc(costText(JET.cost)) + '</button>' : '<em class="dim">NEEDS ' + esc(costText(JET.cost)) + '</em>';
     else act = j.equipped ? '<button class="x-btn small ghost" data-wpn="jet-unequip">UNEQUIP</button>' : '<button class="x-btn small" data-wpn="jet-equip">EQUIP</button>';
     return '<ul class="x-hqlist"><li class="' + (j.repaired ? 'done' : '') + '"><img class="x-pix x-ico" alt="" src="' + ART.url('it_relic', 2) + '"><b>JETPACK</b><span>' + state + ' · lifts Carl over low ground</span><div>' + act + '</div></li></ul>';
@@ -4111,7 +4159,15 @@
     });
     save(); syncUtilHud();
   }
-  // □ uses the active utility: the ASTRABLASTER fires once per press; the JETPACK flies while □ is held (updateFlight)
+  function useSelectedUtility(){ var u = activeUtil(); if (!u) { toast('No utility equipped.', 'red'); return false; } return useUtil(u); }
+  function utilityOverlaySet(open){
+    var old = $('.x-util-overlay'); if (old) old.remove();
+    if (!open || !surfaceFree()) return;
+    var box = el('div', 'x-util-overlay'); box.setAttribute('role','dialog'); box.innerHTML = '<b>UTILITY LOADOUT</b><small>R1 / L1 CYCLE · ○ USE</small>';
+    utilList().forEach(function(id){ var b = el('button'); b.type='button'; b.textContent = utilInfo(id).name; b.className = id === activeUtil() ? 'on' : ''; b.addEventListener('click', function(){ S.util={active:id}; save(); syncUtilHud(); utilityOverlaySet(true); }); box.appendChild(b); });
+    doc.body.appendChild(box);
+  }
+  // ○ uses the active utility: the ASTRABLASTER fires once per press.
   function squarePress(){
     squareHeld = true;
     if (!surfaceFree()) return;
@@ -4155,15 +4211,17 @@
     UTIL_PENDING = UTIL_PENDING.filter(function(st){ st.t -= dt; if (st.t > 0) return true; st.fire(); return false; });
   }
   function btnMove(){ squarePress(); }
-  // X: a tap interacts; holding it lifts the object you face, or sets it down (see pickupObject)
+  // X: jump in caves; a second press held in the field engages the jetpack.
   function xPress(){
-    if (xDown || !surfaceFree()) return;
-    xDown = true; clearTimeout(xTimer);
-    xTimer = setTimeout(function(){ xTimer = null; if (surfaceFree() && mode === 'surface') { if (carry) setCarry(); else pickupObject(); } }, 420);
+    if (xHeld || !surfaceFree()) return;
+    xHeld = true; jumpHeld = true;
+    var now = performance.now(), dbl = now - xLastTap < 360; xLastTap = now;
+    if (mode === 'side') { sideAct('jump'); return; }
+    if (dbl && activeUtil() === 'jetpack' && jetReady()) { xJet = true; UTIL_DATA.jetT = JET.hold; toast('JETPACK ENGAGED · analog to steer'); }
+    else { P.alt = Math.min(JET.altMax, (P.alt || 0) + JET.hop); P.lift = 0; sfx.step(); }
   }
   function xRelease(){
-    if (!xDown) return; xDown = false;
-    if (xTimer) { clearTimeout(xTimer); xTimer = null; if (surfaceFree()) btnA(); }
+    xHeld = false; jumpHeld = false; xJet = false;
   }
   // touch: a button you press and hold, the way a pad does
   function bindHold(el, down, up, tap){
@@ -4172,15 +4230,23 @@
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(function(t){ el.addEventListener(t, up); });
     if (tap) el.addEventListener('click', tap);
   }
-  // the JETPACK is on while □ is held, the utility is active, and Carl is free to act
-  function jetOn(){ return squareHeld && activeUtil() === 'jetpack' && (UTIL_DATA.jetT || 0) >= JET.hold && surfaceFree() && !carry; }
+  // the JETPACK is on while the second X press is held, and Carl is free to act
+  function jetOn(){ return xJet && activeUtil() === 'jetpack' && jetReady() && surfaceFree() && !carry; }
   // the field: lift builds to a steady climb while □ is held and fades when it is let go; gravity brings Carl down
   function updateFlight(dt){
     var thrust = jetOn();
+    if (xHeld && !xJet && (P.alt || 0) <= .02) P.alt = JET.hop;
     P.lift = approach(P.lift || 0, thrust ? JET.maxLift : 0, (thrust ? JET.accel : JET.decel) * dt);
     P.alt = clamp((P.alt || 0) + (P.lift - JET.sink) * dt, 0, JET.altMax);
     // no landing on an obstacle: Carl hovers above it until open ground is under him
     if (SOLID[at(P.x, P.y)] && P.alt < JET.crossAlt) P.alt = JET.crossAlt;
+    if (thrust && PAD && PAD.state) {
+      var ax = PAD.state.lx || 0, ay = PAD.state.ly || 0;
+      if (Math.hypot(ax, ay) > .25) {
+        var d = Math.abs(ax) > Math.abs(ay) ? (ax < 0 ? 'left' : 'right') : (ay < 0 ? 'up' : 'down');
+        held = d; padHeld = true; path = [];
+      }
+    }
   }
   // the HUD's utility panel: the name, its place in the cycle, and the blaster's charge or the jetpack's lift
   function syncUtilHud(){
@@ -4188,16 +4254,16 @@
     var a = utilList(), cur = activeUtil(); el.hidden = !cur; var none = $('.x-noutil'); if (none) none.hidden = !!cur; if (!cur) return;
     var b = $('b', el), bar = $('.x-wbar > i', el), lab = $('span', el), idx = a.indexOf(cur) + 1;
     if (b) b.textContent = 'UTILITY ' + idx + '/' + a.length + ' · ' + utilInfo(cur).name;
-    if (el && !$('em', el)) { var hint = document.createElement('em'); hint.textContent = '△ cycle · □ use'; el.insertBefore(hint, el.firstChild); }
+    if (el && !$('em', el)) { var hint = document.createElement('em'); hint.textContent = 'L1/R1 cycle · ○ use · △ overlay'; el.insertBefore(hint, el.firstChild); }
     if (cur === 'astrablaster') {
       var w = blaster(), k = Math.round(w.charge / BLASTER.maxCharge * 100);
       if (bar) bar.style.width = k + '%';
-      if (lab) lab.textContent = k + '% · ' + (w.charge < BLASTER.shotCost ? 'RECHARGING' : 'READY · □ fires');
+      if (lab) lab.textContent = k + '% · ' + (w.charge < BLASTER.shotCost ? 'RECHARGING' : 'READY · ○ fires');
     } else {
       var lift = mode === 'side' && SIDE ? SIDE.p.lift / JSIDE.thrust : (P && P.alt ? P.alt / JET.altMax : 0);
       if (bar) bar.style.width = Math.round(clamp(lift, 0, 1) * 100) + '%';
       var cd = Math.ceil(UTIL_CD[cur] || 0);
-      if (lab) lab.textContent = cd ? 'RECHARGING · ' + cd + 's' : squareHeld ? 'AIRBORNE · release □ to settle' : 'READY · hold □ to fly';
+      if (lab) lab.textContent = cd ? 'RECHARGING · ' + cd + 's' : xJet ? 'AIRBORNE · release ✕ to settle' : 'READY · ○ uses';
     }
   }
   // ── THE PLANETARY UTILITIES · the abilities of the built ones. Each has can (is the target valid?), press, and optional hold / release ──
@@ -5296,7 +5362,7 @@
     sfx.warn(); vibrate(400, .8);
     var team = teamReady();
     await say(['The ' + wardenName(no) + ' sees you. To them you are the alien, the thing from outside, and they raise the call to kill.',
-      team.length ? 'They loose their Aethren on you. Your team stands between you and them.' : 'You have no cards ready to stand between you. Run.']);
+      team.length ? 'They loose their Aethren on you. Your party stands between you and them.' : 'You have no deployed Aethren ready to stand between you. Run.']);
     if (!team.length) { hurtPilot(suitDmg(EXP.warden.suitHit || 35)); save(); hudRefresh(); knockBack(n); if (hpNow() <= 0) recall('HEALTH'); return; }
     var wfoes = wardenTeam(no); if (!wfoes.length) return;
     if (LIVE) {
@@ -5326,7 +5392,7 @@
     var no = M.world, pe = worldPeople(no) || {}, race = known(WORLD[no].term) && pe.race ? pe.race : 'these people';
     if (S.hq.residents[no]) return;
     if (!S.lore['w' + no]) return say(['A camp at the edge of the fighting. Tired faces, few belongings. They speak fast and low, and you cannot follow it yet.', '(This world’s words are taught past the cave, at the peak or valley it leads to. Its mark shows on your minimap.)']);
-    if (!S.exp.beaten[no]) return say(['Refugees from the war region. They point toward the vault, and the warden who holds it, and shake their heads. Not while the warden hunts here.']);
+    if (!planetSeersCleared(no)) { var ss = seerState(no); return say(['Refugees from the war region. The Seers still hold this world in their grip.', 'Defeat every Seer on the planet (' + ss.defeated + '/' + ss.total + '), and they can come home.']); }
     if (!S.hq.built.habitation) return say(['They ask, as far as you can follow, whether there is anywhere else. There is: ' + hqName() + '. But you have nowhere to put them yet.', '(Build the HABITATION ZONE at ' + hqName() + '.)']);
     var a = await say(['They ask whether there is anywhere else, anywhere the war does not reach. There is: ' + hqName() + '. A drifting world, quiet, with room.', 'Take ' + race.toLowerCase() + ' home to ' + hqName() + '?'], ['TAKE THEM', 'NOT NOW']);
     if (a !== 0) return;
@@ -6134,7 +6200,13 @@
   }
 
   // ═════════════════════════ INPUT · keyboard, touch, DualSense ═════════════════════════
-  var padOn = false, padHeld = false;
+  var padOn = false, padHeld = false, sprintHeld = false, sprintPrev = 'steady';
+  function setSprint(on){
+    if (!surfaceFree()) return;
+    if (on && !sprintHeld) { sprintPrev = S.gait || 'steady'; sprintHeld = true; S.gait = 'sprint'; if (P) P.gait = 'sprint'; hudRefresh(); }
+    if (!on && sprintHeld) { sprintHeld = false; S.gait = sprintPrev === 'sprint' ? 'steady' : sprintPrev; if (P) P.gait = S.gait; hudRefresh(); }
+  }
+  function toggleCrouch(){ if (!surfaceFree() || sprintHeld) return; S.gait = S.gait === 'stalk' ? 'steady' : 'stalk'; if (P) P.gait = S.gait; hudRefresh(); sfx.click(); }
   function surfaceFree(){ return (mode === 'surface' || (mode === 'side' && !!SIDE)) && !dlg && !encounterOpen && !doc.querySelector('.x-modal, .x-battle'); }
   function visible(n){
     if (!n || n.disabled || n.closest('[hidden]')) return false;
@@ -6242,23 +6314,25 @@
       if (doc.querySelector('.x-name') && b === 'square') { var del = $('[data-k="DEL"]'); if (del) del.click(); return; }
       var ask = dlg && dlg.box.classList.contains('ask');
       if (b === 'cross') { if (dlg && !ask) advanceDialog(); else if (surfaceFree()) xPress(); else activate(); }
-      else if (b === 'circle') { if (dlg && !ask) advanceDialog(true); else if (ask) closeDialog(dlg.choices.length - 1); else if (surfaceFree()) btnB(); else goBack(); }
+      else if (b === 'circle') { if (dlg && !ask) advanceDialog(true); else if (ask) closeDialog(dlg.choices.length - 1); else if (surfaceFree()) useSelectedUtility(); else goBack(); }
       else if (b === 'square') {
         var ph = doc.querySelector('.x-encounter .x-shutter'); if (ph && visible(ph)) { ph.click(); return; }
         ph = doc.querySelector('.x-encounter [data-e="scan"]'); if (ph && visible(ph)) { ph.click(); return; }
         ph = doc.querySelector('.x-battle [data-b="photo"]'); if (ph && visible(ph)) { ph.click(); return; }
-        if (surfaceFree()) squarePress();
+        if (surfaceFree()) btnA();
       }
-      else if (b === 'triangle') { if (surfaceFree()) { cycleUtil(); return; } if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
+      else if (b === 'triangle') { if (surfaceFree()) { utilityOverlaySet(true); return; } if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
       else if (b === 'options') { if (!surfaceFree()) goBack(); }
       else if (b === 'touchpad') touchpad();
+      else if ((b === 'l1' || b === 'r1') && surfaceFree()) cycleUtil(b === 'l1' ? -1 : 1);
       else if ((b === 'l1' || b === 'r1') && doc.querySelector('.x-nav-tabs') && !doc.querySelector('.x-modal') && !(doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.x-kit-row'))) navCycle(b === 'l1' ? -1 : 1);
       else if (b === 'l1' || b === 'r1') {
         var row = doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.x-kit-row');
         if (row) { var bt = row.querySelector('[data-d="' + (b === 'l1' ? -1 : 1) + '"]'); if (bt) bt.click(); }
       }
     });
-    PAD.on('release', function(b){ if (b === 'cross') xRelease(); else if (b === 'square') squareRelease(); });
+    PAD.on('release', function(b){ if (b === 'cross') xRelease(); else if (b === 'square') squareRelease(); else if (b === 'triangle') utilityOverlaySet(false); });
+    PAD.on('press', function(b){ if (b === 'l3') toggleCrouch(); });
     PAD.on('frame', function(st){
       var sv = doc.querySelector('.x-spiral'), trig = st.r2 - st.l2;
       if (sv && (st.rx || st.ry || Math.abs(trig) > .05)) {
@@ -6266,6 +6340,7 @@
         if (Math.abs(trig) > .05) VIEW.w = clamp(VIEW.w * (1 - trig * .02), 360, 1600);
         setView(sv); return;
       }
+      if (surfaceFree()) setSprint(st.r2 > .55);
       if (Math.abs(trig) > .05) {
         var ring = Array.prototype.slice.call(doc.querySelectorAll('.x-ring input')).filter(visible)[0];
         if (ring) { ring.value = clamp(+ring.value + trig * 14, 0, 1000); ring.dispatchEvent(new Event('input', { bubbles:true })); }
@@ -6281,7 +6356,7 @@
     battle:function(c){ if (COMPANIONS.battle) battle(c || critters[0], false); }, encounter:function(c){ encounter(c || critters[0], false); },
     surface:surface, ship:function(){ ship(); }, nav:nav, travel:travel, touchdown:touchdown, give:function(id, lv){ manifest(id, null, false, lv || 5); },
     nav:navFocus, activate:activate, back:goBack, btnA:function(){ btnA(); },
-    hq:function(){ return S.hq; }, pack:function(){ return S.pack; }, give2:function(o){ gainAll(o, true); }, store:function(o){ Object.keys(o).forEach(function(k){ S.hq.store[k] = (S.hq.store[k] || 0) + o[k]; }); save(); },
+    hq:function(){ return S.hq; }, seers:function(){ return S.seers; }, pack:function(){ return S.pack; }, give2:function(o){ gainAll(o, true); }, store:function(o){ Object.keys(o).forEach(function(k){ S.hq.store[k] = (S.hq.store[k] || 0) + o[k]; }); save(); },
     buildFac:buildFac, restoreRuin:restoreRuin, study:study, repairDrive:repairDrive, deposit:deposit, stage:hqStage, crash:crash, buildTank:buildTank, airMax:function(){ return airMax(); }, exp:function(){ return S.exp; }, installPart:installPart, settle:settleAethren, wardenMeet:function(){ var w = npcs.filter(function(n){ return n.warden; })[0]; if (w) wardenMeet(w); }, openVault:openVault, perk:function(){ return leadPerk(); }, codex:function(){ return S.codex; }, codexUnlock:function(id){ cxUnlock(id, 'debug'); }, beingOpen:function(id){ return beingOpen(CXB[id]); }, clone:function(id){ return COMPANIONS.clone ? cloneCard(id) : false; }, openNav:function(t){ openNav(t); }, giveClone:function(id, lv){ if (!COMPANIONS.clone) return false; manifest(id, null, false, lv || 5); S.cards[id].pend = 0; S.cards[id].clone = Date.now(); S.cards[id].hp = maxHp(id); autoTeam(); save(); return true; } };
   applyOpts();
   if (S) applyLook();

@@ -6264,6 +6264,14 @@
     }
     if (st.movement === 'fly' || st.movement === 'descend') st.util = 'jetpack';
     else if (ACT.u && now - ACT.t < 320) { st.util = ACT.u; st.action = true; }
+    // Selecting a repaired utility changes Nasaros' complete rendered set.
+    // When he is standing still, use its explicit ready pose until triggered.
+    if (!st.util) {
+      var equipped = activeUtil();
+      if (equipped === 'jetpack' && jetReady()) st.util = equipped;
+      else if (equipped === 'astrablaster' && blasterReady()) st.util = equipped;
+    }
+    st.ready = !!(st.util && !st.action && !st.moving && (st.util === 'jetpack' || st.util === 'astrablaster'));
     if (!st.action && carry) st.interact = st.moving ? 'push' : 'operate';
     return st;
   }

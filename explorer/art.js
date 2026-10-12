@@ -292,7 +292,7 @@
     util_blaster_2: { group:"carl", note:"Nasaros utility layer: ASTRABLASTER firing.",
       rows:["................","................","................","................","................","................","...........k....","..........kmmk..",".........kmyYk..","........kmmYk...",".........kmmk...",".............y..","..............Y.","...............y","...............Y","................"] },
     util_blaster_3: { group:"carl", note:"Nasaros utility layer: ASTRABLASTER recoil.",
-      rows:["................","................","................","................","................","................",".........k......","........kmmk...",".......kmyYk...","......kmmYk....",".......kmmk....","................","................","................","................","................"] },
+      rows:["................","................","................","................","................","................",".........k......","........kmmk....",".......kmyYk....","......kmmYk.....",".......kmmk.....","................","................","................","................","................"] },
     core_processor: { group:"machines", sym:true, note:"Material Processor: a copper hopper over a riveted drum, with a sight gauge.",
       rows:["........","...kkkkk","...kOOOO","....kooo",".....koo","..kkkkkk",".kmmmmmm",".kmMMMMM",".kmMkyyy",".kmMkyYy",".kmMMMMM",".kmmmmmm","..kkkkkk","..kNk...",".kkkkk..","........"] },
     core_repair: { group:"machines", sym:true, note:"Rocketship Repair Station: a gantry crane holding an engine block on its hook.",

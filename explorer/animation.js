@@ -111,6 +111,8 @@
     else if (st.action && st.util) name = st.util === 'jetpack' ? 'jet_takeoff' : actionName(st.util);
     else if (st.interact) name = st.interact;
     else if (st.climbing) name = st.climbing === 'down' ? 'climb_down' : st.climbing === 'up' ? 'climb_up' : 'climb_idle';
+    else if (st.ready && st.util === 'jetpack') name = 'jet_equip';
+    else if (st.ready && st.util === 'astrablaster') name = 'blaster_aim';
     else if (st.util === 'jetpack' && st.movement === 'fly') name = st.moving ? 'jet_fly' : 'jet_hover';
     else if (st.util === 'jetpack' && st.movement === 'ignite') name = 'jet_ignite';
     else if (st.util === 'jetpack' && st.movement === 'descend') name = 'jet_descent';

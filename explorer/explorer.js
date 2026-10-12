@@ -3646,7 +3646,7 @@
   // side-scroller: left, right, jump, attack, interact. The far door opens onto the planet's IMMORTAL ZONE, a secret
   // region. Once found, the Immortal Zone stays unlocked from the cave mouth; the cave itself stays replayable.
   // Deity encounters follow canon, and the canon for each deity is not yet written, so none is named here.
-  var SIDE = null, SIDE_SOLID = { G:1, P:1, '#':1, C:1 }, SIDE_RUN = 6.2, SIDE_JUMP = 12.5, SIDE_G = 32;
+  var SIDE = null, SIDE_SOLID = { G:1, P:1, '#':1, C:1 }, SIDE_RUN = 7.2, SIDE_JUMP = 12.5, SIDE_G = 32;
   function parkField(){
     S.pos = { map:M.id, x:P.x, y:P.y, dir:P.dir }; S.fog[M.id] = fogEnc(fogArr); save();
     parked = { map:M.id, M:M, P:P, fogArr:fogArr, critters:critters, veiled:veiled, npcs:npcs, allies:allies, homebodies:homebodies, foes:foes, shots:shots, fxs:fxs, trail:trail, foeGroups:foeGroups, quietT:quietT };
@@ -3673,7 +3673,7 @@
     } else parkField();
     var C = GEN.cave(no);
     var viaHole = !!(lm && lm.hole);
-    SIDE = { no:no, cave:C, rooms:[], k:-1, C:null, npcs:[], viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:null, p:{ x:1, y:1, vx:0, vy:0, ground:true, face:1, safe:{ x:1, y:1 }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
+    SIDE = { no:no, cave:C, rooms:[], k:-1, C:null, npcs:[], viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:null, p:{ x:1, y:1, vx:0, vy:0, ground:true, groundGrace:0, face:1, safe:{ x:1, y:1 }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
     caveRoomEnter(fromZone ? C.rooms.length - 1 : 0, fromZone ? 'right' : 'left');
     mode = 'side'; fadeIn(.45);
     sideScreen(no);
@@ -3787,7 +3787,12 @@
       else p.y = Math.ceil(p.y) - .001;
       p.vy = 0;
     }
-    if (p.ground && !sBlocked(p.x, p.y + .08)) p.ground = false;
+    // Keep a tiny support grace at tile seams. This prevents the ground flag from
+    // flickering for one frame, which was making the idle pose alternate crouch/stand.
+    if (p.ground && !sBlocked(p.x, p.y + .08)) {
+      p.groundGrace = (p.groundGrace || 0) + dt;
+      if (p.groundGrace > .08) p.ground = false;
+    } else p.groundGrace = 0;
     // standing on solid ground: keep a safe spot to fall back to
     if (p.ground && (!p.safeT || now - p.safeT > 800)) { p.safe = { x:p.x, y:p.y }; p.safeT = now; }
     // falls into a pit: back to the last safe ground
@@ -4073,10 +4078,10 @@
     var hint = id === 'astrablaster' ? 'fires it' : id === 'jetpack' ? 'double-press + hold ✕ to fly' : 'uses it';
     return { name:d.name, short:id === 'astrablaster' ? 'FIRE' : id === 'jetpack' ? 'FLY' : 'USE', toast:'ACTIVE UTILITY · ' + d.name.toUpperCase() + ' · ○ ' + hint };
   }
-  var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.6, accel:2.2, decel:2.6, sink:1, altMax:2, crossAlt:.6, flyStep:.105, hold:.18, hop:.8 };
-  var JSIDE = { thrust:52, accel:90, rise:11, decel:60 };
+  var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.8, accel:6.5, decel:8.5, sink:.7, altMax:2, crossAlt:.6, flyStep:.075, hold:.08, hop:.8 };
+  var JSIDE = { thrust:72, accel:180, rise:14, decel:140 };
   // Stage 1 movement feel: side-view acceleration, friction, air control, and coyote time after a ledge
-  var SIDE_ACC = 40, SIDE_FRIC = 50, SIDE_AIRACC = 25, SIDE_COYOTE = .12;
+  var SIDE_ACC = 95, SIDE_FRIC = 120, SIDE_AIRACC = 60, SIDE_COYOTE = .14;
   var GAIT_SIDE = { stalk:.5, steady:1, sprint:1.6 };
   // the tiles the JETPACK cannot cross: walls, structures, the vault, landmarks, the ship and the marker stones
   var FLY_STOP = { '#':1, F:1, K:1, L:1, S:1, M:1, w:1 };

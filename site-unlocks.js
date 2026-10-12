@@ -84,6 +84,13 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+                                                { date:'2026-10-12', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.35', title:'Seer outposts and planet clear',
+      notes:[
+        'Every planet now carries three to five stronger Seer commanders, each with an Aethren team and nearby Mori or Daemon auxiliaries',
+        'Enemy health, attack and defence are raised across overworld patrols and cave rooms; caves also carry denser enemy placements',
+        'Enemies stay defeated while you remain on a planet. Leaving and returning rebuilds its patrols',
+        'Defeat every Seer on a planet to clear it and unlock refugee rescue, subject to the existing language and Habitation Zone requirements'
+      ] },
                                                 { date:'2026-10-12', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.33', title:'Caves to the peak and the valley',
       notes:[
         'Every cave is now 3 to 5 rooms, climbing to the planet’s peak or down into its valley',

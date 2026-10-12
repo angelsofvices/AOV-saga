@@ -862,10 +862,10 @@
     L.forEach(function(A, j){
       if (j === 0 || (last && j === L.length - 1) || A.kind !== 'G') return;
       var span = A.x1 - A.x0 + 1;
-      if (span >= 4 && en.length < 1 + k && r() < .65) { var ex = A.x0 + (span >> 1); if (g[A.top - 1][ex] === '.') en.push({ x:ex, y:A.top - 1, k:kinds[(r() * kinds.length) | 0], lv:lv + ((r() * 3) | 0) }); }
+      if (span >= 4 && en.length < 2 + k && r() < .78) { var ex = A.x0 + (span >> 1); if (g[A.top - 1][ex] === '.') en.push({ x:ex, y:A.top - 1, k:kinds[(r() * kinds.length) | 0], lv:lv + 2 + ((r() * 4) | 0) }); }
       else if (r() < .35 && g[A.top - 1][A.x1] === '.') g[A.top - 1][A.x1] = '$';
     });
-    if (k > 0 && !en.length) { var A2 = L[(L.length >> 1)]; if (A2 && A2.kind === 'G' && g[A2.top - 1][A2.x0 + 1] === '.') en.push({ x:A2.x0 + 1, y:A2.top - 1, k:kinds[(r() * kinds.length) | 0], lv:lv }); }
+    if (en.length < 2 && k > 0) { var A2 = L[(L.length >> 1)]; if (A2 && A2.kind === 'G' && g[A2.top - 1][A2.x0 + 1] === '.') en.push({ x:A2.x0 + 1, y:A2.top - 1, k:kinds[(r() * kinds.length) | 0], lv:lv + 2 }); }
     return { no:no, k:k, n:n, kind:kind, last:last, first:first, W:W, H:H, g:g, bg:bg, enemies:en, ledges:L,
       start:{ x:1, y:L[0].top - 1 }, exit:{ x:W - 2, y:exitTop - 1 } };
   }

@@ -21,7 +21,11 @@
       variants:{ black:{ s:'#2a2232', S:'#18121e' }, red:{ s:'#9a2a2a', S:'#6a1818' } },
       pal:{ k:'#0e0a12', s:'#2a2232', S:'#18121e', e:'#ffb02a', h:'#d8d0c0', r:'#ff3a3a', c:'#e8e0d0' },
       rows:pad(['.h........h.....','.hk.kkkk.kh.....','..kksssSkk......','..kssssSSk......','..kseksekk......','..kssrrssk......','..kkcssckk......','.kksssssSkk.....','ks.ksssSSk.sk...','k..ksSSSSk..k...','...kss.sSk......','..kks...skk.....','..k.......k.....']) },
-    seer_grunt: { name:'SEER GRUNT', lineage:'The Seers\' foot-soldiers', tier:2, hp:95, atk:4, def:55, spd:55, range:1, aggro:7, behavior:'guard', group:[2, 3], size:1.05,
+    seer: { name:'SEER', lineage:'Seer field commander', tier:5, hp:520, atk:14, def:90, spd:38, range:3, aggro:10, behavior:'guard', group:[1, 1], size:1.35,
+      attack:'SEER LANCE', fx:'bolt', bolt:'#d86aff', note:'A Seer commander directing a bound Aethren team and corrupted auxiliaries.',
+      pal:{ k:'#08060e', h:'#2e1b42', H:'#170d24', m:'#d8cfb4', e:'#d86aff', a:'#6e3e8a', w:'#b89455' },
+      rows:pad(['.....kkkkkk.....','....khhhhkk.....','...khHHHHhhk....','...khmmmmhhk....','...khmeemhhk....','..khhmmmmhhhk...','..khaahhhhahk...','.khaahhhhhahk...','.kh.khhhhk.hkw..','....khhHhk...w..','....khh.hk......','...kkk..kkk.....']) },
+    seer_grunt: { name:'SEER GRUNT', lineage:'The Seers\' foot-soldiers', tier:2, hp:155, atk:7, def:70, spd:55, range:1, aggro:8, behavior:'guard', group:[2, 4], size:1.05,
       attack:'STAFF STRIKE', fx:'slash', note:'Armoured and disciplined. They hold a post and fight in formation.',
       pal:{ k:'#100c14', h:'#3a2a4a', H:'#22182e', m:'#c8c0b0', e:'#ff5a6e', a:'#5a4a62', w:'#9a7a4a' },
       rows:pad(['.....kkkk.......','....khhhhk......','...khHHHHhk.....','...khmmmmhk.....','...khmeemhk..w..','...khmmmmhk..w..','..khhhhhhhhk.w..','.khaahhhhaahkw..','.kh.khhhhk.hkw..','....khhHhk...w..','....khh.hk......','...kkk..kkk.....']) },
@@ -42,6 +46,6 @@
     veridan:['mori', 'daemon', 'seer_grunt', 'seer_grunt'], netharion:['daemon', 'mori', 'seer_grunt'], vorashil:['daemon', 'mori', 'seer_grunt'],
     xilnar:['daemon', 'seer_grunt', 'mori'], baelgor:['daemon', 'seer_grunt', 'nova'], thardin:['nova', 'nova', 'penumbra', 'seer_grunt'], korathen:['daemon', 'seer_grunt', 'nova']
   };
-  var ELSEWHERE = ['mori', 'mori', 'seer_grunt', 'daemon', 'nova'];
+  var ELSEWHERE = ['mori', 'mori', 'seer_grunt', 'daemon', 'nova', 'seer_grunt'];
   window.AOV_ENEMIES = { kinds:KINDS, zyraxis:ZYRAXIS, elsewhere:ELSEWHERE };
 })();

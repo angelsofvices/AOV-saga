@@ -65,7 +65,7 @@ From the canon (`data/ENEMY_CANON_2026-09-14.md`, RP7B's `ENEMY_BASE_STATS`, RP7
   - Malezor has no Daemons;
   - Daemons thicken from Andrannor on;
   - Thardin has the Nova Guardians and the Penumbra.
-- **Other worlds** carry thinner mixed patrols (Mori, Seer Grunts, Daemon, Nova Guardian), so the fighting can be seen everywhere until each world gets its own enemy groups.
-- Enemy level follows the world's level plus its tier.
-- Enemies respawn on each landing.
+- **Other worlds** carry mixed patrols plus three to five Seer outposts. Each outpost commands a small Aethren team and a nearby Mori or Daemon auxiliary group, so the fighting is distributed across the planet.
+- Enemy level follows the world's level plus its tier, with the field difficulty raised for the late-game party curve.
+- Enemy groups persist while you remain on a planet. Leaving the planet and returning rebuilds its patrols; defeating every Seer persists as the planet's clear state and unlocks refugee rescue.
 - Each enemy has a new 16-pixel sprite; Daemons come in Black and Red.

@@ -58,9 +58,7 @@ window.AOV_CORE = {
   aethrenCap: [15, 25, 40, 60, 80, 100],
   oil: { id:'oil', name:'OIL', source:'FIBRE → FUEL GENERATOR → OIL', normalPerDistance:1, outOfRangeMultiplier:2.5 },
   navigation: { baseRadius:2, upgradeStep:2, outOfRange: { label:'INTERFERENCE', risk:'Navigation static and accelerated Oil consumption.' } },
-  // Aethren discovery remains playable; companion conversion and card combat are
-  // intentionally reserved for a later rules pass. Existing save data is kept.
-  // Canonical loop: scan → clone → deploy → nine-member party → battle.
+  // Canonical loop: scan → clone → deploy → nine-member party → live overworld battle.
   companions: { enabled:true, clone:true, follow:true, battle:true, partySize:9, note:'Aethren must be scanned and cloned before deployment.' },
   astraliteMatrix: { families:9, tiers:7, total:63, status:'effects deferred to the Macro Book' }
 };

@@ -84,6 +84,15 @@ window.AOV_UNLOCKS = {
 
   // ── PATCH NOTES · newest first. Shown on the home page and in the Journal.
   patches: [
+                                                { date:'2026-10-12', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.33', title:'Caves to the peak and the valley',
+      notes:[
+        'Every cave is now 3 to 5 rooms, climbing to the planet’s peak or down into its valley',
+        'The peak or valley is where each world’s teacher waits, with rare Zyrex and rare caches. Register the planet there',
+        'The way home is back through the cave. Rooms keep their loot and fallen foes while you are inside',
+        'New cave art: outlined rock, earth, ledges and crystal, moss, stalactites, spikes, a back wall, parallax and drifting motes',
+        'The minimap marks the way: the cave mouth on the overworld, the way on in the cave, and the teacher at the end',
+        'Camp folk no longer teach the words. They point you to the cave'
+      ] },
                                                 { date:'2026-10-11', build:'AETHRYX ADVENTURES: 1936 · SURVEY 10.32', title:'A HUD you can move',
       notes:[
         'The top bar is gone. Aethren, Health, Air, Suit, Utility and the minimap are each their own panel',

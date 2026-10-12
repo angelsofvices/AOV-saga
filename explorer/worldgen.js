@@ -669,8 +669,8 @@
     var lm = { x:c.x, y:c.y, name:'The cave mouth', id:'dcave_' + no, env:'dungeon', dungeon:no, stand:c.stand };
     m.landmarks.push(lm); return lm;
   }
-  // one cave: a horizontal level, pits, platforms, spikes, loot and enemies, with the door at the far end
-  function buildCave(no){
+  // the first cave (V1): one long horizontal strip. Kept for reference; caves are now built as rooms (buildCave below).
+  function buildCaveStrip(no){
     var r = rng(no * 104729 + 31), W = 170 + (no % 6) * 14, H = 16, g = [], x, y;
     for (y = 0; y < H; y++) { g.push([]); for (x = 0; x < W; x++) g[y].push('.'); }
     for (x = 0; x < W; x++) { g[0][x] = '#'; }
@@ -706,13 +706,187 @@
     }
     g[H - 4][W - 6] = '.'; g[H - 5][W - 6] = '.'; g[H - 6][W - 6] = '.';
     g[H - 4][W - 5] = 'E'; g[H - 5][W - 5] = 'E';
-    return { no:no, W:W, H:H, rows:g.map(function(row){ return row.join(''); }), enemies:en, start:{ x:2, y:H - 4 }, exit:{ x:W - 5, y:H - 4 } };
+    // the world's teacher: ONE person deep in the cave, on open floor clear of the enemies (the main mission of the world)
+    var teachers = [], tp = FAUNA.peoples[no] || {};
+    if (tp.race && no !== 9) {
+      var tx = -1;
+      for (var q = Math.floor(W * .55); q < W - 20 && tx < 0; q++) {
+        if (g[H - 4][q] !== '.' || g[H - 3][q] !== 'G' || g[H - 4][q - 1] !== '.' || g[H - 4][q + 1] !== '.') continue;
+        if (en.some(function(e){ return Math.abs(e.x - q) < 6; })) continue;
+        tx = q;
+      }
+      if (tx >= 0) teachers.push({ x:tx, y:H - 4, dir:'down', key:'w' + no, env:'cave' + no, n:7, teacher:true });
+    }
+    return { no:no, W:W, H:H, rows:g.map(function(row){ return row.join(''); }), enemies:en, npcs:teachers, start:{ x:2, y:H - 4 }, exit:{ x:W - 5, y:H - 4 } };
   }
-  // the Immortal Zone: a secret top-down region of the planet, with its deity, rare Aethren and rare caches
+  // ── CAVES AS ROOMS (Cave Rooms V2) ──
+  // Every cave is 3 to 5 rooms between the overworld mouth and the planet's PEAK or VALLEY (its Immortal Zone).
+  // A peak cave climbs room by room; a valley cave descends. Each room is a chain of ledges sized to Carl's jump,
+  // and is only kept if the physics below can cross it BOTH ways: the only road home is back through the cave.
+  // Tiles: '#' rock, 'G' earth (ledge tops), 'P' floating ledge, 'C' crystal vein, 'H' spikes, '$' loot, '.' air.
+  var CAVE_PHYS = { run:6.2, jump:12.5, g:32, airAcc:25, maxFall:18, w:.6, h:.9 };
+  var CAVE_SOLID = { '#':1, G:1, P:1, C:1 };
+  function caveKind(no){ return rng(no * 7919 + 5)() < .5 ? 'peak' : 'valley'; }
+  function caveRoomCount(no){ return 3 + ((rng(no * 3571 + 17)() * 3) | 0); }
+  // can a falling, running, jumping Carl get from one edge of the room to the other? (the same rules as updateSide)
+  function caveCrossable(rm){
+    var W = rm.W, H = rm.H, g = rm.g, P = CAVE_PHYS;
+    function tile(x, y){ var row = g[Math.floor(y)]; if (!row) return '#'; var c = row[Math.floor(x)]; return c === undefined ? '#' : c; }
+    function blocked(x, y){ return CAVE_SOLID[tile(x + .05, y + .02)] || CAVE_SOLID[tile(x + P.w - .05, y + .02)] || CAVE_SOLID[tile(x + .05, y + P.h - .02)] || CAVE_SOLID[tile(x + P.w - .05, y + P.h - .02)]; }
+    // the ledges you can stand on: runs of air with solid underfoot
+    var segs = [], segAt = {};
+    for (var y = 1; y < H - 1; y++) {
+      var cur = null;
+      for (var x = 0; x < W; x++) {
+        var ok = tile(x, y) !== 'H' && !CAVE_SOLID[tile(x, y)] && CAVE_SOLID[tile(x, y + 1)];
+        if (ok) { if (!cur) { cur = { y:y, x0:x, x1:x, id:segs.length }; segs.push(cur); } cur.x1 = x; segAt[x + ',' + y] = cur.id; }
+        else cur = null;
+      }
+    }
+    function landSeg(px, py){ var row = Math.round(py + P.h) - 1, cx = Math.floor(px + P.w / 2); var id = segAt[cx + ',' + row]; return id == null ? null : id; }
+    // one flight: a jump (or a step off an edge), holding a direction for a while
+    function fly(x, y, vx, dir, hold, jump){
+      var vy = jump ? -P.jump : 0, t = 0, dt = 1 / 60;
+      for (var i = 0; i < 160; i++) {
+        t += dt;
+        var want = t < hold ? dir * P.run : 0, rate = t < hold ? P.airAcc : P.airAcc * .5;
+        vx = vx < want ? Math.min(want, vx + rate * dt) : Math.max(want, vx - rate * dt);
+        vy = Math.min(P.maxFall, vy + P.g * dt);
+        var nx = x + vx * dt;
+        if (!blocked(nx, y)) x = Math.max(.2, Math.min(W - 1.1, nx));
+        if (x >= W - 1.12) return { edge:'right' };
+        if (x <= .21) return { edge:'left' };
+        var ny = y + vy * dt;
+        if (!blocked(x, ny)) y = ny;
+        else if (vy > 0) { y = Math.floor(ny + P.h) - P.h - .001; return tile(x + .3, y + .85) === 'H' ? null : { seg:landSeg(x, y), x:x }; }
+        else { y = Math.ceil(y) - .001; vy = 0; }
+        if (tile(x + .3, y + .85) === 'H') return null;
+        if (y > H - 1.2) return null;
+      }
+      return null;
+    }
+    var edges = segs.map(function(){ return { right:false, left:false, to:{} }; });
+    segs.forEach(function(s, id){
+      if (s.x1 >= W - 1) edges[id].right = true;
+      if (s.x0 <= 0) edges[id].left = true;
+      var y0 = s.y + 1 - P.h - .001;
+      for (var cx = s.x0; cx <= s.x1; cx++) {
+        [-1, 1].forEach(function(dir){
+          var behind = dir > 0 ? cx - s.x0 : s.x1 - cx, x0 = cx + .2, vx0 = behind >= 2 ? dir * P.run : 0;
+          [9, .4, .25, .12].forEach(function(hold){
+            var r = fly(x0, y0, vx0, dir, hold, true); if (!r) return;
+            if (r.edge) edges[id][r.edge] = true; else if (r.seg != null && r.seg !== id) edges[id].to[r.seg] = 1;
+          });
+          // stepping off the end of the ledge
+          if ((dir > 0 && cx === s.x1) || (dir < 0 && cx === s.x0)) { var w = fly(x0 + dir * .5, y0, dir * P.run, dir, 9, false); if (w) { if (w.edge) edges[id][w.edge] = true; else if (w.seg != null && w.seg !== id) edges[id].to[w.seg] = 1; } }
+        });
+      }
+    });
+    function reach(fromId, goal){
+      var seen = {}, q = [fromId]; seen[fromId] = 1;
+      while (q.length) { var c = q.shift(); if (edges[c][goal]) return true; Object.keys(edges[c].to).forEach(function(n){ if (!seen[n]) { seen[n] = 1; q.push(+n); } }); }
+      return false;
+    }
+    var a = segAt['0,' + (rm.start.y)], b = segAt[(W - 1) + ',' + (rm.exit.y)];
+    if (a == null || b == null) return false;
+    return reach(a, 'right') && reach(b, 'left');
+  }
+  // one room: a chain of ledges from the left opening to the right one, climbing (peak) or descending (valley)
+  function caveRoom(no, k, n, kind, r, safe){
+    var W = 44 + ((r() * 14) | 0), H = 20 + ((r() * 5) | 0), g = [], x, y;
+    for (y = 0; y < H; y++) { g.push([]); for (x = 0; x < W; x++) g[y].push('#'); }
+    var low = H - 3, high = 7, up = kind === 'peak';
+    var top = up ? low : high, goal = up ? high : low, last = k === n - 1, first = k === 0;
+    var hard = safe ? 0 : Math.min(2, k);   // later rooms ask more of you
+    var L = [], cx = 0, len0 = 5 + ((r() * 3) | 0);
+    L.push({ x0:0, x1:len0 - 1, top:top, kind:'G' }); cx = len0;
+    while (cx < W - 1) {
+      var left = W - cx, steps = Math.max(1, Math.round(left / 7)), need = top - goal;
+      var dk = Math.max(-2, Math.min(2, Math.round(need / steps + (r() - .5) * .8)));
+      if (!up) dk = Math.min(0, dk); else dk = Math.max(0, dk);
+      var roll = r(), type = safe ? 'step' : roll < .3 ? 'step' : roll < .7 ? 'gap' : roll < .85 && left > 16 ? 'hop' : 'gap';
+      if (left <= 9) type = Math.abs(dk) > 1 ? 'step' : 'gap';
+      var gap = type === 'step' ? 0 : 1 + ((r() * (Math.abs(dk) >= 2 ? 2 : 2 + (hard ? 1 : 0))) | 0);
+      if (type === 'hop') {
+        // a wide pit with a floating ledge in the middle
+        var gl = 1 + ((r() * 2) | 0), pl = 2 + ((r() * 2) | 0), gr = 1 + ((r() * 2) | 0), ptop = top - (up ? 1 : 0);
+        L.push({ x0:cx + gl, x1:cx + gl + pl - 1, top:Math.max(high - 1, ptop), kind:'P' });
+        cx = cx + gl + pl + gr; top = Math.max(high, Math.min(low, top - dk));
+      } else { cx += gap; top = Math.max(high, Math.min(low, top - dk)); }
+      if (cx >= W - 1) { cx = W - 1; }
+      var ln = left <= 9 + gap ? W - cx : 3 + ((r() * 5) | 0);
+      if (cx + ln >= W - 4) ln = W - cx;   // never leave a sliver: the last ledge runs to the edge
+      L.push({ x0:cx, x1:Math.min(W - 1, cx + ln - 1), top:top, kind:'G', gapBefore:gap || type === 'hop' });
+      cx = cx + ln;
+    }
+    var exitTop = L[L.length - 1].top;
+    // carve: air over every ledge and across the gaps, with a ragged ceiling
+    function air(x2, y2){ if (x2 >= 0 && x2 < W && y2 >= 1 && y2 < H) g[y2][x2] = '.'; }
+    var ceil = []; for (x = 0; x < W; x++) ceil.push(5 + ((r() * 3) | 0));
+    for (var i = 0; i < L.length; i++) {
+      var A = L[i], B = L[i + 1];
+      for (x = A.x0 - 1; x <= A.x1 + 1; x++) for (y = A.top - ceil[Math.max(0, Math.min(W - 1, x))] - 1; y < A.top; y++) air(x, y);
+      if (B) {
+        var lo = Math.min(A.top, B.top), hi = Math.max(A.top, B.top), pitBottom = hi + 3;
+        for (x = A.x1 + 1; x < B.x0; x++) for (y = lo - ceil[x] - 1; y <= Math.min(H - 1, pitBottom); y++) air(x, y);
+      }
+    }
+    // a floating ledge: the pit runs under it
+    L.forEach(function(A){ if (A.kind !== 'P') return; for (x = A.x0 - 1; x <= A.x1 + 1; x++) for (y = A.top; y <= Math.min(H - 1, A.top + 4); y++) air(x, y); });
+    // the ledges themselves: earth on top, rock below (or a single floating slab)
+    L.forEach(function(A){
+      for (x = A.x0; x <= A.x1; x++) {
+        if (A.kind === 'P') { g[A.top][x] = 'P'; continue; }
+        g[A.top][x] = 'G'; if (A.top + 1 < H && g[A.top + 1][x] === '#' && r() < .65) g[A.top + 1][x] = 'G';
+      }
+    });
+    // the openings: left (from the mouth or the room before) and right (to the next room, or out to the peak/valley)
+    for (y = L[0].top - 3; y < L[0].top; y++) air(0, y);
+    for (y = exitTop - 3; y < exitTop; y++) air(W - 1, y);
+    // pits: spikes on the floor of a pit, or open to the depths (a fall sends you back to the last safe ground)
+    for (x = 1; x < W - 1; x++) for (y = 1; y < H - 1; y++) if (g[y][x] === '.' && CAVE_SOLID[g[y + 1][x]] && !L.some(function(A){ return x >= A.x0 && x <= A.x1 && y === A.top - 1; })) {
+      if (!safe && r() < .7 && y > Math.min(L[0].top, exitTop)) g[y][x] = 'H';
+    }
+    if (!safe && r() < .5) for (x = 1; x < W - 1; x++) if (g[H - 2][x] === '.' ) { g[H - 1][x] = '.'; }   // a bottomless stretch
+    // crystal veins in the rock
+    for (var v = 0; v < 3 + ((r() * 4) | 0); v++) {
+      var vx = (r() * W) | 0, vy = (r() * H) | 0, vr = 1 + r() * 2.2;
+      for (y = Math.floor(vy - vr); y <= vy + vr; y++) for (x = Math.floor(vx - vr * 1.6); x <= vx + vr * 1.6; x++) if (g[y] && g[y][x] === '#' && ((x - vx) * (x - vx)) / 2.6 + (y - vy) * (y - vy) <= vr * vr) g[y][x] = 'C';
+    }
+    // the back wall: a background layer with holes where the far cave shows through
+    var bg = [];
+    for (y = 0; y < H; y++) { var row = ''; for (x = 0; x < W; x++) { var nz = Math.sin(x * .37 + no) * Math.cos(y * .41 + k * 1.7) + Math.sin((x + y) * .19 + no * .3) * .6; row += nz > -.25 ? 'b' : '.'; } bg.push(row); }
+    // loot over the gaps and on some ledges; enemies on the long ledges, in the way
+    var en = [], lv = levelFor(no) || 5, kinds = ['mori', 'seer_grunt', 'daemon', 'nova'];
+    for (i = 1; i < L.length; i++) { var Bq = L[i], Aq = L[i - 1]; if (Bq.x0 - Aq.x1 > 1) { var mx = (Aq.x1 + Bq.x0) >> 1, my = Math.min(Aq.top, Bq.top) - 2; if (g[my] && g[my][mx] === '.') g[my][mx] = '$'; } }
+    L.forEach(function(A, j){
+      if (j === 0 || (last && j === L.length - 1) || A.kind !== 'G') return;
+      var span = A.x1 - A.x0 + 1;
+      if (span >= 4 && en.length < 1 + k && r() < .65) { var ex = A.x0 + (span >> 1); if (g[A.top - 1][ex] === '.') en.push({ x:ex, y:A.top - 1, k:kinds[(r() * kinds.length) | 0], lv:lv + ((r() * 3) | 0) }); }
+      else if (r() < .35 && g[A.top - 1][A.x1] === '.') g[A.top - 1][A.x1] = '$';
+    });
+    if (k > 0 && !en.length) { var A2 = L[(L.length >> 1)]; if (A2 && A2.kind === 'G' && g[A2.top - 1][A2.x0 + 1] === '.') en.push({ x:A2.x0 + 1, y:A2.top - 1, k:kinds[(r() * kinds.length) | 0], lv:lv }); }
+    return { no:no, k:k, n:n, kind:kind, last:last, first:first, W:W, H:H, g:g, bg:bg, enemies:en, ledges:L,
+      start:{ x:1, y:L[0].top - 1 }, exit:{ x:W - 2, y:exitTop - 1 } };
+  }
+  function buildCave(no){
+    var kind = caveKind(no), n = caveRoomCount(no), rooms = [];
+    for (var k = 0; k < n; k++) {
+      var r = rng(no * 104729 + k * 7907 + 31), rm = null, ok = false;
+      for (var tries = 0; tries < 10 && !ok; tries++) { rm = caveRoom(no, k, n, kind, r, tries >= 7); ok = caveCrossable(rm); }
+      rm.verified = ok;
+      rm.rows = rm.g.map(function(row){ return row.join(''); }); delete rm.g;
+      rooms.push(rm);
+    }
+    return { no:no, kind:kind, rooms:rooms, npcs:[] };
+  }
+  // the Immortal Zone: a secret top-down region of the planet, with its deity, rare Aethren and rare caches.
+  // It is the PEAK or the VALLEY the planet's cave leads to (Cave Rooms V2): the world's teacher waits here, with rare
+  // Zyrex and rare loot, and the only way home is back down (or up) through the cave.
   function buildImmortal(no){
-    var HX = 40, HY = 30, m = new Map('iz' + no, HX, HY), seed = no * 9973 + 61, r = rng(seed);
-    m.world = no; m.name = 'iz' + no; m.immortal = true; m.envs = [worldEnv(no)]; m.structs = []; m.sidx = {};
-    terrain(m, 0, 0, HX, HY, 0, seed, { high:.66, wet:.12 });
+    var HX = 40, HY = 30, m = new Map('iz' + no, HX, HY), seed = no * 9973 + 61, r = rng(seed), kind = caveKind(no);
+    m.world = no; m.name = 'iz' + no; m.immortal = true; m.zoneKind = kind; m.envs = [worldEnv(no)]; m.structs = []; m.sidx = {};
+    terrain(m, 0, 0, HX, HY, 0, seed, kind === 'peak' ? { high:.74, wet:.05 } : { high:.58, wet:.2 });
     for (var q = 0; q < m.grid.length; q++) if (m.grid[q] === '~') m.grid[q] = ',';
     border(m);
     m.ship = { x:6, y:HY - 8 };   // the arrival point, where the cave's door lets you out
@@ -724,14 +898,18 @@
     m.set(cx, cy, 'L');
     m.landmarks.push({ x:cx, y:cy, name:'The deity of this world', id:'fig_deity_' + no, env:'immortal', deity:no });
     m.set(exitX, exitY, 'L');
-    m.landmarks.push({ x:exitX, y:exitY, name:'The way out', id:'dback_' + no, env:'immortal', dungeonExit:no });
+    m.landmarks.push({ x:exitX, y:exitY, name:kind === 'peak' ? 'The way back down, through the cave' : 'The way back up, through the cave', id:'dback_' + no, env:'immortal', dungeonExit:no });
+    // the world's teacher: the main mission of the planet ends here
+    var tpp = FAUNA.peoples[no] || {};
+    if (tpp.race && no !== 9) { clearRect(m, exitX + 5, exitY - 4, 3, 3); m.npcs.push({ x:exitX + 6, y:exitY - 3, dir:'down', key:'w' + no, env:(worldEnv(no) || {}).id, n:7, teacher:true }); }
     for (var c = 0; c < 4; c++) {
       var kx = 8 + ((r() * 28) | 0), ky = 4 + ((r() * 22) | 0);
       if (Math.hypot(kx - cx, ky - cy) < 6 || m.at(kx, ky) !== '.') continue;
       m.set(kx, ky, 'L'); m.landmarks.push({ x:kx, y:ky, name:'An ancient cache', id:'lm_izrelic_' + no + '_' + c, env:'immortal', izLoot:no + ':' + c });
     }
-    var pool = Object.keys(SPECIES_FOR_IZ.list(no));
-    for (var a = 0; a < Math.min(3, pool.length); a++) {
+    var pool = Object.keys(SPECIES_FOR_IZ.list(no)), zy = pool.filter(function(id){ return /^zyrex-/.test(id); });
+    if (zy.length) pool = zy.concat(zy, pool.filter(function(id){ return !/^zyrex-/.test(id); }));   // rare Zyrex, twice as likely
+    for (var a = 0; a < Math.min(5, pool.length); a++) {
       var sx = 10 + ((r() * 22) | 0), sy = 8 + ((r() * 14) | 0);
       if (m.at(sx, sy) !== '.' && m.at(sx, sy) !== ',') continue;
       m.spawns.push({ x:sx, y:sy, id:pool[(r() * pool.length) | 0], lv:(levelFor(no) || 5) + 4, calm:1 });
@@ -760,5 +938,5 @@
     return null;
   }
 
-  window.AOV_WORLDGEN = { cave:function(no){ return buildCave(no); }, reset:function(){ cache = {}; }, build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus, biomesForWorld:biomesForWorld };
+  window.AOV_WORLDGEN = { cave:function(no){ return buildCave(no); }, caveStrip:function(no){ return buildCaveStrip(no); }, caveKind:caveKind, caveCrossable:caveCrossable, caveRoom:caveRoom, reset:function(){ cache = {}; }, build:build, zoneAt:zoneAt, SOLID:SOLID, DISTRICTS:DIST, levelFor:levelFor, nasarus:buildNasarus, biomesForWorld:biomesForWorld };
 })();

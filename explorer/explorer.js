@@ -2278,6 +2278,38 @@
     var list = (ITEMS.mats[M.world] || []).filter(function(t){ return t.r === r; }); if (!list.length) return;
     gainItem(list[((M.world * 7 + Object.keys(S.itemSeen || {}).length) >>> 0) % list.length].id, 1);
   }
+  // Meteor strikes leave a rarity-marked crystal impact and a buried time capsule nearby.
+  // Capsules deliberately exclude gem/crystal/prism entries: their reward is always a
+  // useful existing material, machine, or modification from the catalog.
+  function lootSeed(text){ var n = 0; String(text || '').split('').forEach(function(c){ n = (n * 31 + c.charCodeAt(0)) >>> 0; }); return function(){ n = (n * 1664525 + 1013904223) >>> 0; return n / 4294967296; }; }
+  function capsulePool(){
+    if (!ITEMS.ready) return [];
+    return Object.keys(ITEMS.byId).map(function(k){ return ITEMS.byId[k]; }).filter(function(t){ return !t.sealed && !/gem|crystal|prism/i.test((t.n || '') + ' ' + (t.fam || '')); });
+  }
+  function seedSurfaceLoot(m){
+    if (!m || m.hq || m.indoor || !m.world) return;
+    if (m.timeCapsules && m.meteors) return;
+    var rand = lootSeed(m.id), capsules = [], meteors = [], count = 2 + (m.world % 2);
+    function open(x, y){ var i = y * m.W + x; return m.grid[i] === '.' && !m.props[i] && !(m.sidx && m.sidx[i] != null) && !(m.landmarks || []).some(function(l){ return Math.abs(l.x - x) + Math.abs(l.y - y) < 7; }); }
+    for (var k = 0; k < count; k++) {
+      for (var tries = 0; tries < 80; tries++) { var x = 3 + ((rand() * (m.W - 6)) | 0), y = 3 + ((rand() * (m.H - 6)) | 0); if (open(x, y)) { var rarity = Math.min(4, (m.world > 20 ? 2 : 0) + ((rand() * 3) | 0)); meteors.push({ x:x, y:y, rarity:rarity }); var cx = x + (rand() < .5 ? -1 : 1), cy = y + (rand() < .5 ? -1 : 1); if (open(cx, cy)) capsules.push({ x:cx, y:cy, rarity:rarity }); break; } }
+    }
+    m.meteors = meteors; m.timeCapsules = capsules;
+  }
+  function capsuleAt(x, y){ return (M && M.timeCapsules || []).filter(function(c){ return c.x === x && c.y === y; })[0] || null; }
+  function meteorAt(x, y){ return (M && M.meteors || []).filter(function(c){ return c.x === x && c.y === y; })[0] || null; }
+  function openTimeCapsule(c, key){
+    if (!c || S.found[key]) return false;
+    S.found[key] = 1; var pool = capsulePool();
+    if (!pool.length) { gain('scrap', 2, true); toast('TIME CAPSULE OPENED · SCRAP recovered'); return true; }
+    var rand = lootSeed(key), t = pool[(rand() * pool.length) | 0], n = t.r >= 3 ? 1 : t.r >= 1 ? 1 + ((rand() * 2) | 0) : 2 + ((rand() * 3) | 0);
+    gainItem(t.id, n); sfx.reveal(); vibrate(90, .35); toast('TIME CAPSULE · ' + itemName(t) + ' recovered'); save(); return true;
+  }
+  function openMeteor(c, key){
+    if (!c || S.found[key]) return false;
+    S.found[key] = 1; var amount = 1 + c.rarity;
+    gainItem('MAT-03', amount); sfx.reveal(); vibrate(140, .5); toast('METEOR IMPACT · CRYSTAL CACHE · RARITY ' + RARITY[c.rarity]); save(); return true;
+  }
   // take a tile's material once: the same spot never pays twice
   function takeOnce(x, y, obj){ var key = M.id + ':' + x + ',' + y; if (S.found[key]) return ''; S.found[key] = 1; return gainAll(obj, true); }
   // ── CORE GAMEPLAY SYSTEMS · the five-machine departure chain ──
@@ -2914,6 +2946,7 @@
     if (carry && M) cancelCarry();
     M = buildMap(mapId);
     if (!M) { ship(); return; }
+    seedSurfaceLoot(M);
     specCache = {};
     S.stage = 'surface'; S.landed = true; if (M.world) S.at = M.world;
     var start = S.pos && S.pos.map === mapId ? S.pos : { x:M.ship ? M.ship.x : 1, y:M.ship ? M.ship.y + 1 : 1, dir:'down' };
@@ -3681,9 +3714,18 @@
     toast(fromZone ? 'BACK INTO THE CAVE · ' + C.rooms.length + ' rooms ' + (up ? 'down' : 'up') + ' to the mouth.' : placeName(no) + ' · CAVE · ' + C.rooms.length + ' rooms ' + (up ? 'up to the PEAK' : 'down to the VALLEY') + '. Left and right to walk, ▲ jump, ✕ interact, □ use, ○ crouch, walk or run.');
   }
   function caveFoe(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round((40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)) * 1.5); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:Math.round((d.atk || 5) * 1.4), range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; }
+  function seedCaveCapsule(st, rm, no, k){
+    if (st.capsule) return;
+    var found = null;
+    for (var y = 2; y < rm.H - 2 && !found; y++) for (var x = 3; x < rm.W - 3; x++) {
+      if (rm.rows[y][x] === '.' && SIDE_SOLID[rm.rows[y + 1] && rm.rows[y + 1][x]] && Math.abs(x - rm.start.x) > 4 && Math.abs(x - rm.exit.x) > 4) { found = { x:x, y:y, rarity:Math.min(4, (no > 20 ? 2 : 0) + ((k + no) % 3)) }; break; }
+    }
+    st.capsule = found;
+  }
   // step into room k from its left or right opening. A room keeps its state (loot taken, foes down) while you are in the cave.
   function caveRoomEnter(k, side){
     var s = SIDE, rm = s.cave.rooms[k], st = s.rooms[k] || (s.rooms[k] = { g:rm.rows.map(function(r){ return r.split(''); }), en:rm.enemies.map(caveFoe), art:null });
+    seedCaveCapsule(st, rm, s.no, k);
     s.k = k; s.C = rm; s.g = st.g; s.en = st.en; s.npcs = []; s.st = st;
     var p = s.p, right = side === 'right';
     p.x = right ? rm.W - 1.7 : .7; p.y = (right ? rm.exit.y : rm.start.y) - .001; p.vx = 0; p.vy = 0; p.face = right ? -1 : 1;
@@ -3751,6 +3793,8 @@
     if (a === 'jump') p.jumpBuf = .16;
     if (a === 'attack') { if (blasterReady()) fireBlaster(); else toast('No fists in AA:1936. Equip a weapon, then press □ to fire.', 'red'); }
     if (a === 'interact') {
+      var tc = SIDE.st && SIDE.st.capsule;
+      if (tc && Math.abs(tc.x - p.x) < 1.4 && Math.abs(tc.y - p.y) < 1.6) return openTimeCapsule(tc, 'cave:' + SIDE.no + ':' + SIDE.cave.kind + ':' + SIDE.k + ':' + tc.x + ',' + tc.y);
       var near = SIDE.npcs.filter(function(n){ return Math.abs(n.x - p.x) <= 2.2; })[0];
       if (near) return talkPeople(near);
       if (SIDE.C.last && p.x >= SIDE.C.W - 3) return enterZone(SIDE.no, false);
@@ -3923,6 +3967,11 @@
         ctx.fillStyle = '#100a14'; ctx.fillRect(X + TZ * .15, Y - TZ * .6, TZ * .7, TZ * 1.6);
         ctx.fillStyle = '#b86aff'; ctx.globalAlpha = .5 + .3 * Math.sin(now / 300); ctx.fillRect(X + TZ * .3, Y - TZ * .3, TZ * .4, TZ * 1.2); ctx.globalAlpha = 1;
       }
+    }
+    if (s.st && s.st.capsule && !S.found['cave:' + SIDE.no + ':' + SIDE.cave.kind + ':' + SIDE.k + ':' + s.st.capsule.x + ',' + s.st.capsule.y]) {
+      var cap = s.st.capsule, cx = ox + (cap.x + .5) * TZ, cy = oy + (cap.y + 1) * TZ, col = ['#9aa4b8','#54d7ff','#b88ae8','#ff76d8','#ffe08a'][cap.rarity] || '#9aa4b8';
+      ctx.fillStyle = 'rgba(255,220,120,.18)'; ctx.beginPath(); ctx.arc(cx, cy - 4 * z, 11 * z, 0, 7); ctx.fill();
+      ctx.fillStyle = '#20182a'; ctx.fillRect(cx - 7 * z, cy - 8 * z, 14 * z, 8 * z); ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, z); ctx.strokeRect(cx - 7 * z, cy - 8 * z, 14 * z, 8 * z); ctx.fillStyle = col; ctx.fillRect(cx - z, cy - 7 * z, 2 * z, 6 * z);
     }
     SIDE.npcs.forEach(function(n){ var X = ox + (n.x + .5) * TZ, Y = oy + (n.y + 1) * TZ; shadow(X, Y, z, 10); ART.draw(ctx, npcSprite(n), X, Y, z); });
     s.en.forEach(function(e){
@@ -4745,6 +4794,9 @@
     if (carry) return setCarry();
     if (P.moving) return;
     var f = facing(), ch = at(f.x, f.y), c = critterAt(f.x, f.y), n = npcAt(f.x, f.y), i = f.y * M.W + f.x;
+    var cap = capsuleAt(f.x, f.y), met = meteorAt(f.x, f.y);
+    if (cap) return openTimeCapsule(cap, M.id + ':capsule:' + f.x + ',' + f.y);
+    if (met) return openMeteor(met, M.id + ':meteor:' + f.x + ',' + f.y);
     if (c && c.resident) { return say([subjName(c.id) + ' lives on ' + hqName() + ' now. It watches you without fear.']); }
     var hb = LIVE && homeAt(f.x, f.y); if (hb) { faceTo(hb, P); return say([homeLine(hb)]); }
     var fo = LIVE && foeAt(f.x, f.y); if (fo) return say([(fo.sp ? subjName(fo.sp) : fo.def.name) + ' · LV ' + fo.lv + '. ' + (fo.def.note || 'It is hostile.')]);
@@ -6047,6 +6099,8 @@
       if (M.paperAt && M.paperAt[i] && paperHere(x, y)) drawPaper(M.paperAt[i], ox + x * TZ, oy + y * TZ, TZ, now);
       if (OBJ.indexOf(ch) >= 0 && ch !== 'S' && ch !== 'F') list.push({ k:ch, i:i, x:x, y:y, s:y, ri:ri });
     }
+    (M.meteors || []).forEach(function(met){ if (met.x >= x0 && met.x <= x1 && met.y >= y0 && met.y <= y1 && !S.found[M.id + ':meteor:' + met.x + ',' + met.y]) list.push({ k:'meteor', c:{ x:met.x, y:met.y, fx:met.x, fy:met.y, rarity:met.rarity }, x:met.x, y:met.y, s:met.y - .1 }); });
+    (M.timeCapsules || []).forEach(function(cap){ if (cap.x >= x0 && cap.x <= x1 && cap.y >= y0 && cap.y <= y1 && !S.found[M.id + ':capsule:' + cap.x + ',' + cap.y]) list.push({ k:'capsule', c:{ x:cap.x, y:cap.y, fx:cap.x, fy:cap.y, rarity:cap.rarity }, x:cap.x, y:cap.y, s:cap.y }); });
     if (M.ship) { ctx.fillStyle = 'rgba(40,24,12,.35)'; ctx.beginPath(); ctx.ellipse(ox + (M.ship.x + .5) * TZ, oy + (M.ship.y + .85) * TZ, 1.2 * TZ, .4 * TZ, 0, 0, 7); ctx.fill(); list.push({ k:'ship', x:M.ship.x, y:M.ship.y, s:M.ship.y + .1 }); }
     npcs.forEach(function(n){ if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1) list.push({ k:'npc', n:n, x:n.x, y:n.y, s:n.y }); });
     (M.structs || []).forEach(function(st){ if (carry && carry.st === st) return; if (st.x + st.w >= x0 - 2 && st.x <= x1 + 2 && st.y >= y0 - 1 && st.y <= y1 + 4) list.push({ k:'struct', st:st, x:st.x, y:st.y, s:st.y }); });
@@ -6073,6 +6127,8 @@
       else if (o.k === 'companion') drawCompanion(o.id, X, Y, z, now);
       else if (o.k === 'live') drawLiveBody(o, X, Y, z, now);
       else if (o.k === 'player') drawPlayer(X, Y, z);
+      else if (o.k === 'meteor') { var mc = ['#9aa4b8','#54d7ff','#b88ae8','#ff76d8','#ffe08a'][o.c.rarity] || '#9aa4b8'; ctx.fillStyle = 'rgba(255,220,120,.16)'; ctx.beginPath(); ctx.arc(X, Y - 4 * z, 12 * z, 0, 7); ctx.fill(); ctx.fillStyle = mc; ctx.beginPath(); ctx.moveTo(X, Y - 10 * z); ctx.lineTo(X + 7 * z, Y - 2 * z); ctx.lineTo(X + 2 * z, Y + 5 * z); ctx.lineTo(X - 7 * z, Y + 3 * z); ctx.lineTo(X - 8 * z, Y - 5 * z); ctx.closePath(); ctx.fill(); }
+      else if (o.k === 'capsule') { var cc = ['#9aa4b8','#54d7ff','#b88ae8','#ff76d8','#ffe08a'][o.c.rarity] || '#9aa4b8'; ctx.fillStyle = '#20182a'; ctx.fillRect(X - 7 * z, Y - 8 * z, 14 * z, 8 * z); ctx.strokeStyle = cc; ctx.lineWidth = Math.max(1, z); ctx.strokeRect(X - 7 * z, Y - 8 * z, 14 * z, 8 * z); ctx.fillStyle = cc; ctx.fillRect(X - z, Y - 7 * z, 2 * z, 6 * z); }
       else {
         var spc = objSpec(o.k, o.i, M.envs[o.ri] || M.envs[0], now);
         if (o.k === 'L') { ctx.fillStyle = 'rgba(255,220,140,' + (.18 + .1 * Math.sin(now / 300)) + ')'; ctx.beginPath(); ctx.ellipse(X, Y - 2 * z, 10 * z, 4 * z, 0, 0, 7); ctx.fill(); }

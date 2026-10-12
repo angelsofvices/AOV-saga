@@ -4184,7 +4184,7 @@
   var GAIT_SIDE = { stalk:.5, steady:1, sprint:1.6 };
   // the tiles the JETPACK cannot cross: walls, structures, the vault, landmarks, the ship and the marker stones
   var FLY_STOP = { '#':1, F:1, K:1, L:1, S:1, M:1, w:1 };
-  var squareHeld = false, xDown = false, xTimer = null, xHeld = false, xJet = false, xLastTap = 0, jumpHeld = false;
+  var squareHeld = false, xDown = false, xTimer = null, xHeld = false, xJet = false, xLastTap = 0, xChargeT = 0, jumpHeld = false;
   var UTILITY_WHEEL = { open:false, hold:false, down:false, pressAt:0, timer:null };
   function approach(v, t, d){ return v < t ? Math.min(t, v + d) : Math.max(t, v - d); }
   function jet(){ if (!S.jet) S.jet = { repaired:false, equipped:false }; return S.jet; }
@@ -4339,17 +4339,24 @@
     UTIL_PENDING = UTIL_PENDING.filter(function(st){ st.t -= dt; if (st.t > 0) return true; st.fire(); return false; });
   }
   function btnMove(){ squarePress(); }
-  // X: jump in caves; a second press held in the field engages the jetpack.
+  // X has three deliberate paths: tap = quick jump, hold = short charged jump,
+  // double-tap = jetpack. The jump is committed on release so a hold never
+  // becomes a slow, repeated bounce.
   function xPress(){
     if (xHeld || !surfaceFree()) return;
-    xHeld = true; jumpHeld = true;
+    xHeld = true; jumpHeld = false; xChargeT = 0;
     var now = performance.now(), dbl = now - xLastTap < 360; xLastTap = now;
-    if (mode === 'side') { sideAct('jump'); return; }
     if (dbl && activeUtil() === 'jetpack' && jetReady()) { xJet = true; UTIL_DATA.jetT = JET.hold; toast('JETPACK ENGAGED · analog to steer'); }
-    else { P.alt = Math.min(JET.altMax, (P.alt || 0) + JET.hop); P.lift = 0; sfx.step(); }
   }
   function xRelease(){
-    xHeld = false; jumpHeld = false; xJet = false;
+    var wasHeld = xHeld, wasJet = xJet, charge = xChargeT;
+    xHeld = false; jumpHeld = false; xJet = false; xChargeT = 0;
+    if (!wasHeld || wasJet || !surfaceFree()) return;
+    if (mode === 'side') { sideAct('jump'); return; }
+    // A tap stays light and immediate; a brief hold adds only a small amount
+    // so both jump paths remain fast and readable.
+    var boost = charge >= .08 ? Math.min(.3, charge * 1.6) : 0;
+    P.alt = Math.min(JET.altMax, (P.alt || 0) + JET.hop + boost); P.lift = 0; sfx.step();
   }
   // touch: a button you press and hold, the way a pad does
   function bindHold(el, down, up, tap){
@@ -4363,7 +4370,7 @@
   // the field: lift builds to a steady climb while □ is held and fades when it is let go; gravity brings Carl down
   function updateFlight(dt){
     var thrust = jetOn();
-    if (xHeld && !xJet && (P.alt || 0) <= .02) P.alt = JET.hop;
+    if (xHeld && !xJet) xChargeT = Math.min(.22, (xChargeT || 0) + dt);
     P.lift = approach(P.lift || 0, thrust ? JET.maxLift : 0, (thrust ? JET.accel : JET.decel) * dt);
     P.alt = clamp((P.alt || 0) + (P.lift - JET.sink) * dt, 0, JET.altMax);
     // no landing on an obstacle: Carl hovers above it until open ground is under him

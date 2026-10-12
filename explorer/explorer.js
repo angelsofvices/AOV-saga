@@ -2843,6 +2843,7 @@
   function fadeIn(secs){ TRANS = { t:secs, d:secs }; }
   function loop(now){
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (UTILITY_WHEEL && UTILITY_WHEEL.open && !surfaceFree()) utilityOverlaySet(false);
     if (UTILITY_WHEEL.open) dt *= .18;
     if (HITSTOP > 0) { HITSTOP = Math.max(0, HITSTOP - dt); dt = 0; }   // a freeze frame: the world holds still for a moment
     SHAKE.t = Math.max(0, SHAKE.t - dt);
@@ -4267,15 +4268,17 @@
   function utilityOverlaySet(open){
     var old = $('.x-util-overlay'); if (old) old.remove();
     UTILITY_WHEEL.open = !!open;
-    if (!open || !surfaceFree()) return;
-    var box = el('div', 'x-util-overlay'); box.setAttribute('role','dialog'); box.innerHTML = '<b>UTILITY WHEEL</b><small>RIGHT STICK AIM · L1/R1 CYCLE · ○ USE</small><i class="x-util-center">✦</i>';
+    if (!open || !surfaceFree()) { UTILITY_WHEEL.open = false; UTILITY_WHEEL.hold = false; return; }
+    var box = el('div', 'x-util-overlay'); box.setAttribute('role','dialog'); box.setAttribute('aria-label','Utility wheel');
+    box.innerHTML = '<div class="x-util-wheel"><b>UTILITY WHEEL</b><small>RIGHT STICK AIM · L1/R1 CYCLE · ○ USE</small><em class="x-util-group tactical">TACTICAL</em><em class="x-util-group combat">COMBAT</em><i class="x-util-center">✦</i></div>';
+    var wheel = $('.x-util-wheel', box);
     var a = utilList(), radius = 92;
-    a.forEach(function(id, i){ var b = el('button'); b.type='button'; b.textContent = utilInfo(id).name; b.className = id === activeUtil() ? 'on' : ''; var ang = -Math.PI / 2 + i * Math.PI * 2 / Math.max(1, a.length); b.style.left = (50 + Math.cos(ang) * radius / 2.6) + '%'; b.style.top = (50 + Math.sin(ang) * radius / 2.6) + '%'; b.addEventListener('click', function(){ S.util={active:id}; save(); syncUtilHud(); utilityWheelPaint(); }); box.appendChild(b); });
+    a.forEach(function(id, i){ var b = el('button'); b.type='button'; var combat = id === 'astrablaster'; b.textContent = utilInfo(id).name; b.className = (id === activeUtil() ? 'on ' : '') + (combat ? 'combat' : 'tactical'); var ang = -Math.PI / 2 + i * Math.PI * 2 / Math.max(1, a.length); b.style.left = (50 + Math.cos(ang) * radius / 2.6) + '%'; b.style.top = (50 + Math.sin(ang) * radius / 2.6) + '%'; b.addEventListener('click', function(){ S.util={active:id}; save(); syncUtilHud(); utilityOverlaySet(false); }); wheel.appendChild(b); });
     doc.body.appendChild(box);
   }
   function utilityWheelPaint(){ if (UTILITY_WHEEL.open) utilityOverlaySet(true); }
   function utilityWheelDown(){
-    if (!surfaceFree()) return;
+    if (!surfaceFree()) { utilityOverlaySet(false); return; }
     UTILITY_WHEEL.pressAt = performance.now(); UTILITY_WHEEL.hold = false; clearTimeout(UTILITY_WHEEL.timer);
     UTILITY_WHEEL.timer = setTimeout(function(){ UTILITY_WHEEL.hold = true; utilityOverlaySet(true); }, 220);
   }
@@ -4284,6 +4287,7 @@
     if (UTILITY_WHEEL.hold) { utilityOverlaySet(false); UTILITY_WHEEL.hold = false; return; }
     utilityOverlaySet(!UTILITY_WHEEL.open);
   }
+  window.addEventListener('blur', function(){ if (UTILITY_WHEEL.open || UTILITY_WHEEL.timer) utilityOverlaySet(false); clearTimeout(UTILITY_WHEEL.timer); UTILITY_WHEEL.timer = null; });
   // ○ uses the active utility: the ASTRABLASTER fires once per press.
   function squarePress(){
     squareHeld = true;

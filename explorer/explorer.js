@@ -2292,7 +2292,7 @@
     var rand = lootSeed(m.id), capsules = [], meteors = [], count = 2 + (m.world % 2);
     function open(x, y){ var i = y * m.W + x; return m.grid[i] === '.' && !m.props[i] && !(m.sidx && m.sidx[i] != null) && !(m.landmarks || []).some(function(l){ return Math.abs(l.x - x) + Math.abs(l.y - y) < 7; }); }
     for (var k = 0; k < count; k++) {
-      for (var tries = 0; tries < 80; tries++) { var x = 3 + ((rand() * (m.W - 6)) | 0), y = 3 + ((rand() * (m.H - 6)) | 0); if (open(x, y)) { var rarity = Math.min(4, (m.world > 20 ? 2 : 0) + ((rand() * 3) | 0)); meteors.push({ x:x, y:y, rarity:rarity }); var cx = x + (rand() < .5 ? -1 : 1), cy = y + (rand() < .5 ? -1 : 1); if (open(cx, cy)) capsules.push({ x:cx, y:cy, rarity:rarity }); break; } }
+      for (var tries = 0; tries < 80; tries++) { var x = 3 + ((rand() * (m.W - 6)) | 0), y = 3 + ((rand() * (m.H - 6)) | 0); if (open(x, y)) { var rarity = Math.min(4, (m.world > 20 ? 2 : 0) + ((rand() * 3) | 0)); var cx = x + (rand() < .5 ? -1 : 1), cy = y + (rand() < .5 ? -1 : 1); if (open(cx, cy)) capsules.push({ x:cx, y:cy, rarity:rarity }); break; } }
     }
     m.meteors = meteors; m.timeCapsules = capsules;
   }
@@ -2308,7 +2308,8 @@
   function openMeteor(c, key){
     if (!c || S.found[key]) return false;
     S.found[key] = 1; var amount = 1 + c.rarity;
-    gainItem('MAT-03', amount); sfx.reveal(); vibrate(140, .5); toast('METEOR IMPACT · CRYSTAL CACHE · RARITY ' + RARITY[c.rarity]); save(); return true;
+    if (ITEMS.byId['MAT-03']) gainItem('MAT-03', amount); else gain('crystal', amount, true);
+    sfx.reveal(); vibrate(140, .5); toast('METEOR IMPACT · CRYSTAL CACHE · RARITY ' + RARITY[c.rarity]); save(); return true;
   }
   // take a tile's material once: the same spot never pays twice
   function takeOnce(x, y, obj){ var key = M.id + ':' + x + ',' + y; if (S.found[key]) return ''; S.found[key] = 1; return gainAll(obj, true); }
@@ -3108,7 +3109,30 @@
 
   function facing(){ var d = DIRS[P.dir]; return { x:P.x + d[0], y:P.y + d[1] }; }
 
-  var saveTimer = 0, airTimer = 0;
+  var saveTimer = 0, airTimer = 0, METEOR_EVENT = { next:60000 + Math.random() * 240000, active:null };
+  function meteorLandingSpot(){
+    if (!M || !P || M.hq || M.indoor || !M.world) return null;
+    for (var tries = 0; tries < 100; tries++) {
+      var x = clamp(Math.round(P.x + (Math.random() < .5 ? -1 : 1) * (5 + Math.random() * 8)), 2, M.W - 3), y = clamp(Math.round(P.y + (Math.random() * 8 - 4)), 2, M.H - 3), i = y * M.W + x;
+      if (M.grid[i] === '.' && !M.props[i] && !(M.sidx && M.sidx[i] != null) && !capsuleAt(x, y) && !meteorAt(x, y)) return { x:x, y:y };
+    }
+    return null;
+  }
+  function meteorEventTick(dt){
+    if (!M || M.hq || M.indoor || !M.world) return;
+    if (METEOR_EVENT.active) {
+      METEOR_EVENT.active.t += dt;
+      if (METEOR_EVENT.active.t >= METEOR_EVENT.active.life) {
+        var e = METEOR_EVENT.active, spot = e.spot, met = { x:spot.x, y:spot.y, rarity:e.rarity };
+        M.meteors = M.meteors || []; M.timeCapsules = M.timeCapsules || []; M.meteors.push(met);
+        var cx = spot.x + (e.side < 0 ? 1 : -1), cy = spot.y + 1; if (M.grid[cy * M.W + cx] === '.') M.timeCapsules.push({ x:cx, y:cy, rarity:e.rarity });
+        METEOR_EVENT.active = null; METEOR_EVENT.next = 60000 + Math.random() * 240000; toast('METEOR IMPACT · a fresh crystal site has landed nearby'); sfx.reveal(); vibrate(180, .55); save();
+      }
+      return;
+    }
+    METEOR_EVENT.next -= dt * 1000;
+    if (METEOR_EVENT.next <= 0) { var spot = meteorLandingSpot(); if (spot) METEOR_EVENT.active = { t:0, life:1.15, spot:spot, side:Math.random() < .5 ? -1 : 1, rarity:Math.min(4, (M.world > 20 ? 2 : 0) + ((Math.random() * 3) | 0)) }; else METEOR_EVENT.next = 15000; }
+  }
   // THE SUIT ADAPTS (explorer/suit.js): each atmosphere works the air harder; a fitted module takes most of that away
   var SUITX = window.AOV_SUIT || { kinds:{}, env:{}, modules:[], adapted:1 };
   function atmo(e){
@@ -3133,6 +3157,7 @@
   }
   function updateSurface(dt, now){
     if (!P) return;
+    meteorEventTick(dt);
     updateFlight(dt);
     // stride: a step starts slow and builds to full pace while you keep going, and drops back when you stop
     P.spd = clamp((P.spd == null ? 1 : P.spd) + ((held || path.length) ? dt / .3 : -dt / .25), .55, 1);
@@ -6087,6 +6112,10 @@
     ctx.fillStyle = M.indoor ? '#0d0a08' : '#0b0912'; ctx.fillRect(0, 0, w, h);
     var ox = Math.round((w / 2 - (P.fx + .5) * TZ) / z) * z, oy = Math.round((h / 2 - (P.fy + .5) * TZ) / z) * z;
     var sh = shakeOffset(z); ox += sh[0]; oy += sh[1];
+    if (METEOR_EVENT.active) {
+      var me = METEOR_EVENT.active, q = clamp(me.t / me.life, 0, 1), tx = ox + (me.spot.x + .5) * TZ, ty = oy + (me.spot.y + .5) * TZ, sx = me.side < 0 ? -70 : w + 70, mx = sx + (tx - sx) * q, my = -55 + (ty + 55) * q, spin = q * 7;
+      ctx.save(); ctx.translate(mx, my); ctx.rotate(spin); ctx.fillStyle = 'rgba(255,130,55,.2)'; ctx.beginPath(); ctx.arc(0, 0, 22 * z, 0, 7); ctx.fill(); ctx.fillStyle = '#ff9a4b'; ctx.beginPath(); ctx.moveTo(0, -15 * z); ctx.lineTo(11 * z, 10 * z); ctx.lineTo(-8 * z, 14 * z); ctx.lineTo(-14 * z, -5 * z); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#fff0a3'; ctx.fillRect(-3 * z, -6 * z, 5 * z, 8 * z); ctx.restore();
+    }
     var x0 = Math.max(0, Math.floor(-ox / TZ) - 1), x1 = Math.min(M.W - 1, Math.ceil((w - ox) / TZ) + 1),
         y0 = Math.max(0, Math.floor(-oy / TZ) - 1), y1 = Math.min(M.H - 1, Math.ceil((h - oy) / TZ) + 2);
     var fr = Math.floor(now / 650) % 2, list = [], x, y;

@@ -4185,7 +4185,7 @@
   // the tiles the JETPACK cannot cross: walls, structures, the vault, landmarks, the ship and the marker stones
   var FLY_STOP = { '#':1, F:1, K:1, L:1, S:1, M:1, w:1 };
   var squareHeld = false, xDown = false, xTimer = null, xHeld = false, xJet = false, xLastTap = 0, jumpHeld = false;
-  var UTILITY_WHEEL = { open:false, hold:false, pressAt:0, timer:null };
+  var UTILITY_WHEEL = { open:false, hold:false, down:false, pressAt:0, timer:null };
   function approach(v, t, d){ return v < t ? Math.min(t, v + d) : Math.max(t, v - d); }
   function jet(){ if (!S.jet) S.jet = { repaired:false, equipped:false }; return S.jet; }
   function jetReady(){ var j = jet(); return !!(j.repaired && j.equipped); }
@@ -4266,7 +4266,9 @@
   }
   function useSelectedUtility(){ var u = activeUtil(); if (!u) { toast('No utility equipped.', 'red'); return false; } return useUtil(u); }
   function utilityOverlaySet(open){
-    var old = $('.x-util-overlay'); if (old) old.remove();
+    // The wheel is mounted on document.body, outside the #ui game container.
+    // Query the document so every previous wheel is removed before a repaint.
+    var old = doc.querySelector('.x-util-overlay'); if (old) old.remove();
     UTILITY_WHEEL.open = !!open;
     if (!open || !surfaceFree()) { UTILITY_WHEEL.open = false; UTILITY_WHEEL.hold = false; return; }
     var box = el('div', 'x-util-overlay'); box.setAttribute('role','dialog'); box.setAttribute('aria-label','Utility wheel');
@@ -4279,15 +4281,20 @@
   function utilityWheelPaint(){ if (UTILITY_WHEEL.open) utilityOverlaySet(true); }
   function utilityWheelDown(){
     if (!surfaceFree()) { utilityOverlaySet(false); return; }
-    UTILITY_WHEEL.pressAt = performance.now(); UTILITY_WHEEL.hold = false; clearTimeout(UTILITY_WHEEL.timer);
-    UTILITY_WHEEL.timer = setTimeout(function(){ UTILITY_WHEEL.hold = true; utilityOverlaySet(true); }, 220);
+    UTILITY_WHEEL.pressAt = performance.now(); UTILITY_WHEEL.hold = false; UTILITY_WHEEL.down = true; clearTimeout(UTILITY_WHEEL.timer);
+    UTILITY_WHEEL.timer = setTimeout(function(){
+      UTILITY_WHEEL.timer = null;
+      if (!UTILITY_WHEEL.down) return;
+      UTILITY_WHEEL.hold = true; utilityOverlaySet(true);
+    }, 220);
   }
   function utilityWheelUp(){
+    UTILITY_WHEEL.down = false;
     clearTimeout(UTILITY_WHEEL.timer); UTILITY_WHEEL.timer = null;
     if (UTILITY_WHEEL.hold) { utilityOverlaySet(false); UTILITY_WHEEL.hold = false; return; }
     utilityOverlaySet(!UTILITY_WHEEL.open);
   }
-  window.addEventListener('blur', function(){ if (UTILITY_WHEEL.open || UTILITY_WHEEL.timer) utilityOverlaySet(false); clearTimeout(UTILITY_WHEEL.timer); UTILITY_WHEEL.timer = null; });
+  window.addEventListener('blur', function(){ UTILITY_WHEEL.down = false; if (UTILITY_WHEEL.open || UTILITY_WHEEL.timer) utilityOverlaySet(false); clearTimeout(UTILITY_WHEEL.timer); UTILITY_WHEEL.timer = null; });
   // ○ uses the active utility: the ASTRABLASTER fires once per press.
   function squarePress(){
     squareHeld = true;

@@ -251,6 +251,30 @@
   function faceOff(){ var box = $('.x-dialog'); if (box) box.classList.remove('has-face'); }
   function withRc(spec, rc){ var p = spec.split('|'); return p[0] + '@' + rc + (p[1] ? '|' + p[1] : ''); }
   function heroSpec(dir, n){ return withRc(ART.frame(heroSet(), dir, n), 'player'); }
+  // Utility art is a native pixel layer, kept independent from the hero animation
+  // so any future animation without a dedicated pose still falls back to idle.
+  function utilitySprite(animName, animFrame, facing){
+    var u = activeUtil(), n = String(animName || ''), idx = 0, spec = null;
+    if (u === 'jetpack' && jetReady()) {
+      idx = n === 'jet_ignite' ? 1 : n === 'jet_fly' || n === 'jet_hover' ? 2 : n === 'jet_descent' ? 3 : 0;
+      if (n === 'jet_fly' || n === 'jet_hover') idx += (Math.floor(animFrame || 0) % 2);
+      spec = 'util_jetpack_' + idx;
+    } else if (u === 'astrablaster' && blasterReady()) {
+      idx = n === 'blaster_shoot' ? 2 : n === 'blaster_recoil' ? 3 : n === 'blaster_aim' ? 1 : 0;
+      // Keep the firing layer alive for the short muzzle animation even if the
+      // resolver has already returned to the base walk/idle pose.
+      if (wpnAnim > 0) idx = wpnAnim > .18 ? 2 : 3;
+      spec = 'util_blaster_' + idx;
+    }
+    if (!spec) return null;
+    var flip = facing === 'left' && u === 'astrablaster' ? '|flip' : '';
+    return spec + flip;
+  }
+  function drawUtilitySprite(X, Y, z, animName, animFrame, facing, behind){
+    var spec = utilitySprite(animName, animFrame, facing); if (!spec) return;
+    // Jetpack flames sit under the body; the blaster is held in front.
+    ART.draw(ctx, spec, X, Y + (behind ? 1 : 0) * z, z);
+  }
   function portraitDraw(c, look, gender, scale){
     var g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.imageSmoothingEnabled = false;
     applyLook(look, 'preview');
@@ -6277,12 +6301,13 @@
     var dt = Math.min(.05, (now - (P.aniAt || now)) / 1000); P.aniAt = now;
     var fr = A.advance(P.ani, r.id, dt, animEvent), anim = A.ANIMS[r.id], pose = carlPose(anim, Math.max(0, fr), st.facing);
     ctx.save(); ctx.translate(X, Y); ctx.scale(pose.sx, pose.sy); if (pose.lean) ctx.transform(1, 0, -pose.lean, 1, 0, 0); ctx.translate(-X, -Y);
-    drawPlayerBody(X, Y + pose.dy * z * 10, z);
+    drawPlayerBody(X, Y + pose.dy * z * 10, z, r.id, fr, st);
     ctx.restore();
   }
-  function drawPlayerBody(X, Y, z){
+  function drawPlayerBody(X, Y, z, animName, animFrame, st){
     shadow(X, Y, z, 10);
     Y -= (P && P.alt > 0 ? P.alt : 0) * 14 * z;   // the JETPACK lifts Carl off his shadow
+    drawUtilitySprite(X, Y, z, animName, animFrame, st && st.facing || P.dir, true);
     var stp = P.moving ? Math.floor(P.anim / 1.6) % 4 : 0, g = P.gait, now = performance.now();
     // sprint: kicked-up dust behind the boots
     if (g === 'sprint' && P.moving && (!P.dust.length || now - P.dust[P.dust.length - 1].t > 70)) P.dust.push({ x:P.fx, y:P.fy, t:now, j:(Math.random() - .5) * 6 });
@@ -6301,6 +6326,7 @@
       ctx.save(); ctx.translate(X, Y - bob); if (lean) ctx.transform(1, 0, -lean, 1, 0, 0);
       ART.draw(ctx, heroSpec(P.dir, stp), 0, 0, z); ctx.restore();
     } else ART.draw(ctx, heroSpec(P.dir, stp), X, Y, z);
+    drawUtilitySprite(X, Y, z, animName, animFrame, st && st.facing || P.dir, false);
   }
 
   // ═════════════════════════ INPUT · keyboard, touch, DualSense ═════════════════════════

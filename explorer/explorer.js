@@ -4345,8 +4345,8 @@
   function xPress(){
     if (xHeld || !surfaceFree()) return;
     xHeld = true; jumpHeld = false; xChargeT = 0;
-    var now = performance.now(), dbl = now - xLastTap < 360; xLastTap = now;
-    if (dbl && activeUtil() === 'jetpack' && jetReady()) { xJet = true; UTIL_DATA.jetT = JET.hold; toast('JETPACK ENGAGED · analog to steer'); }
+    var now = performance.now(), dbl = now - xLastTap < 500; xLastTap = now;
+    if (dbl && activeUtil() === 'jetpack' && jetReady()) { xJet = true; UTIL_DATA.jetT = JET.hold; toast(mode === 'side' ? 'CAVE JETPACK ENGAGED · hold ✕ + analog to steer' : 'JETPACK ENGAGED · analog to steer'); }
   }
   function xRelease(){
     var wasHeld = xHeld, wasJet = xJet, charge = xChargeT;
@@ -4366,7 +4366,12 @@
     if (tap) el.addEventListener('click', tap);
   }
   // the JETPACK is on while the second X press is held, and Carl is free to act
-  function jetOn(){ return xJet && activeUtil() === 'jetpack' && jetReady() && surfaceFree() && !carry; }
+  function jetOn(){
+    // Cave flight is a movement state, not a surface UI state. Keep it available
+    // while the side-view cave loop is active even if a cave overlay is present.
+    var playable = mode === 'surface' || (mode === 'side' && !!SIDE);
+    return xJet && activeUtil() === 'jetpack' && jetReady() && playable && !carry;
+  }
   // the field: lift builds to a steady climb while □ is held and fades when it is let go; gravity brings Carl down
   function updateFlight(dt){
     var thrust = jetOn();

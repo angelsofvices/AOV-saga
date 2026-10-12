@@ -15,12 +15,10 @@ import { HITBOX } from './hitbox.js';
 export const RESOURCES = {
   scrap_metal: { id: 'scrap_metal', name: 'Scrap Metal', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#a8744a',
     blurb: 'Salvaged metal and mechanical components used in technological crafting and repairs.' },
-  // Fresh Wood has no piles: it is the trunk of a felled tree, gathered by running over the lengths before they sink
-  // back into the soil (nature.js · trees.collectWood, game.js · freshWoodTick).
+  // Fresh Wood from fallen trees can be gathered from the logs, or carried as a lasting physical resource pile.
   fresh_wood: { id: 'fresh_wood', name: 'Fresh Wood', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#c9a36b',
     blurb: 'Green timber from a felled tree or a broken bush, gathered before the ground takes it back. Used in field crafting.' },
-  // Everstone has no piles either: it is the rubble of a smashed stone, gathered by running over the larger pieces
-  // before they sink (nature.js · stones.collectStone, game.js · freshWoodTick).
+  // Everstone from smashed rocks can be gathered from rubble, or carried as a lasting physical resource pile.
   everstone: { id: 'everstone', name: 'Everstone', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#9a968c',
     blurb: 'Broken stone gathered from the rubble of a smashed rock. Used in crafting and repairs.' },
   life_seed: { id: 'life_seed', name: 'Life Seed', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#7ee36b',
@@ -44,7 +42,7 @@ export function spend(cost) { if (!canAfford(cost)) return false; for (const c o
 // ── the Scrap Metal pile: pipes, a gear, plates, nuts, a bolt and a loop of cable. Four arrangements, one resource. ──
 const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0.35, flatShading: true, ...o });
 let MATS = null;
-const mats = () => MATS ||= { steel: mat('#74787f'), dark: mat('#3d3f44'), rust: mat('#8f4d24', { metalness: 0.15, roughness: 0.95 }), rust2: mat('#b0672e', { metalness: 0.15, roughness: 0.95 }), red: mat('#b3272c', { metalness: 0, roughness: 0.6 }), blue: mat('#2a5cb8', { metalness: 0, roughness: 0.6 }) };
+const mats = () => MATS ||= { steel: mat('#74787f'), dark: mat('#3d3f44'), rust: mat('#8f4d24', { metalness: 0.15, roughness: 0.95 }), rust2: mat('#b0672e', { metalness: 0.15, roughness: 0.95 }), red: mat('#b3272c', { metalness: 0, roughness: 0.6 }), blue: mat('#2a5cb8', { metalness: 0, roughness: 0.6 }), bark: mat('#76502f', { metalness: 0, roughness: 0.95 }), woodCut: mat('#c9a36b', { metalness: 0, roughness: 0.95 }), stone: mat('#96938b', { metalness: 0.06, roughness: 0.95 }) };
 function rnd(seed) { return () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const PARTS = {
   pipe(M, r) { const g = new THREE.Group(), R = 0.045 + r() * 0.025, L = 0.16 + r() * 0.1; g.add(new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 9, 1, true), Object.assign(M.steel.clone(), { side: THREE.DoubleSide }))); const lip = new THREE.Mesh(new THREE.TorusGeometry(R, 0.012, 5, 9), M.rust); lip.rotation.x = Math.PI / 2; lip.position.y = L / 2; g.add(lip); return g; },
@@ -72,7 +70,26 @@ export function buildScrapPile(variant = 0, seed = 1) {
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;
 }
-const PILE = { scrap_metal: buildScrapPile };
+function buildWoodPile(variant = 0, seed = 1) {
+  const g = new THREE.Group(), r = rnd(seed * 6151 + variant * 173), M = mats();
+  const count = 4 + variant;
+  for (let i = 0; i < count; i++) {
+    const radius = 0.09 + r() * 0.055, length = 0.42 + r() * 0.2, log = new THREE.Mesh(new THREE.CylinderGeometry(radius * (0.9 + r() * 0.2), radius, length, 7), M.bark);
+    log.rotation.z = Math.PI / 2 + (r() - 0.5) * 0.16; log.rotation.y = (r() - 0.5) * 0.55;
+    log.position.set((r() - 0.5) * 0.32, radius + i * 0.045, (r() - 0.5) * 0.32); log.castShadow = log.receiveShadow = true; g.add(log);
+    for (const side of [-1, 1]) { const end = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.91, 7), M.woodCut); end.position.copy(log.position); end.position.x += side * length * 0.5; end.rotation.y = side * Math.PI / 2; g.add(end); }
+  }
+  g.scale.setScalar(0.85); return g;
+}
+function buildEverstonePile(variant = 0, seed = 1) {
+  const g = new THREE.Group(), r = rnd(seed * 4283 + variant * 97), stone = mats().stone;
+  for (let i = 0, n = 5 + variant; i < n; i++) {
+    const size = 0.12 + r() * 0.14, rock = new THREE.Mesh(new THREE.DodecahedronGeometry(size, 0), stone);
+    rock.position.set((r() - 0.5) * 0.55, size * 0.72, (r() - 0.5) * 0.5); rock.rotation.set(r() * 2, r() * 6.2, r() * 2); rock.castShadow = rock.receiveShadow = true; g.add(rock);
+  }
+  return g;
+}
+const PILE = { scrap_metal: buildScrapPile, fresh_wood: buildWoodPile, everstone: buildEverstonePile };
 
 export function createResourcePiles(scene, world, fx, opts = {}) {
   const piles = [], wrecks = [], collected = new Set(inventory.picked?.resources || []);
@@ -80,7 +97,7 @@ export function createResourcePiles(scene, world, fx, opts = {}) {
   function add(resourceId, quantity, x, y, z, extra = {}) {
     const n = ++serial, mesh = (PILE[resourceId] || buildScrapPile)(n % 4, n + Math.round(Math.abs(x * 13 + z * 7)));
     mesh.position.set(x, y, z); mesh.visible = !hidden; scene.add(mesh);
-    const p = { id: `res-${n}`, resourceId, quantity: Math.max(1, Math.round(quantity)), name: RESOURCES[resourceId]?.name || resourceId, mesh, x, y, z, taken: false, settled: true, authored: false, vel: null, bounced: false, ...extra };
+    const p = { id: `res-${n}`, resourceId, quantity: Math.max(1, Math.round(quantity)), name: RESOURCES[resourceId]?.name || resourceId, mesh, x, y, z, taken: false, settled: true, authored: false, vel: null, bounced: false, pickupState: 'rest', pickupCooldown: 0, ...extra };
     piles.push(p); opts.onPile?.(p); return p;
   }
   // A one-time pile placed on purpose. Its id is stable, so once collected it never comes back.
@@ -111,7 +128,26 @@ export function createResourcePiles(scene, world, fx, opts = {}) {
   function update(dt, rizer) {
     clock += dt;
     for (const p of piles) {
-      if (p.settled) continue;
+      if (p.settled) {
+        // Like loose coins, common materials pull toward Rizer when he gets close.
+        // Life Seeds and other future resources remain deliberate/manual pickups.
+        if (!['fresh_wood', 'scrap_metal', 'everstone'].includes(p.resourceId)) continue;
+        if (!rizer || rizer.hp <= 0 || hidden) continue;
+        p.pickupCooldown = Math.max(0, p.pickupCooldown - dt);
+        const rp = rizer.position, dx = rp.x - p.x, dy = rp.y + 0.9 - p.y, dz = rp.z - p.z, d = Math.hypot(dx, dz), dist = Math.hypot(dx, dy, dz);
+        if (p.pickupState === 'pull') {
+          p.pullSpeed = Math.min(18, (p.pullSpeed || 3.2) + 22 * dt);
+          const step = Math.min(dist, p.pullSpeed * dt);
+          p.mesh.position.x += dx / (dist || 1) * step; p.mesh.position.y += dy / (dist || 1) * step; p.mesh.position.z += dz / (dist || 1) * step;
+          p.x = p.mesh.position.x; p.y = p.mesh.position.y; p.z = p.mesh.position.z;
+          p.mesh.scale.setScalar(Math.max(0.35, Math.min(1, dist / 1.6)));
+          if (dist < 0.65) {
+            if (opts.onAutoCollect?.(p)) continue;
+            p.pickupState = 'rest'; p.pickupCooldown = 1; p.mesh.scale.setScalar(1);
+          }
+        } else if (p.pickupCooldown <= 0 && d < 2.6 && Math.abs(p.y - rp.y) < 2.5) p.pickupState = 'pull';
+        continue;
+      }
       p.vel.y -= 16 * dt; p.mesh.position.addScaledVector(p.vel, dt); p.mesh.rotation.y += dt * 3;
       const gy = world.groundAt(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y + 1);
       if (p.mesh.position.y <= gy) { // heavy debris: one small bounce, never a roll

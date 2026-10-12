@@ -29,7 +29,9 @@ const M = f => 'lib:mori/' + f + '.fbx';
 const DEATHS = { clip: L('death_1'), more: [L('death_2'), L('death_3'), L('death_4')] };
 const PLAYER = {
   plantTree: { clip: L('Plant_Tree'), inPlace: true },
-  ladderClimb: { clip: L('Ladder_Climbing'), inPlace: true },
+  ladderStart: { clip: L('Start Climbing Ladder'), inPlace: true },
+  ladderClimb: { clip: L('Climbing Ladder'), inPlace: true },
+  ladderTop: { clip: L('Climbing To Top Of Ladder'), inPlace: true },
   walk: { clip: L('walk_1'), stride: 1.15 }, // same 1.17 s cadence, 15% longer steps (legs swing wider, covers more ground)
   stairWalkUp: { clip: L('Ascending Stairs'), inPlace: true },
   stairRunUp: { clip: L('Running Up Stairs'), inPlace: true },

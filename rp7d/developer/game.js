@@ -51,12 +51,12 @@ import { createAstragraphy } from './astragraphy.js';
 import { createAstragraphyLog } from './aethryx-data.js';
 import { createWestLakeBus } from './west-lake-bus.js';
 import { createPearlbow } from './pearlbow.js';
-import { resetAssignments, unregisterActor } from './anim-lib.js';
+import { resetAssignments, unregisterActor, exportDroppedClips, importDroppedClips } from './anim-lib.js';
 import { registerPlayableBuilds, savePlayableBuild, playableEntry, removeBuildAssets } from './build-library.js';
 import { createHUD } from './hud.js';
 import { createUILayout } from './ui-layout.js';
 import { setNight } from './props.js';
-import { createTreehouses } from './treehouses.js';
+import { createTreehouses, TREEHOUSE } from './treehouses.js';
 import { createHomeInterior } from './home-interior.js';
 import { createFurnitureMover } from './home-furniture.js';
 import { createSeating } from './seating.js';
@@ -442,7 +442,8 @@ function initStorage() {
   syncWorkstationKit();
   dep.sync(); // deployed Field Equipment comes back where it was left
   treehouses = createTreehouses({ scene, world, rizer, cam, home: homeInterior, blocked: deployBlocked, occupants: placementOccupants,
-    toast: showToast, prompt: (n,h) => dep?.showPrompt(n,h), enter: I => walkDoor('enter',I), exit: leaveHomeInterior, leaveDoor: I => walkDoor('exit',I), saveGame, foes, seers, fx, onGuardHit: partnerHit,
+    toast: showToast, prompt: (n,h) => dep?.showPrompt(n,h), enter: I => walkDoor('enter',I), exit: leaveHomeInterior, leaveDoor: I => walkDoor('exit',I), saveGame, foes, seers, fx,
+    dropResource: (id, quantity, x, y, z, push) => resources?.drop(id, quantity, x, y, z, push), onGuardHit: partnerHit,
     onAssign: id => { if (partner?.record.id === id) { scene.remove(partner.b.root); partner=null; inventory.activeZyrex=null; hud?.setPartner(null); } } });
 }
 const _pcPos = new THREE.Vector3(), _pcLook = new THREE.Vector3();
@@ -620,6 +621,11 @@ function pickupLoot(L) {
   if (rizer.speed > 4.5 && rizer.actor?.has('runpickup') && rizer.runPick(L, () => collectLoot(L, { running: true }))) return; // on the run: immediate boosted yield when the hand reaches fruit
   rizer.pickUp({ x: L.x, y: rizer.position.y + 0.2, z: L.z }, () => collectLoot(L), L.kind === 'bag' ? 'store' : 'pickup');
 }
+function collectAstralite(it) {
+  if (!canCarry(it.itemKey) || !world.nature?.userData?.stones?.collect(it)) return;
+  addItem(it.itemKey, 1); showToast(`ASTRALITE ACQUIRED · ${it.name} ×1`);
+  fx.emit(it.x, world.heightAt(it.x, it.z) + 0.7, it.z, 14, { color: '#85cfff', speed: 2.2, up: 1.3, size: 0.2, life: 0.5 });
+}
 // Rizer's front door. Entering: he walks up, takes the handle, pushes the door open and walks in; under a
 // quick dip to black the scene becomes the living room and he pulls the same door shut behind him. Leaving
 // is the same walk mirrored. The door leaf rides his hands (doorwalk.js); his body follows the clip's path.
@@ -715,14 +721,15 @@ function toggleMusic() { const m = !music.getState().muted; music.setMuted(m); s
 // The save is Rizer's place in the world; inventory, settings and music are saved on their own keys.
 const SAVE_KEY = 'rp7d.save.v1';
 const readSave = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } };
-let newArmed = false, titleIndex = 0;
+let newArmed = false, titleIndex = 0, lastSaveAt = readSave()?.t || 0, saveFailed = false;
 function saveGame() {
-  if (!started || !rizer || koT > 0 || ufoPilot || astralboard?.active) return;
+  if (!started || !rizer || koT > 0 || ufoPilot || astralboard?.active) return false;
   treehouses?.save();
   const hero = npcs?.npcs.find(n => n.role === 'hero');
   if (hero) { inventory.zorynMet = hero.met; inventory.zorynRecruited = hero.recruited || hero.wasRecruited; inventory.zorynDowned = hero.downed; inventory.zorynHealth = hero.health; saveInv(); }
   const p = rizer.position, at = homeMode ? homeReturn : caveMode && caveReturn ? { x: caveReturn.x, y: world.groundAt(caveReturn.x, caveReturn.z), z: caveReturn.z, facing: caveReturn.face } : { x: p.x, y: p.y, z: p.z, facing: rizer.facing };
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, t: Date.now(), home: homeMode && indoor === homeInterior, treehouse: homeMode && indoor.treehouse ? indoor.id : null, at, hour, region: hud?.regionOf(p.x, p.z) })); } catch (e) {}
+  try { const t = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, t, home: homeMode && indoor === homeInterior, treehouse: homeMode && indoor.treehouse ? indoor.id : null, at, hour, region: hud?.regionOf(p.x, p.z) })); lastSaveAt = t; saveFailed = false; return true; }
+  catch (e) { saveFailed = true; return false; }
 }
 function titleButtons() { return [...document.querySelectorAll('#title-menu .title-btn')].filter(b => !b.disabled); }
 function titleFocus(i) { const list = titleButtons(); if (!list.length) return; titleIndex = (i + list.length) % list.length; list.forEach((b, k) => b.classList.toggle('focus', k === titleIndex)); }
@@ -1017,6 +1024,32 @@ const downToast = h => h.nova ? `${h.name.toUpperCase()} DOWN${h.drop ? ` · ${h
 let ufoPilot = false, ufoTransition = null, ufoVelocity = new THREE.Vector3(), ufoBeam = null, ufoFireCooldown = 0, ufoTurboT = 0, ufoTurboCooldown = 0;
 let hour = 16.5, hourTarget = null, hitStop = 0, koT = 0, hurtTimer;
 let last = performance.now(), elapsed = 0;
+let journalReminderElapsed = 0;
+
+function journalProgress() { return inventory.playtestJournal ||= { started: false, found: false }; }
+function makeJournalProp() {
+  const g = new THREE.Group(), cover = new THREE.MeshStandardMaterial({ color: '#71332e', roughness: 0.78, flatShading: true }), pages = new THREE.MeshStandardMaterial({ color: '#e6d9bb', roughness: 0.92, flatShading: true }), gold = new THREE.MeshStandardMaterial({ color: '#d7ad56', metalness: 0.48, roughness: 0.44, flatShading: true });
+  const book = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.54), cover); book.position.y = 0.055; book.castShadow = true; book.receiveShadow = true; g.add(book);
+  const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.035, 0.49), pages); leaf.position.set(0.015, 0.073, 0); g.add(leaf);
+  const spine = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.1, 0.55), gold); spine.position.set(-0.19, 0.055, 0); g.add(spine);
+  for (const z of [-0.17, 0, 0.17]) { const mark = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.008, 0.012), gold); mark.position.set(0.02, 0.096, z); g.add(mark); }
+  g.position.y = 0.04; return g;
+}
+function startJournalMission() {
+  const J = journalProgress(); if (J.started) return;
+  J.started = true; saveInv();
+  const fountain = world?.interactables.find(q => q.id === 'rizer-journal-fountain'); if (fountain?.mesh) fountain.mesh.visible = true;
+  hud?.setMissionNote({ kicker: 'ACTIVE MISSION', text: 'INTO MALEZOR SQUARE · Get your journal near the fountain' });
+  hud?.banner('ZYPHONE REMINDER', 'Pick up your journal near the fountain');
+  zy?.refresh();
+}
+function completeJournalMission() {
+  const J = journalProgress(); if (!J.started || J.found) return;
+  J.found = true; saveInv();
+  const fountain = world?.interactables.find(q => q.id === 'rizer-journal-fountain'); if (fountain?.mesh) fountain.mesh.visible = false;
+  hud?.setMissionNote({ kicker: 'PLAYTEST JOURNAL', text: 'Open Zyphone · Missions to view tutorial tasks' });
+  zy?.refresh(); showToast('INTO MALEZOR SQUARE · COMPLETE · Journal added to Missions');
+}
 
 function build() {
   const tb = performance.now();
@@ -1026,6 +1059,14 @@ function build() {
   shared.groundAt = world.groundAt;
   sky = createSky(scene, shared);
   homeInterior = createHomeInterior(scene); indoor = homeInterior; homeMode = true; world.setExteriorVisible(false);
+  journalProgress();
+  const squareSite = world.interactables.find(q => q.id === 'malezor-square');
+  if (squareSite) {
+    const jx = squareSite.cx + 2.4, jz = squareSite.cz + 1.25, journalMesh = makeJournalProp();
+    const J = journalProgress();
+    journalMesh.position.set(jx, world.groundAt(jx, jz) + 0.08, jz); journalMesh.rotation.y = -0.35; journalMesh.visible = !!J.started && !J.found; scene.add(journalMesh);
+    world.interactables.push({ id: 'rizer-journal-fountain', name: 'Rizer’s Journal', kind: 'journal', note: 'Rizer’s playtest journal.', cx: jx, cz: jz, x: jx, z: jz, reach: 1.9, active: () => !!journalProgress().started && !journalProgress().found && !homeMode, mesh: journalMesh });
+  }
   storeInterior = createStoreInterior(scene); // the Malezor Town Store (the Gear Shop's door)
   homeInterior.setGuitarTaken(hasWeapon('guitar'));
   initTV();
@@ -1130,7 +1171,7 @@ function build() {
   for (const g of gatelocks.list) av.register({ id: g.id, kind: 'quest', far: true, tagHeight: 4.2, get label() { return gatelocks.label(g); }, pos: () => g.root.position, object: () => g.base, active: () => !homeMode });
   penumbras = createPenumbras(scene, world, W, fx, { dropChip: (x, z, y, v) => scanobots.dropChip(x, z, y, v), onEvent: penumbraEvent });
   bolts = createBolts(scene, world, fx, boltEvent);
-  resources = createResourcePiles(scene, world, fx, { onEvent: resourceEvent, onPile: s => { s.unreg = av.register({ id: s.id, kind: 'loot', label: `${s.name} ×${s.quantity}`, tagHeight: 0.7, pos: () => s.mesh.position, object: () => s.mesh, active: () => !s.taken && !homeMode }); } });
+  resources = createResourcePiles(scene, world, fx, { onEvent: resourceEvent, onAutoCollect: p => inventory.zycube ? false : takeResource(p), onPile: s => { s.unreg = av.register({ id: s.id, kind: 'loot', label: `${s.name} ×${s.quantity}`, tagHeight: 0.7, pos: () => s.mesh.position, object: () => s.mesh, active: () => !s.taken && !homeMode }); } });
   gatelocks.list.forEach((g, i) => { // authored test piles: discarded parts beside each Portal Gatelock (one-time; they stay collected)
     const q = g.root.position; [[3, 3.4, 0.6], [5, 3.9, 2.5], [4, 4.6, 4.3]].forEach(([n, r, a], k) => { const x = q.x + Math.sin(a + i) * r, z = q.z + Math.cos(a + i) * r; if (world.waterAt(x, z) < world.heightAt(x, z) - 0.1) resources.authored(`gatelock_${i + 1}_scrap_${String(k + 1).padStart(3, '0')}`, 'scrap_metal', n, x, z); });
   });
@@ -1138,6 +1179,9 @@ function build() {
   scanobots.setVisible(!homeMode); penumbras.setVisible(!homeMode); gatelocks.setVisible(!homeMode);
   rizer.weapon = inventory.equipped; rizer.swordAt = BLADES[inventory.equipped] ? 'hand' : 'hip'; rizer.handWeapon = BLADES[inventory.equipped] ? inventory.equipped : null; syncWheel(); wheel.render(); applySettings();
   hud = createHUD(W, world); hud.setProgress(progression.info);
+  if (journalProgress().started) hud.setMissionNote(journalProgress().found
+    ? { kicker: 'PLAYTEST JOURNAL', text: 'Open Zyphone · Missions to view tutorial tasks' }
+    : { kicker: 'ACTIVE MISSION', text: 'INTO MALEZOR SQUARE · Go to the fountain' });
   // RXP sources · exploration: a named region, a landmark, the first objectives. Each pays once, ever (rxp-rewards.js).
   const homeRegion = hud.regionOf(W.playerStart.x, W.playerStart.z);
   hud.onEvent = (type, d) => {
@@ -1168,7 +1212,7 @@ function build() {
     .catch(e => console.warn('[rp7d] seers failed to load', e));
   zy = createZyphone({
     W, hud, characters: CHARACTERS, itemCatalog: ITEMS, onUseItem: k => useItem(k),
-    getState: () => ({ hour, dev: settings.dev, hp: rizer.hp, maxHp: rizer.maxHp, charKey: rizer.charKey, defeated: seers?.defeated || 0, seers: seers?.total || W.seerPatrols.length, region: hud.regionOf(rizer.position.x, rizer.position.z), x: rizer.position.x, y: rizer.position.y, z: rizer.position.z, contacts: npcs?.npcs.filter(n => n.met).map(n => ({ name:n.name, note:n.recruited ? 'Companion · following Rizer' : n.downed ? 'Downed · lock on and press D-pad ↓ to revive' : 'Contact · Malezor' })) || [] }),
+    getState: () => ({ hour, dev: settings.dev, hp: rizer.hp, maxHp: rizer.maxHp, charKey: rizer.charKey, journal: journalProgress(), defeated: seers?.defeated || 0, seers: seers?.total || W.seerPatrols.length, region: hud.regionOf(rizer.position.x, rizer.position.z), x: rizer.position.x, y: rizer.position.y, z: rizer.position.z, controlInput: usingPad ? 'controller' : 'keyboard', controlContext: westLakeBus?.driving ? 'bus' : astralboard?.active ? 'board' : ufoPilot ? 'ufo' : homeMode || caveMode ? 'interior' : rizer.ledge ? 'traversal' : rizer.actor?.fighting || astral.lock?.kind === 'enemy' || astral.lock?.kind === 'scanobot' ? 'combat' : 'field', saveTime: lastSaveAt, saveFailed, contacts: npcs?.npcs.filter(n => n.met).map(n => ({ name:n.name, note:n.recruited ? 'Companion · following Rizer' : n.downed ? 'Downed · lock on and press D-pad ↓ to revive' : 'Contact · Malezor' })) || [] }),
     onPartner: id => { const ok = setPartner(id); if (ok) showToast(`${partner.record.name} walks with you`); return ok; },
     labsHub: makeLabsHub(), astralHub: makeAstralHub(), onLabsView: on => setLabsView(on),
     onTime: h => { if (settings.dev) hourTarget = h > hour + 0.05 ? h : h + 24; },
@@ -1207,7 +1251,7 @@ function build() {
     onOpen: () => { keys.clear(); if (document.pointerLockElement) document.exitPointerLock(); $('#game').classList.add('lab-open'); },
     onClose: () => { $('#game').classList.remove('lab-open'); canvas.focus?.(); }
   });
-  const uiLayout = createUILayout($('#game'), $('#layout-toggle'));
+  uiLayout = createUILayout($('#game'), $('#layout-toggle'));
   $('#layout-toggle').addEventListener('click', () => uiLayout.toggle());
   document.addEventListener('mousemove', e => { if ((locked || dragging) && !zy.isOpen && !n3000?.isOpen && !tv?.isOpen) { cam.look(e.movementX * 0.0022 * settings.sens, e.movementY * 0.0018 * settings.sens * (settings.invertY ? -1 : 1)); setPad(false); } });
   $('#map-canvas').addEventListener('click', e => devMapJump(hud.mapToWorld(e.clientX, e.clientY)));
@@ -1549,16 +1593,16 @@ function scopeCamera(dt) { // runs after the follow camera has placed itself: bl
 // to knock its scrap loose. Picking a pile up adds its quantity to the one stack in the bag. No RXP, no currency. ──
 let resources = null;
 function takeResource(p) {
-  if (inventory.zycube) return showToast('No Zycube · nowhere to carry loot · find your Zycube (AV)');
-  if (!canCarry(p.resourceId, p.quantity)) return;
-  const got = resources?.take(p); if (!got) return;
+  if (inventory.zycube) { showToast('No Zycube · nowhere to carry loot · find your Zycube (AV)'); return false; }
+  if (!canCarry(p.resourceId, p.quantity)) return false;
+  const got = resources?.take(p); if (!got) return false;
   const total = addResource(got.resourceId, got.quantity), name = RESOURCES[got.resourceId].name.toUpperCase();
   fx.emit(p.x, p.y + 0.2, p.z, 8, { color: '#d8c4a0', speed: 1.4, up: 1, size: 0.16, life: 0.35 });
   sfx.play('light', 0.5, 0.62); sfx.play('land', 0.25, 1.5); // compact and metallic
   showToast(`+${got.quantity} ${name} · ${total} carried`);
+  return true;
 }
-// Fresh Wood: run over the lengths of a felled tree before they sink back into the soil (no button, like coins).
-// Everstone the same way: run over the larger rubble of a smashed stone before it sinks (bushes give Fresh Wood too).
+// Fresh Wood logs and Everstone rubble remain in the world until Rizer runs over them to collect them.
 function freshWoodTick() {
   if (homeMode || !rizer || rizer.hp <= 0 || rizer.flying || ufoPilot || inventory.zycube) return;
   const N = world.nature?.userData, p = rizer.position;
@@ -1726,10 +1770,11 @@ function updateBow(dt, held) {
 
 // ── Zyphone: Options + Dev ─────────────────────────────────────────
 const SKEY = 'rp7d.settings.v1';
-const settings = (() => { try { return { hints: true, minimap: true, coords: true, sens: 1, invertY: false, dev: false, god: false, stats: false, slow: false, devMap: false, ...JSON.parse(localStorage.getItem(SKEY) || '{}') }; } catch (e) { return { hints: true, minimap: true, coords: true, sens: 1, invertY: false, dev: false, god: false, stats: false, slow: false }; } })();
+const DEFAULT_SETTINGS = { hints: true, minimap: true, coords: true, sens: 1, invertY: false, dev: false, god: false, stats: false, slow: false, devMap: false };
+const settings = (() => { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SKEY) || '{}') }; } catch (e) { return { ...DEFAULT_SETTINGS }; } })();
 const saveSettings = () => { try { localStorage.setItem(SKEY, JSON.stringify(settings)); } catch (e) {} };
 const SENS = [0.5, 0.75, 1, 1.35, 1.8];
-let resetArmed = 0, fpsAcc = 0, fpsN = 0, fps = 0;
+let resetArmed = 0, settingsResetArmed = 0, fpsAcc = 0, fpsN = 0, fps = 0, uiLayout = null;
 const statsEl = Object.assign(document.createElement('div'), { className: 'devstats', hidden: true }); $('#game').appendChild(statsEl);
 // Coordinates panel: live X / Y / Z, facing and region. Click it to copy a ready-to-paste
 // placement line for dropping 3D assets, e.g. { x: -33.52, y: 1.20, z: -4.21, facing: 1.19 } // Malezor Square
@@ -1770,6 +1815,12 @@ function applySettings() {
 const onOff = v => v ? 'ON' : 'OFF';
 function optionsMenu() {
   return [
+    { head: 'SAVE & BACKUP' },
+    { act: 'save-now', label: saveFailed ? 'Save failed · try again' : 'Save progress now', note: lastSaveAt ? `Last saved ${new Date(lastSaveAt).toLocaleString()}` : 'No save recorded yet', value: saveFailed ? 'RETRY' : 'SAVE' },
+    { act: 'backup-export', label: 'Download backup', note: 'Progress, settings, layout, labs and imported Anim Lab clips.', value: 'JSON ↓' },
+    { act: 'backup-import', label: 'Restore backup', note: 'Restore a backup file from this device.', value: 'JSON ↑' },
+    { act: 'reset-layout', label: 'Reset HUD layout', note: 'Return panels to their default positions.', value: 'DEFAULT' },
+    { act: 'reset-settings', label: settingsResetArmed > 0 ? 'Press again to reset settings' : 'Reset settings', note: 'Restore display and camera options to their defaults.', value: settingsResetArmed > 0 ? 'CONFIRM' : 'RESET' },
     { head: 'CAMERA' },
     { act: 'sens', label: 'Look sensitivity', value: `${settings.sens}×` },
     { act: 'invert', label: 'Invert camera up / down', value: onOff(settings.invertY) },
@@ -1786,6 +1837,46 @@ function optionsMenu() {
     { head: 'GAME' },
     { act: 'reset', label: resetArmed > 0 ? 'Press again to reset' : 'Reset game', note: 'Starts Malezor over: closes the chest, takes the sword back, forgets places found. Settings and Anim Lab work are kept.', value: resetArmed > 0 ? 'CONFIRM' : 'RESET', danger: true }
   ];
+}
+function showSaveResult() {
+  const ok = saveGame();
+  showToast(ok ? 'Progress saved' : !started ? 'Start playing before saving' : koT > 0 ? 'Cannot save while down' : ufoPilot || astralboard?.active ? 'Save after leaving the vehicle' : 'Save failed · check browser storage');
+  if (zy?.isOpen && zy.tab === 'options') zy.open('options');
+}
+function downloadBackup() {
+  Promise.resolve().then(async () => {
+    if (started) saveGame();
+    const localStorageData = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i); if (key?.startsWith('rp7d.')) localStorageData[key] = localStorage.getItem(key);
+    }
+    const backup = { format: 'rp7d-backup', version: 1, createdAt: new Date().toISOString(), localStorage: localStorageData, animationClips: await exportDroppedClips() };
+    const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = `rp7d-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`Backup downloaded · ${Object.keys(localStorageData).length} records · ${backup.animationClips.length} clips`);
+  }).catch(e => { console.warn('[rp7d] backup export failed', e); showToast('Backup could not be created'); });
+}
+function chooseBackup() {
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0]; if (!file) return;
+    if (file.size > 200 * 1024 * 1024) return showToast('Backup is too large to restore');
+    try {
+      const backup = JSON.parse(await file.text());
+      if (backup?.format !== 'rp7d-backup' || backup.version !== 1 || !backup.localStorage || typeof backup.localStorage !== 'object' || Array.isArray(backup.localStorage)) throw new Error('This is not a supported RP7D backup');
+      const pairs = Object.entries(backup.localStorage);
+      if (pairs.length > 10000 || pairs.some(([key, value]) => !key.startsWith('rp7d.') || typeof value !== 'string')) throw new Error('Backup contains invalid game data');
+      const clipRows = backup.animationClips ?? [];
+      if (!Array.isArray(clipRows) || clipRows.length > 100 || clipRows.some(row => !row || typeof row.name !== 'string' || !/\.(fbx|glb|gltf)$/i.test(row.name) || typeof row.data !== 'string')) throw new Error('Backup contains an invalid animation clip list');
+      if (!window.confirm(`Restore ${pairs.length} saved game records and ${clipRows.length} Anim Lab clips? Matching records and clip names will be replaced.`)) return;
+      const clips = await importDroppedClips(clipRows);
+      const before = new Map(pairs.map(([key]) => [key, localStorage.getItem(key)]));
+      try { for (const [key, value] of pairs) localStorage.setItem(key, value); }
+      catch (e) { for (const [key, value] of before) { try { value == null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch {} } throw new Error('Not enough browser storage to restore this backup'); }
+      showToast(`Backup restored · ${pairs.length} records · ${clips} Anim Lab clips · reload to apply`);
+    } catch (e) { console.warn('[rp7d] backup restore failed', e); showToast(e.message || 'Backup could not be restored'); }
+  }, { once: true });
+  input.click();
 }
 function devMenu() {
   const rows = [{ act: 'dev', label: 'Dev mode', note: 'Unlocks the tools below.', value: onOff(settings.dev), on: settings.dev }];
@@ -1848,6 +1939,17 @@ function teleport(x, z) { rizer.position.set(x, world.groundAt(x, z), z); rizer.
 function menuAction(act) {
   if (act === 'plant-tree') { zy.close(); treehouses?.start(); return; }
   if (act !== 'reset') resetArmed = 0;
+  if (act !== 'reset-settings') settingsResetArmed = 0;
+  if (act === 'save-now') { showSaveResult(); return; }
+  if (act === 'backup-export') { downloadBackup(); return; }
+  if (act === 'backup-import') { chooseBackup(); return; }
+  if (act === 'reset-layout') { uiLayout?.reset(); showToast('HUD layout restored'); return; }
+  if (act === 'reset-settings') {
+    if (settingsResetArmed <= 0) { settingsResetArmed = 4; return; }
+    for (const key of Object.keys(settings)) delete settings[key];
+    Object.assign(settings, DEFAULT_SETTINGS); music.setMuted(false); music.setVolume(0.16); sfx.setMuted(false); sfx.setVolume(0.8);
+    saveSettings(); applySettings(); showToast('Settings restored'); return;
+  }
   if (act === 'sens') settings.sens = SENS[(SENS.indexOf(settings.sens) + 1) % SENS.length];
   if (act === 'invert') settings.invertY = !settings.invertY;
   if (act === 'hints') settings.hints = !settings.hints;
@@ -1927,6 +2029,7 @@ function hitboxTick() { // Dev → Show hitboxes
 }
 function devTick(dt) {
   if (resetArmed > 0) { resetArmed -= dt; if (resetArmed <= 0 && zy.isOpen && zy.tab === 'options') zy.open('options'); }
+  if (settingsResetArmed > 0) { settingsResetArmed -= dt; if (settingsResetArmed <= 0 && zy.isOpen && zy.tab === 'options') zy.open('options'); }
   fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
   if (settings.dev && rizer) { // dev strip under the ZHUD, like RP7B's
     const p = rizer.position, K = W.tileScale || 2;
@@ -1962,6 +2065,7 @@ const seerHooks = {
     // every blow that actually touches a stone, a tree or a bush hurts it, by what the blow is worth (no lock needed)
     const handStrike = ['punch', 'runpunch'].includes(at?.kind);
     if (!handStrike || segment.part?.endsWith('Hand')) world.nature?.userData?.breakables?.strike(segment, damage, hitKey);
+    if (!handStrike || segment.part?.endsWith('Hand')) treehouses?.strike(segment, damage, hitKey);
   },
   onLanded: (h, kind) => {
     lastLanded = elapsed;
@@ -2133,6 +2237,11 @@ function update(dt, t, realDt = dt) {
   if (pressed.has('Tab') && started) { skinLab?.close(); buildLab?.close(); zy.open(); }
   const pcLock = !!pcUse && pcUse.phase !== 'walk'; // in front of the Nebuladock: locomotion and combat are off
   const menu = zy.isOpen || wasOpen || !!stationUI?.isOpen || stWas || pcLock || !!treehouses?.isOpen, ko = koT > 0;
+  // First playtest objective: wait 15 seconds of active gameplay, then send one temporary Zyphone reminder.
+  if (started && !menu && !journalProgress().started && !journalProgress().found) {
+    journalReminderElapsed += dt;
+    if (journalReminderElapsed >= 15) startJournalMission();
+  }
   if ((zy.isOpen || stationUI?.isOpen) && dep?.placing) dep.cancel(true); // opening a menu abandons a placement
   dep?.showPrompt(null); // re-shown below when something usable is in reach
   if (!menu && homeMode && indoor.treehouse) dep?.showPrompt('RIZER’S TREEHOUSE','○ / E manage · R lock / □ move furniture');
@@ -2174,7 +2283,7 @@ function update(dt, t, realDt = dt) {
   if (!menu && started && !treehouses?.busy && pressed.has('KeyN')) { if (homeMode && indoor.treehouse) indoor.manage(); else if (!homeMode) { const near=treehouses?.nearest(); if(near) treehouses.open(near.rec); } pressed.delete('KeyN'); }
   const treeNear = !homeMode && !menu && act ? treehouses?.nearest() : null;
   if (treeNear && (pressed.has('KeyE') || pad?.interact)) treehouses.interact();
-  else if (treeNear && (pad?.kick || pressed.has('KeyK')) && Math.abs(rizer.position.y-treeNear.rec.y-4.6)<.7) treehouses.descend(treeNear.rec);
+  else if (treeNear && (pad?.kick || pressed.has('KeyK')) && Math.abs(rizer.position.y-treeNear.rec.y-TREEHOUSE.height)<.7) treehouses.descend(treeNear.rec);
   const treeConsumed = !!treehouses?.busy || !!treehouses?.isOpen || (!!treeNear && !!rizer.seq);
   if (treeConsumed) { inp.x=inp.z=0; inp.jumpPressed=inp.jumpHeld=inp.crouchPressed=inp.dodgePressed=inp.emotePressed=false; for(const k of ['KeyE','KeyF','KeyJ','KeyK','MousePunch','MouseKick']) pressed.delete(k); }
   if (homeMode && indoor.treehouse) indoor.mover.update(dt,inp,{active:act&&!menu,lock:pressed.has('KeyR')||pressed.has('MouseLock')||!!pad?.lock,square:pressed.has('KeyJ')||pressed.has('MousePunch')||!!pad?.punch,cancel:pressed.has('KeyE')||!!pad?.interact});
@@ -2282,6 +2391,8 @@ function update(dt, t, realDt = dt) {
       if (it?.kind === 'npc') {
         if (it.id === 'npc-zoryn' && npcs?.meet(it)) { inventory.zorynMet = true; saveInv(); showToast('CONTACT DISCOVERED · ZORYN'); }
         hud.say(it.name, npcs?.talk(it) || it.note);
+      } else if (it?.kind === 'journal') {
+        rizer.pickUp({ x: it.x, y: rizer.position.y + 0.2, z: it.z }, completeJournalMission, 'pickup');
       } else if (it?.kind === 'goldchest') { // gold chest: walk up to the lock, lift the lid, and its Lightbulb floats out
         const c = lightbulbs?.find(it.id), f = c?.front();
         if (c?.state === 'closed') rizer.walkTo(f, f.face, () => { if (c.state !== 'closed') return; rizer.playInteract(false); later(0.28, () => lightbulbs.open(it.id)); }, { around: f.around });
@@ -2317,12 +2428,8 @@ function update(dt, t, realDt = dt) {
           }
         }, 'store');
       } else if (it?.kind === 'astraliteGem') {
-        rizer.pickUp({ x: it.x, y: rizer.position.y + 0.2, z: it.z }, () => {
-          if (!canCarry(it.itemKey)) return;
-          if (!world.nature?.userData?.stones?.collect(it)) return;
-          addItem(it.itemKey, 1); showToast(`ASTRALITE ACQUIRED · ${it.name} ×1`);
-          fx.emit(it.x, world.heightAt(it.x, it.z) + 0.7, it.z, 14, { color: '#85cfff', speed: 2.2, up: 1.3, size: 0.2, life: 0.5 });
-        }, 'pickup');
+        if (!(rizer.speed > 4.5 && rizer.actor?.has('runpickup') && rizer.runPick({ x: it.x, y: it.y, z: it.z }, () => collectAstralite(it))))
+          rizer.pickUp({ x: it.x, y: rizer.position.y + 0.2, z: it.z }, () => collectAstralite(it), 'pickup');
       }
     }
     else if (!rizer.flying && (pressed.has('KeyF') || circle)) rizer.strike('blast');

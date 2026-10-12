@@ -83,7 +83,7 @@ export function createHUD(W, world) {
     el.classList.toggle('low', f > 0 && f < 0.25);
     [...el.children].forEach((c, i) => { const k = clamp01(lit - i); c.classList.toggle('empty', k <= 0); style(c, '--f', k.toFixed(2)); });
   }
-  let lootHint = null; // name of the loot ○ would pick up right now (set by game.js each frame)
+  let lootHint = null, missionNote = null; // active playtest objective takes precedence over the general field note
   let partner = null; // { name, type, lv, hp, maxHp, ap, maxAp } once bonding exists
   function setPartner(p) { partner = p; }
 
@@ -94,6 +94,7 @@ export function createHUD(W, world) {
   }
   function setNote(kicker, text) { $('#note-kicker').textContent = kicker; $('#note-text').textContent = text; }
   function refreshNote() {
+    if (missionNote) return setNote(missionNote.kicker, missionNote.text);
     if (!reachedSquare) return setNote('FIELD NOTE', 'Head down the lane into Malezor Square');
     setNote(`FIELD NOTE · ${found.size}/${places.length} PLACES`, found.size >= places.length ? 'Every landmark of Malezor found' : 'Explore Malezor — find every landmark');
   }
@@ -351,7 +352,7 @@ export function createHUD(W, world) {
   }
   function interact() {
     if (!promptTarget) return false;
-    if (promptTarget.kind === 'chest' || promptTarget.kind === 'enemyLoot' || promptTarget.kind === 'astraliteGem') { $('#prompt').classList.remove('show'); return promptTarget; } // world loot handles itself, no card
+    if (promptTarget.kind === 'chest' || promptTarget.kind === 'enemyLoot' || promptTarget.kind === 'astraliteGem' || promptTarget.kind === 'journal') { $('#prompt').classList.remove('show'); return promptTarget; } // world loot handles itself, no card
     $('#card-title').textContent = promptTarget.name; $('#card-text').textContent = promptTarget.note || '';
     $('#card-kicker').textContent = KIND[promptTarget.kind] || 'MALEZOR';
     $('#card').classList.add('show'); $('#prompt').classList.remove('show'); cardTimer = 5.5; return promptTarget;
@@ -378,6 +379,6 @@ export function createHUD(W, world) {
     if (gained > 0 && gain) { gain.textContent = `+${countFormat.format(gained)} RXP`; again(gain, 'show'); }
   }
   function setWallet(inv) { text('coins-num', countFormat.format(inv.coins || 0)); text('gems-num', countFormat.format(inv.gems || 0)); }
-  const api = { onEvent: null, mapToWorld, get mapCursor() { return mapCursor; }, set mapCursor(v) { mapCursor = v; }, extent: E, isLand, get mapView() { return mapView; }, setMapView, toggleMapView: () => setMapView(mapView === 'world' ? 'district' : 'world'), mapBounds: () => mapView === 'world' ? ZB : { x0: -E, x1: E, z0: -E, z1: E }, setScanSource: f => { getScan = f; }, setLootHint: n => { lootHint = n || null; }, setPartner, setWallet, setProgress, update, interact, say, resize, banner, places, found, regionOf: regionName, kindLabel: k => KIND[k] || 'MALEZOR', get hasPrompt() { return !!promptTarget; }, get doorPrompt() { return !!promptTarget?.door; }, get promptTarget() { return promptTarget; } };
+  const api = { onEvent: null, mapToWorld, get mapCursor() { return mapCursor; }, set mapCursor(v) { mapCursor = v; }, extent: E, isLand, get mapView() { return mapView; }, setMapView, toggleMapView: () => setMapView(mapView === 'world' ? 'district' : 'world'), mapBounds: () => mapView === 'world' ? ZB : { x0: -E, x1: E, z0: -E, z1: E }, setScanSource: f => { getScan = f; }, setLootHint: n => { lootHint = n || null; }, setMissionNote(note) { missionNote = note ? { ...note } : null; refreshNote(); }, setPartner, setWallet, setProgress, update, interact, say, resize, banner, places, found, regionOf: regionName, kindLabel: k => KIND[k] || 'MALEZOR', get hasPrompt() { return !!promptTarget; }, get doorPrompt() { return !!promptTarget?.door; }, get promptTarget() { return promptTarget; } };
   return api;
 }

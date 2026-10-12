@@ -31,12 +31,40 @@ export const TIME_PRESETS = [
   { h: 18.7, name: 'Golden hour' }, { h: 20.3, name: 'Dusk' }, { h: 23.5, name: 'Night' }
 ];
 
+// Kept beside the live controls page so each action has one reference in the UI.
+// The active context is supplied by game.js; the player can still browse any mode.
+const CONTROL_GUIDE = {
+  field: { name:'On foot', rows:[
+    ['Move','W A S D / arrows','Left stick'],['Look','Mouse drag / captured mouse','Right stick'],['Walk / run','WASD / Shift','Left stick / R2'],
+    ['Jump / double jump','Space / Space again','✕ / ✕ again'],['Crouch / stealth','X','L3'],['Interact / pick up','E','○'],['Lock / release target','R / middle click','R3'],['Open Zyphone','Tab','Touchpad']
+  ]},
+  combat: { name:'Combat & Astral', rows:[
+    ['Punch combo','J / left click','□'],['Kick combo','K / right click','△'],['Astral Blast','F','○'],['Dodge roll / slide','C tap / hold','L2 tap / hold'],['Block','Shift + C hold','L2 + R2 hold'],['Astralvision','B','L3 + R3'],['Focus move','Direction keys shown in Focus setup','Lock + assigned D-pad direction'],['Swap locked target','Z / V','Right-stick flick']
+  ]},
+  traversal: { name:'Parkour & flight', rows:[
+    ['Jump / double jump','Space / Space again','✕ / ✕ again'],['Fly','Double jump, hold Space','Double jump, hold ✕'],['Rise / descend','Space / X','✕ / L3'],['Grab a ledge','Jump toward its edge','✕ toward its edge'],['Climb while hanging','Space','✕'],['Drop while hanging','X or C','L3 or L2'],['Crouch / walk to an edge','X / WASD','L3 / left stick'],['Vault a low obstacle','Run + Space','Run + ✕']
+  ]},
+  bus: { name:'West Lake Bus', rows:[
+    ['Steer','A / D','Left stick'],['Accelerate','W','R2'],['Brake / reverse','S','L2'],['Handbrake','Q','R1'],['Boost','Space','✕'],['Look behind','V','R3'],['Headlights','L','D-pad ↑'],['Horn','H','L3'],['Fold / unfold stop sign','F','○'],['Exit bus','E','△'],['Radio station','R / T · B hold','D-pad ← / → · L1 hold']
+  ]},
+  board: { name:'Astralboard', rows:[
+    ['Steer / look','W A S D / mouse','Left / right stick'],['Push / boost','Shift hold','R2 hold'],['Rise / descend','Space / X','✕ / L3'],['Dismount on ground','E','△'],['Stow board','O','○']
+  ]},
+  ufo: { name:'Aetherstride', rows:[
+    ['Steer','W A S D / arrows','Left stick'],['Accelerate','Shift','R2'],['Rise / descend','Space / C','✕ / L3'],['Turbo / locked laser','F','○'],['Exit craft','E','△']
+  ]},
+  interior: { name:'Interiors & menus', rows:[
+    ['Move / look','W A S D / mouse','Left / right stick'],['Interact / doors','E / Space at door','○ / ✕ at door'],['Move furniture','R to lock · J to pick · E cancel','R3 · □ · ○'],['Zyphone','Tab','Touchpad'],['Navigate menus','Arrows / Enter / Esc','D-pad / ✕ / ○']
+  ]}
+};
+
 export function createZyphone({ W, hud, characters, getState, onTime, onCharacter, onAnimLab, onSkinLab, onBuildLab, weapons, inventory, storage = null, crafting = null, onDeploy, onPackDeployed, itemCatalog = {}, onUseItem, onPartner, onWeapon, onWheel, icons = {}, menus, onAction, onOpen, onClose, labsHub = null, astralHub = null, onLabsView }) {
   const root = $('#zyphone');
   let isOpen = false, tab = 0, focus = 0;
   let fpick = null, axMode = 'attr'; // Focus: the move being placed on a D-pad direction · which side of the page (attributes | moves)
   let carry = null; // Armory: what's being moved — { from: 'slot', i, k } or { from: 'bag', k }
-  let homeEdit = false, homeDrag = null;
+  let homeEdit = false, homeDrag = null, journalOpen = false;
+  let controlContext = null;
   const lastIn = {}; // the page each section was last on, so coming back to a section returns there
   const tabsEl = root.querySelector('.zy-tabs'), subEl = document.createElement('nav');
   tabsEl.innerHTML = GROUPS.map(g => `<button data-group="${g.id}" role="tab">${g.name}</button>`).join('');
@@ -87,6 +115,15 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
         ? st.contacts.map(c => `<div class="zy-note"><small>MALEZOR · HERO</small><b>${esc(c.name)}</b><p>${esc(c.note)}</p></div>`).join('')
         : '<p>People, messages and lore connections will appear here as Rizer meets Malezor\'s residents.</p>'}`;
     }
+    if (key === 'missions') {
+      const page = root.querySelector('.zy-page[data-page="missions"]'), J = st.journal || {};
+      let cards;
+      if (!J.started) cards = '<article><small>NO ACTIVE MISSION</small><b>Playtest Journal</b><span>Your first Zyphone reminder will arrive during gameplay. It will point you to Rizer’s journal near the Malezor Square fountain.</span></article>';
+      else if (!J.found) cards = '<article><small>ACTIVE · MAIN MISSION</small><b>INTO MALEZOR SQUARE</b><span>Go to the fountain and pick up your journal.</span></article>';
+      else if (journalOpen) cards = '<article class="current"><small>COMPLETE · MAIN MISSION</small><b>INTO MALEZOR SQUARE</b><span>You found your journal at the fountain.</span></article><button class="zy-item" data-item data-journal-back>← Back to Missions</button><article><small>PLAYTEST JOURNAL</small><b>Rizer’s Journal</b><span>Demo walkthrough and gameplay tasks. New playtest tasks will be added here as features are ready.</span></article><div class="zy-note locked"><small>TUTORIAL TASKS</small><p>Tasks will appear here as the demo grows.</p></div>';
+      else cards = '<article><small>COMPLETE · MAIN MISSION</small><b>INTO MALEZOR SQUARE</b><span>You found your journal at the fountain.</span></article><button class="zy-item" data-item data-journal-open><span>Rizer’s Journal</span><small>OPEN PLAYTEST TASKS ›</small></button>';
+      if (page) page.innerHTML = `<h2>MISSIONS</h2><p>Playtest objectives and tutorial tasks for the current build.</p><div class="zy-system-cards">${cards}</div>`;
+    }
     const labsPage = (key === 'rizer' && !!labsHub) || (key === 'astral' && !!astralHub); // LABS pages: Rizer in the open middle
     root.classList.toggle('labs', labsPage); root.classList.toggle('labs-astral', key === 'astral' && labsPage); onLabsView?.(isOpen && labsPage ? key : null);
     heroEl.hidden ||= labsPage;
@@ -112,6 +149,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (key === 'weapons') renderArmory();
     if (key === 'items') renderItems();
     if (key === 'experiment') renderExperiment();
+    if (key === 'controls') renderControls(st);
     if (key === 'options' || key === 'dev') { // generic setting / action rows supplied by game.js
       const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
       const rows = menus?.[key]?.() || [];
@@ -120,6 +158,17 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
         : `<button class="zy-item${r.danger ? ' danger' : ''}${r.on ? ' current' : ''}" data-item data-act="${esc(r.act)}"><span>${esc(r.label)}${r.note ? `<em>${esc(r.note)}</em>` : ''}</span><small>${esc(r.value ?? '')}</small></button>`).join('');
     }
     paintFocus();
+  }
+
+  function renderControls(st) {
+    const page = root.querySelector('.zy-page[data-page="controls"]'); if (!page) return;
+    const contexts = Object.keys(CONTROL_GUIDE), active = contexts.includes(st.controlContext) ? st.controlContext : 'field';
+    if (!contexts.includes(controlContext)) controlContext = active;
+    const guide = CONTROL_GUIDE[controlContext];
+    const esc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    page.innerHTML = `<div class="zy-controls-guide"><p class="zy-lede">Showing <b>${esc(guide.name)}</b> controls · current input: <b>${st.controlInput === 'controller' ? 'Controller' : 'Keyboard & mouse'}</b>. Choose another mode to browse its controls.</p>
+      <div class="zy-control-modes">${contexts.map(id => `<button class="zy-item${id === controlContext ? ' current' : ''}" data-item data-control-context="${id}">${esc(CONTROL_GUIDE[id].name)}${id === active ? ' · CURRENT' : ''}</button>`).join('')}</div>
+      <div class="zy-scroll"><table class="zy-table"><thead><tr><th>Action</th><th>Keyboard &amp; mouse</th><th>Controller</th></tr></thead><tbody>${guide.rows.map(([action,k,p]) => `<tr><td>${esc(action)}</td><td>${esc(k)}</td><td>${esc(p)}</td></tr>`).join('')}</tbody></table></div></div>`;
   }
 
   // ── LABS › RIZER: builds, skins and animations on the player's real body (game.js · labsHub, labs.js) ──
@@ -357,6 +406,9 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   const stepGroup = d => { const g = (groupOf(TABS[tab]) + d + GROUPS.length) % GROUPS.length; setPage(lastIn[g] || GROUPS[g].pages[0]); };
   function activate(el = items()[focus]) {
     if (!el) return;
+    if (el.dataset.journalOpen != null) { journalOpen = true; render(); return; }
+    if (el.dataset.journalBack != null) { journalOpen = false; render(); return; }
+    if (el.dataset.controlContext) { controlContext = el.dataset.controlContext; render(); focus = items().findIndex(x => x.dataset.controlContext === controlContext); paintFocus(); return; }
     if (el.id === 'zy-edit-layout') { homeEdit = !homeEdit; render(); return; }
     if (el.dataset.app) { if (!homeEdit) setTab(TABS.indexOf(el.dataset.app)); return; }
     if (el.dataset.hour) { onTime(+el.dataset.hour); setTimeout(render, 50); }
@@ -425,5 +477,5 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (p.edge(13)) { focus++; paintFocus(); }
     if (p.edge(0)) activate();
   }
-  return { open, close, toggle: w => (isOpen ? close() : open(w)), key, pad, status, get isOpen() { return isOpen; }, get tab() { return TABS[tab]; } };
+  return { open, close, toggle: w => (isOpen ? close() : open(w)), refresh: () => { if (isOpen) render(); }, key, pad, status, get isOpen() { return isOpen; }, get tab() { return TABS[tab]; } };
 }

@@ -7,7 +7,9 @@
 //   inPlace true strips forward travel (the game moves the character itself)
 export default [
   { file: 'rizer/Plant_Tree.fbx', name: 'Treehouse · Plant seeds', loop: false, inPlace: true },
-  { file: 'rizer/Ladder_Climbing.fbx', name: 'Treehouse · Ladder climbing', loop: true, inPlace: true },
+  { file: 'rizer/Start Climbing Ladder.fbx', name: 'Treehouse · Start ladder climb', loop: false, inPlace: true },
+  { file: 'rizer/Climbing Ladder.fbx', name: 'Treehouse · Climb ladder', loop: true, inPlace: true },
+  { file: 'rizer/Climbing To Top Of Ladder.fbx', name: 'Treehouse · Step off ladder', loop: false, inPlace: true },
   { file: 'mori/Wobbling.fbx', name: 'Tornado · Wobbling', loop: true, inPlace: true },
   // locomotion
   { file: 'rizer/walk_1.fbx', name: 'Walk 1', loop: true },

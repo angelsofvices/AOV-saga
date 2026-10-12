@@ -202,25 +202,31 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   const sM = new THREE.Matrix4(), sM2 = new THREE.Matrix4(), sM3 = new THREE.Matrix4(), sQ = new THREE.Quaternion(), sE = new THREE.Euler(), sS = new THREE.Vector3(), sP = new THREE.Vector3(), sV = new THREE.Vector3();
   const srand = (stone, k) => { const v = Math.sin((stone.index + 1) * 127.1 + stone.x * 3.11 + k * 311.7) * 43758.5453; return v - Math.floor(v); };
   const baseOf = stone => { if (!stone.base) { stone.base = new THREE.Matrix4(); stone.mesh.getMatrixAt(stone.index, stone.base); } return stone.base; };
-  // Debris: one instanced pool per material (rock · wood · leaves). Every piece is thrown, falls, bounces, comes to
-  // rest and then sinks into the ground — the same life for a stone's fragments, a felled tree's logs and a bush's leaves.
+  // Debris: one instanced pool per material (rock · wood · leaves). Cosmetic chips sink away; harvestable
+  // Everstone rubble and Fresh Wood logs settle in place until Rizer collects them.
   const pools = [];
   function makeDebris(geometry, material, cap) {
-    const mesh = new THREE.InstancedMesh(geometry, material, cap), list = [];
-    mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.noCollide = true;
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.setColorAt(0, new THREE.Color('#fff')); group.add(mesh);
+    let mesh = new THREE.InstancedMesh(geometry, material, cap); const list = [];
+    const configure = m => { m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; m.userData.noCollide = true; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.setColorAt(0, new THREE.Color('#fff')); };
+    configure(mesh); group.add(mesh);
+    const grow = () => {
+      const old = mesh, next = new THREE.InstancedMesh(geometry, material, Math.max(cap, old.instanceMatrix.count * 2)); configure(next);
+      const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), e = new THREE.Euler(), matrix = new THREE.Matrix4();
+      for (let i = 0; i < list.length; i++) { const d = list[i]; p.set(d.x,d.y,d.z); q.setFromEuler(e.set(d.rx,d.ry,d.rz)); s.set(d.sx,d.sy,d.sz); next.setMatrixAt(i,matrix.compose(p,q,s)); next.setColorAt(i,d.color); }
+      next.count = list.length; next.instanceMatrix.needsUpdate = true; if(next.instanceColor)next.instanceColor.needsUpdate=true; group.remove(old); group.add(next); mesh = next;
+    };
     const pool = {
-      list, mesh,
+      list, get mesh(){return mesh;},
       // q: { x y z · vx vy vz · sx sy sz · color · half (rest height) · life? · rx ry rz? · spin? (0 = no tumble) · drag? (air drag: leaves drift) }
       add(q) {
-        if (list.length >= cap) list.shift();
+        if (list.length >= mesh.instanceMatrix.count) grow();
         const r = Math.random, spin = q.spin ?? 1;
-        list.push({ rx: r() * 6.3, ry: r() * 6.3, rz: r() * 6.3, ax: (r() - 0.5) * 12 * spin, ay: (r() - 0.5) * 12 * spin, az: (r() - 0.5) * 12 * spin, life: STONE.rest[0] + r() * (STONE.rest[1] - STONE.rest[0]), drag: 0, ...q, t: 0, still: false });
+        list.push({ rx: r() * 6.3, ry: r() * 6.3, rz: r() * 6.3, ax: (r() - 0.5) * 12 * spin, ay: (r() - 0.5) * 12 * spin, az: (r() - 0.5) * 12 * spin, life: STONE.rest[0] + r() * (STONE.rest[1] - STONE.rest[0]), drag: 0, ...q, persistent: !!(q.persistent || q.wood || q.ever), t: 0, still: false });
       },
       update(dt) {
         for (let i = list.length - 1; i >= 0; i--) {
           const q = list[i]; q.t += dt;
-          if (q.t > q.life + STONE.sink) { list.splice(i, 1); continue; }
+          if (!q.persistent && q.t > q.life + STONE.sink) { list.splice(i, 1); continue; }
           if (q.still) continue;
           q.vy -= STONE.gravity * (q.drag ? 0.35 : 1) * dt; if (q.drag) { const k = 1 - Math.min(1, q.drag * dt); q.vx *= k; q.vz *= k; q.vy = Math.max(q.vy, -2.2); }
           q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; q.rx += q.ax * dt; q.ry += q.ay * dt; q.rz += q.az * dt;
@@ -233,7 +239,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
         }
         const n = list.length; mesh.count = n;
         for (let i = 0; i < n; i++) {
-          const q = list[i], k = q.t > q.life ? Math.max(0, 1 - (q.t - q.life) / STONE.sink) : 1; // it sinks into the ground at the end
+          const q = list[i], k = !q.persistent && q.t > q.life ? Math.max(0, 1 - (q.t - q.life) / STONE.sink) : 1;
           sP.set(q.x, q.y - (1 - k) * q.half * 2, q.z); sQ.setFromEuler(sE.set(q.rx, q.ry, q.rz)); sS.set(q.sx * k, q.sy * k, q.sz * k);
           mesh.setMatrixAt(i, sM.compose(sP, sQ, sS)); mesh.setColorAt(i, q.color);
         }
@@ -244,11 +250,11 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   }
   let rockDebris = null;
   // One rock fragment — the stone's own geometry and material, so fragments are the same stone.
-  // ever: a piece of Everstone Rizer can gather by running over it (it lies a little longer than the rest).
+  // ever: collectible Everstone rubble; stays on the ground until gathered.
   function addShard(stone, x, y, z, vx, vy, vz, size, ever = false) {
     rockDebris ||= makeDebris(stone.mesh.geometry, stone.mesh.material, STONE.shards);
     const r = Math.random;
-    rockDebris.add({ x, y, z, vx, vy, vz, sx: size * (0.7 + r() * 0.6), sy: size * (0.45 + r() * 0.5), sz: size * (0.6 + r() * 0.6), color: stone.baseColor.clone().multiplyScalar(0.82 + r() * 0.3), half: size * 0.3, ...(ever ? { ever: 1, life: 6 + r() * 2 } : {}) });
+    rockDebris.add({ x, y, z, vx, vy, vz, sx: size * (0.7 + r() * 0.6), sy: size * (0.45 + r() * 0.5), sz: size * (0.6 + r() * 0.6), color: stone.baseColor.clone().multiplyScalar(0.82 + r() * 0.3), half: size * 0.3, ...(ever ? { ever: 1, persistent: true } : {}) });
   }
   // Chips knocked off by a blow, away from where it came from.
   function chipStone(stone, from, n) {
@@ -561,7 +567,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     collectStone(x, y, z, r) {
       const out = []; if (!rockDebris) return out; const L = rockDebris.list;
       for (let i = L.length - 1; i >= 0; i--) {
-        const q = L[i]; if (!q.ever || q.t > q.life || Math.abs(q.y - y) > 2.2) continue;
+        const q = L[i]; if (!q.ever || Math.abs(q.y - y) > 2.2) continue;
         const dx = q.x - x, dz = q.z - z, reach = r + q.sx * 0.5;
         if (dx * dx + dz * dz < reach * reach) { out.push({ x: q.x, y: q.y, z: q.z }); L.splice(i, 1); }
       }
@@ -587,12 +593,11 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   group.userData.stones = stoneSystem;
   group.userData.trees = {
     list: trees,
-    // Fresh Wood: the trunk lengths of a felled tree lying within `r` of (x, z), still above ground. Each is taken
-    // (it vanishes) and returned as { x, y, z }; once a length has begun to sink into the soil it can't be gathered.
+    // Fresh Wood: collectible trunk lengths stay visible and gatherable until collected.
     collectWood(x, y, z, r) {
       const out = []; if (!woodDebris) return out; const L = woodDebris.list;
       for (let i = L.length - 1; i >= 0; i--) {
-        const q = L[i]; if (!q.wood || q.t > q.life || Math.abs(q.y - y) > 2.2) continue;
+        const q = L[i]; if (!q.wood || Math.abs(q.y - y) > 2.2) continue;
         const dx = q.x - x, dz = q.z - z, reach = r + q.sy * 0.4;
         if (dx * dx + dz * dz < reach * reach) { out.push({ x: q.x, y: q.y, z: q.z }); L.splice(i, 1); }
       }

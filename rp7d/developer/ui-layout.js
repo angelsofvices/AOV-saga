@@ -101,6 +101,17 @@ export function createUILayout(root, button) {
     refresh();
   }
 
+  function reset() {
+    active = false; drag = null; pendingPoint = null;
+    for (const el of items()) {
+      el.classList.remove('layout-pinned', 'layout-edit-target', 'layout-dragging');
+      for (const key of ['position','left','top','right','bottom','transform','margin','width','height','zIndex']) el.style.removeProperty(key.replace(/[A-Z]/g, c => '-' + c.toLowerCase()));
+    }
+    saved = {}; persist(); root.classList.remove('layout-editing');
+    button?.classList.remove('active'); button?.setAttribute('aria-pressed','false'); if (button) button.textContent = 'MOVE UI';
+    refresh();
+  }
+
   refresh();
   const observer = new MutationObserver(refresh);
   observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
@@ -116,5 +127,5 @@ export function createUILayout(root, button) {
     persist();
   });
   addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && e.code === 'KeyL') { e.preventDefault(); toggle(); } });
-  return { toggle, get active() { return active; } };
+  return { toggle, reset, get active() { return active; } };
 }

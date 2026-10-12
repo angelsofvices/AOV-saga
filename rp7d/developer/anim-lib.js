@@ -19,6 +19,8 @@ import DEFAULT_ASSIGNMENTS from './anim-assignments.js';
 export const SLOTS = [
   { key: 'plantTree', label: 'Plant tree seeds', kind: 'oneshot' },
   { key: 'ladderClimb', label: 'Treehouse ladder climb / descent', kind: 'state' },
+  { key: 'ladderStart', label: 'Treehouse · start climbing ladder', kind: 'oneshot' },
+  { key: 'ladderTop', label: 'Treehouse · climb to top of ladder', kind: 'oneshot' },
   { key: 'idle', label: 'Idle', kind: 'state' },
   { key: 'walk', label: 'Walk', kind: 'locomotion' },
   { key: 'run', label: 'Run', kind: 'locomotion' },
@@ -159,7 +161,7 @@ export const SLOTS = [
   { key: 'hover', label: 'Hover (unused yet)', kind: 'state' }
 ];
 const AIR = new Set(['jump', 'rifleJump', 'fall', 'doublejump', 'wallflip', 'hover', 'fly', 'descend', 'fastfall', 'bail']); // physics owns height for these
-const FIXED_ROOT = new Set(['ledgeGrab', 'ledgeClimb', 'ladderClimb']); // geometry drives the root; clips supply the body pose
+const FIXED_ROOT = new Set(['ledgeGrab', 'ledgeClimb', 'ladderClimb', 'ladderStart', 'ladderTop']); // geometry drives the root; clips supply the body pose
 const DROP = new Set(['bigland', 'fastland']);
 const FLOOR = new Set(['bailImpact', 'airslam']); // physics owns the fall; the body keeps its whole drop to the floor (it ends lying down) // physics owns the fall; keep only the landing's downward give
 export const SLOT_KEYS = SLOTS.map(s => s.key);
@@ -397,7 +399,7 @@ for (const it of LIBRARY) {
 // Dropped files persist in this browser's IndexedDB (best effort).
 const DB = 'rp7d-anim-lab', STORE = 'clips';
 function db() { return new Promise((res, rej) => { try { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore(STORE); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } }); }
-async function dbPut(name, buf) { try { const d = await db(); d.transaction(STORE, 'readwrite').objectStore(STORE).put(buf, name); } catch (e) {} }
+async function dbPut(name, buf) { try { const d = await db(); await new Promise((res, rej) => { const r = d.transaction(STORE, 'readwrite').objectStore(STORE).put(buf, name); r.onsuccess = () => res(true); r.onerror = () => rej(r.error); }); return true; } catch (e) { return false; } }
 async function dbDel(name) { try { const d = await db(); d.transaction(STORE, 'readwrite').objectStore(STORE).delete(name); } catch (e) {} }
 async function dbAll() {
   try { const d = await db(); return await new Promise(res => { const out = [], c = d.transaction(STORE).objectStore(STORE).openCursor(); c.onsuccess = () => { const cur = c.result; if (cur) { out.push([cur.key, cur.value]); cur.continue(); } else res(out); }; c.onerror = () => res([]); }); }
@@ -420,6 +422,33 @@ export async function addFiles(files) {
     try { await sampleOf(id); ids.push(id); } catch (e) { console.warn('[anim-lab] could not read', f.name, e); entries.delete(id); dbDel(f.name); }
   }
   emit(); return ids;
+}
+
+function toBase64(buffer) {
+  const bytes = new Uint8Array(buffer); let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
+  return btoa(binary);
+}
+function fromBase64(value) {
+  const binary = atob(value), bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+export async function exportDroppedClips() {
+  return (await dbAll()).map(([name, buffer]) => ({ name: String(name), data: toBase64(buffer) }));
+}
+export async function importDroppedClips(rows) {
+  if (!Array.isArray(rows) || rows.length > 100) throw new Error('Backup has an invalid animation clip list');
+  let imported = 0;
+  for (const row of rows) {
+    if (!row || typeof row.name !== 'string' || !/\.(fbx|glb|gltf)$/i.test(row.name) || typeof row.data !== 'string') throw new Error('Backup contains an invalid animation clip');
+    const buffer = fromBase64(row.data), id = 'drop:' + row.name;
+    if (!await dbPut(row.name, buffer)) throw new Error(`Could not save animation clip: ${row.name}`);
+    addDropped(row.name, buffer);
+    try { await sampleOf(id); imported++; }
+    catch { entries.delete(id); await dbDel(row.name); throw new Error(`Could not restore animation clip: ${row.name}`); }
+  }
+  emit(); return imported;
 }
 export function removeClip(id) {
   const e = entries.get(id); if (!e || e.source !== 'dropped') return;

@@ -5,7 +5,10 @@ import { worldDistrictAt } from './world-data.js';
 import { storage } from './storage.js';
 import { createFurnitureMover } from './home-furniture.js';
 import { createPartner } from './zyrex2d.js';
-export const TREEHOUSE = Object.freeze({ growth: 8, height: 4.6, maxHP: 240, defenderSlots: 2, guardRadius: 12 });
+// A standard-size world tree has 14 HP (8 + 6 × scale 1). Treehouses use
+// the same hit/durability scale, with the requested 1.5× durability.
+const TREEHOUSE_TREE_HP = Math.round((8 + 6) * 1.5);
+export const TREEHOUSE = Object.freeze({ growth: 8, height: 7.2, maxHP: TREEHOUSE_TREE_HP, cost: { fresh_wood: 10, scrap_metal: 10, everstone: 10 }, defenderSlots: 2, guardRadius: 12 });
 const V = (x=0,y=0,z=0) => new THREE.Vector3(x,y,z);
 const mat = c => new THREE.MeshStandardMaterial({color:c, roughness:.8});
 const wood=mat('#87532d'), bark=mat('#604027'), green=mat('#306d39'), gold=mat('#d4ad52'), blue=mat('#136699');
@@ -13,32 +16,33 @@ function box(g,w,h,d,x,y,z,m=wood) { const o=new THREE.Mesh(new THREE.BoxGeometr
 function pole(g,a,b,r,m=wood) { const v=b.clone().sub(a), o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,v.length(),7),m); o.position.copy(a).add(b).multiplyScalar(.5); o.quaternion.setFromUnitVectors(V(0,1,0),v.normalize()); g.add(o); return o; }
 function prefab(rec) {
   const root=new THREE.Group(), tree=new THREE.Group(), cabin=new THREE.Group(); root.name=rec.id; root.add(tree,cabin); root.position.set(rec.x,rec.y,rec.z); root.rotation.y=rec.yaw;
-  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.65,1.25,10,9),bark); trunk.position.y=5; tree.add(trunk);
-  for(let i=0;i<7;i++) { const a=i*Math.PI*2/7; pole(tree,V(0,.65,0),V(Math.sin(a)*3.1,0,Math.cos(a)*3.1),.25,bark); }
-  for(let i=0;i<15;i++) { const a=i*2.4,r=2.5+(i%3)*.8,y=7.8+(i%4)*.7; pole(tree,V(0,5.5,0),V(Math.sin(a)*r,y,Math.cos(a)*r),.19,bark); const o=new THREE.Mesh(new THREE.IcosahedronGeometry(2.15,1),mat(['#346b34','#4c843b','#5a943f'][i%3])); o.scale.set(1,.65,1); o.position.set(Math.sin(a)*r,y,Math.cos(a)*r); o.userData.noCollide=true; tree.add(o); }
-  const H=TREEHOUSE.height; box(cabin,6.4,.22,5.8,0,H-.11,1.7); // platform top is exactly H
-  box(cabin,5,.18,3.2,0,H+.05,.65); // cabin floor
-  box(cabin,.18,2.7,3.2,-2.4,H+1.4,.65); box(cabin,.18,2.7,3.2,2.4,H+1.4,.65); box(cabin,4.8,2.7,.18,0,H+1.4,-.95);
-  box(cabin,1.65,2.7,.18,-1.6,H+1.4,2.25); box(cabin,1.65,2.7,.18,1.6,H+1.4,2.25); box(cabin,1.5,.45,.18,0,H+2.53,2.25);
-  const hinge=new THREE.Group(); hinge.position.set(-.75,H,2.36); hinge.name=rec.id+'-door'; hinge.userData.reach=1.15; box(hinge,1.5,2.3,.12,.75,1.15,0); box(hinge,.08,.12,.1,1.3,1.15,.12,gold); cabin.add(hinge);
-  for(const s of [-1,1]) { const roof=box(cabin,2.8,.15,4.1,s*1.3,H+3.1,.65,green); roof.rotation.z=s*-.4; for(let k=0;k<6;k++) { const sh=box(cabin,2.82,.06,.12,s*1.3,H+3.17,-1.25+k*.68,gold); sh.rotation.z=s*-.4; } pole(cabin,V(s*3,H,4.2),V(s*1,1,0),.17); }
-  for(const s of [-1,1]) for(let z=.2;z<=4.3;z+=1.35) box(cabin,.12,.95,.12,s*3,H+.48,z);
-  for(const s of [-1,1]) box(cabin,.12,.12,4.2,s*3,H+.95,2.2);
-  for(const s of [-1,1]) { box(cabin,2.2,.12,.12,s*1.95,H+.95,4.3); box(cabin,.5,1,.05,s*2,H+.18,4.37,blue); box(cabin,.12,.65,.07,s*2,H+.2,4.4,gold); pole(cabin,V(s*.5,0,4.2),V(s*.5,H,4.2),.08); }
-  for(let y=.25;y<H;y+=.32) pole(cabin,V(-.5,y,4.2),V(.5,y,4.2),.055);
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.78,1.45,14,9),bark); trunk.position.y=7; tree.add(trunk);
+  for(let i=0;i<7;i++) { const a=i*Math.PI*2/7; pole(tree,V(0,.65,0),V(Math.sin(a)*3.5,0,Math.cos(a)*3.5),.3,bark); }
+  for(let i=0;i<17;i++) { const a=i*2.4,r=2.8+(i%3)*.9,y=9.5+(i%4)*.8; pole(tree,V(0,7.2,0),V(Math.sin(a)*r,y,Math.cos(a)*r),.22,bark); const o=new THREE.Mesh(new THREE.IcosahedronGeometry(2.35,1),mat(['#346b34','#4c843b','#5a943f'][i%3])); o.scale.set(1,.65,1); o.position.set(Math.sin(a)*r,y,Math.cos(a)*r); o.userData.noCollide=true; tree.add(o); }
+  const H=TREEHOUSE.height; box(cabin,9.2,.24,7.4,0,H-.12,1.7); // walkable platform mesh, including the ladder landing
+  box(cabin,8,.2,4.4,0,H+.05,.65); // larger cabin floor
+  box(cabin,.2,3,4.4,-3.9,H+1.55,.65); box(cabin,.2,3,4.4,3.9,H+1.55,.65); box(cabin,7.8,3,.2,0,H+1.55,-1.55);
+  box(cabin,2.65,3,.2,-2.65,H+1.55,2.85); box(cabin,2.65,3,.2,2.65,H+1.55,2.85); box(cabin,2.5,.5,.2,0,H+2.8,2.85);
+  const hinge=new THREE.Group(); hinge.position.set(-1.1,H,2.96); hinge.name=rec.id+'-door'; hinge.userData.reach=1.35; box(hinge,2.2,2.5,.14,1.1,1.25,0); box(hinge,.1,.14,.12,1.9,1.25,.14,gold); cabin.add(hinge);
+  for(const s of [-1,1]) { const roof=box(cabin,4.4,.18,5.8,s*2,H+3.35,.65,green); roof.rotation.z=s*-.38; for(let k=0;k<7;k++) { const sh=box(cabin,4.42,.07,.14,s*2,H+3.43,-1.9+k*.82,gold); sh.rotation.z=s*-.38; } pole(cabin,V(s*4.3,H,5.15),V(s*1,1,0),.18); }
+  for(const s of [-1,1]) for(let z=-.1;z<=4.9;z+=1.45) box(cabin,.14,1,.14,s*4.3,H+.5,z);
+  for(const s of [-1,1]) box(cabin,.14,.14,5.1,s*4.3,H+1,2.4);
+  for(const s of [-1,1]) { box(cabin,3.2,.14,.14,s*2.8,H+1,5.15); box(cabin,.62,1.05,.06,s*2.8,H+.2,5.22,blue); box(cabin,.14,.7,.08,s*2.8,H+.2,5.25,gold); pole(cabin,V(s*.55,0,5.1),V(s*.55,H,5.1),.09); }
+  // Three-part ladder: feet align at the base, hands follow the rungs, and the last clip steps onto this platform.
+  for(let y=.25;y<H;y+=.34) pole(cabin,V(-.55,y,5.1),V(.55,y,5.1),.06);
   const glow=new THREE.MeshStandardMaterial({color:'#ffcb6a',emissive:'#ffb246',emissiveIntensity:.7});
   for(const s of [-1,1]) { pole(cabin,V(s*2.7,H+1.9,3.8),V(s*2.7,H+1.5,3.8),.03); box(cabin,.22,.35,.22,s*2.7,H+1.32,3.8,glow); box(cabin,.28,.07,.28,s*2.7,H+1.52,3.8,gold); }
-  cabin.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.userData.baseColor=o.material.color.clone();}});return {root,tree,cabin,hinge};
+  for(const group of [tree,cabin])group.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.userData.baseColor=o.material.color.clone();}});return {root,tree,cabin,hinge};
 }
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,toast,prompt,enter,exit,leaveDoor,saveGame,foes,seers,onAssign,onGuardHit,fx}) {
+export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,toast,prompt,enter,exit,leaveDoor,saveGame,foes,seers,onAssign,onGuardHit,dropResource,fx}) {
   inventory.treehouses ||= []; const live=new Map(); let motion=null, placing=false, candidate=null, panel=null, panelRec=null, activeInterior=null, panelIndex=0;
   const ghost=new THREE.Mesh(new THREE.RingGeometry(5.7,5.85,48),new THREE.MeshBasicMaterial({color:'#7ed9a1',transparent:true,opacity:.75,side:THREE.DoubleSide})); ghost.rotation.x=-Math.PI/2; ghost.visible=false; ghost.userData.noCollide=true; scene.add(ghost);
   const persist=()=>saveInv();
   function at(rec,x,z,y=0) { const c=Math.cos(rec.yaw),s=Math.sin(rec.yaw); return V(rec.x+x*c+z*s,rec.y+y,rec.z-x*s+z*c); }
   function disableCabin(L) { L.cabin.traverse(o=>{if(o.isMesh)world.mass.disableInstance(o,-1);}); L.collision=false; L.cabin.visible=false; if(L.platform)L.platform.active=false; }
-  function enableCabin(L) { if(L.collision)return; L.cabin.visible=true; L.cabin.scale.setScalar(1); L.root.updateMatrixWorld(true); world.addMesh(L.cabin); const p=at(L.rec,0,1.7);if(!L.platform)L.platform=world.addSurface({shape:'box',x:p.x,z:p.z,y:L.rec.y+TREEHOUSE.height,hw:3.2,hd:2.9,rot:L.rec.yaw,active:true});else L.platform.active=true; L.collision=true; }
-  function restore(rec) { if(live.has(rec.id))return live.get(rec.id); rec.furniture ||= []; rec.defenders ||= []; rec.maxHP ||= TREEHOUSE.maxHP; const L={...prefab(rec),rec,guards:new Map(),attackTimes:new Map(),collision:false}; world.structures.add(L.root); live.set(rec.id,L); L.cabin.visible=rec.cabin==='built'||rec.cabin==='building'||rec.cabin==='growing'; const scale=Math.max(.015,Math.min(1,(rec.growth||0)/8));L.cabin.scale.setScalar(scale); if(rec.cabin==='built'){enableCabin(L);L.cabin.traverse(o=>{if(o.isMesh&&o.userData.baseColor)o.material.color.copy(o.userData.baseColor).lerp(new THREE.Color('#332b25'),rec.hp<rec.maxHP*.3?.65:rec.hp<rec.maxHP*.65?.3:0);});} L.tree.scale.setScalar(scale); if(rec.growth>=8){rec.cabin='built';L.cabin.scale.setScalar(1);world.addMesh(L.tree);enableCabin(L);} return L; }
+  function enableCabin(L) { if(L.collision)return; L.cabin.visible=true; L.cabin.scale.setScalar(1); L.root.updateMatrixWorld(true); world.addMesh(L.cabin); L.collision=true; }
+  function restore(rec) { if(live.has(rec.id))return live.get(rec.id);if(rec.cabin==='falling'){rec.cabin='destroyed';rec.hp=0;}rec.furniture ||= []; rec.defenders ||= []; if(!rec.maxHP||rec.maxHP> TREEHOUSE.maxHP){const ratio=rec.maxHP?rec.hp/rec.maxHP:1;rec.maxHP=TREEHOUSE.maxHP;rec.hp=Math.max(1,Math.round(TREEHOUSE.maxHP*ratio));} const L={...prefab(rec),rec,guards:new Map(),attackTimes:new Map(),hitKeys:new Set(),collision:false,shake:0,hitSide:{x:0,z:1},lean:(1-Math.max(0,rec.hp||TREEHOUSE.maxHP)/(rec.maxHP||TREEHOUSE.maxHP))*.07}; world.structures.add(L.root); live.set(rec.id,L); const removed=rec.cabin==='destroyed'||rec.cabin==='dismantled'; L.cabin.visible=!removed&&(rec.cabin==='built'||rec.cabin==='building'||rec.cabin==='growing'); const scale=Math.max(.015,Math.min(1,(rec.growth||0)/8));L.cabin.scale.setScalar(scale); if(rec.cabin==='built'){enableCabin(L);L.root.traverse(o=>{if(o.isMesh&&o.userData.baseColor)o.material.color.copy(o.userData.baseColor).lerp(new THREE.Color('#332b25'),rec.hp<rec.maxHP*.3?.65:rec.hp<rec.maxHP*.65?.3:0);});} L.tree.scale.setScalar(scale); if(rec.growth>=8&&!removed){rec.cabin='built';L.cabin.scale.setScalar(1);world.addMesh(L.tree);enableCabin(L);}if(removed)L.root.visible=false;return L; }
   for(const rec of inventory.treehouses)restore(rec);
   function validate(x,z) {
     if(blocked()||rizer.seq||!rizer.onGround)return {ok:false,why:'Stand on grassy ground to plant'};
@@ -59,15 +63,26 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
     const clip=action?.getClip(); 
     motion={kind,rec,from,to,t:0,duration:duration||clip?.duration||1,clip,done,align:true}; rizer.actor?.stopPreview(); const m=motion;const ready=()=>{if(motion!==m)return;m.align=false;if(clip)rizer.actor.startPreview(clip,{loop:true,speed:0});};if(Math.hypot(rizer.position.x-from.x,rizer.position.z-from.z)>.12){if(!rizer.walkTo(from,rec.yaw+Math.PI,ready)){motion=null;return false;}}else ready();rizer.vel.set(0,0,0); rizer.vy=0;rizer.speed=0;return true;
   }
+  function beginLadderMotion(rec,from,to,ascending,done) {
+    const actions=rizer.actor?.acts, climb=actions?.ladderClimb?.getClip?.(), start=actions?.ladderStart?.getClip?.(), top=actions?.ladderTop?.getClip?.();
+    if(!start||!climb||!top){toast('Treehouse ladder animations are still loading · try again');return false;}
+    const segments=ascending?[{clip:start},{clip:climb,moves:true},{clip:top}]:[{clip:top,reverse:true},{clip:climb,reverse:true,moves:true},{clip:start,reverse:true}];
+    motion={kind:'ladder',rec,from,to,segments,index:0,segmentT:0,done,align:true};rizer.actor?.stopPreview();const m=motion;
+    const ready=()=>{if(motion!==m)return;m.align=false;rizer.actor.startPreview(segments[0].clip,{loop:false,speed:0});};
+    if(Math.hypot(rizer.position.x-from.x,rizer.position.z-from.z)>.12){if(!rizer.walkTo(from,rec.yaw+Math.PI,ready)){motion=null;return false;}}else ready();
+    rizer.vel.set(0,0,0);rizer.vy=0;rizer.speed=0;return true;
+  }
   function plantSeed() {
     if(rizer.weapon!=='life_seed')return toast('Equip your Life Seed from the Armory wheel first');
     if((inventory.items?.life_seed||0)<1||!inventory.owned.includes('life_seed'))return toast('Find a Life Seed when a tree falls · then equip it in the Armory');
+    if(Object.entries(TREEHOUSE.cost).some(([id,n])=>storage.count('ZYCUBE',id)<n))return toast('Treehouse planting needs 10 Fresh Wood, 10 Scrap Metal and 10 Everstone');
     if(motion||blocked()||!rizer.onGround)return false;
     const x=rizer.position.x+Math.sin(rizer.facing)*1.5,z=rizer.position.z+Math.cos(rizer.facing)*1.5,valid=validate(x,z);
     if(!valid.ok){toast(valid.why);return false;}
-    const rec={id:'treehouse-'+(globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2)),...valid,growth:0,cabin:'growing',hp:TREEHOUSE.maxHP,maxHP:TREEHOUSE.maxHP,furniture:[],defenders:[]};delete rec.ok;
+    const rec={id:'treehouse-'+(globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2)),...valid,growth:0,cabin:'growing',hp:TREEHOUSE.maxHP,maxHP:TREEHOUSE.maxHP,paid:{...TREEHOUSE.cost},furniture:[],defenders:[]};delete rec.ok;
     const standing=rizer.position.clone(),a=rizer.actor?.acts.plantTree;if(!a)return toast('Planting animation is still loading');
     if(beginMotion('plant',rec,standing,standing,a.getClip().duration,()=>{inventory.treehouses.push(rec);restore(rec);persist();toast('Life Seed planted · magical growth begins · 8 seconds');})){
+      const spent=storage.consumeResources(TREEHOUSE.cost);if(!spent.ok){motion=null;rizer.actor?.stopPreview();return toast(spent.message);}
       inventory.items.life_seed--;
       if(inventory.items.life_seed<=0){inventory.items.life_seed=0;inventory.owned=inventory.owned.filter(k=>k!=='life_seed');inventory.wheel=inventory.wheel.map(k=>k==='life_seed'?null:k);if(inventory.equipped==='life_seed'){inventory.equipped='fists';rizer.setWeapon('fists');}}
       persist();rizer.facing=rec.yaw+Math.PI;return true;
@@ -76,16 +91,31 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
   }
   function dismantle(rec) {
     if(rec.cabin!=='built')return;
-    const refunds=Object.fromEntries(Object.entries(rec.paid||{}).map(([id,n])=>[id,Math.floor(n*.5)]));
-    if(Object.keys(refunds).length&&!storage.refundResources(refunds).ok)return toast('Make room in your Zycube before dismantling');
-    rec.cabin='dismantled';rec.paid=null;rec.defenders=[];disableCabin(live.get(rec.id));persist();close();toast('Treehouse removed · planted tree kept');
+    if(activeInterior?.rec===rec)return toast('Exit via the ladder before breaking down your treehouse');
+    close();destroy(rec,null,true);
   }
-  function destroy(rec) { fx?.emit(rec.x,rec.y+TREEHOUSE.height,rec.z,30,{color:'#a08359',speed:3,up:1.4,size:.25,life:1});rec.cabin='destroyed';rec.hp=0;rec.defenders=[];disableCabin(live.get(rec.id));persist();toast('Treehouse destroyed · your tree, furnishings and saved progress remain');if(activeInterior?.rec===rec){exit();rizer.position.copy(at(rec,0,5.5));} }
-  function ascend(rec) { close(); const from=at(rec,0,4.7),to=at(rec,0,3.8,TREEHOUSE.height);from.y=world.groundAt(from.x,from.z,rec.y+1); const duration=rizer.actor?.acts.ladderClimb?.getClip().duration; rizer.facing=rec.yaw+Math.PI;
-    beginMotion('ladder',rec,from,to,duration,()=>{rizer.position.copy(at(rec,0,3.6,TREEHOUSE.height));rizer.onGround=true;toast('Platform · ○ / E at the door to enter · △ descend');});
+  function dropHalfCost(rec,dx,dz) {
+    const paid=rec.paid||TREEHOUSE.cost, offsets=[[-2.6,1.6],[2.5,1.8],[0,-2.2]]; let i=0;
+    for(const [id,n] of Object.entries(paid)) { const quantity=Math.floor(n*.5); if(quantity<1)continue; const [ox,oz]=offsets[i++%offsets.length],p=at(rec,ox,oz),y=world.groundAt(p.x,p.z,rec.y+2)+0.9;
+      if(dropResource)dropResource(id,quantity,p.x,y,p.z,{x:dx*.65+(Math.random()-.5)*.4,z:dz*.65+(Math.random()-.5)*.4});
+      else storage.add('HOME_PC',id,quantity);
+    }
+    rec.paid=null;
   }
-  function descend(rec) { const from=at(rec,0,3.8,TREEHOUSE.height),to=at(rec,0,4.7);to.y=world.groundAt(to.x,to.z,rec.y+1);rizer.facing=rec.yaw+Math.PI;beginMotion('ladder',rec,from,to,rizer.actor?.acts.ladderClimb?.getClip().duration,()=>{rizer.position.copy(at(rec,0,5.5));rizer.onGround=true;}); }
-  function nearest() { let best=null;for(const L of live.values()){const rec=L.rec,p=at(rec,0,4.7);const d=Math.hypot(p.x-rizer.position.x,p.z-rizer.position.z);if(d<3.3&&(!best||d<best.d))best={rec,d};}return best; }
+  function crumble(L) {
+    const rec=L.rec, fall=rec.fall; if(!fall)return;
+    fx?.emit(rec.x,rec.y+.35,rec.z,42,{color:'#a08359',speed:3.5,up:1.8,size:.48,life:1.15,g:1.5});
+    fx?.emit(rec.x,rec.y+.5,rec.z,18,{color:'#6c9140',speed:2.4,up:2.4,size:.38,life:1.4,g:.8});
+    dropHalfCost(rec,fall.dx,fall.dz);
+    L.root.visible=false;for(const group of [L.tree,L.cabin])group.traverse(o=>{if(o.isMesh)world.mass.disableInstance(o,-1);});L.collision=false;
+    rec.cabin=fall.dismantle?'dismantled':'destroyed';rec.fall=null;persist();toast('TREEHOUSE CRUMBLED · raw materials dropped nearby');
+  }
+  function destroy(rec,from=null,dismantleTreehouse=false) { const L=live.get(rec.id);if(!L||['falling','destroyed','dismantled'].includes(rec.cabin))return;const dx=from?rec.x-from.x:Math.sin(rec.yaw),dz=from?rec.z-from.z:Math.cos(rec.yaw),d=Math.hypot(dx,dz)||1;rec.fall={t:0,a:.06,w:.45,dx:dx/d,dz:dz/d,dismantle:dismantleTreehouse};rec.cabin='falling';rec.hp=0;rec.defenders=[];L.shake=0;if(activeInterior?.rec===rec){exit();rizer.position.copy(at(rec,0,5.8));}fx?.emit(rec.x,rec.y+TREEHOUSE.height*.7,rec.z,24,{color:'#d0ad78',speed:2.6,up:1.4,size:.24,life:.65,g:5});persist(); }
+  function ascend(rec) { close(); const from=at(rec,0,5.8),to=at(rec,0,4.8,TREEHOUSE.height);from.y=world.groundAt(from.x,from.z,rec.y+1);rizer.facing=rec.yaw+Math.PI;
+    beginLadderMotion(rec,from,to,true,()=>{rizer.position.copy(to);rizer.onGround=true;toast('Platform · walk to the door to enter · △ descend');});
+  }
+  function descend(rec) { const from=at(rec,0,4.8,TREEHOUSE.height),to=at(rec,0,5.8);to.y=world.groundAt(to.x,to.z,rec.y+1);rizer.facing=rec.yaw+Math.PI;beginLadderMotion(rec,from,to,false,()=>{rizer.position.copy(to);rizer.onGround=true;}); }
+  function nearest() { let best=null;for(const L of live.values()){const rec=L.rec;if(['falling','destroyed','dismantled'].includes(rec.cabin))continue;const p=at(rec,0,5.8),d=Math.hypot(p.x-rizer.position.x,p.z-rizer.position.z);if(d<3.3&&(!best||d<best.d))best={rec,d};}return best; }
   function interact() {const n=nearest();if(!n)return false;const rec=n.rec;if(rec.cabin==='built'&&Math.abs(rizer.position.y-rec.y-TREEHOUSE.height)<.7){enter(interior(rec));return true;}open(rec);return true;}
   function assign(rec,id) { const used=inventory.treehouses.some(q=>q.id!==rec.id&&q.defenders?.includes(id));if(used)return toast('Already guarding another treehouse');
     if(rec.defenders.includes(id)){rec.defenders=rec.defenders.filter(q=>q!==id);if(rec.guardStates)rec.guardStates[id]='recalled';}else {if(rec.defenders.length>=TREEHOUSE.defenderSlots)return toast('All defender slots are occupied');if(rec.guardHP?.[id]===0)return toast('This defender was defeated · recover it before reassignment');rec.defenders.push(id);onAssign?.(id);} persist();open(rec);
@@ -106,9 +136,9 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
   addEventListener('keydown',e=>{if(!panel)return;if(e.code==='Escape'){close();e.preventDefault();}if(e.code==='ArrowUp'){select(panelIndex-1);e.preventDefault();}if(e.code==='ArrowDown'){select(panelIndex+1);e.preventDefault();}if(e.code==='Enter'){panel.querySelectorAll('button')[panelIndex]?.click();e.preventDefault();}});
   function interior(rec) {
     const L=live.get(rec.id);if(L.interior)return L.interior;
-    const root=new THREE.Group();root.visible=false;scene.add(root);const hw=11.25*Math.SQRT1_2,hd=7.5*Math.SQRT1_2; // 50% of Rizer room's floor area, same player scale
-    box(root,hw*2,.15,hd*2,0,-.075,0);box(root,.15,3.8,hd*2,-hw,1.9,0);box(root,.15,3.8,hd*2,hw,1.9,0);box(root,hw*2,3.8,.15,0,1.9,-hd);box(root,hw*2,.12,hd*2,0,3.8,0);
-    box(root,hw-1,3.8,.15,-(hw+1)/2,1.9,hd);box(root,hw-1,3.8,.15,(hw+1)/2,1.9,hd);box(root,2,1.4,.15,0,3.1,hd);
+    const root=new THREE.Group();root.visible=false;scene.add(root);const hw=3.55,hd=2.65;
+    box(root,hw*2,.15,hd*2,0,-.075,0);box(root,.15,4.4,hd*2,-hw,2.2,0);box(root,.15,4.4,hd*2,hw,2.2,0);box(root,hw*2,4.4,.15,0,2.2,-hd);box(root,hw*2,.12,hd*2,0,4.4,0);
+    box(root,hw-1,4.4,.15,-(hw+1)/2,2.2,hd);box(root,hw-1,4.4,.15,(hw+1)/2,2.2,hd);box(root,2,1.5,.15,0,3.65,hd);
     const door=new THREE.Group();door.position.set(-1,0,hd);door.userData.reach=1.45;box(door,2,2.4,.12,1,1.2,0);root.add(door);
     const pieces=[], outline=new THREE.Box3Helper(new THREE.Box3(),0x7fd6ff);outline.visible=false;root.add(outline);
     const ext=p=>p.yaw%Math.PI!==0?{hw:p.hd,hd:p.hw}:{hw:p.hw,hd:p.hd};
@@ -125,7 +155,9 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
     const I={id:rec.id,name:'Rizer’s Treehouse',treehouse:true,rec,root,furn,roomWorld,level:1,frontDoor:door,exteriorDoor:rec.id+'-door',addFurniture,lights:()=>[{pos:V(0,3,0),color:new THREE.Color('#ffdca4'),intensity:2,distance:16,decay:2}],show(v){root.visible=v;if(v)activeInterior=I;else {I.mover.abort();activeInterior=null;}},start(r,c){r.position.set(0,0,hd-2);r.facing=Math.PI;r.vel.set(0,0,0);r.vy=r.speed=0;r.onGround=true;r.flying=false;c.snapBehind(r,3.4);},nearDoor(p){p=p.position||p;return Math.abs(p.x)<1.7&&p.z>hd-2;},stationAt(){return null;},update(r,c){r.flying=false;if(r.position.y>1.4){r.position.y=1.4;r.vy=0;}},manage(){open(rec);}};
     I.mover=createFurnitureMover({interior:I,rizer,toast,prompt});L.interior=I;return I;
   }
-  function damage(rec,amount) { if(rec.cabin!=='built')return;rec.hp=Math.max(0,rec.hp-amount);const L=live.get(rec.id);L.cabin.traverse(o=>{if(o.isMesh&&o.userData.baseColor)o.material.color.copy(o.userData.baseColor).lerp(new THREE.Color('#332b25'),rec.hp<rec.maxHP*.3?.65:rec.hp<rec.maxHP*.65?.3:0);});persist();fx?.emit(rec.x,rec.y+3,rec.z,8,{color:'#bba17c',speed:1.8,up:.6,size:.18,life:.5});if(!rec.hp)destroy(rec); }
+  function damage(rec,amount,hitKey=null,from=null) { if(rec.cabin!=='built'||!(amount>0))return false;const L=live.get(rec.id);if(hitKey&&L.hitKeys.has(hitKey))return false;if(hitKey){L.hitKeys.add(hitKey);if(L.hitKeys.size>48)L.hitKeys.clear();}rec.hp=Math.max(0,rec.hp-amount);const ratio=1-rec.hp/rec.maxHP,tint=new THREE.Color('#332b25');L.root.traverse(o=>{if(o.isMesh&&o.userData.baseColor)o.material.color.copy(o.userData.baseColor).lerp(tint,ratio<.34?0:ratio<.68?.3:.58);});const dx=from?rec.x-from.x:Math.sin(rec.yaw),dz=from?rec.z-from.z:Math.cos(rec.yaw),d=Math.hypot(dx,dz)||1;L.hitSide={x:dx/d,z:dz/d};L.lean=ratio*.07;L.shake=.24;persist();fx?.emit(rec.x,rec.y+3,rec.z,8,{color:'#bba17c',speed:1.8,up:.6,size:.18,life:.5});fx?.emit(rec.x,rec.y+1.1,rec.z,7,{color:'#d3b37e',speed:2,up:.8,size:.14,life:.42,g:5});if(!rec.hp)destroy(rec,from);return true; }
+  const hitRay=new THREE.Raycaster(),hitDir=new THREE.Vector3();
+  function strike(segment,amount,hitKey) { if(!segment?.a||!segment?.b)return 0;hitDir.subVectors(segment.b,segment.a);const len=hitDir.length();if(len<1e-4)return 0;hitDir.multiplyScalar(1/len);hitRay.set(segment.a,hitDir);hitRay.near=0;hitRay.far=len;for(const L of live.values()){const rec=L.rec;if(rec.cabin!=='built')continue;L.root.updateWorldMatrix(true,true);if(hitRay.intersectObjects([L.tree,L.cabin],true).length&&damage(rec,amount,hitKey,segment.pa||segment.a))return 1;}return 0; }
   function attackTarget(g,r) {
     if(!foes.alive(g)||g.held||g.stormHeld||r.position.distanceTo(g.pos)<8)return null;
     let nearest=null,dist=14;
@@ -133,7 +165,7 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
     if(!nearest)return null;const L=nearest,rec=L.rec;
     for(const [id,q] of L.guards)if((rec.guardHP?.[id]??100)>0&&q.pos.distanceTo(g.pos)<5)return {pos:q.pos,reach:2,hit:()=>{rec.guardHP ||= {};rec.guardHP[id]=Math.max(0,(rec.guardHP[id]??100)-10);q.s?.root?.userData && (q.s.root.userData.treehouseGuard=true);rec.guardStates ||= {};if(!rec.guardHP[id]){rec.guardStates[id]='defeated';q.setVisible(false);}persist();}};
     const pos=at(rec,g.pos.x>rec.x?1.4:-1.4,.7);
-    return {pos,reach:2.1,hit:()=>damage(rec,8)};
+    return {pos,reach:2.1,hit:()=>damage(rec,8,`enemy-${g.id||g.pos.x.toFixed(2)}-${performance.now().toFixed(0)}`,g.pos)};
   }
   function guards(L,dt,t) { const rec=L.rec;for(const [id,g] of L.guards)if(!rec.defenders.includes(id)||rec.cabin!=='built'){scene.remove(g.b.root);L.guards.delete(id);}
     if(rec.cabin!=='built')return;
@@ -145,11 +177,13 @@ export function createTreehouses({scene,world,rizer,cam,home,blocked,occupants,t
 
   }
   function update(dt,t,outdoors) {
-    for(const L of live.values()){const rec=L.rec;if(rec.growth<8){rec.growth=Math.min(8,rec.growth+dt);const u=Math.max(.015,rec.growth/8),s=u*u*(3-2*u);L.tree.scale.setScalar(s);L.cabin.visible=true;L.cabin.scale.setScalar(s);if(rec.growth===8){L.tree.scale.setScalar(1);L.cabin.scale.setScalar(1);L.root.updateMatrixWorld(true);world.addMesh(L.tree);rec.cabin='built';enableCabin(L);persist();toast('TREEHOUSE GROWN · climb the ladder to enter');}}
+    for(const L of live.values()){const rec=L.rec;if(rec.cabin==='falling'&&rec.fall){const f=rec.fall;f.t+=dt;f.w+=(3.4*Math.sin(Math.max(.08,f.a))+.6)*dt;f.a=Math.min(Math.PI/2,f.a+f.w*dt);const yaw=rec.yaw,localX=f.dx*Math.cos(yaw)-f.dz*Math.sin(yaw),localZ=f.dx*Math.sin(yaw)+f.dz*Math.cos(yaw);L.root.rotation.set(localZ*f.a,yaw,-localX*f.a);if(f.a>=Math.PI/2||f.t>3)crumble(L);continue;}if(L.shake>0){L.shake=Math.max(0,L.shake-dt);const k=L.shake/.24,w=(L.lean||0)+Math.sin((.24-L.shake)*48)*.028*k,side=L.hitSide,localX=side.x*Math.cos(rec.yaw)-side.z*Math.sin(rec.yaw),localZ=side.x*Math.sin(rec.yaw)+side.z*Math.cos(rec.yaw);L.root.rotation.set(localZ*w,rec.yaw,-localX*w);}else if(rec.cabin==='built'){const side=L.hitSide;L.root.rotation.set(side.z*(L.lean||0),rec.yaw,-side.x*(L.lean||0));}if(rec.growth<8){rec.growth=Math.min(8,rec.growth+dt);const u=Math.max(.015,rec.growth/8),s=u*u*(3-2*u);L.tree.scale.setScalar(s);L.cabin.visible=true;L.cabin.scale.setScalar(s);if(rec.growth===8){L.tree.scale.setScalar(1);L.cabin.scale.setScalar(1);L.root.updateMatrixWorld(true);world.addMesh(L.tree);rec.cabin='built';enableCabin(L);persist();toast('TREEHOUSE GROWN · climb the ladder to enter');}}
       if(outdoors)guards(L,dt,t);
     }
-    if(motion){const m=motion;if(rizer.hp<=0){rizer.actor?.stopPreview();motion=null;return;}if(m.align){if(!rizer.auto){motion=null;toast('Could not reach the planting / ladder position');}return;}m.t+=dt;const u=Math.min(1,m.t/m.duration);rizer.position.copy(m.from).lerp(m.to,u);rizer.vel.set(0,0,0);rizer.vy=rizer.speed=0;if(m.clip&&rizer.actor.preview)rizer.actor.preview.t=m.kind==='ladder'&&m.to.y<m.from.y?(1-u)*(m.clip.duration-.001):u*(m.clip.duration-.001);rizer.actor?.update(0,0,false);rizer.body.root.rotation.y=rizer.facing;cam.snapBehind(rizer,3.6);if(u===1){rizer.actor?.stopPreview();motion=null;m.done();}}
+    if(motion){const m=motion;if(rizer.hp<=0){rizer.actor?.stopPreview();motion=null;return;}if(m.align){if(!rizer.auto){motion=null;toast('Could not reach the planting / ladder position');}return;}if(m.segments){const seg=m.segments[m.index];m.segmentT+=dt;const dur=Math.max(.05,seg.clip.duration||.6),u=Math.min(1,m.segmentT/dur);if(seg.moves)rizer.position.copy(m.from).lerp(m.to,u);if(rizer.actor.preview)rizer.actor.preview.t=(seg.reverse?1-u:u)*(seg.clip.duration-.001);rizer.actor?.update(0,0,false);if(u>=1){m.index++;m.segmentT=0;if(m.index>=m.segments.length){rizer.position.copy(m.to);rizer.actor?.stopPreview();motion=null;m.done();}else rizer.actor.startPreview(m.segments[m.index].clip,{loop:false,speed:0});}}
+      else {m.t+=dt;const u=Math.min(1,m.t/m.duration);rizer.position.copy(m.from).lerp(m.to,u);if(m.clip&&rizer.actor.preview)rizer.actor.preview.t=u*(m.clip.duration-.001);rizer.actor?.update(0,0,false);if(u===1){rizer.actor?.stopPreview();motion=null;m.done();}}
+      rizer.vel.set(0,0,0);rizer.vy=rizer.speed=0;rizer.body.root.rotation.y=rizer.facing;cam.snapBehind(rizer,3.6);}
     if(!motion&&!panel&&outdoors){const n=nearest();if(n)prompt('RIZER’S TREEHOUSE',n.rec.growth<8?'Magical growth · '+Math.round(n.rec.growth/8*100)+'%':n.rec.cabin==='built'?'○ / E manage or climb ladder · △ descend':'Planted tree');}
   }
-  return {start,cancel,plantSeed,interact,nearest,ascend,descend,open,close,pad,update,interior,attackTarget,damage,get placing(){return placing;},get busy(){return !!motion;},get isOpen(){return !!panel;},get activeInterior(){return activeInterior;},get live(){return live;},save:persist};
+  return {start,cancel,plantSeed,interact,nearest,ascend,descend,open,close,pad,update,interior,attackTarget,damage,strike,get placing(){return placing;},get busy(){return !!motion;},get isOpen(){return !!panel;},get activeInterior(){return activeInterior;},get live(){return live;},save:persist};
 }

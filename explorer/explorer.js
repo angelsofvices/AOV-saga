@@ -2819,6 +2819,7 @@
   function fadeIn(secs){ TRANS = { t:secs, d:secs }; }
   function loop(now){
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (UTILITY_WHEEL.open) dt *= .18;
     if (HITSTOP > 0) { HITSTOP = Math.max(0, HITSTOP - dt); dt = 0; }   // a freeze frame: the world holds still for a moment
     SHAKE.t = Math.max(0, SHAKE.t - dt);
     if (mode === 'hyper') drawHyper(now);
@@ -3056,7 +3057,7 @@
     bindHold($('.x-a'), xPress, xRelease);
     $('.x-b').addEventListener('click', useSelectedUtility);
     $('.x-sq').addEventListener('click', function(){ btnA(); });
-    var tb = $('.x-tri'); if (tb) bindHold(tb, function(){ utilityOverlaySet(true); }, function(){ utilityOverlaySet(false); });
+    var tb = $('.x-tri'); if (tb) bindHold(tb, utilityWheelDown, utilityWheelUp);
     // AstraNav access is the DualSense touchpad. On a touch screen the NAV button stands in for it (Creator-approved 2026-10-10).
     var mb = $('.x-nav-btn'); if (mb) mb.addEventListener('click', function(e){ e.stopPropagation(); touchpad(); });
     hudBind();
@@ -4159,6 +4160,7 @@
   // the tiles the JETPACK cannot cross: walls, structures, the vault, landmarks, the ship and the marker stones
   var FLY_STOP = { '#':1, F:1, K:1, L:1, S:1, M:1, w:1 };
   var squareHeld = false, xDown = false, xTimer = null, xHeld = false, xJet = false, xLastTap = 0, jumpHeld = false;
+  var UTILITY_WHEEL = { open:false, hold:false, pressAt:0, timer:null };
   function approach(v, t, d){ return v < t ? Math.min(t, v + d) : Math.max(t, v - d); }
   function jet(){ if (!S.jet) S.jet = { repaired:false, equipped:false }; return S.jet; }
   function jetReady(){ var j = jet(); return !!(j.repaired && j.equipped); }
@@ -4240,10 +4242,23 @@
   function useSelectedUtility(){ var u = activeUtil(); if (!u) { toast('No utility equipped.', 'red'); return false; } return useUtil(u); }
   function utilityOverlaySet(open){
     var old = $('.x-util-overlay'); if (old) old.remove();
+    UTILITY_WHEEL.open = !!open;
     if (!open || !surfaceFree()) return;
-    var box = el('div', 'x-util-overlay'); box.setAttribute('role','dialog'); box.innerHTML = '<b>UTILITY LOADOUT</b><small>R1 / L1 CYCLE · ○ USE</small>';
-    utilList().forEach(function(id){ var b = el('button'); b.type='button'; b.textContent = utilInfo(id).name; b.className = id === activeUtil() ? 'on' : ''; b.addEventListener('click', function(){ S.util={active:id}; save(); syncUtilHud(); utilityOverlaySet(true); }); box.appendChild(b); });
+    var box = el('div', 'x-util-overlay'); box.setAttribute('role','dialog'); box.innerHTML = '<b>UTILITY WHEEL</b><small>RIGHT STICK AIM · L1/R1 CYCLE · ○ USE</small><i class="x-util-center">✦</i>';
+    var a = utilList(), radius = 92;
+    a.forEach(function(id, i){ var b = el('button'); b.type='button'; b.textContent = utilInfo(id).name; b.className = id === activeUtil() ? 'on' : ''; var ang = -Math.PI / 2 + i * Math.PI * 2 / Math.max(1, a.length); b.style.left = (50 + Math.cos(ang) * radius / 2.6) + '%'; b.style.top = (50 + Math.sin(ang) * radius / 2.6) + '%'; b.addEventListener('click', function(){ S.util={active:id}; save(); syncUtilHud(); utilityWheelPaint(); }); box.appendChild(b); });
     doc.body.appendChild(box);
+  }
+  function utilityWheelPaint(){ if (UTILITY_WHEEL.open) utilityOverlaySet(true); }
+  function utilityWheelDown(){
+    if (!surfaceFree()) return;
+    UTILITY_WHEEL.pressAt = performance.now(); UTILITY_WHEEL.hold = false; clearTimeout(UTILITY_WHEEL.timer);
+    UTILITY_WHEEL.timer = setTimeout(function(){ UTILITY_WHEEL.hold = true; utilityOverlaySet(true); }, 220);
+  }
+  function utilityWheelUp(){
+    clearTimeout(UTILITY_WHEEL.timer); UTILITY_WHEEL.timer = null;
+    if (UTILITY_WHEEL.hold) { utilityOverlaySet(false); UTILITY_WHEEL.hold = false; return; }
+    utilityOverlaySet(!UTILITY_WHEEL.open);
   }
   // ○ uses the active utility: the ASTRABLASTER fires once per press.
   function squarePress(){
@@ -6410,7 +6425,7 @@
         ph = doc.querySelector('.x-battle [data-b="photo"]'); if (ph && visible(ph)) { ph.click(); return; }
         if (surfaceFree()) btnA();
       }
-      else if (b === 'triangle') { if (surfaceFree()) { utilityOverlaySet(true); return; } if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
+      else if (b === 'triangle') { if (surfaceFree()) { utilityWheelDown(); return; } if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
       else if (b === 'options') { if (!surfaceFree()) goBack(); }
       else if (b === 'touchpad') touchpad();
       else if ((b === 'l1' || b === 'r1') && surfaceFree()) cycleUtil(b === 'l1' ? -1 : 1);
@@ -6420,7 +6435,7 @@
         if (row) { var bt = row.querySelector('[data-d="' + (b === 'l1' ? -1 : 1) + '"]'); if (bt) bt.click(); }
       }
     });
-    PAD.on('release', function(b){ if (b === 'cross') xRelease(); else if (b === 'square') squareRelease(); else if (b === 'triangle') utilityOverlaySet(false); });
+    PAD.on('release', function(b){ if (b === 'cross') xRelease(); else if (b === 'square') squareRelease(); else if (b === 'triangle') utilityWheelUp(); });
     PAD.on('press', function(b){ if (b === 'l3') toggleCrouch(); });
     PAD.on('frame', function(st){
       var sv = doc.querySelector('.x-spiral'), trig = st.r2 - st.l2;
@@ -6430,6 +6445,9 @@
         setView(sv); return;
       }
       if (surfaceFree()) setSprint(st.r2 > .55);
+      if (UTILITY_WHEEL.open && Math.hypot(st.rx || 0, st.ry || 0) > .35) {
+        var ua = utilList(); if (ua.length) { var ang = Math.atan2(st.ry, st.rx) + Math.PI / 2, ui = Math.round((ang + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * ua.length) % ua.length, uid = ua[ui]; if (uid !== activeUtil()) { S.util = { active:uid }; save(); syncUtilHud(); utilityWheelPaint(); } }
+      }
       if (Math.abs(trig) > .05) {
         var ring = Array.prototype.slice.call(doc.querySelectorAll('.x-ring input')).filter(visible)[0];
         if (ring) { ring.value = clamp(+ring.value + trig * 14, 0, 1000); ring.dispatchEvent(new Event('input', { bubbles:true })); }

@@ -2961,9 +2961,9 @@
     screen('x-surface',
       hudMarkup() +
       '<p class="x-objhint" aria-live="polite"></p>' +
-      '<p class="x-padhint" aria-hidden="true">✕ JUMP · double-press + hold JETPACK · □ INTERACT · ○ USE · △ UTILITY OVERLAY · L1/R1 CYCLE · R2 SPRINT · L3 CROUCH</p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ JUMP · hold □ JETPACK · analog STEER · release □ DESCEND · □ again THRUST · ○ USE · △ UTILITY OVERLAY · L1/R1 CYCLE · R2 SPRINT · L3 CROUCH</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-tri" aria-label="Hold Triangle: utility overlay">△<small>UTILITIES</small></button><button class="x-sq" aria-label="Square: interact">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: use selected utility">○<small>USE</small></button><button class="x-a" aria-label="X: jump, double-press and hold for jetpack">✕<small>JUMP</small></button></div>' +
+      '<p class="x-aprompt" aria-live="polite" hidden></p><div class="x-ab"><button class="x-tri" aria-label="Hold Triangle: utility overlay">△<small>UTILITIES</small></button><button class="x-sq" aria-label="Square: interact or hold to fly">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: use selected utility">○<small>USE</small></button><button class="x-a" aria-label="X: jump">✕<small>JUMP</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI(); hudLayoutApply(); hudEditSet(HUD_EDIT);
     startWorld('surface');
@@ -3789,14 +3789,35 @@
     SIDE.aethren = [];
     teamReady().slice(0, teamMax()).forEach(function(id, i){
       var s = subj(id) || {}, sp = SP[s.sp] || {}, st = allyStats(id);
-      SIDE.aethren.push({ id:id, sp:s.sp, slot:i, x:SIDE.p.x - 1.2 - (i % 3) * .9, y:SIDE.p.y - Math.floor(i / 3) * .08, hp:(S.cards[id] && S.cards[id].hp) || maxHp(id), max:maxHp(id), cd:.35 + i * .08, dir:'left', anim:0, flash:0, range:st.range, atk:Math.max(5, Math.round(st.atk * 2.2)), ranged:st.ranged, type:st.type });
+      var tx = SIDE.p.x - 1.2 - (i % 3) * .9;
+      SIDE.aethren.push({ id:id, sp:s.sp, body:sp.body || 'quad', slot:i, x:tx, y:caveGroundY(tx, SIDE.p.y), vy:0, air:0, jumpCd:.2 + i * .05, hp:(S.cards[id] && S.cards[id].hp) || maxHp(id), max:maxHp(id), cd:.35 + i * .08, dir:'left', anim:0, flash:0, range:st.range, atk:Math.max(5, Math.round(st.atk * 2.2)), ranged:st.ranged, type:st.type });
     });
+  }
+  function caveGroundY(x, fallback){
+    if (!SIDE || !SIDE.C) return fallback;
+    var col = Math.max(0, Math.min(SIDE.C.W - 1, Math.floor(x)));
+    for (var y = 1; y < SIDE.C.H - 1; y++) {
+      if (!SIDE_SOLID[sTile(col, y)] && SIDE_SOLID[sTile(col, y + 1)]) return y - .001;
+    }
+    return fallback;
+  }
+  function cavePartyBlocked(x, y){
+    return caveGroundY(x, null) === null || !!(SIDE_SOLID[sTile(x, y + .35)] || SIDE_SOLID[sTile(x, y - .35)]);
+  }
+  function cavePartyJump(a, strength){
+    if (a.air || a.jumpCd > 0) return;
+    a.air = 1; a.vy = -SIDE_JUMP * strength; a.jumpCd = .42;
   }
   function updateCaveParty(dt){
     if (!SIDE || !SIDE.aethren) return;
     SIDE.aethren.forEach(function(a){
-      a.cd = Math.max(0, a.cd - dt); a.flash = Math.max(0, a.flash - dt); a.anim += dt * 8;
+      a.cd = Math.max(0, a.cd - dt); a.jumpCd = Math.max(0, (a.jumpCd || 0) - dt); a.flash = Math.max(0, a.flash - dt); a.anim += dt * 8;
       var card = S.cards[a.id]; if (!card || card.hp <= 0 || a.hp <= 0) return;
+      if (a.air) {
+        a.vy += SIDE_G * (a.body === 'wing' ? .35 : 1) * dt; a.y += a.vy * dt;
+        var airFloor = caveGroundY(a.x, null);
+        if (airFloor !== null && a.y >= airFloor) { a.y = airFloor; a.vy = 0; a.air = 0; }
+      } else a.y = caveGroundY(a.x, a.y);
       var target = null, best = 1e9;
       SIDE.en.forEach(function(e){ if (e.dead) return; var d = Math.hypot(e.x - a.x, e.y - a.y); if (d < best && d < 9) { best = d; target = e; } });
       if (target) {
@@ -3804,11 +3825,19 @@
         if (a.cd <= 0 && (a.ranged ? best <= a.range + 1 : best <= 1.25)) {
           hitSideFoe(target, a.atk); a.cd = a.ranged ? 1.15 : 1.35; fxs.push({ k:'spark', x:target.x, y:target.y - .5, t:0, life:.25, color:typeCol(a.type) });
         } else if (best > 1.4 && a.ranged === false) {
-          a.x += (target.x > a.x ? 1 : -1) * Math.min(.8 * dt, Math.abs(target.x - a.x));
+          var step = (target.x > a.x ? 1 : -1) * Math.min(2.2 * dt, Math.abs(target.x - a.x));
+          var nx = a.x + step, blocked = cavePartyBlocked(nx, a.y);
+          if (blocked && !a.air) cavePartyJump(a, a.body === 'wing' ? .9 : .72);
+          if (!blocked || a.air) a.x += step;
         }
       } else {
-        var tx = SIDE.p.x - 1.1 - (a.slot % 3) * .8, ty = SIDE.p.y - Math.floor(a.slot / 3) * .08;
-        a.x += (tx - a.x) * Math.min(1, dt * 3); a.y += (ty - a.y) * Math.min(1, dt * 3); a.dir = SIDE.p.face > 0 ? 'right' : 'left';
+        var tx = SIDE.p.x - 1.1 - (a.slot % 3) * .8, step2 = (tx - a.x) * Math.min(1, dt * 3), nx2 = a.x + step2;
+        if (Math.abs(step2) > .02) {
+          if (cavePartyBlocked(nx2, a.y) && !a.air) cavePartyJump(a, a.body === 'wing' ? .9 : .72);
+          if (!cavePartyBlocked(nx2, a.y) || a.air) a.x = nx2;
+        }
+        if (!a.air) a.y = caveGroundY(a.x, SIDE.p.y);
+        a.dir = SIDE.p.face > 0 ? 'right' : 'left';
       }
       a.x = Math.max(.4, Math.min(SIDE.C.W - 1.4, a.x));
     });
@@ -3819,7 +3848,7 @@
     return (st.art = CA.paint(SIDE.C, CA.palette(SIDE.no, SIDE.cave.kind, envOf(SIDE.no))));
   }
   function caveRoomGo(k, side){
-    caveRoomEnter(k, side); fadeIn(.3);
+    caveRoomEnter(k, side); spawnCaveParty(); fadeIn(.3);
     var n = SIDE.cave.rooms.length, up = SIDE.cave.kind === 'peak';
     toast('ROOM ' + (k + 1) + ' OF ' + n + (k === n - 1 ? ' · the ' + (up ? 'peak' : 'valley') + ' is close' : ''));
   }
@@ -3828,7 +3857,7 @@
       hudMarkup() +
       '<p class="x-padhint" aria-hidden="true">✕ JUMP · hold □ JETPACK · analog STEER · release □ DESCEND · □ again THRUST · ○ USE · △ UTILITY OVERLAY · L1/R1 CYCLE · R2 SPRINT · L3 CROUCH</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
-      '<div class="x-ab"><button class="x-tri" aria-label="Hold Triangle: utility overlay">△<small>UTILITIES</small></button><button class="x-sq" aria-label="Square: interact">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: use selected utility">○<small>USE</small></button><button class="x-a" aria-label="X: jump, double-press and hold for jetpack">✕<small>JUMP</small></button></div>' +
+      '<div class="x-ab"><button class="x-tri" aria-label="Hold Triangle: utility overlay">△<small>UTILITIES</small></button><button class="x-sq" aria-label="Square: interact or hold to fly">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: use selected utility">○<small>USE</small></button><button class="x-a" aria-label="X: jump">✕<small>JUMP</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
     bindSurfaceUI(); hudLayoutApply(); hudEditSet(HUD_EDIT);
     startWorld('side');
@@ -4211,7 +4240,7 @@
   // what a utility is called, its label on □, and its hint. Built from the registry (utilities.js).
   function utilInfo(id){
     var d = UTILS.byId[id] || { name:String(id || '').toUpperCase(), planet:'', ability:'' };
-    var hint = id === 'astrablaster' ? 'fires it' : id === 'jetpack' ? 'double-press + hold ✕ to fly' : 'uses it';
+    var hint = id === 'astrablaster' ? 'fires it' : id === 'jetpack' ? 'hold □ + analog to fly' : 'uses it';
     return { name:d.name, short:id === 'astrablaster' ? 'FIRE' : id === 'jetpack' ? 'FLY' : 'USE', toast:'ACTIVE UTILITY · ' + d.name.toUpperCase() + ' · ○ ' + hint };
   }
   var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.8, accel:6.5, decel:8.5, sink:.7, altMax:2, crossAlt:.6, flyStep:.075, hold:.08, hop:.8 };
@@ -4221,7 +4250,7 @@
   var GAIT_SIDE = { stalk:.5, steady:1, sprint:1.6 };
   // the tiles the JETPACK cannot cross: walls, structures, the vault, landmarks, the ship and the marker stones
   var FLY_STOP = { '#':1, F:1, K:1, L:1, S:1, M:1, w:1 };
-  var squareHeld = false, xDown = false, xTimer = null, xHeld = false, xJet = false, xLastTap = 0, xChargeT = 0, jumpHeld = false;
+  var squareHeld = false, xDown = false, xTimer = null, xHeld = false, xJet = false, xChargeT = 0, jumpHeld = false;
   var UTILITY_WHEEL = { open:false, hold:false, down:false, pressAt:0, timer:null };
   function approach(v, t, d){ return v < t ? Math.min(t, v + d) : Math.max(t, v - d); }
   function jet(){ if (!S.jet) S.jet = { repaired:false, equipped:false }; return S.jet; }
@@ -4255,7 +4284,7 @@
   }
   function jetCardHtml(){
     var j = jet(), ws = coreMachine('workstation'), act = '';
-    var state = !j.repaired ? 'NOT ASSEMBLED' : j.equipped ? 'EQUIPPED · double-press + hold ✕ to fly' : 'STORED · equip it to fly';
+    var state = !j.repaired ? 'NOT ASSEMBLED' : j.equipped ? 'EQUIPPED · hold □ + analog to fly' : 'STORED · equip it to fly';
     if (!j.repaired) act = !ws ? '<em class="dim">BUILD THE WORKSTATION FIRST</em>' : canAfford(JET.cost) ? '<button class="x-btn small" data-wpn="jet-repair">ASSEMBLE · ' + esc(costText(JET.cost)) + '</button>' : '<em class="dim">NEEDS ' + esc(costText(JET.cost)) + '</em>';
     else act = j.equipped ? '<button class="x-btn small ghost" data-wpn="jet-unequip">UNEQUIP</button>' : '<button class="x-btn small" data-wpn="jet-equip">EQUIP</button>';
     return '<ul class="x-hqlist"><li class="' + (j.repaired ? 'done' : '') + '"><img class="x-pix x-ico" alt="" src="' + ART.url('it_relic', 2) + '"><b>JETPACK</b><span>' + state + ' · lifts Carl over low ground</span><div>' + act + '</div></li></ul>';
@@ -4378,14 +4407,11 @@
     UTIL_PENDING = UTIL_PENDING.filter(function(st){ st.t -= dt; if (st.t > 0) return true; st.fire(); return false; });
   }
   function btnMove(){ squarePress(); }
-  // X has three deliberate paths: tap = quick jump, hold = short charged jump,
-  // double-tap = jetpack. The jump is committed on release so a hold never
-  // becomes a slow, repeated bounce.
+  // X always jumps. A tap is quick; a brief hold adds only a small charge.
+  // Jetpack flight is reserved for holding Square while it is equipped.
   function xPress(){
     if (xHeld || !surfaceFree()) return;
     xHeld = true; jumpHeld = false; xChargeT = 0;
-    var now = performance.now(), dbl = now - xLastTap < 500; xLastTap = now;
-    if (dbl && activeUtil() === 'jetpack' && jetReady()) { xJet = true; UTIL_DATA.jetT = JET.hold; toast(mode === 'side' ? 'CAVE JETPACK ENGAGED · hold ✕ + analog to steer' : 'JETPACK ENGAGED · analog to steer'); }
   }
   function xRelease(){
     var wasHeld = xHeld, wasJet = xJet, charge = xChargeT;
@@ -4404,7 +4430,7 @@
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(function(t){ el.addEventListener(t, up); });
     if (tap) el.addEventListener('click', tap);
   }
-  // the JETPACK is on while the second X press is held, and Carl is free to act
+  // the JETPACK is on while Square is held, and Carl is free to act
   function jetOn(){
     // Cave flight is a movement state, not a surface UI state. Keep it available
     // while the side-view cave loop is active even if a cave overlay is present.

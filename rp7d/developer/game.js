@@ -1062,7 +1062,8 @@ function build() {
   journalProgress();
   const squareSite = world.interactables.find(q => q.id === 'malezor-square');
   if (squareSite) {
-    const jx = squareSite.cx + 2.4, jz = squareSite.cz + 1.25, journalMesh = makeJournalProp();
+    // The fountain basin has a 4.7-unit collision radius; place the journal on the nearby walkable ground.
+    const jx = squareSite.cx + 6, jz = squareSite.cz + 4, journalMesh = makeJournalProp();
     const J = journalProgress();
     journalMesh.position.set(jx, world.groundAt(jx, jz) + 0.08, jz); journalMesh.rotation.y = -0.35; journalMesh.visible = !!J.started && !J.found; scene.add(journalMesh);
     world.interactables.push({ id: 'rizer-journal-fountain', name: 'Rizer’s Journal', kind: 'journal', note: 'Rizer’s playtest journal.', cx: jx, cz: jz, x: jx, z: jz, reach: 1.9, active: () => !!journalProgress().started && !journalProgress().found && !homeMode, mesh: journalMesh });

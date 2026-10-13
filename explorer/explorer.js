@@ -3081,7 +3081,7 @@
     });
     bindHold($('.x-a'), xPress, xRelease);
     $('.x-b').addEventListener('click', useSelectedUtility);
-    $('.x-sq').addEventListener('click', function(){ btnA(); });
+    bindHold($('.x-sq'), function(){ if (mode === 'side' && activeUtil() === 'jetpack' && jetReady()) squarePress(); else btnA(); }, function(){ if (mode === 'side' && squareHeld) squareRelease(); });
     var tb = $('.x-tri'); if (tb) bindHold(tb, utilityWheelDown, utilityWheelUp);
     // AstraNav access is the DualSense touchpad. On a touch screen the NAV button stands in for it (Creator-approved 2026-10-10).
     var mb = $('.x-nav-btn'); if (mb) mb.addEventListener('click', function(e){ e.stopPropagation(); touchpad(); });
@@ -3757,8 +3757,9 @@
     } else parkField();
     var C = GEN.cave(no);
     var viaHole = !!(lm && lm.hole);
-    SIDE = { no:no, cave:C, rooms:[], k:-1, C:null, npcs:[], viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:null, p:{ x:1, y:1, vx:0, vy:0, ground:true, groundGrace:0, face:1, safe:{ x:1, y:1 }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
+    SIDE = { no:no, cave:C, rooms:[], k:-1, C:null, npcs:[], aethren:[], viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:null, p:{ x:1, y:1, vx:0, vy:0, ground:true, groundGrace:0, face:1, safe:{ x:1, y:1 }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
     caveRoomEnter(fromZone ? C.rooms.length - 1 : 0, fromZone ? 'right' : 'left');
+    spawnCaveParty();
     mode = 'side'; fadeIn(.45);
     sideScreen(no);
     var up = C.kind === 'peak';
@@ -3783,6 +3784,35 @@
     p.safe = { x:p.x, y:p.y }; p.safeT = 0; p.ground = false;
     if (typeof bolts !== 'undefined' && bolts.length) bolts.length = 0;
   }
+  function spawnCaveParty(){
+    if (!SIDE) return;
+    SIDE.aethren = [];
+    teamReady().slice(0, teamMax()).forEach(function(id, i){
+      var s = subj(id) || {}, sp = SP[s.sp] || {}, st = allyStats(id);
+      SIDE.aethren.push({ id:id, sp:s.sp, slot:i, x:SIDE.p.x - 1.2 - (i % 3) * .9, y:SIDE.p.y - Math.floor(i / 3) * .08, hp:(S.cards[id] && S.cards[id].hp) || maxHp(id), max:maxHp(id), cd:.35 + i * .08, dir:'left', anim:0, flash:0, range:st.range, atk:Math.max(5, Math.round(st.atk * 2.2)), ranged:st.ranged, type:st.type });
+    });
+  }
+  function updateCaveParty(dt){
+    if (!SIDE || !SIDE.aethren) return;
+    SIDE.aethren.forEach(function(a){
+      a.cd = Math.max(0, a.cd - dt); a.flash = Math.max(0, a.flash - dt); a.anim += dt * 8;
+      var card = S.cards[a.id]; if (!card || card.hp <= 0 || a.hp <= 0) return;
+      var target = null, best = 1e9;
+      SIDE.en.forEach(function(e){ if (e.dead) return; var d = Math.hypot(e.x - a.x, e.y - a.y); if (d < best && d < 9) { best = d; target = e; } });
+      if (target) {
+        a.dir = target.x < a.x ? 'left' : 'right';
+        if (a.cd <= 0 && (a.ranged ? best <= a.range + 1 : best <= 1.25)) {
+          hitSideFoe(target, a.atk); a.cd = a.ranged ? 1.15 : 1.35; fxs.push({ k:'spark', x:target.x, y:target.y - .5, t:0, life:.25, color:typeCol(a.type) });
+        } else if (best > 1.4 && a.ranged === false) {
+          a.x += (target.x > a.x ? 1 : -1) * Math.min(.8 * dt, Math.abs(target.x - a.x));
+        }
+      } else {
+        var tx = SIDE.p.x - 1.1 - (a.slot % 3) * .8, ty = SIDE.p.y - Math.floor(a.slot / 3) * .08;
+        a.x += (tx - a.x) * Math.min(1, dt * 3); a.y += (ty - a.y) * Math.min(1, dt * 3); a.dir = SIDE.p.face > 0 ? 'right' : 'left';
+      }
+      a.x = Math.max(.4, Math.min(SIDE.C.W - 1.4, a.x));
+    });
+  }
   function caveArt(){
     var st = SIDE.st; if (st.art) return st.art;
     var CA = window.AOV_CAVE_ART; if (!CA) return null;
@@ -3796,7 +3826,7 @@
   function sideScreen(no){
     screen('x-surface x-side',
       hudMarkup() +
-      '<p class="x-padhint" aria-hidden="true">✕ JUMP · double-press + hold JETPACK · □ INTERACT · ○ USE · △ UTILITY OVERLAY · L1/R1 CYCLE · R2 SPRINT · L3 CROUCH</p>' +
+      '<p class="x-padhint" aria-hidden="true">✕ JUMP · hold □ JETPACK · analog STEER · release □ DESCEND · □ again THRUST · ○ USE · △ UTILITY OVERLAY · L1/R1 CYCLE · R2 SPRINT · L3 CROUCH</p>' +
       '<div class="x-pad" aria-label="Direction pad"><button data-d="up" aria-label="Up">▲</button><button data-d="left" aria-label="Left">◀</button><button data-d="right" aria-label="Right">▶</button><button data-d="down" aria-label="Down">▼</button></div>' +
       '<div class="x-ab"><button class="x-tri" aria-label="Hold Triangle: utility overlay">△<small>UTILITIES</small></button><button class="x-sq" aria-label="Square: interact">□<small>INTERACT</small></button><button class="x-b" aria-label="Circle: use selected utility">○<small>USE</small></button><button class="x-a" aria-label="X: jump, double-press and hold for jetpack">✕<small>JUMP</small></button></div>' +
       '<div class="x-dialog" hidden><p class="x-dtext"></p><div class="x-dchoices"></div><span class="x-dmore">▼</span></div>');
@@ -3919,7 +3949,7 @@
     if (p.x <= .21) { if (s.k > 0) caveRoomGo(s.k - 1, 'right'); else cavePassOut('You climb back out to the cave mouth.'); return; }
     // climb out at the mouth
     if (held === 'up' && s.k === 0 && p.x < 3.2) { cavePassOut('You climb back out to the cave mouth.'); return; }   // at the mouth, up is out
-    updateBolts(dt); updateUtilities(dt);
+    updateBolts(dt); updateUtilities(dt); updateCaveParty(dt);
     p.coyote = p.ground ? SIDE_COYOTE : Math.max(0, (p.coyote || 0) - dt);
     if (p.sq) { p.sq.t -= dt; if (p.sq.t <= 0) p.sq = null; }
     if (p.landT > 0) p.landT -= dt;
@@ -4025,6 +4055,13 @@
       ctx.fillStyle = '#20182a'; ctx.fillRect(cx - 7 * z, cy - 8 * z, 14 * z, 8 * z); ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, z); ctx.strokeRect(cx - 7 * z, cy - 8 * z, 14 * z, 8 * z); ctx.fillStyle = col; ctx.fillRect(cx - z, cy - 7 * z, 2 * z, 6 * z);
     }
     SIDE.npcs.forEach(function(n){ var X = ox + (n.x + .5) * TZ, Y = oy + (n.y + 1) * TZ; shadow(X, Y, z, 10); ART.draw(ctx, npcSprite(n), X, Y, z); });
+    (s.aethren || []).forEach(function(a){
+      var card = S.cards[a.id]; if (!card || card.hp <= 0 || a.hp <= 0) return;
+      var X = ox + (a.x + .5) * TZ, Y = oy + (a.y + 1) * TZ;
+      shadow(X, Y, z, 9); ART.draw(ctx, critterSpec(a.sp, a.dir, Math.floor(now / 220 + a.slot) % 2), X, Y, z);
+      if (a.flash > 0) { ctx.globalAlpha = .55; ctx.fillStyle = '#fff'; ctx.fillRect(X - 5 * z, Y - 12 * z, 10 * z, 10 * z); ctx.globalAlpha = 1; }
+      hpBar(X, Y - 16 * z, z, a.hp / a.max, '#8fe0a0', card.lv || 1);
+    });
     s.en.forEach(function(e){
       var X = ox + (e.x + .5) * TZ, Y = oy + (e.y + 1) * TZ;
       if (e.dead) { ctx.globalAlpha = Math.max(0, 1 - e.deadT / 1.4); }
@@ -4178,7 +4215,7 @@
     return { name:d.name, short:id === 'astrablaster' ? 'FIRE' : id === 'jetpack' ? 'FLY' : 'USE', toast:'ACTIVE UTILITY · ' + d.name.toUpperCase() + ' · ○ ' + hint };
   }
   var JET = { cost:{ scrap:4, crystal:2, data:3 }, maxLift:1.8, accel:6.5, decel:8.5, sink:.7, altMax:2, crossAlt:.6, flyStep:.075, hold:.08, hop:.8 };
-  var JSIDE = { thrust:72, accel:220, rise:14, decel:180, fall:11 };
+  var JSIDE = { thrust:38, accel:90, rise:8, decel:100, fall:8 };
   // Stage 1 movement feel: side-view acceleration, friction, air control, and coyote time after a ledge
   var SIDE_ACC = 95, SIDE_FRIC = 120, SIDE_AIRACC = 60, SIDE_COYOTE = .14;
   var GAIT_SIDE = { stalk:.5, steady:1, sprint:1.6 };
@@ -4299,6 +4336,7 @@
   function squarePress(){
     squareHeld = true;
     if (!surfaceFree()) return;
+    if (activeUtil() === 'jetpack' && jetReady()) { xJet = true; UTIL_DATA.jetT = JET.hold; toast(mode === 'side' ? 'CAVE JETPACK · hold □ + analog to steer' : 'JETPACK · hold □ + analog to steer'); return; }
     var u = activeUtil(); ACT = { u:u, t:performance.now() };
     if (u === 'astrablaster') { fireBlaster(); return; }
     if (u === 'jetpack') { UTIL_DATA.jetT = 0; return; }
@@ -4307,6 +4345,7 @@
   }
   function squareRelease(){
     var was = squareHeld, u = activeUtil(); squareHeld = false;
+    if (u === 'jetpack') { xJet = false; return; }
     if (was && u === 'jetpack' && mode === 'surface' && P && (UTIL_DATA.jetT || 0) < JET.hold) {
       // a tap: a short hop over low ground; it settles back down on its own
       P.alt = Math.min(JET.altMax, (P.alt || 0) + JET.hop); P.lift = 0; sfx.step();
@@ -6480,7 +6519,7 @@
         var ph = doc.querySelector('.x-encounter .x-shutter'); if (ph && visible(ph)) { ph.click(); return; }
         ph = doc.querySelector('.x-encounter [data-e="scan"]'); if (ph && visible(ph)) { ph.click(); return; }
         ph = doc.querySelector('.x-battle [data-b="photo"]'); if (ph && visible(ph)) { ph.click(); return; }
-        if (surfaceFree()) btnA();
+        if (surfaceFree()) { if (mode === 'side' && activeUtil() === 'jetpack' && jetReady()) squarePress(); else btnA(); }
       }
       else if (b === 'triangle') { if (surfaceFree()) { utilityWheelDown(); return; } if (!surfaceFree() && doc.querySelector('.x-nav-close') && !doc.querySelector('.x-modal')) backToField(); else if (!surfaceFree() && doc.querySelector('.x-battle [data-b="cards"]')) { var cb = doc.querySelector('.x-battle [data-b="cards"]'); if (visible(cb)) cb.click(); } }
       else if (b === 'options') { if (!surfaceFree()) goBack(); }

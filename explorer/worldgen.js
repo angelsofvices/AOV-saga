@@ -857,7 +857,9 @@
     var bg = [];
     for (y = 0; y < H; y++) { var row = ''; for (x = 0; x < W; x++) { var nz = Math.sin(x * .37 + no) * Math.cos(y * .41 + k * 1.7) + Math.sin((x + y) * .19 + no * .3) * .6; row += nz > -.25 ? 'b' : '.'; } bg.push(row); }
     // loot over the gaps and on some ledges; enemies on the long ledges, in the way
-    var en = [], lv = levelFor(no) || 5, kinds = ['mori', 'seer_grunt', 'daemon', 'nova'];
+    // Cave combat currently has three readable threats: Mori and Daemon rush
+    // into melee; Seer Grunts hold space and throw flaming spears.
+    var en = [], lv = levelFor(no) || 5, kinds = ['mori', 'seer_grunt', 'daemon'];
     for (i = 1; i < L.length; i++) { var Bq = L[i], Aq = L[i - 1]; if (Bq.x0 - Aq.x1 > 1) { var mx = (Aq.x1 + Bq.x0) >> 1, my = Math.min(Aq.top, Bq.top) - 2; if (g[my] && g[my][mx] === '.') g[my][mx] = '$'; } }
     L.forEach(function(A, j){
       if (j === 0 || (last && j === L.length - 1) || A.kind !== 'G') return;

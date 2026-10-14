@@ -3760,7 +3760,7 @@
     fxs = [];
     var C = GEN.cave(no);
     var viaHole = !!(lm && lm.hole);
-    SIDE = { no:no, cave:C, rooms:[], k:-1, C:null, npcs:[], aethren:[], viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:null, p:{ x:1, y:1, vx:0, vy:0, ground:true, groundGrace:0, face:1, safe:{ x:1, y:1 }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
+    SIDE = { no:no, cave:C, rooms:[], k:-1, C:null, npcs:[], aethren:[], spears:[], viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:null, p:{ x:1, y:1, vx:0, vy:0, ground:true, groundGrace:0, face:1, safe:{ x:1, y:1 }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
     caveRoomEnter(fromZone ? C.rooms.length - 1 : 0, fromZone ? 'right' : 'left');
     spawnCaveParty();
     mode = 'side'; fadeIn(.45);
@@ -3768,7 +3768,26 @@
     var up = C.kind === 'peak';
     toast(fromZone ? 'BACK INTO THE CAVE · ' + C.rooms.length + ' rooms ' + (up ? 'down' : 'up') + ' to the mouth.' : placeName(no) + ' · CAVE · ' + C.rooms.length + ' rooms ' + (up ? 'up to the PEAK' : 'down to the VALLEY') + '. Left and right to walk, ▲ jump, ✕ interact, □ use, ○ crouch, walk or run.');
   }
-  function caveFoe(e){ var d = ENEMY.kinds[e.k] || {}, hp = Math.round((40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)) * 1.5); return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:Math.round((d.atk || 5) * 1.4), range:d.range || 1, spd:d.behavior === 'lurk' ? 3.4 : d.behavior === 'kite' ? 2 : 2.5 }; }
+  function caveFoe(e){
+    var d = ENEMY.kinds[e.k] || {}, spear = e.k === 'seer' || e.k === 'seer_grunt', hp = Math.round((40 + e.lv * 9 * (d.hp ? d.hp / 125 : 1)) * 1.5);
+    return { x:e.x, y:e.y, k:e.k, lv:e.lv, hp:hp, max:hp, cd:Math.random(), dead:false, face:-1, flash:0, atk:Math.round((d.atk || 5) * 1.4), attackStyle:spear ? 'flaming-spear' : 'melee', range:spear ? 6 : .9, spd:e.k === 'daemon' ? 3.4 : spear ? 1.7 : 2.5 };
+  }
+  function throwCaveSpear(e, target){
+    var sx = e.x + e.face * .55, sy = e.y + .3, tx = target.x + .3, ty = target.y + .45, dx = tx - sx, dy = ty - sy, d = Math.hypot(dx, dy) || 1;
+    SIDE.spears.push({ x:sx, y:sy, dx:dx / d, dy:dy / d, speed:8.5, life:1.3, dmg:e.atk, face:e.face });
+    fxs.push({ k:'spark', x:sx, y:sy, t:0, life:.28, color:'#ff8a3a' });
+  }
+  function updateCaveSpears(dt){
+    if (!SIDE || !SIDE.spears) return;
+    SIDE.spears = SIDE.spears.filter(function(q){
+      q.life -= dt; if (q.life <= 0) return false;
+      q.x += q.dx * q.speed * dt; q.y += q.dy * q.speed * dt;
+      if (SIDE_SOLID[sTile(q.x, q.y)]) return false;
+      var p = SIDE.p;
+      if (p.inv <= 0 && Math.abs(q.x - (p.x + .3)) < .48 && Math.abs(q.y - (p.y + .45)) < .55) { sHurt(q.dmg, q.face); return false; }
+      return true;
+    });
+  }
   function seedCaveCapsule(st, rm, no, k){
     if (st.capsule) return;
     var found = null;
@@ -3781,7 +3800,7 @@
   function caveRoomEnter(k, side){
     var s = SIDE, rm = s.cave.rooms[k], st = s.rooms[k] || (s.rooms[k] = { g:rm.rows.map(function(r){ return r.split(''); }), en:rm.enemies.map(caveFoe), art:null });
     seedCaveCapsule(st, rm, s.no, k);
-    s.k = k; s.C = rm; s.g = st.g; s.en = st.en; s.npcs = []; s.st = st;
+    s.k = k; s.C = rm; s.g = st.g; s.en = st.en; s.npcs = []; s.spears = []; s.st = st;
     var p = s.p, right = side === 'right';
     p.x = right ? rm.W - 1.7 : .7; p.y = (right ? rm.exit.y : rm.start.y) - .001; p.vx = 0; p.vy = 0; p.face = right ? -1 : 1;
     p.safe = { x:p.x, y:p.y }; p.safeT = 0; p.ground = false;
@@ -3972,9 +3991,14 @@
       e.face = dx < 0 ? -1 : 1;
       var fr = s.g[Math.round(e.y) + 1], floorAhead = !!fr && !!SIDE_SOLID[fr[Math.floor(e.x + e.face * .8)]];
       if (Math.abs(dy) < 2.2 && d < 9 && !utilOn('mirage-veil')) {
-        if (e.range > 1) { if (d > 3.4 && floorAhead) e.x += e.face * e.spd * dt; else if (d < 2.4) e.x -= e.face * e.spd * dt; }
+        if (e.attackStyle === 'flaming-spear') { if (d > 4.2 && floorAhead) e.x += e.face * e.spd * dt; else if (d < 2.4) e.x -= e.face * e.spd * dt; }
         else if (d > .9 && floorAhead) e.x += e.face * e.spd * dt;
-        if (e.cd <= 0 && d <= e.range + .4 && Math.abs(dy) < 1.8) { e.cd = 1.1 + Math.random() * .4; sHurt(Math.round(3 + e.atk * .9 + e.lv * .12), e.face); }
+        var reach = e.attackStyle === 'flaming-spear' ? e.range : .92;
+        if (e.cd <= 0 && d <= reach && Math.abs(dy) < (e.attackStyle === 'flaming-spear' ? 1.8 : .9)) {
+          e.cd = e.attackStyle === 'flaming-spear' ? 1.55 : 1.1 + Math.random() * .4;
+          if (e.attackStyle === 'flaming-spear') throwCaveSpear(e, p);
+          else sHurt(Math.round(3 + e.atk * .9 + e.lv * .12), e.face);
+        }
       }
       if (!floorAhead && e.range === 1 && d > .9) { /* a pit edge: it turns back */ e.x -= e.face * .05; }
       e.x = Math.max(2, Math.min(s.C.W - 2, e.x));
@@ -3986,6 +4010,7 @@
     // climb out at the mouth
     if (held === 'up' && s.k === 0 && p.x < 3.2) { cavePassOut('You climb back out to the cave mouth.'); return; }   // at the mouth, up is out
     updateBolts(dt); updateUtilities(dt); updateCaveParty(dt);
+    updateCaveSpears(dt);
     // The surface loop ages these effects in updateShots; the cave loop must
     // do the same so damage and pickup labels always disappear.
     fxs = fxs.filter(function(f){ f.t += dt; return f.t < f.life; });
@@ -4112,6 +4137,12 @@
       if (e.flash > 0 && !e.dead) { ctx.globalAlpha = .5; ctx.fillStyle = '#fff'; ctx.fillRect(X - 6 * z, Y - 13 * z, 12 * z, 12 * z); ctx.globalAlpha = 1; }
       if (!e.dead) hpBar(X, Y - 18 * z, z, e.hp / e.max, '#ff5a5a', e.lv);
       ctx.globalAlpha = 1;
+    });
+    (s.spears || []).forEach(function(q){
+      var X = ox + (q.x + .5) * TZ, Y = oy + (q.y + .5) * TZ, tailX = X - q.dx * TZ * .8, tailY = Y - q.dy * TZ * .8;
+      ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,95,35,.45)'; ctx.lineWidth = 5 * z; ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(X, Y); ctx.stroke();
+      ctx.strokeStyle = '#ff8a3a'; ctx.lineWidth = 2 * z; ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(X, Y); ctx.stroke();
+      ctx.fillStyle = '#fff2ac'; ctx.beginPath(); ctx.arc(X, Y, 2 * z, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     });
     // the pilot: the overworld's own pilot drawing, with the cave's position
     var keepP = P, pp = { x:Math.round(s.p.x), y:Math.round(s.p.y), fx:s.p.x, fy:s.p.y, dir:s.p.face > 0 ? 'right' : 'left', moving:s.p.moving, anim:s.p.anim, gait:'steady', dust:s.p.dust, t:1 };

@@ -68,6 +68,10 @@ export function createHUD(W, world) {
   const places = world.interactables.filter(i => i.discover);
   const found = new Set(), regionsSeen = new Set();
   let reachedSquare = false, promptTarget = null, cardTimer = 0, lastRegion = '', bannerTimer = null;
+  let mapSelectedChest = null, mapPingChest = null, tutorialState = null;
+  let mapSelectedPoi = null, mapPingPoi = null, viewedDistrict = DISTRICTS[0].id, mapCategory = 'all';
+  let pingHud = document.getElementById('map-ping-distance');
+  if (!pingHud) { pingHud = document.createElement('div'); pingHud.id = 'map-ping-distance'; pingHud.className = 'map-ping-distance'; document.getElementById('game')?.appendChild(pingHud); }
   // Every HUD meter is ten segmented cells; the last lit cell fills partway (--f).
   const CELLS = 10;
   for (const id of ['hp-cells', 'stamina-cells', 'energy-cells', 'zhud-hp-cells', 'zhud-ap-cells']) {
@@ -166,15 +170,64 @@ export function createHUD(W, world) {
   let mapCursor = null;
   function mapToWorld(cx, cy) {
     const r = big.getBoundingClientRect(); if (!r.width || cx < r.left || cy < r.top || cx > r.right || cy > r.bottom) return null;
-    if (mapView === 'world') { const f = worldFit(r.width); return { x: ((cx - r.left) - f.ox) / f.s, z: ((cy - r.top) - f.oz) / f.s }; }
-    return { x: (cx - r.left) / r.width * E * 2 - E, z: (cy - r.top) / r.height * E * 2 - E };
+    const dpr = big.width / r.width;
+    let mx = ((cx - r.left) * dpr - big.width / 2 - mapPanX) / mapZoom + big.width / 2;
+    let my = ((cy - r.top) * dpr - big.width / 2 - mapPanY) / mapZoom + big.width / 2;
+    if (mapView === 'world') { const f = worldFit(big.width); return { x: (mx - f.ox) / f.s, z: (my - f.oz) / f.s }; }
+    if (viewedDistrict === 'malezor') { const s = big.width / (E * 2); return { x: mx / s - E, z: my / s - E }; }
+    const d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0], span = (d.extent || E) * 2.35, s = big.width / span;
+    return { x: d.x + (mx - big.width / 2) / s, z: d.z + (my - big.width / 2) / s };
   }
   // ── Zyphone world map: all ten districts of Zyraxis (World Expansion 2) ──
   // The map page has two views: the district Rizer knows (Malezor, drawn below) and the whole planet. It follows
   // Rizer: stepping off Malezor shows the world, coming home shows Malezor; the button on the page switches by hand.
-  let mapView = 'district', wasAway = false;
+  let mapView = 'world', wasAway = false;
+  let mapFocusMode = false, mapZoom = 1, mapPanX = 0, mapPanY = 0, lastMapPlayer = { x: 0, z: 0 };
   const ZB = ZYRAXIS.bounds, ZSPAN = Math.max(ZB.x1 - ZB.x0, ZB.z1 - ZB.z0) + 80;
   const worldFit = w => { const s = w / ZSPAN; return { s, ox: (w - (ZB.x0 + ZB.x1) * s) / 2, oz: (w - (ZB.z0 + ZB.z1) * s) / 2 }; };
+  function mapBasePoint(x, z, w = big.width) {
+    if (mapView === 'world') { const f = worldFit(w); return { x: x * f.s + f.ox, y: z * f.s + f.oz }; }
+    if (viewedDistrict === 'malezor') { const s = w / (E * 2); return { x: (x + E) * s, y: (z + E) * s }; }
+    const d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0], s = w / ((d.extent || E) * 2.35);
+    return { x: (x - d.x) * s + w / 2, y: (z - d.z) * s + w / 2 };
+  }
+  function clampMapPan() {
+    const limit = big.width * Math.max(0, mapZoom - 1) * 0.5;
+    mapPanX = Math.max(-limit, Math.min(limit, mapPanX)); mapPanY = Math.max(-limit, Math.min(limit, mapPanY));
+  }
+  function focusMapPoint() {
+    const selected = mapPois().find(it => it.id === mapSelectedPoi), point = selected || lastMapPlayer, w = big.width || 1;
+    const q = mapBasePoint(selected ? selected.cx : point.x, selected ? selected.cz : point.z, w);
+    mapPanX = -(q.x - w / 2) * mapZoom; mapPanY = -(q.y - w / 2) * mapZoom; clampMapPan();
+  }
+  function focusedPoiAtCenter() {
+    if (!mapFocusMode) return;
+    const w = big.width, dpr = Math.max(1, w / (big.clientWidth || w)); let best = null, bd = Infinity;
+    const candidates = mapPois().filter(it => mapView === 'world' || districtFor(it.cx, it.cz)?.id === viewedDistrict);
+    for (const it of candidates) {
+      const q = mapBasePoint(it.cx, it.cz, w), x = (q.x - w / 2) * mapZoom + w / 2 + mapPanX, y = (q.y - w / 2) * mapZoom + w / 2 + mapPanY, dist = Math.hypot(x - w / 2, y - w / 2);
+      if (dist < bd) { bd = dist; best = it; }
+    }
+    mapSelectedPoi = bd <= 24 * dpr ? best?.id || null : null;
+    mapSelectedChest = mapSelectedPoi && mapChestCandidates().some(q => q.id === mapSelectedPoi) ? mapSelectedPoi : null;
+  }
+  function setMapFocus(active) {
+    const next = !!active; if (mapFocusMode === next) return mapFocusMode;
+    mapFocusMode = next;
+    if (next) { mapZoom = 2; focusMapPoint(); focusedPoiAtCenter(); }
+    else { mapZoom = 1; mapPanX = mapPanY = 0; }
+    return mapFocusMode;
+  }
+  function moveMapFocus(x, y, dt = 1 / 60) {
+    if (!mapFocusMode) return;
+    const rate = big.width * 0.72 * Math.max(0, Math.min(dt, 0.05));
+    mapPanX -= x * rate; mapPanY -= y * rate; clampMapPan(); focusedPoiAtCenter();
+  }
+  function zoomMapFocus(direction, dt = 1 / 60) {
+    if (!mapFocusMode || !direction) return;
+    mapZoom = Math.max(1.35, Math.min(4.5, mapZoom * Math.exp(direction * Math.max(0, Math.min(dt, 0.05)) * 0.9)));
+    clampMapPan(); focusedPoiAtCenter();
+  }
   const coasts = DISTRICTS.map(d => { // each district's coast, traced once
     const pts = [];
     for (let i = 0; i < 160; i++) {
@@ -184,9 +237,25 @@ export function createHUD(W, world) {
     }
     return pts;
   });
-  function setMapView(v) {
-    mapView = v === 'world' ? 'world' : 'district'; mapCursor = null;
-    const b = $('#zy-map-view'); if (b) { b.textContent = mapView === 'world' ? 'MALEZOR · DISTRICT MAP' : 'ZYRAXIS · WORLD MAP'; b.classList.toggle('active', mapView === 'world'); }
+  function setMapView(v) { mapView = v === 'world' ? 'world' : 'district'; mapCursor = null; mapZoom = mapFocusMode ? 2 : 1; mapPanX = mapPanY = 0; if (mapFocusMode) focusMapPoint(); }
+  function setViewedDistrict(id) {
+    if (!DISTRICTS.some(d => d.id === id)) return false;
+    viewedDistrict = id; mapView = 'district'; mapSelectedPoi = mapSelectedChest = null; mapZoom = mapFocusMode ? 2 : 1; mapPanX = mapPanY = 0;
+    if (mapFocusMode) { const d = DISTRICTS.find(q => q.id === id), q = mapBasePoint(d.x, d.z); mapPanX = -(q.x - big.width / 2) * mapZoom; mapPanY = -(q.y - big.width / 2) * mapZoom; }
+    return true;
+  }
+  const districtFor = (x, z) => DISTRICTS.find(d => coastEdge(x, z, d) <= 0) || null;
+  const mapPois = () => [...places, ...world.interactables.filter(it => ['chest','goldchest'].includes(it.kind)), ...mapChestCandidates()].filter((it, i, a) => a.findIndex(q => q.id === it.id) === i)
+    .filter(it => mapCategory === 'all' || (mapCategory === 'chests' ? it.kind === 'chest' || it.kind === 'goldchest' : mapCategory === 'landmarks' ? ['landmark','gemlord','stadium','crossing'].includes(it.kind) : mapCategory === 'services' ? ['civic','shop','home','farm'].includes(it.kind) : it.kind === mapCategory));
+  function chooseMapPoint(point) {
+    if (!point) return null;
+    if (mapView === 'world') { const d = districtFor(point.x, point.z); if (d) { setViewedDistrict(d.id); return { district: d.id }; } }
+    let best = null, bd = Infinity;
+    for (const it of mapPois()) { const d = Math.hypot(it.cx - point.x, it.cz - point.z); if (d < bd) { bd = d; best = it; } }
+    const limit = Math.max(18, (DISTRICTS.find(d => d.id === viewedDistrict)?.extent || E) * .075);
+    mapSelectedPoi = bd <= limit ? best?.id || null : null;
+    mapSelectedChest = mapSelectedPoi && mapChestCandidates().some(q => q.id === mapSelectedPoi) ? mapSelectedPoi : null;
+    return mapSelectedPoi ? { poi: mapSelectedPoi } : null;
   }
   function drawWorld(p, facing) {
     const w = big.width, { s, ox, oz } = worldFit(w), X = x => x * s + ox, Z = z => z * s + oz;
@@ -217,6 +286,7 @@ export function createHUD(W, world) {
     bctx.textAlign = 'center';
     for (const d of DISTRICTS) {
       const x = X(d.x), y = Z(d.z), light = ['vorashil', 'xilnar', 'korathen', 'zarvane'].includes(d.id);
+      if (viewedDistrict === d.id) { bctx.save(); bctx.strokeStyle = '#fff0b5'; bctx.lineWidth = Math.max(2.5,w/250); bctx.beginPath(); bctx.arc(x,y,w/24,0,Math.PI*2); bctx.stroke(); bctx.restore(); }
       bctx.fillStyle = light ? 'rgba(20,18,26,.9)' : 'rgba(250,244,226,.95)';
       bctx.font = `600 ${Math.round(w / 34)}px Cinzel, serif`; bctx.fillText(d.numeral, x, y - w / 60);
       bctx.font = `600 ${Math.round(w / 58)}px Cinzel, serif`; bctx.fillText(d.name.toUpperCase(), x, y + w / 190);
@@ -225,6 +295,14 @@ export function createHUD(W, world) {
     bctx.font = `${Math.round(w / 50)}px Cinzel, serif`; bctx.fillStyle = 'rgba(233,201,130,.9)'; bctx.textAlign = 'left';
     bctx.fillText('ZYRAXIS · THE TEN DISTRICTS', w * 0.035, w * 0.06);
     bctx.font = `${Math.round(w / 65)}px Cinzel, serif`; bctx.fillStyle = 'rgba(148,184,217,.8)'; bctx.fillText('VOID SEA', w * .055, w * .94); bctx.textAlign = 'center';
+    for (const it of mapPois()) {
+      const x = X(it.cx), y = Z(it.cz), selected = mapSelectedPoi === it.id, pinged = mapPingPoi === it.id;
+      bctx.save(); bctx.fillStyle = it.tutorialCategory === 'focusMove' ? '#85caff' : it.tutorialCategory === 'gemlordWeapon' ? '#bd86ff' : (ICON[it.kind] || '#fff'); bctx.strokeStyle = selected || pinged ? '#fff5cb' : '#142035'; bctx.lineWidth = selected || pinged ? 3 : 1.5;
+      if (pinged) { bctx.shadowColor = '#63cfff'; bctx.shadowBlur = 12; }
+      bctx.beginPath(); bctx.arc(x, y, selected || pinged ? 6 : 4, 0, Math.PI * 2); bctx.fill(); bctx.stroke(); bctx.shadowBlur = 0;
+      if (selected || pinged) { bctx.font = `${Math.max(9, Math.round(w / 76))}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 9); }
+      bctx.restore();
+    }
     bctx.save(); bctx.translate(X(p.x), Z(p.z)); bctx.rotate(Math.PI - facing); bctx.strokeStyle = '#1a1f1a'; bctx.lineWidth = 2;
     bctx.fillStyle = '#fff3c4'; bctx.beginPath(); bctx.moveTo(0, -11); bctx.lineTo(8, 8); bctx.lineTo(0, 3); bctx.lineTo(-8, 8); bctx.closePath(); bctx.fill(); bctx.stroke(); bctx.restore();
     if (mapCursor) { // Dev map: where a click / ✕ will teleport Rizer
@@ -234,10 +312,59 @@ export function createHUD(W, world) {
       bctx.shadowBlur = 0; bctx.font = `${Math.round(w / 60)}px "DM Sans", sans-serif`; bctx.fillStyle = bctx.strokeStyle; bctx.fillText(ok ? 'TELEPORT' : 'NO LAND', x, y + 30); bctx.restore();
     }
   }
+  function drawDistrict(p, facing) {
+    const w = big.width, d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0];
+    const span = (d.extent || E) * 2.35, s = w / span, X = x => (x - d.x) * s + w / 2, Z = z => (z - d.z) * s + w / 2;
+    bctx.clearRect(0, 0, w, w);
+    const sea = bctx.createLinearGradient(0, 0, w, w); sea.addColorStop(0, '#091427'); sea.addColorStop(1, '#100e25'); bctx.fillStyle = sea; bctx.fillRect(0, 0, w, w);
+    const idx = DISTRICTS.indexOf(d), pts = coasts[idx];
+    bctx.beginPath(); pts.forEach(([x,z],i) => i ? bctx.lineTo(X(x),Z(z)) : bctx.moveTo(X(x),Z(z))); bctx.closePath();
+    const g = bctx.createLinearGradient(0, 0, w, w); g.addColorStop(0, d.tint[0]); g.addColorStop(1, d.tint[1]); bctx.fillStyle = g; bctx.fill(); bctx.strokeStyle = 'rgba(231,216,174,.9)'; bctx.lineWidth = 2; bctx.stroke();
+    bctx.save(); bctx.beginPath(); pts.forEach(([x,z],i) => i ? bctx.lineTo(X(x),Z(z)) : bctx.moveTo(X(x),Z(z))); bctx.closePath(); bctx.clip();
+    if (d.id === 'malezor') bctx.drawImage(base, X(-E), Z(-E), E * 2 * s, E * 2 * s);
+    else { bctx.globalAlpha = .22; bctx.strokeStyle = '#e7d8ae'; bctx.lineWidth = 1; for (let k=0;k<8;k++) { bctx.beginPath(); bctx.arc(X(d.x),Z(d.z),s*(d.extent||E)*(k+1)/9,0,Math.PI*2); bctx.stroke(); } bctx.globalAlpha = 1; }
+    bctx.restore();
+    bctx.textAlign = 'center'; bctx.font = `600 ${Math.round(w/30)}px Cinzel, serif`; bctx.fillStyle = '#fff1c2'; bctx.fillText(`${d.name.toUpperCase()} · DISTRICT ${d.numeral}`, w/2, w*.075);
+    bctx.font = `${Math.round(w/58)}px "DM Sans",sans-serif`; bctx.fillStyle = '#98dfff'; bctx.fillText(`${d.land.toUpperCase()} · SELECT A MARKER TO PING`, w/2, w*.12);
+    for (const it of mapPois().filter(q => districtFor(q.cx,q.cz)?.id === d.id)) {
+      const x=X(it.cx),y=Z(it.cz),selected=mapSelectedPoi===it.id,pinged=mapPingPoi===it.id;
+      bctx.save(); bctx.fillStyle=it.tutorialCategory==='focusMove'?'#85caff':it.tutorialCategory==='gemlordWeapon'?'#bd86ff':ICON[it.kind]||'#fff'; bctx.strokeStyle=selected||pinged?'#fff5cb':'#142035'; bctx.lineWidth=selected||pinged?3:1.5; if(pinged){bctx.shadowColor='#63cfff';bctx.shadowBlur=12;}
+      bctx.beginPath(); bctx.arc(x,y,selected||pinged?7:5,0,Math.PI*2); bctx.fill(); bctx.stroke(); bctx.shadowBlur=0;
+      bctx.font=`${Math.max(9,Math.round(w/72))}px "DM Sans",sans-serif`; bctx.fillStyle='#fff2c1'; bctx.fillText(selected?'SELECTED':(found.has(it.id)?it.name:'UNDISCOVERED'),x,y-10); bctx.restore();
+    }
+    bctx.save(); bctx.translate(X(p.x),Z(p.z)); bctx.rotate(Math.PI-facing); bctx.fillStyle='#fff3c4'; bctx.beginPath(); bctx.moveTo(0,-11);bctx.lineTo(8,8);bctx.lineTo(0,3);bctx.lineTo(-8,8);bctx.closePath();bctx.fill();bctx.restore();
+  }
   // Where the dev map may put Rizer: Malezor on its own map, any district's land on the world map.
-  const isLand = (x, z) => mapView === 'world' ? (world.onLand ? world.onLand(x, z) && (malezorOwns(x, z) || !!emptyDistrictAt(x, z)) : true) : (!W.containsLand || W.containsLand(x, z));
-  function drawBig(p, facing) {
+  const isLand = (x, z) => mapView === 'world' ? (world.onLand ? world.onLand(x, z) && (malezorOwns(x, z) || !!emptyDistrictAt(x, z)) : true) : viewedDistrict === 'malezor' ? (!W.containsLand || W.containsLand(x, z)) : coastEdge(x, z, DISTRICTS.find(d=>d.id===viewedDistrict) || DISTRICTS[0]) <= 0;
+  function tutorialChestVisible(it) {
+    if (!it.tutorialCategory) return false;
+    const t = tutorialState?.tutorial || {}, basics = t.basics || {};
+    const basicsDone = ['jump','doubleJump','sprint','punch','kick','astralstrike'].every(k => basics[k]);
+    const focusDone = (t.focusCollected || []).length >= 6 && (t.focusUsed || []).length >= 6;
+    if (it.tutorialCategory === 'focusMove') return !!tutorialState?.found && basicsDone && !focusDone && (it.mapActive?.() ?? true);
+    if (it.tutorialCategory === 'gemlordWeapon') return !!tutorialState?.found && basicsDone && focusDone && (it.mapActive?.() ?? true);
+    return false;
+  }
+  function mapChestCandidates() { return world.interactables.filter(it => (it.tutorialCategory === 'focusMove' || it.tutorialCategory === 'gemlordWeapon') && tutorialChestVisible(it)); }
+  function selectChestAt(point) {
+    if (!point) return null;
+    let best=null,bd=Infinity; for(const it of mapPois()){const q=Math.hypot(it.cx-point.x,it.cz-point.z);if(q<bd){bd=q;best=it;}}
+    mapSelectedPoi=bd<=(mapView==='world'?75:Math.max(18,(DISTRICTS.find(d=>d.id===viewedDistrict)?.extent||E)*.075))?best?.id||null:null;
+    mapSelectedChest=mapSelectedPoi&&mapChestCandidates().some(q=>q.id===mapSelectedPoi)?mapSelectedPoi:null;
+    return mapSelectedPoi;
+  }
+  function toggleMapPing() {
+    if (!mapSelectedPoi) return false;
+    mapPingPoi = mapPingPoi === mapSelectedPoi ? null : mapSelectedPoi;
+    mapPingChest = mapPingPoi && mapChestCandidates().some(q=>q.id===mapPingPoi) ? mapPingPoi : null;
+    const it = mapPois().find(q => q.id === mapPingPoi);
+    for (const row of document.querySelectorAll('.zy-map-pois [data-map-poi]')) { const active = row.dataset.mapPoi === mapPingPoi; row.classList.toggle('pinged', active); const tag = row.querySelector('i'); if (tag) tag.textContent = active ? 'PINGED' : 'VIEW'; }
+    banner(mapPingPoi ? 'LOCATION PINGED' : 'PING CLEARED', mapPingPoi ? `${it?.name || 'Location'} · follow the distance marker` : 'Map marker removed');
+    return true;
+  }
+  function drawBigBase(p, facing, devMap = false) {
     if (mapView === 'world') return drawWorld(p, facing);
+    if (viewedDistrict !== 'malezor') return drawDistrict(p, facing);
     const w = big.width, s = w / (E * 2);
     bctx.clearRect(0, 0, w, w); bctx.drawImage(base, 0, 0, w, w);
     // Trace the RP7B coast and label the measured regions instead of drawing
@@ -255,9 +382,15 @@ export function createHUD(W, world) {
       bctx.stroke(); bctx.restore();
     }
     bctx.textAlign = 'center';
-    for (const it of world.interactables) {
-      if (it.kind === 'home' && !it.discover) continue;
-      if (it.kind === 'chest' || it.kind === 'enemyLoot') continue; // never on the map: explore, or scan with AV
+    for (const it of mapPois()) {
+      if (it.kind === 'chest' || it.kind === 'goldchest') {
+        const x = (it.cx + E) * s, y = (it.cz + E) * s, selected = mapSelectedPoi === it.id, pinged = mapPingPoi === it.id;
+        bctx.save(); bctx.fillStyle = it.tutorialCategory === 'focusMove' ? '#85caff' : it.tutorialCategory === 'gemlordWeapon' ? '#bd86ff' : '#6fa0ff'; bctx.strokeStyle = selected || pinged ? '#fff5cb' : '#142035'; bctx.lineWidth = selected || pinged ? 3 : 1.5;
+        if (pinged) { bctx.shadowColor = '#63cfff'; bctx.shadowBlur = 14; }
+        bctx.fillRect(x - 5, y - 5, 10, 10); bctx.strokeRect(x - 5, y - 5, 10, 10); bctx.shadowBlur = 0;
+        if(selected||pinged){bctx.font = `${Math.round(w / 76)}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 9);} bctx.restore();
+        continue;
+      }
       const x = (it.cx + E) * s, y = (it.cz + E) * s, known = found.has(it.id);
       bctx.fillStyle = ICON[it.kind] || '#fff'; bctx.strokeStyle = '#1a1f1a'; bctx.lineWidth = 2;
       bctx.beginPath(); bctx.arc(x, y, known ? 6 : 4, 0, 7); bctx.fill(); bctx.stroke();
@@ -270,20 +403,39 @@ export function createHUD(W, world) {
     for (const [name, at] of Object.entries(W.wildZones || {})) bctx.fillText(W.subdistricts[name].toUpperCase(), (at.x + E) * s, (at.z + E) * s);
     bctx.fillText(W.subdistricts.central.toUpperCase(), (W.hub.x + E) * s, (W.hub.z + E) * s);
     bctx.fillText('↓ ZARVANE', (W.structures.find(q => q.id === 'malezor-zarvane-gate').x + E) * s, (W.structures.find(q => q.id === 'malezor-zarvane-gate').z + E) * s);
-    if (mapCursor) { // Dev map: where a click / ✕ will teleport Rizer
+    if (mapCursor) {
       const x = (mapCursor.x + E) * s, y = (mapCursor.z + E) * s, ok = !W.containsLand || W.containsLand(mapCursor.x, mapCursor.z);
       bctx.save(); bctx.strokeStyle = ok ? '#7fe3ff' : '#ff6a5a'; bctx.lineWidth = 2; bctx.shadowColor = bctx.strokeStyle; bctx.shadowBlur = 8;
       bctx.beginPath(); bctx.arc(x, y, 9, 0, 7); bctx.moveTo(x - 16, y); bctx.lineTo(x - 5, y); bctx.moveTo(x + 5, y); bctx.lineTo(x + 16, y); bctx.moveTo(x, y - 16); bctx.lineTo(x, y - 5); bctx.moveTo(x, y + 5); bctx.lineTo(x, y + 16); bctx.stroke();
-      bctx.shadowBlur = 0; bctx.font = `${Math.round(w / 60)}px "DM Sans", sans-serif`; bctx.fillStyle = bctx.strokeStyle; bctx.fillText(ok ? 'TELEPORT' : 'NO LAND', x, y + 30); bctx.restore();
+      bctx.shadowBlur = 0; if (devMap) { bctx.font = `${Math.round(w / 60)}px "DM Sans", sans-serif`; bctx.fillStyle = bctx.strokeStyle; bctx.fillText(ok ? 'TELEPORT' : 'NO LAND', x, y + 30); } bctx.restore();
     }
+    if (mapSelectedPoi) { const it = mapPois().find(q => q.id === mapSelectedPoi); if (it) { const x = (it.cx + E) * s, y = (it.cz + E) * s; bctx.save(); bctx.strokeStyle = '#fff5cb'; bctx.lineWidth = 2; bctx.beginPath(); bctx.arc(x, y, 10, 0, Math.PI * 2); bctx.stroke(); bctx.restore(); } }
+  }
+  function drawBig(p, facing, devMap = false) {
+    if (!mapFocusMode) return drawBigBase(p, facing, devMap);
+    const w = big.width, h = big.height, cx = w / 2, cy = h / 2;
+    bctx.save(); bctx.translate(cx + mapPanX, cy + mapPanY); bctx.scale(mapZoom, mapZoom); bctx.translate(-cx, -cy);
+    drawBigBase(p, facing, devMap); bctx.restore();
+    focusedPoiAtCenter();
+    const poi = mapPois().find(it => it.id === mapSelectedPoi), dpr = Math.max(1, w / (big.clientWidth || w));
+    bctx.save(); bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.strokeStyle = '#8feaff'; bctx.lineWidth = 2 * dpr; bctx.shadowColor = '#54cfff'; bctx.shadowBlur = 10 * dpr;
+    bctx.beginPath(); bctx.arc(cx, cy, 12 * dpr, 0, Math.PI * 2); bctx.moveTo(cx - 20 * dpr, cy); bctx.lineTo(cx - 7 * dpr, cy); bctx.moveTo(cx + 7 * dpr, cy); bctx.lineTo(cx + 20 * dpr, cy); bctx.moveTo(cx, cy - 20 * dpr); bctx.lineTo(cx, cy - 7 * dpr); bctx.moveTo(cx, cy + 7 * dpr); bctx.lineTo(cx, cy + 20 * dpr); bctx.stroke(); bctx.shadowBlur = 0;
+    const cardW = Math.min(w - 24 * dpr, 420 * dpr), cardH = 42 * dpr, cardX = (w - cardW) / 2, cardY = h - cardH - 18 * dpr;
+    bctx.fillStyle = 'rgba(4,13,26,.94)'; bctx.fillRect(cardX, cardY, cardW, cardH); bctx.strokeStyle = '#79dfff'; bctx.lineWidth = dpr; bctx.strokeRect(cardX, cardY, cardW, cardH);
+    bctx.textAlign = 'center'; bctx.textBaseline = 'middle'; bctx.font = `600 ${13 * dpr}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff0bf';
+    bctx.fillText(poi?.name || 'MOVE STICK TO BROWSE POIS', cx, cardY + 15 * dpr, cardW - 16 * dpr);
+    bctx.font = `500 ${8 * dpr}px "DM Sans", sans-serif`; bctx.fillStyle = '#8feaff'; bctx.fillText(poi ? `${KIND[poi.kind] || 'POINT OF INTEREST'} · ✕ DETAILS · □ TELEPORT · △ PING` : 'LEFT STICK BROWSE · R2/L2 ZOOM · ○ EXIT FOCUS', cx, cardY + 31 * dpr, cardW - 16 * dpr);
+    bctx.restore();
   }
 
   const KIND = { civic: 'MALEZOR', shop: 'SHOP', home: 'HOME', farm: 'FARM', landmark: 'DISTRICT LANDMARK', gemlord: 'GEMLORD SANCTUM · RAKORON', stadium: 'GEMLORD CHAMPION STADIUM · RAKORON', seer: 'SEER TERRITORY', crossing: 'CROSSING', npc: 'MALEZOR · CHARACTER' };
-  function update(dt, { rizer, cam, hour, zyrex, seers, mapOpen, busy }) {
-    const p = rizer.position;
+  function update(dt, { rizer, cam, hour, zyrex, seers, mapOpen, busy, journal, devMap }) {
+    tutorialState = journal || tutorialState;
+    const p = rizer.position; lastMapPlayer = { x: p.x, z: p.z };
     // location
     const region = regionName(p.x, p.z);
-    { const away = !malezorOwns(p.x, p.z) && !!world.expanse?.contains(p.x, p.z); if (away !== wasAway) { wasAway = away; setMapView(away ? 'world' : 'district'); } }
+    { const away = !malezorOwns(p.x, p.z) && !!world.expanse?.contains(p.x, p.z); wasAway = away; }
     if (region !== lastRegion) {
       lastRegion = region; $('#loc-name').textContent = region.toUpperCase();
       if (!regionsSeen.has(region)) { regionsSeen.add(region); if (regionsSeen.size > 1) banner('ENTERING', region); }
@@ -348,7 +500,13 @@ export function createHUD(W, world) {
     const { time, phase } = describeHour(hour);
     text('clock', time); text('phase', phase);
     drawMini(p, cam.yaw, rizer.facing, zyrex, seers);
-    if (mapOpen) drawBig(p, rizer.facing);
+    if (mapOpen) drawBig(p, rizer.facing, devMap);
+    if (mapPingPoi) {
+      const it = world.interactables.find(q => q.id === mapPingPoi);
+      if (!it) { mapPingPoi = mapPingChest = null; }
+      else { const d = Math.round(Math.hypot(it.cx - p.x, it.cz - p.z)); pingHud.hidden = false; pingHud.innerHTML = `<small>MAP PING · ${it.tutorialCategory === 'focusMove' ? 'FOCUS MOVE · SILVER' : it.tutorialCategory === 'gemlordWeapon' ? 'GEMLORD WEAPON · MYTHIC' : KIND[it.kind] || 'POINT OF INTEREST'}</small><b>${d} m</b><span>${it.name}</span>`; }
+    }
+    if (!mapPingPoi) pingHud.hidden = true;
   }
   function interact() {
     if (!promptTarget) return false;
@@ -379,6 +537,6 @@ export function createHUD(W, world) {
     if (gained > 0 && gain) { gain.textContent = `+${countFormat.format(gained)} RXP`; again(gain, 'show'); }
   }
   function setWallet(inv) { text('coins-num', countFormat.format(inv.coins || 0)); text('gems-num', countFormat.format(inv.gems || 0)); }
-  const api = { onEvent: null, mapToWorld, get mapCursor() { return mapCursor; }, set mapCursor(v) { mapCursor = v; }, extent: E, isLand, get mapView() { return mapView; }, setMapView, toggleMapView: () => setMapView(mapView === 'world' ? 'district' : 'world'), mapBounds: () => mapView === 'world' ? ZB : { x0: -E, x1: E, z0: -E, z1: E }, setScanSource: f => { getScan = f; }, setLootHint: n => { lootHint = n || null; }, setMissionNote(note) { missionNote = note ? { ...note } : null; refreshNote(); }, setPartner, setWallet, setProgress, update, interact, say, resize, banner, places, found, regionOf: regionName, kindLabel: k => KIND[k] || 'MALEZOR', get hasPrompt() { return !!promptTarget; }, get doorPrompt() { return !!promptTarget?.door; }, get promptTarget() { return promptTarget; } };
+  const api = { onEvent: null, mapToWorld, selectChestAt, chooseMapPoint, toggleMapPing, get mapFocusMode() { return mapFocusMode; }, setMapFocus, moveMapFocus, zoomMapFocus, get mapSelectedChest() { return mapSelectedChest; }, get mapPingChest() { return mapPingChest; }, get mapSelectedPoi() { return mapSelectedPoi; }, get mapPingPoi() { return mapPingPoi; }, get viewedDistrict() { return viewedDistrict; }, get mapView() { return mapView; }, selectDistrict: setViewedDistrict, districtAt: districtFor, selectPoi(id) { const it=mapPois().find(q=>q.id===id); if(!it) return false; const d=districtFor(it.cx,it.cz); if(mapView==='world'&&d) setViewedDistrict(d.id); mapSelectedPoi=id; mapSelectedChest=mapChestCandidates().some(q=>q.id===id)?id:null; return true; }, setMapCategory(v) { mapCategory=v; }, get mapCategory() { return mapCategory; }, mapPois, districts: DISTRICTS, get mapCursor() { return mapCursor; }, set mapCursor(v) { mapCursor = v; }, extent: E, isLand, setMapView, toggleMapView: () => setMapView(mapView === 'world' ? 'district' : 'world'), mapBounds: () => mapView === 'world' ? ZB : (() => { const d=DISTRICTS.find(q=>q.id===viewedDistrict)||DISTRICTS[0], e=d.extent||E; return {x0:d.x-e,x1:d.x+e,z0:d.z-e,z1:d.z+e}; })(), setScanSource: f => { getScan = f; }, setLootHint: n => { lootHint = n || null; }, setMissionNote(note) { missionNote = note ? { ...note } : null; refreshNote(); }, setPartner, setWallet, setProgress, update, interact, say, resize, banner, places, found, regionOf: regionName, kindLabel: k => KIND[k] || 'MALEZOR', get hasPrompt() { return !!promptTarget; }, get doorPrompt() { return !!promptTarget?.door; }, get promptTarget() { return promptTarget; } };
   return api;
 }

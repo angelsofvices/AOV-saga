@@ -71,19 +71,22 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
   function expHTML() {
     const recipes = crafting.listRecipes('EXPERIMENT_TABLE'); focus[0] = Math.min(focus[0], Math.max(0, recipes.length - 1));
     const cur = recipes[focus[0]], a = cur && crafting.availability(cur);
-    return `<div class="st-head"><small>EXPERIMENT TABLE · ZYLINK</small><b>Create</b><span>Items are made here. Resources are read from your Home Storage and Zycube; the finished item goes to your Home Storage.</span></div>
+    return `<div class="st-head"><small>EXPERIMENT TABLE · ZYLINK</small><b>Build & repair</b><span>Build known equipment or repair damaged finds. Materials can come from Home Storage or the Zycube; finished work goes to Home Storage.</span></div>
       <div class="st-cols one"><section class="st-col on"><header><b>KNOWN RECIPES</b></header><div class="st-list">${recipes.map((r, i) => { const av = crafting.availability(r); return `<div class="st-row${focus[0] === i ? ' focus' : ''}${av.ok ? '' : ' lock'}" data-i="${i}"><i class="st-sw" style="background:${esc(defOf(r.outputId)?.color || '#ccc')}"></i><b>${esc(r.name)}</b><small>${av.ok ? 'READY' : esc(av.message.toUpperCase())}</small></div>`; }).join('') || '<div class="st-empty">No recipes known</div>'}</div></section>
       <section class="st-col detail">${cur ? `<header><b>${esc(cur.name)}</b><small>${esc(defOf(cur.outputId)?.category === 'FIELD_EQUIPMENT' ? 'FIELD EQUIPMENT' : 'ITEM')}</small></header><p>${esc(defOf(cur.outputId)?.blurb || '')}</p>
         <div class="st-ings">${a.lines.map(l => `<div class="${l.have >= l.need ? 'ok' : 'bad'}"><span>${esc(l.name)}</span><b>${l.have} / ${l.need}</b></div>`).join('')}</div>
-        <button class="st-btn" data-craft ${a.ok ? '' : 'disabled'}>${a.ok ? 'CRAFT' : esc(a.message.toUpperCase())}</button>${cur.note ? `<small class="st-note">${esc(cur.note)}</small>` : ''}` : ''}</section></div>
-      <div class="st-foot"><span>${esc(notice)}</span><em>Experimentation with unknown combinations is not available yet · ↑↓ choose · Enter craft · Esc close</em></div>`;
+        <button class="st-btn" data-craft ${a.ok ? '' : 'disabled'}>${a.ok ? (cur.id.startsWith('repair_') ? 'REPAIR' : 'CRAFT') : esc(a.message.toUpperCase())}</button>${cur.note ? `<small class="st-note">${esc(cur.note)}</small>` : ''}` : ''}</section></div>
+      <div class="st-foot"><span>${esc(notice)}</span><em>Experimentation with unknown combinations is not available yet · ↑↓ choose · Enter craft / repair · Esc close</em></div>`;
   }
   function fwHTML() {
-    const e = storage.equipmentByUid(ctx.uid), F = FIELD_EQUIPMENT.field_workstation;
-    return `<div class="st-head"><small>FIELD WORKSTATION · ZYLINK</small><b>Field utility</b><span>A deployed workbench for use away from home. It is not an Experiment Table: it cannot create items.</span></div>
-      <div class="st-cols one"><section class="st-col on"><header><b>MODULES</b><small>not installed yet</small></header><div class="st-list">${F.modules.map(m => `<div class="st-row lock"><b>${esc(m.name)}</b><small>NOT INSTALLED</small><em>${esc(m.note)}</em></div>`).join('')}</div></section>
-      <section class="st-col detail"><header><b>Pack up</b></header><p>Fold it away and carry it again. It needs room in the Zycube; if there is none it stays standing.</p><button class="st-btn" data-pack ${e?.loc === LOC.DEPLOYED ? '' : 'disabled'}>PACK UP</button></section></div>
-      <div class="st-foot"><span>${esc(notice)}</span><em>Enter pack up · Esc close</em></div>`;
+    const e = storage.equipmentByUid(ctx.uid), recipes = crafting.listRecipes('FIELD_WORKSTATION');
+    focus[0] = Math.min(focus[0], Math.max(0, recipes.length - 1));
+    const cur = recipes[focus[0]], a = cur && crafting.availability(cur);
+    return `<div class="st-head"><small>FIELD WORKSTATION · ZYLINK</small><b>Field maintenance</b><span>Repair found equipment using materials in Rizer’s Zycube. Repaired gear returns to the Zycube.</span></div>
+      <div class="st-cols one"><section class="st-col on"><header><b>REPAIRS</b></header><div class="st-list">${recipes.map((r,i) => { const av = crafting.availability(r); return `<div class="st-row${focus[0] === i ? ' focus' : ''}${av.ok ? '' : ' lock'}" data-i="${i}"><i class="st-sw" style="background:${esc(defOf(r.outputId)?.color || '#ccc')}"></i><b>${esc(r.name)}</b><small>${av.ok ? 'READY' : esc(av.message.toUpperCase())}</small></div>`; }).join('') || '<div class="st-empty">No repair recipes</div>'}</div></section>
+      <section class="st-col detail">${cur ? `<header><b>${esc(cur.name)}</b><small>REPAIR</small></header><div class="st-ings">${a.lines.map(l => `<div class="${l.have >= l.need ? 'ok' : 'bad'}"><span>${esc(l.name)}</span><b>${l.have} / ${l.need}</b></div>`).join('')}</div><button class="st-btn" data-repair ${a.ok ? '' : 'disabled'}>${a.ok ? 'REPAIR' : esc(a.message.toUpperCase())}</button>` : ''}
+      <header><b>Pack up</b></header><p>Fold it away and carry it again. It needs room in the Zycube; if there is none it stays standing.</p><button class="st-btn" data-pack ${e?.loc === LOC.DEPLOYED ? '' : 'disabled'}>PACK UP</button></section></div>
+      <div class="st-foot"><span>${esc(notice)}</span><em>↑↓ choose · Enter repair · Esc close</em></div>`;
   }
 
   // Astralite Station: every Astralite you hold (Zycube + Home Storage) can be synthesised into Gemshards.
@@ -161,7 +164,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     focus[col] = Math.max(0, Math.min(focus[col], flat(C.loc).length - 1)); render();
   }
   function craftNow() {
-    const recipes = crafting.listRecipes('EXPERIMENT_TABLE'), r = recipes[focus[0]]; if (!r) return;
+    const recipes = crafting.listRecipes(kind === 'workstation' ? 'FIELD_WORKSTATION' : 'EXPERIMENT_TABLE'), r = recipes[focus[0]]; if (!r) return;
     const res = crafting.craft(r.id); notice = res.message; toast(res.message); render();
   }
   function synth(all) {
@@ -170,9 +173,9 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     notice = all ? res.message : res.ok ? `${x.r.name} → Gemshard` : res.message; if (!res.ok) toast(res.message); render();
   }
   function packNow() { const res = onPack(ctx.uid); if (res?.ok) close(); else { notice = res?.message || ''; render(); } }
-  const act = (all = true) => { if (kind === 'shop') return trade(all ? 1 : 5); if (kind === 'home') move(all ? 'one' : 'all'); else if (kind === 'astralite') synth(!all); else if (kind === 'experiment') craftNow(); else if (kind === 'workstation') packNow(); };
+  const act = (all = true) => { if (kind === 'shop') return trade(all ? 1 : 5); if (kind === 'home') move(all ? 'one' : 'all'); else if (kind === 'astralite') synth(!all); else if (kind === 'experiment' || kind === 'workstation') craftNow(); };
   function jump(d) { const L = astList(); let i = focus[0], g = L[i]?.r.group; while (i + d >= 0 && i + d < L.length && L[i + d].r.group === g) i += d; i = Math.max(0, Math.min(L.length - 1, i + d)); if (d < 0) { const gg = L[i]?.r.group; while (i > 0 && L[i - 1].r.group === gg) i--; } focus[0] = i; render(); }
-  const step = d => { const n = kind === 'shop' ? shopRows(col).length : kind === 'home' ? flat(columns()[col].loc).length : kind === 'experiment' ? crafting.listRecipes().length : kind === 'astralite' ? astList().length : 0; if (n) { focus[col] = (focus[col] + d + n) % n; if (kind === 'home') nebulaAudio.select(); render(); } };
+  const step = d => { const n = kind === 'shop' ? shopRows(col).length : kind === 'home' ? flat(columns()[col].loc).length : kind === 'experiment' ? crafting.listRecipes('EXPERIMENT_TABLE').length : kind === 'workstation' ? crafting.listRecipes('FIELD_WORKSTATION').length : kind === 'astralite' ? astList().length : 0; if (n) { focus[col] = (focus[col] + d + n) % n; if (kind === 'home') nebulaAudio.select(); render(); } };
   const setTab = d => { tab = (tab + d + TABS.length) % TABS.length; focus = [0, 0]; notice = ''; bad = false; nebulaAudio.select(); render(); };
   const setQty = d => { custom = ''; qi = (qi + d + PRESETS.length) % PRESETS.length; nebulaAudio.select(); render(); };
   const sideTo = c => { if (col !== c) { col = c; nebulaAudio.select(); render(); } };
@@ -210,7 +213,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
   }
   root.addEventListener('mousedown', e => e.stopPropagation());
   root.addEventListener('click', e => {
-    if (e.target.closest('[data-craft]')) return craftNow();
+    if (e.target.closest('[data-craft]') || e.target.closest('[data-repair]')) return craftNow();
     if (e.target.closest('[data-pack]')) return packNow();
     if (e.target.closest('[data-close]')) return close();
     if (kind === 'home') {
@@ -220,8 +223,8 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     }
     const row = e.target.closest('.st-row');
     if (row && kind === 'shop') { const c = +row.dataset.col, i = +row.dataset.i; if (col === c && focus[c] === i) return trade(1); col = c; focus[c] = i; return render(); } // click to choose, click again to trade
-    if (!row || row.classList.contains('lock') && kind !== 'experiment' && kind !== 'home') return;
-    if (kind === 'home') { col = +row.dataset.col; focus[col] = +row.dataset.i; nebulaAudio.select(); render(); } else if (kind === 'experiment') { focus[0] = +row.dataset.i; render(); } else if (kind === 'astralite') { focus[0] = +row.dataset.i; synth(false); }
+    if (!row || row.classList.contains('lock') && kind !== 'experiment' && kind !== 'workstation' && kind !== 'home') return;
+    if (kind === 'home') { col = +row.dataset.col; focus[col] = +row.dataset.i; nebulaAudio.select(); render(); } else if (kind === 'experiment' || kind === 'workstation') { focus[0] = +row.dataset.i; render(); } else if (kind === 'astralite') { focus[0] = +row.dataset.i; synth(false); }
   });
   root.addEventListener('wheel', e => { if (kind === 'home' && !e.target.closest('.st-list')) e.preventDefault(); }, { passive: false });
   storage.onChange(() => { if (isOpen() && (kind === 'workstation' || kind === 'home' || kind === 'shop')) render(); });

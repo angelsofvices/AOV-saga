@@ -29,7 +29,7 @@ import { WildZyrex } from './zyrex.js'; // the 3D meshes: Dev › Zyrex as 3D me
 import { createBondGame } from './bond.js';
 import { createFX } from './fx.js';
 import { createAstral, ASTRAL } from './astral.js';
-import { focus, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY, DIR_CODE, createLightbulbChests } from './focus-moves.js';
+import { focus, FOCUS_MOVES, LIGHTBULBS, DIRS, DIR_NAME, DIR_KEY, DIR_CODE, createLightbulbChests } from './focus-moves.js';
 import { CAVES, CAVE_BY_ID } from './caves-data.js';
 import { createCaveInteriors } from './cave-interior.js';
 import { createStoreInterior } from './store-interior.js';
@@ -104,6 +104,16 @@ let locked = false, toastTimer;
 addEventListener('keydown', e => {
   if (n3000?.isOpen) { n3000.key(e); e.preventDefault(); e.stopImmediatePropagation(); return; }
   if (tv?.isOpen) { tv.key(e); e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (e.code === 'Digit0' && started && settings.dev && !e.repeat && rizer) {
+    if (e.metaKey) {
+      settings.god = !settings.god; applySettings(); saveSettings();
+      showToast(`DEV · God mode ${settings.god ? 'ON' : 'OFF'}`);
+    } else {
+      rizer.heal(); rizer.stamina = rizer.maxStamina; rizer.astralEnergy = rizer.maxAstralEnergy;
+      showToast('DEV · HP, stamina & astral energy restored');
+    }
+    e.preventDefault(); e.stopImmediatePropagation(); return;
+  }
   if (!e.target?.matches?.('[data-skin-hex], [data-build-name], [data-labs-name]') && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
   if (bondGame?.active) { if (!e.repeat) bondGame.key(e.code); e.preventDefault(); return; }
   if (stationUI?.isOpen) { if (!e.repeat) stationUI.key(e.code); e.preventDefault(); return; } // Home PC / Experiment Table / Field Workstation screens
@@ -228,13 +238,20 @@ function fireUfoLaser() {
 // the Anim Lab's page-wide drop (FBX / GLB clips) never sees skin files; anything else still goes to it.
 const isSkinFile = f => /\.json$/i.test(f.name || '') || f.type === 'application/json';
 const draggedSkins = e => { const it = [...(e.dataTransfer?.items || [])].filter(i => i.kind === 'file'); return it.length > 0 && it.every(i => i.type === 'application/json'); };
-addEventListener('dragover', e => { if (!draggedSkins(e)) return; e.preventDefault(); e.stopImmediatePropagation(); document.body.classList.add('skin-drop'); }, true);
+addEventListener('dragover', e => {
+  const zone = e.target.closest?.('[data-skin-library-drop]'), items = [...(e.dataTransfer?.items || [])].filter(i => i.kind === 'file');
+  if (zone && items.length) { e.preventDefault(); e.stopImmediatePropagation(); zone.classList.add('drag-over'); return; }
+  if (!draggedSkins(e)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); document.body.classList.add('skin-drop');
+}, true);
 addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('skin-drop'); }, true);
 addEventListener('drop', e => {
   document.body.classList.remove('skin-drop');
   const files = [...(e.dataTransfer?.files || [])];
   if (!files.length || !files.every(isSkinFile)) return; // clips (or a mix) go on to the Anim Lab
   e.preventDefault(); e.stopImmediatePropagation(); document.body.classList.remove('lab-drop');
+  const library = e.target.closest?.('[data-skin-library-drop]');
+  if (library) { library.classList.remove('drag-over'); library.dispatchEvent(new CustomEvent('skin-library-file', { bubbles:true, detail:{ file:files[files.length - 1] } })); return; }
   loadSkinFile(files[files.length - 1]);
 }, true);
 async function loadSkinFile(file) {
@@ -799,11 +816,14 @@ function readPad() {
   const btn = i => !!p.buttons[i]?.pressed, prev = padPrev.slice(), edge = i => btn(i) && !prev[i];
   const dz = v => Math.abs(v) > 0.14 ? v : 0;
   const out = { x: dz(p.axes[0] || 0), z: dz(p.axes[1] || 0), lx: dz(p.axes[2] || 0), ly: dz(p.axes[3] || 0), btn, edge,
-    jump: btn(0), jumpEdge: edge(0), run: btn(7), descendHeld: btn(6), crouch: false, punch: edge(2), punchHeld: btn(2), kick: edge(3), interact: edge(1), zyphone: edge(17), dodge: edge(6), dodgeHeld: btn(6), burst: edge(14), down: edge(13), astralift: edge(12), rolling: edge(15), prevWeapon: edge(4), nextWeapon: edge(5), lock: false, vision: false };
-  // L3 / R3 alone = crouch / lock-on; both together = Astralvision. Single presses wait 120 ms for a partner.
+    jump: btn(0), jumpEdge: edge(0), run: btn(7), descendHeld: btn(6), crouch: false, punch: edge(2), punchHeld: btn(2), kick: edge(3), interact: edge(1), zyphone: edge(17), dodge: edge(6), dodgeHeld: btn(6), prayerHeld: btn(4) && btn(5) && btn(6) && btn(7), blockHeld: btn(4) && btn(5) && !(btn(6) && btn(7)), burst: edge(14), down: edge(13), astralift: edge(12), rolling: edge(15), prevWeapon: edge(4) && !btn(5), nextWeapon: edge(5) && !btn(4), lock: false, vision: false };
+  // L1+R1 guards; L1+R1+L2+R2 prays. L3 alone = crouch; R2+L3 = switch WHUD page.
+  // L3 and R3 single presses wait briefly so chords remain reliable.
   const e10 = edge(10), e11 = edge(11);
+  // The R2+L3 chord only emits WHUD toggle on the L3 edge; do not crouch on that press.
+  if (e10 && btn(7)) { out.whudToggle = true; out.run = false; stickPend = null; }
   // R3: a tap locks on (on release) · held for a moment, it toggles FocusLock instead.
-  if ((e10 || e11) && btn(10) && btn(11)) { out.vision = true; stickPend = null; r3Hold = null; }
+  else if ((e10 || e11) && btn(10) && btn(11)) { out.vision = true; stickPend = null; r3Hold = null; }
   else if (e10) stickPend = { k: 'crouch', t: performance.now() };
   else if (e11) r3Hold = { t: performance.now(), fired: false };
   if (r3Hold) {
@@ -833,6 +853,7 @@ let astralboard = null;
 // ── Lightbulbs (focus-moves.js): ✕ collects one and its Focus Move is learned for good ──
 let lightbulbs = null, learnedCardT = null, storm = null;
 function lightbulbLearned(bulbId, moveId) {
+  tutorialMark('focusCollected', bulbId);
   const M = FOCUS_MOVES[moveId] || null;
   sfx.play('lift', 0.9, 1.2); sfx.play('thunder', 0.35, 1.4); cam.kick(0.5); rumbleHit('medium');
   let el = $('#focus-learned');
@@ -936,10 +957,22 @@ let coinPiles = null; // the coin piles wooden chests throw out (coin-piles.js)
 let scanobots = null, gatelocks = null, penumbras = null, novas = null, bolts = null; // Penumbra: the heavy rocket tier above the Scanobots (penumbra.js)
 const chipName = c => (c.value || 1) > 1 ? `${ITEMS.portalchip.name} ×${c.value}` : ITEMS.portalchip.name;
 const techBodies = () => penumbras || novas ? [...(scanobots?.bodies || []), ...(penumbras?.bodies || []), ...(novas?.bodies || [])] : scanobots?.bodies; // what bolts and arrows can strike besides Seers
-const techLocks = () => [...(scanobots?.lockTargets() || []), ...(penumbras?.lockTargets() || []), ...(novas?.lockTargets() || [])];
+const techLocks = () => [
+  ...(scanobots?.lockTargets() || []), ...(penumbras?.lockTargets() || []), ...(novas?.lockTargets() || []),
+  ...(resources?.piles || []).filter(p => !p.taken).map(p => ({ kind: 'pickup', ref: p, pos: () => p.mesh.position, alive: () => !p.taken, h: 0, color: '#b9c2d1', label: `${p.name.toUpperCase()} ×${p.quantity}` })),
+  ...(coinPiles?.piles || []).filter(p => !p.taken).map(p => ({ kind: 'pickup', ref: p, pos: () => p.pos, alive: () => !p.taken, h: 0, color: '#ffd565', label: `COINS ×${p.value}` }))
+];
 // Every enemy the lock d-pad moves can reach, behind the one interface astral.js speaks (the Seers' own): Seers and
 // Mori answer as before; Scanobots and Penumbras (tech bodies) take the same moves as damage, a shove and a stun.
 const isFoeLock = lk => !!lk && ((lk.kind === 'enemy' && !!seers?.alive(lk.ref)) || (lk.kind === 'scanobot' && !!lk.ref.alive));
+const lockToast = t => {
+  if (!t) return 'Nothing in range';
+  if (t.kind === 'enemy') return `LOCKED · ${t.ref?.T?.name || 'Enemy'}`;
+  if (t.kind === 'scanobot') return `LOCKED · ${t.ref.name || 'Scanobot'}`;
+  if (t.kind === 'friendly') return `LOCKED · ${t.ref.name}${t.ref.downed ? ' · D-pad ↓ revive' : ' · D-pad ↑ recruit'}`;
+  if (t.kind === 'stone') return `LOCKED · ${t.ref.isAstraliteStone ? 'Astralite stone' : 'stone'}`;
+  return `LOCKED · ${t.label || (t.kind === 'zyrex' ? `wild ${t.ref.def.name}` : t.kind)}`;
+};
 // ── Focus Move executor: runs a learned technique on the existing Astral combat (astral.js owns damage, targeting,
 // animation, energy and timing). One cast per move id; a new Focus Move adds its cast here. ──
 function castFocus(id, context = false) {
@@ -954,17 +987,17 @@ function castFocus(id, context = false) {
       if (result.kind === 'chest') showToast('ASTRALIFT · chest opening');
       else if (result.kind === 'coinchest') showToast('ASTRALIFT · the lid gives');
       else showToast(result.down && result.scanobot ? downToast(result) : `${result.name || 'Enemy'} blasted back · 2 damage`);
-    })) later(Math.max(0, ASTRAL.lift.release - 0.25), () => sfx.play('lift', 1, 1)); // the crack peaks as the lift lands
+    })) { tutorialMark('focusUsed', id); later(Math.max(0, ASTRAL.lift.release - 0.25), () => sfx.play('lift', 1, 1)); } // the crack peaks as the lift lands
     return;
   }
   if (id === 'astralspin') { // no lock needed; grounded or airborne
     const r = storm.astralspin(rizer); if (r.fail) return showToast(r.fail);
-    rumbleHit('medium'); showToast(r.airborne ? 'ASTRALSPIN · the tornado forms on the ground below' : 'ASTRALSPIN'); return;
+    rumbleHit('medium'); tutorialMark('focusUsed', id); showToast(r.airborne ? 'ASTRALSPIN · the tornado forms on the ground below' : 'ASTRALSPIN'); return;
   }
   if (!isFoeLock(lk)) return showToast(`${label} · lock an enemy first (R3 / R)`);
   if (id === 'astralclap') {
     const r = storm.astralclap(rizer, lk.ref); if (r.fail) return r.fail && showToast(r.fail);
-    rumbleHit('light'); return;
+    rumbleHit('light'); tutorialMark('focusUsed', id); return;
   }
   if (id === 'astralthunder') { // lightning from the sky onto the locked Seer or Mori
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0) return;
@@ -973,6 +1006,7 @@ function castFocus(id, context = false) {
       cam.kick(1.2); hitStop = Math.max(hitStop, 0.1); sfx.play('thunder'); rumbleHit('thunder');
       const main = hits[0]; showToast(main?.down ? `ASTRALTHUNDER · ${main.name} down` : `ASTRALTHUNDER · ${ASTRAL.thunder.damage} damage${hits.length > 1 ? ` · ${hits.length - 1} caught in the blast` : ''}`);
     });
+    tutorialMark('focusUsed', id);
   } else if (id === 'astralburst') { // lightning crackles over Rizer, then explodes out around him
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.bursting) return;
     if (!rizer.spendEnergy(ASTRAL.burst.energy)) return showToast('SP LOW');
@@ -983,6 +1017,7 @@ function castFocus(id, context = false) {
       const down = hits.filter(h => h.down).length;
       showToast(hits.length ? `ASTRALBURST · ${hits.length} blasted back${down ? ` · ${down} down` : ''}` : 'ASTRALBURST');
     });
+    tutorialMark('focusUsed', id);
   } else if (id === 'rolling_thunder') { // every impact starts a 3 s fuse; nearby enemies chain before the final blast
     if (!rizer.onGround || rizer.attack || rizer.dodgeT > 0 || astral.rolling) return;
     if (!rizer.spendEnergy(ASTRAL.rolling.energy)) return showToast('SP LOW');
@@ -996,6 +1031,7 @@ function castFocus(id, context = false) {
         showToast(result.hits.length ? `ROLLING THUNDER · ${result.hits.length} electrocuted · charge ${Math.round(result.charge * 100)}%` : 'ROLLING THUNDER · blast dissipated');
       }
     });
+    tutorialMark('focusUsed', id);
   }
 }
 const techStun = (o, from) => { if (o.alive) (o.isNova ? novas : o.isPenumbra ? penumbras : scanobots)?.stun(o, from); };
@@ -1025,8 +1061,71 @@ let ufoPilot = false, ufoTransition = null, ufoVelocity = new THREE.Vector3(), u
 let hour = 16.5, hourTarget = null, hitStop = 0, koT = 0, hurtTimer;
 let last = performance.now(), elapsed = 0;
 let journalReminderElapsed = 0;
+const GEMLORD_TUTORIAL_IDS = ['rubypaw', 'sword', 'bow', 'axe'];
 
 function journalProgress() { return inventory.playtestJournal ||= { started: false, found: false }; }
+function tutorialProgress() {
+  const J = journalProgress(), T = J.tutorial ||= {};
+  T.basics ||= { jump: false, doubleJump: false, sprint: false, punch: false, kick: false, astralstrike: false };
+  for (const id of ['treeDodge', 'farmGateVault', 'treeSpin']) if (!(id in T.basics)) T.basics[id] = false;
+  T.focusCollected ||= []; T.focusUsed ||= []; T.weaponsFound ||= []; T.weaponsUsed ||= [];
+  T.ui ||= { minimized: false, x: null, y: null };
+  T.ui.expanded ??= false;
+  return T;
+}
+function tutorialMark(group, id) {
+  const J = journalProgress(); if (!J.found) return;
+  const T = tutorialProgress();
+  let changed = false;
+  if (group === 'basics') { if (id in T.basics && !T.basics[id]) { T.basics[id] = true; changed = true; } }
+  else if (Array.isArray(T[group]) && id && !T[group].includes(id)) { T[group].push(id); changed = true; }
+  if (changed) { saveInv(); renderTutorialOverlay(); zy?.refresh(); }
+}
+function tutorialPhase() {
+  const J = journalProgress(), T = tutorialProgress();
+  if (!J.found) return 'journal';
+  if (!Object.values(T.basics).every(Boolean)) return 'basics';
+  if (T.focusCollected.length < 6 || T.focusUsed.length < 6) return 'focus';
+  if (!GEMLORD_TUTORIAL_IDS.every(id => T.weaponsFound.includes(id) && T.weaponsUsed.includes(id))) return 'weapons';
+  return 'complete';
+}
+function renderTutorialOverlay() {
+  const J = journalProgress(), details = document.getElementById('mission-details'), toggle = document.getElementById('mission-toggle');
+  document.getElementById('tutorial-overlay')?.remove(); // older saved/UI builds used a detached draggable card
+  if (!details || !toggle) return;
+  const T = tutorialProgress(), phase = tutorialPhase();
+  const row = (label, done) => `<li class="${done ? 'done' : ''}"><i>${done ? '✓' : '·'}</i>${label}</li>`;
+  let content = '';
+  if (J.started && !J.found) content = `<small>ACTIVE MISSION</small><b>INTO MALEZOR SQUARE</b><p>Go to the fountain and collect Rizer’s Journal.</p>`;
+  else if (phase === 'basics') {
+    const steps = [['jump','Jump'],['doubleJump','Double jump'],['sprint','Sprint'],['punch','Punch'],['kick','Kick'],['astralstrike','Astralstrike · ○'],['treeDodge','Sprint-dodge a tree'],['farmGateVault','Run + X hurdle-roll over a waist-high obstacle'],['treeSpin','Spin around a tree while sprinting']];
+    content = `<small>RIZER’S JOURNAL · FIELD BASICS</small><b>Learn the controls</b><p>Sprint-dodge a tree, hurdle-roll over any waist-high obstacle with run + X, and let a tree spin carry you around a trunk.</p><ul>${steps.map(([id,label]) => row(label,T.basics[id])).join('')}</ul>`;
+  } else if (phase === 'focus') {
+    const moves = Object.entries(LIGHTBULBS).map(([bulb, data]) => ({ bulb, move: data.move, name: FOCUS_MOVES[data.move].name })), done = T.focusCollected.length;
+    content = `<small>RIZER’S JOURNAL · FOCUS TRAINING</small><b>Find and use the six Focus Moves</b><p>Open the Zyphone Map. Select a silver chest icon and press △ to ping it. Follow the meter marker.</p><ul>${moves.map(m => row(`${m.name} · ${T.focusUsed.includes(m.move) ? 'used' : T.focusCollected.includes(m.bulb) ? 'learned · use it' : 'find the chest'}`, T.focusUsed.includes(m.move))).join('')}</ul><em>${done}/6 learned · ${T.focusUsed.length}/6 used</em>`;
+  } else if (phase === 'weapons') {
+    const names = [['rubypaw','Rubypaw Longsword of Rakoron'],['sword','Sapphire Tearsword of Azurel'],['bow','Pearlbow of Ivirium'],['axe','Jaded Axe of Emeralix']], found = GEMLORD_TUTORIAL_IDS.filter(id => T.weaponsFound.includes(id)).length, used = GEMLORD_TUTORIAL_IDS.filter(id => T.weaponsUsed.includes(id)).length;
+    content = `<small>RIZER’S JOURNAL · GEMLORD WEAPONS</small><b>Find and try each weapon</b><p>Mythic chest icons mark four Gemlord weapons near their caves. Select an icon on the Zyphone Map and press △ to ping it.</p><ul>${names.map(([id,name]) => row(`${name} · ${T.weaponsFound.includes(id) ? T.weaponsUsed.includes(id) ? 'used' : 'equip and use it' : 'find the chest'}`, T.weaponsUsed.includes(id))).join('')}</ul><em>${found}/4 found · ${used}/4 used</em>`;
+  } else if (phase === 'complete') content = `<small>RIZER’S JOURNAL</small><b>Playtest tutorial complete</b><p>Movement, combat, Focus Moves, and Gemlord weapons checked off. More journal lessons will unlock as you discover named locations.</p>`;
+  else content = `<small>TRACKED MISSION</small><b>${J.started ? 'INTO MALEZOR SQUARE' : 'No active mission'}</b><p>${J.started ? 'Go to the fountain and collect Rizer’s Journal.' : 'Tracked mission tasks will appear here.'}</p>`;
+  details.innerHTML = content;
+  details.hidden = !T.ui.expanded;
+  toggle.setAttribute('aria-expanded', String(!!T.ui.expanded));
+  const plus = toggle.querySelector('.mission-chevron'); if (plus) plus.textContent = T.ui.expanded ? '−' : '＋';
+  const fit = () => {
+    if (!T.ui.expanded || details.hidden) { details.style.maxHeight = ''; return; }
+    const mission = document.getElementById('tracked-mission'), dev = document.getElementById('dev-strip'), wheel = document.querySelector('.wheel.whud');
+    if (!mission || !wheel) return;
+    const room = wheel.getBoundingClientRect().top - toggle.getBoundingClientRect().bottom - (dev?.hidden ? 8 : (dev?.offsetHeight || 0) + 24);
+    details.style.maxHeight = `${Math.max(48, room)}px`;
+  };
+  requestAnimationFrame(fit);
+  if (!window.__missionFitBound) { window.__missionFitBound = true; window.addEventListener('resize', () => renderTutorialOverlay()); }
+  if (!toggle.dataset.bound) {
+    toggle.addEventListener('click', e => { e.stopPropagation(); const ui = tutorialProgress().ui; ui.expanded = !ui.expanded; saveInv(); renderTutorialOverlay(); });
+    toggle.dataset.bound = '1';
+  }
+}
 function makeJournalProp() {
   const g = new THREE.Group(), cover = new THREE.MeshStandardMaterial({ color: '#71332e', roughness: 0.78, flatShading: true }), pages = new THREE.MeshStandardMaterial({ color: '#e6d9bb', roughness: 0.92, flatShading: true }), gold = new THREE.MeshStandardMaterial({ color: '#d7ad56', metalness: 0.48, roughness: 0.44, flatShading: true });
   const book = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.54), cover); book.position.y = 0.055; book.castShadow = true; book.receiveShadow = true; g.add(book);
@@ -1041,11 +1140,11 @@ function startJournalMission() {
   const fountain = world?.interactables.find(q => q.id === 'rizer-journal-fountain'); if (fountain?.mesh) fountain.mesh.visible = true;
   hud?.setMissionNote({ kicker: 'ACTIVE MISSION', text: 'INTO MALEZOR SQUARE · Get your journal near the fountain' });
   hud?.banner('ZYPHONE REMINDER', 'Pick up your journal near the fountain');
-  zy?.refresh();
+  renderTutorialOverlay(); zy?.refresh();
 }
 function completeJournalMission() {
   const J = journalProgress(); if (!J.started || J.found) return;
-  J.found = true; saveInv();
+  J.found = true; tutorialProgress(); saveInv(); renderTutorialOverlay();
   const fountain = world?.interactables.find(q => q.id === 'rizer-journal-fountain'); if (fountain?.mesh) fountain.mesh.visible = false;
   hud?.setMissionNote({ kicker: 'PLAYTEST JOURNAL', text: 'Open Zyphone · Missions to view tutorial tasks' });
   zy?.refresh(); showToast('INTO MALEZOR SQUARE · COMPLETE · Journal added to Missions');
@@ -1069,10 +1168,11 @@ function build() {
     world.interactables.push({ id: 'rizer-journal-fountain', name: 'Rizer’s Journal', kind: 'journal', note: 'Rizer’s playtest journal.', cx: jx, cz: jz, x: jx, z: jz, reach: 1.9, active: () => !!journalProgress().started && !journalProgress().found && !homeMode, mesh: journalMesh });
   }
   storeInterior = createStoreInterior(scene); // the Malezor Town Store (the Gear Shop's door)
-  homeInterior.setGuitarTaken(hasWeapon('guitar'));
+  homeInterior.setGuitarTaken(hasWeapon('guitar') || storage.total('broken_guitar') > 0);
   initTV();
   const s = W.playerStart;
   rizer = new Rizer(scene, { x: s.x, y: world.groundAt(s.x, s.z), z: s.z, facing: s.facing });
+  rizer.prayerStyle = inventory.prayerStyle === 'meditating' ? 'meditating' : 'regular';
   seating = createSeating({ interior: homeInterior, rizer, toast: showToast, onType: () => pcCamIn() });
   furnMover = createFurnitureMover({ interior: homeInterior, rizer, toast: showToast, prompt: (n, h) => dep?.showPrompt(n, h) });
   rizer.ready.then(n => n && console.log('[rp7d] playing as', n));
@@ -1130,7 +1230,7 @@ function build() {
   av = createAstralvision(scene, camera, fx);
   loot = createLoot(scene, world, fx, W); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
-  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, porch: PLAYTEST_PORCH_CHESTS ? porchChestSpots(W, world).gold : null, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('GOLD CHEST · a Lightbulb rises · ✕ to collect'); } }); // the gold chests: ○ opens one, ✕ collects its Lightbulb and learns its Focus Move for good
+  lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, porch: null, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('SILVER FOCUS CHEST · a Lightbulb rises · ✕ to collect'); } }); // the six silver chests teach Focus Moves; Gemlord weapon chests are gold and scattered
   // Caves: the interiors answer every physical query in their region of the world (world.js · setInterior)
   caveSys = createCaveInteriors({ scene, caves: CAVES, toast: showToast, fx, state: caveState });
   world.setInterior({ name: x => caveSys.planAt(x)?.cave.name, owns: caveSys.owns, groundAt: (x, z, y) => caveSys.planAt(x)?.phys.groundAt(x, z, y) ?? -60, resolve: (p, r) => caveSys.planAt(p.x)?.phys.resolve(p, r) ?? false, rayClear: (a, b) => caveSys.planAt(a.x)?.phys.rayClear(a, b) ?? a.distanceTo(b) });
@@ -1183,6 +1283,7 @@ function build() {
   if (journalProgress().started) hud.setMissionNote(journalProgress().found
     ? { kicker: 'PLAYTEST JOURNAL', text: 'Open Zyphone · Missions to view tutorial tasks' }
     : { kicker: 'ACTIVE MISSION', text: 'INTO MALEZOR SQUARE · Go to the fountain' });
+  renderTutorialOverlay();
   // RXP sources · exploration: a named region, a landmark, the first objectives. Each pays once, ever (rxp-rewards.js).
   const homeRegion = hud.regionOf(W.playerStart.x, W.playerStart.z);
   hud.onEvent = (type, d) => {
@@ -1222,9 +1323,9 @@ function build() {
     onSkinLab: () => { zy.close(); lab.close(); buildLab?.close(); skinLab.open(); },
     onBuildLab: () => { zy.close(); lab.close(); skinLab?.close(); buildLab.open(); },
     weapons: WEAPONS, inventory, storage, crafting, onDeploy: uid => deployFromZyphone(uid), onPackDeployed: uid => packDeployedFromZyphone(uid),
-    onWeapon: k => { if (inventory.wheel?.includes(k)) equip(k); else showToast('In the Zycube · put it on the weapon wheel to use it'); }, icons: ICONS,
-    onWheel: w => { // off the wheel = back in the Zycube: it leaves Rizer's hand and body
-      if (!w.includes(inventory.equipped)) equip('fists');
+    onWeapon: k => { if (inventory.wheel?.includes(k) || inventory.utilityWheel?.includes(k)) equip(k); else showToast('In the Zycube · put it on the WHUD wheel in the Armory to use it'); }, icons: ICONS,
+    onWheel: w => { // off the weapon wheel = back in the Zycube: it leaves Rizer's hand and body
+      if (!w.includes(inventory.equipped) && !inventory.utilityWheel?.includes(inventory.equipped)) equip('fists');
       if (inventory.hip && !w.includes(inventory.hip)) inventory.hip = null;
       saveInv(); wheel.render(); },
     menus: { options: optionsMenu, dev: devMenu }, onAction: act => menuAction(act),
@@ -1255,8 +1356,8 @@ function build() {
   uiLayout = createUILayout($('#game'), $('#layout-toggle'));
   $('#layout-toggle').addEventListener('click', () => uiLayout.toggle());
   document.addEventListener('mousemove', e => { if ((locked || dragging) && !zy.isOpen && !n3000?.isOpen && !tv?.isOpen) { cam.look(e.movementX * 0.0022 * settings.sens, e.movementY * 0.0018 * settings.sens * (settings.invertY ? -1 : 1)); setPad(false); } });
-  $('#map-canvas').addEventListener('click', e => devMapJump(hud.mapToWorld(e.clientX, e.clientY)));
-  $('#map-canvas').addEventListener('mousemove', e => { if (devMapOn()) hud.mapCursor = hud.mapToWorld(e.clientX, e.clientY); });
+  $('#map-canvas').addEventListener('click', e => { const pt = hud.mapToWorld(e.clientX, e.clientY); if (devMapOn()) devMapJump(pt); else hud.chooseMapPoint(pt); });
+  $('#map-canvas').addEventListener('mousemove', e => { const pt = hud.mapToWorld(e.clientX, e.clientY); if (devMapOn()) hud.mapCursor = pt; hud.selectChestAt(pt); });
   addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
   // Debug/test hook for playtests and automated checks.
@@ -1281,52 +1382,66 @@ const ICONS = {
   telescope: '<svg viewBox="0 0 48 48"><path d="M24 29 13 45M24 29 35 45M24 29V45" stroke="#a0774a" stroke-width="2.4" stroke-linecap="round"/><g transform="rotate(-38 24 26)"><rect x="7" y="21.5" width="31" height="9" rx="2" fill="#1b3166" stroke="#c9a64f" stroke-width="1.4"/><rect x="33" y="19.5" width="7" height="13" rx="1.6" fill="#58c4ff" stroke="#c9a64f" stroke-width="1"/><path d="M17 21.5v9M25 21.5v9" stroke="#c9a64f" stroke-width="1.6"/></g><circle cx="24" cy="29" r="2.6" fill="#c9a64f"/></svg>',
   blaster: '<svg viewBox="0 0 48 48"><path d="M4 27h9l3-4h14v6H16l-3 4H6z" fill="#2a2f38" stroke="#59616e" stroke-width="1"/><rect x="22" y="22.5" width="13" height="5" rx="2" fill="#ffab45"/><path d="M35 25h9" stroke="#59616e" stroke-width="2.6" stroke-linecap="round"/><rect x="15" y="17" width="13" height="3.6" rx="1.6" fill="#23272e" stroke="#39d8ff" stroke-width="0.9"/><path d="M17 29l-2 8h4l2-7" fill="#23272e"/><path d="M20 30q3 4 6 0" fill="none" stroke="#39d8ff" stroke-width="1.3"/></svg>'
 };
-// The weapon wheel: six slots, arranged in the Zyphone Armory (inventory.wheel). L1 / R1 cycle the filled ones.
+// The WHUD has separate six-slot weapon and utility pages. Existing inventory.wheel saves remain the weapon page.
+const UTILITY_WHEEL_ITEMS = new Set(['life_seed', 'telescope', 'workstation']);
+let whudPage = inventory.whudPage === 'utilities' ? 'utilities' : 'weapons';
 function syncWheel() {
-  let w = Array.isArray(inventory.wheel) ? inventory.wheel.slice(0, 6) : null;
-  if (!w) w = ['fists', ...inventory.owned.filter(k => k !== 'fists')].slice(0, 6); // first run: everything owned, in order
+  const carried = inventory.owned.filter(k => !UTILITY_WHEEL_ITEMS.has(k));
+  const utilityOwned = inventory.owned.filter(k => UTILITY_WHEEL_ITEMS.has(k) && (k !== 'life_seed' || (inventory.items?.life_seed || 0) > 0));
+  // Migrate utilities previously auto-inserted in the old shared wheel into the new utility page.
+  const old = Array.isArray(inventory.wheel) ? inventory.wheel.slice(0, 6) : null;
+  let u = Array.isArray(inventory.utilityWheel) ? inventory.utilityWheel.slice(0, 6) : [];
+  for (const k of old || []) if (k && UTILITY_WHEEL_ITEMS.has(k) && !u.includes(k) && utilityOwned.includes(k)) u.push(k);
+  u = u.filter(k => utilityOwned.includes(k)).slice(0, 6);
+  for (const k of utilityOwned) if (!u.includes(k) && u.length < 6) u.push(k);
+  while (u.length < 6) u.push(null);
+
+  let w = old ? old.filter(k => !k || !UTILITY_WHEEL_ITEMS.has(k)) : ['fists'];
+  w = w.filter(k => k == null || (carried.includes(k) && !UTILITY_WHEEL_ITEMS.has(k))).slice(0, 6);
+  const seen = inventory.seen ||= [];
+  for (const k of carried) if (!seen.includes(k)) {
+    seen.push(k);
+    if (k !== 'fists' && !w.includes(k) && w.length < 6) w.push(k);
+  }
+  for (const k of utilityOwned) if (!seen.includes(k)) seen.push(k);
+  if (!w.includes('fists')) { if (w.length >= 6) w.pop(); w.unshift('fists'); }
   while (w.length < 6) w.push(null);
-  w = w.map(k => k && (inventory.owned.includes(k) || k === 'life_seed' && (inventory.items?.life_seed || 0) > 0) ? k : null);
-  if (!w.includes('fists')) { const e = w.indexOf(null); w[e >= 0 ? e : 0] = 'fists'; }
-  for (const k of inventory.owned) if (!(inventory.seen ||= []).includes(k)) {
-    inventory.seen.push(k);
-    if (!w.includes(k)) {
-      let e = w.indexOf(null);
-      // Life Seeds must remain usable on a full wheel; temporarily free the last non-fists slot.
-      if (e < 0 && k === 'life_seed') e = [...w.keys()].reverse().find(i => w[i] && w[i] !== 'fists' && w[i] !== inventory.equipped) ?? [...w.keys()].reverse().find(i => w[i] !== 'fists');
-      if (e >= 0) w[e] = k;
-    }
-  }
-  if ((inventory.items?.life_seed || 0) > 0 && !w.includes('life_seed')) {
-    let e = w.indexOf(null);
-    if (e < 0) e = [...w.keys()].reverse().find(i => w[i] && w[i] !== 'fists' && w[i] !== inventory.equipped) ?? [...w.keys()].reverse().find(i => w[i] !== 'fists');
-    if (e >= 0) w[e] = 'life_seed';
-  }
-  if (!inventory.hip) inventory.hip = [...inventory.owned].reverse().find(k => BLADES[k] && w.includes(k)) || null; // nothing used yet: the newest blade rides on the hip
-  inventory.wheel = w; saveInv();
+  if (!inventory.hip) inventory.hip = [...inventory.owned].reverse().find(k => BLADES[k] && w.includes(k)) || null;
+  inventory.wheel = w; inventory.utilityWheel = u;
+  if (UTILITY_WHEEL_ITEMS.has(inventory.equipped) && u.includes(inventory.equipped)) whudPage = 'utilities';
+  saveInv();
 }
-const wheelList = () => inventory.wheel.filter(Boolean);
-const wheel = (() => { // WHUD: six slots ringed round what's in hand · L1 / R1 cycle
+const wheelList = () => (whudPage === 'utilities' ? inventory.utilityWheel : inventory.wheel).filter(Boolean);
+const wheel = (() => { // WHUD: L1 / R1 cycle this page; R2 + L3 changes page
   const el = document.createElement('section'); el.className = 'wheel whud hud-panel'; el.dataset.zy = 'weapons'; el.setAttribute('aria-label', 'Weapon wheel');
   const slots = [0, 1, 2, 3, 4, 5].map(i => { const a = -Math.PI / 2 + i * Math.PI / 3; return `<span class="whud-slot" data-i="${i}" style="--x:${Math.cos(a).toFixed(3)};--y:${Math.sin(a).toFixed(3)}"></span>`; }).join('');
-  el.innerHTML = `<header class="hud-tag"><i></i>WHUD<b class="zy-link">ZY·LINK</b></header><div class="whud-ring"><svg class="whud-arc" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="74"/><path d="M40 52 a82 82 0 0 1 22 -22"/><path d="M160 52 a82 82 0 0 0 -22 -22"/></svg>${slots}<div class="whud-core"><span id="wh-icon"></span><b id="wh-name"></b></div><kbd class="p whud-l">L1</kbd><kbd class="p whud-r">R1</kbd><kbd class="k whud-r">Q</kbd></div>`;
+  el.innerHTML = `<header class="hud-tag"><i></i>WHUD · <span id="wh-page">WEAPONS</span><b class="zy-link">R2 + L3</b></header><div class="whud-ring"><svg class="whud-arc" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="74"/><path d="M40 52 a82 82 0 0 1 22 -22"/><path d="M160 52 a82 82 0 0 0 -22 -22"/></svg>${slots}<div class="whud-core"><span id="wh-icon"></span><b id="wh-name"></b></div><kbd class="p whud-l">L1</kbd><kbd class="p whud-r">R1</kbd><kbd class="k whud-r">Q</kbd></div>`;
   $('#game').appendChild(el);
   el.addEventListener('click', e => { if (!$('#game').classList.contains('layout-editing')) zy?.open('weapons'); });
   return { render() {
-    const list = wheelList(), eq = inventory.equipped;
+    const list = wheelList(), eq = inventory.equipped, slots = whudPage === 'utilities' ? inventory.utilityWheel : inventory.wheel;
+    el.dataset.page = whudPage; el.setAttribute('aria-label', `${whudPage === 'utilities' ? 'Utility' : 'Weapon'} wheel`);
+    $('#wh-page').textContent = whudPage.toUpperCase();
     el.classList.toggle('solo', list.length < 2);
     $('#wh-icon').innerHTML = ICONS[eq] || ''; $('#wh-name').textContent = WEAPONS[eq]?.name || 'Fists';
-    el.querySelectorAll('.whud-slot').forEach((s, k) => { const w = inventory.wheel[k]; s.innerHTML = w ? ICONS[w] || '' : ''; s.classList.toggle('on', w === eq && !!w); s.classList.toggle('filled', !!w); s.title = w ? WEAPONS[w]?.name || w : 'Empty slot'; });
+    el.querySelectorAll('.whud-slot').forEach((s, k) => { const w = slots[k]; s.innerHTML = w ? ICONS[w] || '' : ''; s.classList.toggle('on', w === eq && !!w); s.classList.toggle('filled', !!w); s.title = w ? WEAPONS[w]?.name || w : 'Empty slot'; });
     el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
   } };
 })();
 function equip(k) {
   if (!inventory.owned.includes(k) || k === inventory.equipped) return;
-  if (scopeBuild) cancelScope(); inventory.equipped = k; saveInv(); rizer.setWeapon(k); wheel.render();
+  if (scopeBuild) cancelScope(); inventory.equipped = k; whudPage = UTILITY_WHEEL_ITEMS.has(k) ? 'utilities' : 'weapons'; inventory.whudPage = whudPage; saveInv(); rizer.setWeapon(k); wheel.render();
   if (k === 'telescope') showToast(scopeSet ? 'Stargazer Telescope · set up nearby · □ beside it packs it away' : 'Stargazer Telescope · □ to set it up here');
   if (BLADES[k]) fx.emit(rizer.position.x, rizer.position.y + 1.4, rizer.position.z, 10, { color: WEAPONS[k].color || '#9cc0ff', speed: 1.4, up: 1, size: 0.3, life: 0.5, g: 0 });
 }
 function cycleWeapon(dir) { const list = wheelList(); if (!list.length) return; const i = list.indexOf(inventory.equipped); equip(list[i < 0 ? 0 : (i + dir + list.length) % list.length]); }
+function toggleWhudPage() {
+  whudPage = whudPage === 'weapons' ? 'utilities' : 'weapons';
+  inventory.whudPage = whudPage; saveInv();
+  const list = wheelList();
+  if (list.length && !list.includes(inventory.equipped)) equip(list[0]);
+  else { wheel.render(); if (!list.length) showToast(whudPage === 'utilities' ? 'No utilities equipped' : 'No weapons equipped'); }
+}
 // Psychosyd's guitar, on □ with the guitar equipped: Rizer plays Guitar Playing to the Beat It solo, and every
 // Seer and Mori within GUITAR.radius drops what it's doing and dances (Mori: Zombie Dance; Seers: one of the
 // dance-pack loops each) until the song ends. □ again, moving, jumping, striking or taking a hit stops it early.
@@ -1349,7 +1464,12 @@ function makeLabsHub() {
       const L = ensureLabs(), key = rizer.charKey, C = CHARACTERS[key] || {}, base = C.skinOf || key;
       return {
         charName: C.name || key, bodyName: CHARACTERS[base]?.name || base,
-        skins: [base, ...Object.keys(CHARACTERS).filter(k => CHARACTERS[k].skinOf === base)].map(k => ({ key: k, name: CHARACTERS[k].name, current: k === key })),
+        prayerStyle: rizer.prayerStyle || 'regular', meditationReady: ['meditateKneel', 'meditateHold', 'meditateStand'].every(k => rizer.actor?.has(k)),
+        // Rizer's canonical skin stays first/default. Psychosyd remains a playable character,
+        // but is not a saved colour skin in this selector.
+        skins: [base, ...Object.keys(CHARACTERS).filter(k => k !== 'psychosyd' && CHARACTERS[k].skinOf === base && k !== base)]
+          .filter((k, i, all) => all.indexOf(k) === i)
+          .map(k => ({ key: k, name: CHARACTERS[k].name, current: k === key })),
         hair: { can: hasHair(), name: skinLab?.hairName(skinLab.hair) || 'Character default' },
         colors: skinLab?.swatches() || [], templates: L.templates, clones: L.clones.length, resetArmed: L.resetArmed
       };
@@ -1358,6 +1478,14 @@ function makeLabsHub() {
       const L = ensureLabs(), i = +arg, t = L.templates[i];
       if (action === 'body') { const bodies = Object.keys(CHARACTERS).filter(k => !CHARACTERS[k].skinOf), cur = CHARACTERS[rizer.charKey]?.skinOf || rizer.charKey; return setCharFromLabs(bodies[(bodies.indexOf(cur) + 1) % bodies.length]); }
       if (action === 'hair') return skinLab.setHair(i || 1);
+      if (action === 'prayerStyle') {
+        rizer.prayerStyle = rizer.prayerStyle === 'meditating' ? 'regular' : 'meditating';
+        inventory.prayerStyle = rizer.prayerStyle; saveInv();
+        showToast(rizer.prayerStyle === 'meditating' && !['meditateKneel', 'meditateHold', 'meditateStand'].every(k => rizer.actor?.has(k))
+          ? 'MEDITATION SELECTED · assign its three clips in Anim Lab; regular prayer will play until then'
+          : `PRAYER STYLE · ${rizer.prayerStyle.toUpperCase()}`);
+        return;
+      }
       if (action === 'resetColors') return skinLab.setLook(rizer.charKey, { colors: {}, hair: skinLab.hair });
       if (action === 'save') return L.saveTemplate(name);
       if (action === 'clone') return L.spawnClone();
@@ -1443,12 +1571,12 @@ function tvFrame(realDt) { // camera glide to the screen, then the room renders 
 }
 // A new game starts with Psychosyd's guitar on the floor of Rizer's room (home-interior.js); ○ / E there takes it.
 function takeFloorGuitar() {
-  if (hasWeapon('guitar')) return homeInterior.setGuitarTaken(true);
-  inventory.owned.push('guitar'); saveInv(); syncWheel(); wheel.render();
+  if (hasWeapon('guitar') || storage.total('broken_guitar') > 0) return homeInterior.setGuitarTaken(true);
+  addItem('broken_guitar', 1);
   const g = homeInterior.floorGuitar, p = g.getWorldPosition(new THREE.Vector3());
   homeInterior.setGuitarTaken(true);
   fx.emit(p.x, p.y + 0.3, p.z, 18, { color: '#ff3b3b', speed: 2.2, up: 1.2, size: 0.35, life: 0.5, g: 0 });
-  showToast("Psychosyd's Signed Red Guitar · R1 to equip, □ to play", 3600);
+  showToast('BROKEN GUITAR ACQUIRED · repair it at the Experiment Table or a Field Workstation', 4200);
 }
 function toggleGuitar() { if (jam) stopJam(); else startJam(); }
 function startJam() {
@@ -1758,7 +1886,7 @@ function updateBow(dt, held) {
   }
   if (bow.phase === 'shoot') {
     if (!bow.fired && bow.t >= BOW.looseAt / BOW.shoot) {
-      bow.fired = true; bowProjectiles?.shoot(rizer, bowAlive(bow.target) ? bow.target : null, bow.power);
+      bow.fired = true; bowProjectiles?.shoot(rizer, bowAlive(bow.target) ? bow.target : null, bow.power); tutorialMark('weaponsUsed', 'bow');
       sfx.play('arrow_fire', 0.8 + bow.power * 0.2); sfx.play('whoosh', 0.35 + bow.power * 0.2, 1.08 - bow.power * 0.16); // the arrow leaving the string, with its wind under it
     }
     if (bow.t >= bow.dur) { const again = bow.again || held; bow = null; if (again && bowReady()) startBowDraw(); }
@@ -1887,7 +2015,7 @@ function devMenu() {
     { act: 'god', label: 'God mode (HP · STM · AE never drop)', value: onOff(settings.god) },
     { act: 'heal', label: 'Heal to full', value: 'GO' },
     { act: 'life-seed', label: 'Give a Life Seed', note: `Carried: ${getResourceCount('life_seed')} · adds it to the Armory wheel`, value: 'GIVE' },
-    { act: 'sword', label: 'Give the Tearsword of Azurel', value: hasWeapon('sword') ? 'OWNED' : 'GIVE' },
+    { act: 'sword', label: 'Give the Sapphire Tearsword of Azurel', value: hasWeapon('sword') ? 'OWNED' : 'GIVE' },
     { act: 'axe', label: 'Give the Jaded Axe of Emeralix', value: hasWeapon('axe') ? 'OWNED' : 'GIVE' },
     { act: 'bow', label: 'Give the Pearlbow of Ivirium', value: hasWeapon('bow') ? 'OWNED' : 'GIVE' },
     { act: 'blaster', label: 'Give the Thardin Blaster Rifle', value: hasWeapon('blaster') ? 'OWNED' : 'GIVE' },
@@ -1937,7 +2065,35 @@ function devMapJump(pt) {
   showToast(`Dev map · teleported to ${pt.x.toFixed(0)}, ${pt.z.toFixed(0)}`); return true;
 }
 function teleport(x, z) { rizer.position.set(x, world.groundAt(x, z), z); rizer.vel.set(0, 0, 0); rizer.vy = 0; rizer.flying = false; cam.focus.set(x, rizer.position.y + 1.7, z); }
+async function teleportToMapPoi() {
+  const poi = hud.mapPois().find(it => it.id === hud.mapSelectedPoi);
+  if (!poi) { showToast('Select a mapped location first'); return; }
+  if (homeMode || caveMode || ufoPilot || ufoTransition || koT > 0 || westLakeBus?.driving) { showToast('Fast travel is unavailable right now'); return; }
+  // Land just beside the POI where possible, so arrival does not put Rizer inside its collision.
+  const dx = rizer.position.x - poi.cx, dz = rizer.position.z - poi.cz, len = Math.hypot(dx, dz) || 1;
+  let dest = null;
+  for (const radius of [2.8, 4, 5.5, 7, 9, 12]) {
+    for (let i = 0; i < 12; i++) {
+      const a = Math.atan2(dz, dx) + (i - 5.5) * Math.PI / 12;
+      const x = poi.cx + Math.cos(a) * radius, z = poi.cz + Math.sin(a) * radius;
+      if (hud.isLand(x, z)) { dest = { x, z }; break; }
+    }
+    if (dest) break;
+  }
+  if (!dest && hud.isLand(poi.cx, poi.cz)) dest = { x: poi.cx, z: poi.cz };
+  if (!dest) { showToast('There is no safe landing surface at this location'); return; }
+  zy.close();
+  teleport(dest.x, dest.z); rizer.onGround = true; rizer.airTime = 0; rizer.vy = 0; rizer.vel.set(0, 0, 0);
+  rizer.facing = Math.atan2(poi.cx - dest.x, poi.cz - dest.z);
+  rizer.bail = null; rizer.seq = null; rizer.ledge = null; rizer.teeter = null; rizer.attack = null; rizer.landLock = 0;
+  cam.snapBehind(rizer, 4.5);
+  await rizer.actor?.ready;
+  const actor = rizer.actor;
+  if (actor?.has('teleportLand') && actor.play('teleportLand', 1)) rizer.landLock = actor.acts.teleportLand.getClip().duration;
+  showToast(`Arrived · ${poi.name}`);
+}
 function menuAction(act) {
+  if (act === 'map-teleport') { void teleportToMapPoi(); return; }
   if (act === 'plant-tree') { zy.close(); treehouses?.start(); return; }
   if (act !== 'reset') resetArmed = 0;
   if (act !== 'reset-settings') settingsResetArmed = 0;
@@ -1979,7 +2135,7 @@ function menuAction(act) {
   if (act === 'life-seed') { const total = addResource('life_seed', 1); if (!inventory.owned.includes('life_seed')) inventory.owned.push('life_seed'); saveInv(); syncWheel(); wheel.render(); showToast(`LIFE SEED ×1 · ${total} carried · added to Armory`); }
   if (act.startsWith('rxp:') && !awardRizerXP(Number(act.slice(4)), 'dev')) showToast('RXP is locked until Rizer first steps into the overworld');
   if (act === 'rxpreset') progression.set(0);
-  if (act === 'sword' && !hasWeapon('sword')) { inventory.owned.push('sword'); inventory.chestOpen = true; saveInv(); syncWheel(); wheel.render(); showToast('Tearsword of Azurel added · R1 to draw'); }
+  if (act === 'sword' && !hasWeapon('sword')) { inventory.owned.push('sword'); inventory.chestOpen = true; saveInv(); syncWheel(); wheel.render(); showToast('Sapphire Tearsword of Azurel added · R1 to draw'); }
   if (act === 'axe' && !hasWeapon('axe')) { inventory.owned.push('axe'); (inventory.chests ||= {})['emeralix-chest'] = 1; saveInv(); syncWheel(); wheel.render(); showToast('Jaded Axe of Emeralix added · R1 to draw'); }
   if (act === 'bow' && !hasWeapon('bow')) { inventory.owned.push('bow'); (inventory.chests ||= {})['ivirium-chest'] = 1; saveInv(); syncWheel(); wheel.render(); showToast('Pearlbow of Ivirium added · R1 to draw'); }
   if (act === 'blaster' && !hasWeapon('blaster')) { inventory.owned.push('blaster'); saveInv(); syncWheel(); wheel.render(); showToast('Thardin Blaster Rifle added · R1 to draw, □ to fire'); }
@@ -2070,6 +2226,11 @@ const seerHooks = {
   },
   onLanded: (h, kind) => {
     lastLanded = elapsed;
+    if (['punch','runpunch'].includes(kind)) tutorialMark('basics', 'punch');
+    if (['kick','flykick','kickup'].includes(kind)) tutorialMark('basics', 'kick');
+    if (kind === 'sword') tutorialMark('weaponsUsed', 'sword');
+    if (kind === 'axe') tutorialMark('weaponsUsed', 'axe');
+    if (kind === 'rubypaw') tutorialMark('weaponsUsed', 'rubypaw');
     { // impact weight: opening blows are light, the chain builds, finishers and big kicks hit heavy
       const at = rizer.attack, stage = at?.stage || 1, fin = at && stage >= rizer.comboMax(at.kind);
       const w = h.down || fin || at?.od || kind === 'flykick' || kind === 'kickup' ? 'heavy' : kind === 'runpunch' ? 'medium' : kind === 'kick' ? (stage >= 3 ? 'heavy' : 'medium') : kind === 'axe' || kind === 'rubypaw' ? (stage >= 2 ? 'heavy' : 'medium') : kind === 'sword' ? (stage >= 3 ? 'heavy' : 'medium') : stage >= 3 ? 'medium' : 'light';
@@ -2224,6 +2385,7 @@ function update(dt, t, realDt = dt) {
   const pad = scopeView ? (readPad(), pressed.clear(), null) : readPad(); // at the eyepiece nothing reaches the world
   if (westLakeBus?.driving) { stickPend = null; r3Hold = null; }
   if (pad?.focus && started && !zy.isOpen) toggleFocus();
+  if (pad?.whudToggle && started && !zy.isOpen && !stationUI?.isOpen && !treehouses?.isOpen && !scopeView && !westLakeBus?.driving) toggleWhudPage();
   if (pad && (pad.x || pad.z || pad.lx || pad.ly)) setPad(true);
   const wasOpen = zy.isOpen; // a button that closes the menu must not also act in the world
   const stWas = !!stationUI?.isOpen;
@@ -2232,10 +2394,12 @@ function update(dt, t, realDt = dt) {
   else if (pad && treehouses?.isOpen) treehouses.pad(pad);
   else if (pad && stationUI?.isOpen) stationUI.pad(pad);
   else if (pad?.zyphone && started) { skinLab?.close(); buildLab?.close(); zy.toggle(); }
-  else if (pad && zy.isOpen && zy.tab === 'map' && devMapOn() && pad.edge(0)) devMapJump(hud.mapCursor); // ✕ on the dev map cursor
-  else if (pad && zy.isOpen) zy.pad(pad);
+  else if (pad && zy.isOpen && zy.tab === 'map' && !hud.mapFocusMode && devMapOn() && pad.edge(0)) devMapJump(hud.mapCursor); // ✕ on the dev map cursor
+  else if (pad && zy.isOpen && zy.tab === 'map' && pad.edge(3)) hud.toggleMapPing(); // △ pins / clears the selected map point
+  else if (pad && zy.isOpen) zy.pad(pad, dt);
   else if (pad && labOpen) (buildLab?.isOpen ? buildLab : skinLab?.isOpen ? skinLab : lab).pad(pad);
   if (pressed.has('Tab') && started) { skinLab?.close(); buildLab?.close(); zy.open(); }
+  if (pressed.has('KeyZ') && started && !zy.isOpen) { skinLab?.close(); buildLab?.close(); zy.open(); pressed.delete('KeyZ'); }
   const pcLock = !!pcUse && pcUse.phase !== 'walk'; // in front of the Nebuladock: locomotion and combat are off
   const menu = zy.isOpen || wasOpen || !!stationUI?.isOpen || stWas || pcLock || !!treehouses?.isOpen, ko = koT > 0;
   // First playtest objective: wait 15 seconds of active gameplay, then send one temporary Zyphone reminder.
@@ -2260,6 +2424,7 @@ function update(dt, t, realDt = dt) {
     x: analog ? pad.x : kx, z: analog ? pad.z : kz, analog: !!analog,
     run: keys.has('ShiftLeft') || keys.has('ShiftRight') || !!pad?.run, // walk by default · hold R2 (Shift) to run
     descendHeld: keys.has('KeyC') || !!pad?.descendHeld,
+    prayerHeld: !!pad?.prayerHeld, blockHeld: (keys.has('ShiftLeft') || keys.has('ShiftRight')) && keys.has('KeyC') || !!pad?.blockHeld,
     jumpPressed: pressed.has('Space') || pad?.jumpEdge, jumpHeld: keys.has('Space') || pad?.jump,
     dodgePressed: pressed.has('KeyC') || pad?.dodge, dodgeHeld: keys.has('KeyC') || !!pad?.dodgeHeld, emotePressed: pressed.has('KeyG') || (!!pad?.down && !downLocked && !reviveLocked && !bondLocked && focus.slot('down') !== 'astralspin'),
     crouchPressed: pressed.has('KeyX') || !!pad?.crouch // L3 (X): crouch toggle on the ground · auto-land while flying
@@ -2279,6 +2444,7 @@ function update(dt, t, realDt = dt) {
     radioWheel:pad?.btn(4) || keys.has('KeyB')
   };
   const act = started && !scopeView && !menu && !ko && !lab.previewing && !buildLab?.isOpen && !bondGame?.active && !ufoTransition && !rizer.seq && !treehouses?.busy && !rizer.bail && !rizer.prayer && !astral.rollingCast && !pcUse && !seating?.active; // prayer and the authored Rolling Thunder cast own Rizer until the clip ends
+  inp.prayerHeld = !!pad?.prayerHeld && (act || !!rizer.prayer); inp.blockHeld = !!pad?.blockHeld && act;
   // a lab preview / hologram transition / walking through a door holds Rizer still
   if (!act) { inp.x = inp.z = 0; inp.jumpPressed = false; inp.dodgePressed = inp.emotePressed = inp.crouchPressed = false; }
   if (!menu && started && !treehouses?.busy && pressed.has('KeyN')) { if (homeMode && indoor.treehouse) indoor.manage(); else if (!homeMode) { const near=treehouses?.nearest(); if(near) treehouses.open(near.rec); } pressed.delete('KeyN'); }
@@ -2301,17 +2467,18 @@ function update(dt, t, realDt = dt) {
   const doorJump = !homeMode && !!hud.doorPrompt && !!inp.jumpPressed;
   if (!homeMode && hud.doorPrompt) { inp.jumpPressed = false; inp.jumpHeld = false; }
   if (labOpen) { inp.jumpPressed = act && pressed.has('Space'); inp.jumpHeld = keys.has('Space'); inp.crouchPressed = act && pressed.has('KeyX'); inp.dodgePressed = act && pressed.has('KeyC'); inp.emotePressed = act && pressed.has('KeyG'); }
-  // Locked on: a right-stick flick left/right (Z / V on keyboard) swaps target; otherwise the stick orbits the camera.
+  // Locked on: a right-stick flick left/right or V on keyboard swaps target; otherwise the stick orbits the camera.
   let flick = 0;
   if (pad && astral.lock && !menu && !westLakeBus?.driving) {
     if (Math.abs(pad.lx) < 0.3) flickReady = true;
     else if (flickReady && Math.abs(pad.lx) > 0.7) { flick = Math.sign(pad.lx); flickReady = false; }
   }
-  if (!menu && started && astral.lock) { if (pressed.has('KeyZ')) flick = -1; if (pressed.has('KeyV') && !labOpen) flick = 1; }
+  if (!menu && started && astral.lock) { if (pressed.has('KeyV') && !labOpen) flick = 1; }
   if (flick) {
-    const t = astral.switchLock(flick, rizer, seers, zyrex, camera, loot, commonChests, npcs?.lockTargets() || [], techLocks());
+    const lockCombat = isFoeLock(astral.lock) || !!seers?.inCombat(rizer.position) || !!scanobots?.inCombat(rizer.position) || !!penumbras?.inCombat(rizer.position) || !!novas?.inCombat(rizer.position);
+    const t = astral.switchLock(flick, rizer, seers, zyrex, camera, loot, commonChests, npcs?.lockTargets() || [], techLocks(), lockCombat);
     for (const z of zyrex) z.bondFocus = t ? t.kind === 'zyrex' && t.ref === z : z.bondFocus;
-    if (t) showToast(`LOCKED · ${t.kind === 'enemy' ? (t.ref?.T?.name || 'Seer grunt') : t.kind === 'scanobot' ? (t.ref.name || 'Scanobot') : t.kind === 'friendly' ? `${t.ref.name}${t.ref.downed ? ' · D-pad ↓ revive' : ' · D-pad ↑ recruit'}` : t.kind === 'stone' ? (t.ref.isAstraliteStone ? 'Astralite stone' : 'stone') : 'wild Zyrex · D-pad ↓ to bond'}`);
+    if (t) showToast(lockToast(t));
   }
   if (pad && !menu && !westLakeBus?.driving && !bondGame?.active) cam.look(astral.lock ? 0 : pad.lx * 2.4 * dt * settings.sens, pad.ly * 1.6 * dt * settings.sens * (settings.invertY ? -1 : 1));
   // lock-on: Rizer tracks the target and the camera frames it from behind him
@@ -2394,7 +2561,7 @@ function update(dt, t, realDt = dt) {
         hud.say(it.name, npcs?.talk(it) || it.note);
       } else if (it?.kind === 'journal') {
         rizer.pickUp({ x: it.x, y: rizer.position.y + 0.2, z: it.z }, completeJournalMission, 'pickup');
-      } else if (it?.kind === 'goldchest') { // gold chest: walk up to the lock, lift the lid, and its Lightbulb floats out
+      } else if (it?.kind === 'goldchest') { // silver chest: walk to the lock; its Focus Move Lightbulb floats out
         const c = lightbulbs?.find(it.id), f = c?.front();
         if (c?.state === 'closed') rizer.walkTo(f, f.face, () => { if (c.state !== 'closed') return; rizer.playInteract(false); later(0.28, () => lightbulbs.open(it.id)); }, { around: f.around });
       } else if (it?.kind === 'chest' && it.common) { // wooden chest: walk up to the lock, lift the lid, coins
@@ -2410,7 +2577,11 @@ function update(dt, t, realDt = dt) {
         else if (c?.state === 'waiting') { picking = c; rizer.pickUp(c.rest, () => {
           if (c.take()) { // it's in his hand now: he lifts it through the rest of the clip, then puts it away
             const W8 = WEAPONS[c.item] || RIDES[c.item];
-            if (c.ride) {
+            if (c.brokenId) {
+              showToast(`${ITEMS[c.brokenId]?.name || 'Broken equipment'} acquired · repair it at the Experiment Table or a Field Workstation`, 4200);
+            } else if (c.spot?.tutorialCategory === 'gemlordWeapon') tutorialMark('weaponsFound', c.item);
+            if (c.brokenId) { /* broken keepsakes stay in the Zycube until repaired */ }
+            else if (c.ride) {
               astralboard.unlock(c.rest); rizer.pickStow = false;
               hud.banner('RIDEABLE PROP · ASTRALITE', W8.name); showToast(`${W8.name} unlocked · ○ / E beside it to ride`);
             } else {
@@ -2471,13 +2642,13 @@ function update(dt, t, realDt = dt) {
     }
     if (padAct?.nextWeapon || pressed.has('KeyQ')) cycleWeapon(1);
     if (padAct?.prevWeapon) cycleWeapon(-1);
-    for (const [i, k] of inventory.wheel.entries()) if (k && pressed.has('Digit' + (i + 1))) equip(k);
+    for (const [i, k] of (whudPage === 'utilities' ? inventory.utilityWheel : inventory.wheel).entries()) if (k && pressed.has('Digit' + (i + 1))) equip(k);
     if (pressed.has('KeyM')) toggleMusic();
     if (pressed.has('KeyB') || padAct?.vision) { if (av.pulse(rizer.position)) showToast('ASTRALVISION'); else showToast(`Astralvision recharging · ${Math.ceil(av.cooldown)} s`); }
     if (!homeMode && (pressed.has('KeyR') || pressed.has('MouseLock') || padAct?.lock)) {
       const t = astral.toggleLock(rizer, seers, zyrex, loot, commonChests, npcs?.lockTargets() || [], techLocks());
       for (const z of zyrex) z.bondFocus = t?.kind === 'zyrex' && t.ref === z;
-      showToast(t ? (t.kind === 'enemy' ? 'LOCKED · ' + (t.ref?.T?.name || 'Enemy') : t.kind === 'scanobot' ? 'LOCKED · ' + (t.ref.name || 'Scanobot') : t.kind === 'friendly' ? `${t.ref.name} · ${t.ref.downed ? 'D-pad ↓ revive' : 'D-pad ↑ recruit'}` : t.kind === 'chest' ? 'LOCKED · chest · D-pad ↑ to Astralift' : t.kind === 'coinchest' ? 'LOCKED · coin chest · D-pad ↑ to Astralift' : t.kind === 'stone' ? `LOCKED · ${t.ref.isAstraliteStone ? 'Astralite stone' : 'stone'} · strike its surface` : 'LOCKED · wild Zyrex · walk up calmly · D-pad ↓ to bond') : astral.lock === null ? 'Lock released' : 'Nothing in range');
+      showToast(t ? lockToast(t) : astral.lock === null ? 'Lock released' : 'Nothing in range');
     }
     }
   }
@@ -2589,13 +2760,23 @@ function update(dt, t, realDt = dt) {
     sfx.steps(moving ? (run ? 'run' : 'walk') : null, r.crouched ? 0.45 : 1, 1); // the recordings play at their own pace
     sfx.wind(!menu && r.flying && Math.hypot(r.speed, r.vy) > 2 ? Math.min(1, 0.55 + Math.hypot(r.speed, r.vy) / 40) : 0); // wind: only while actually flying somewhere, a little stronger when boosting
   }
+  if (!menu && journalProgress().found && rizer.onGround && rizer.isRunning && rizer.speed > 3.4) tutorialMark('basics', 'sprint');
   for (const e of menu || westLakeBus?.driving ? [] : rizer.events) {
+    if (e.startsWith('blastCharge')) astral.chargeBody(rizer);
+    if (e === 'jump') tutorialMark('basics', rizer.usedDouble ? 'doubleJump' : 'jump');
     if (e === 'ledgeHang') showToast('LEDGE · ✕ / Space to climb · L3 / keyboard X to drop');
     if (e === 'punch' || e === 'kick' || e === 'flykick' || e === 'kickup' || e === 'runpunch' || BLADES[e]) missChecks.push(elapsed); // every blow (fists, feet, sword, axe) that meets only air whiffs
     if (e === 'land' || e === 'landHard') sfx.play('land', e === 'landHard' ? 1.15 : 0.9);
     if (e === 'slide') sfx.play('slide');
-    if (e === 'treeSpin') sfx.play('whoosh', 0.6, 0.9);
+    if (e === 'treeSpin') { sfx.play('whoosh', 0.6, 0.9); tutorialMark('basics', 'treeSpin'); }
     if (e === 'perfectDodge') perfectDodge();
+    if (e === 'dodge' && rizer.isRunning && rizer.speed > 3.4) {
+      const nearbyTree = world.nature?.userData?.breakables?.trees?.some(tree => !tree.broken && Math.hypot(tree.x - rizer.position.x, tree.z - rizer.position.z) <= 3.4);
+      if (nearbyTree) tutorialMark('basics', 'treeDodge');
+    }
+    // The actual waist-high run + X hurdle-roll is the lesson action; don't
+    // couple its completion to one farm-gate prop being nearby or intact.
+    if (e === 'vault') tutorialMark('basics', 'farmGateVault');
     if (e === 'slamImpact') slamImpact();
     if (e === 'bail') showToast('Nothing left to fly on · falling');
     if (e === 'bailImpact') { // slammed into the ground from the sky
@@ -2612,7 +2793,17 @@ function update(dt, t, realDt = dt) {
       const at = foot ? foot.getWorldPosition(new THREE.Vector3()) : rizer.position.clone().setY(rizer.position.y + 1.2);
       fx.emit(at.x, at.y, at.z, 6, { speed: 1.4, up: 0.3, size: 0.4 });
     }
+    if (e === 'wallrunStart') { sfx.play('slide', 0.55, 1.35); rumbleHit('light'); }
+    if (e === 'wallrunCrackle') {
+      rizer.actor?.model.updateMatrixWorld(true);
+      for (const name of ['mixamorigLeftToeBase', 'mixamorigRightToeBase']) {
+        const foot = rizer.actor?.model.getObjectByName(name) || rizer.actor?.model.getObjectByName(name.replace('ToeBase', 'Foot'));
+        const at = foot ? foot.getWorldPosition(new THREE.Vector3()) : rizer.position.clone().setY(rizer.position.y + 0.12);
+        fx.emit(at.x, at.y, at.z, 3, { color: '#55dfff', speed: 0.75, up: 0.08, size: 0.28, life: 0.18, g: 0.12, spread: 0.08 });
+      }
+    }
     if (e === 'blast' || e === 'blast2' || e === 'blast3') { // astralstrike leaves Rizer's casting hand
+      tutorialMark('basics', 'astralstrike');
       sfx.play('blast', e === 'blast3' ? 1.15 : 1);
       const hand = rizer.actor?.model.getObjectByName('mixamorigRightHand');
       const from = hand ? hand.getWorldPosition(new THREE.Vector3()) : rizer.position.clone().setY(rizer.position.y + 1.6);
@@ -2634,13 +2825,14 @@ function update(dt, t, realDt = dt) {
   // fountain spray
   if (Math.random() < dt * 30) fx.emit(W.plaza.x, world.heightAt(W.plaza.x, W.plaza.z) + 4.9, W.plaza.z, 1, { color: '#e4f2ee', speed: 1.3, up: 2.4, g: 9, size: 0.3, life: 0.9, spread: 0.1 });
   fx.update(dt, t, cam.focus, night);
-  if (zy.isOpen && zy.tab === 'map' && devMapOn()) { // the teleport cursor: starts on Rizer, the left stick steers it
+  if (zy.isOpen && zy.tab === 'map') { // map cursor: the left stick selects icons; Triangle pings the selected chest
     const c = hud.mapCursor || (hud.mapCursor = { x: rizer.position.x, z: rizer.position.z }), E = hud.extent;
     const mb = hud.mapBounds(), rate = (mb.x1 - mb.x0) / (E * 2) * 90; // the cursor crosses either map in the same time
     if (pad && (pad.x || pad.z)) { c.x = Math.max(mb.x0, Math.min(mb.x1, c.x + pad.x * rate * realDt)); c.z = Math.max(mb.z0, Math.min(mb.z1, c.z + pad.z * rate * realDt)); }
+    hud.selectChestAt(c);
   } else if (hud.mapCursor) hud.mapCursor = null;
-  { const mc = $('#map-canvas'), want = devMapOn() ? 'crosshair' : ''; if (mc && mc.style.cursor !== want) mc.style.cursor = want; }
-  hud.update(dt, { rizer, cam, hour, zyrex, seers: seers?.grunts, mapOpen: menu && zy.tab === 'map', busy: homeMode || !!seers?.engagedNear(rizer.position, 20) || ko });
+  { const mc = $('#map-canvas'), want = devMapOn() ? 'crosshair' : zy.isOpen && zy.tab === 'map' ? 'pointer' : ''; if (mc && mc.style.cursor !== want) mc.style.cursor = want; }
+  hud.update(dt, { rizer, cam, hour, zyrex, seers: seers?.grunts, mapOpen: menu && zy.tab === 'map', busy: homeMode || !!seers?.engagedNear(rizer.position, 20) || ko, journal: journalProgress(), devMap: devMapOn() });
   if (menu) zy.status();
   devTick(dt);
   coordsTick(dt);

@@ -168,7 +168,7 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
     save(); apply(); render(); toast?.(partOnly ? 'Mesh part restored' : 'Character colors restored');
   }
   function exportColors() {
-    const key = getCharKey(), data = JSON.stringify({ character:key, colors:presets[key] || {} }, null, 2);
+    const key = getCharKey(), data = JSON.stringify({ character:key, name:`${characters[key]?.name || key} Skin`, colors:presets[key] || {}, hair:hairStyles[key] || 'own' }, null, 2);
     const url = URL.createObjectURL(new Blob([data], { type:'application/json' }));
     const a = document.createElement('a'); a.href = url; a.download = `rp7d-${key}-skin.json`; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
@@ -182,7 +182,7 @@ export function createSkinLab({ getActor, getCharKey, characters, setCharacter, 
     const colors = {};
     for (const [part, value] of Object.entries(data?.colors && typeof data.colors === 'object' ? data.colors : {})) { const c = hex(value); if (editable(part) && c) colors[part] = c; }
     if (!Object.keys(colors).length) return { ok:false, reason:'it has no colors' };
-    presets[key] = colors; save(); apply(); if (isOpen) render();
+    setLook(key, { colors, hair:data?.hair || 'own' });
     return { ok:true, key, parts:Object.keys(colors).length };
   }
   function activate(el) {

@@ -192,12 +192,12 @@ The touchpad (Tab on keyboard) opens the Zyphone: Rizer's phone, the game's menu
 - **Chains through rolls and slides:** rolling or sliding mid-combo, or just after a hit, keeps the chain. The next press after the roll or slide continues at the next stage (e.g. punch → roll → punch 2 → slide → punch 3). See `keepChain()`.
 - **Running while locked on** uses the real run cycle. The fight stance fades out as the run blends in, and stays for standing and walking.
 
-## Block (R2 + L2 · Shift + C)
-- Standing still with the stick at rest, hold R2 and L2 together (both for 0.12 s) to raise a guard. It plays the `block` loop (Standing Block Idle).
+## Block (L1 + R1 · Shift + C)
+- Hold L1 and R1 together to raise a guard. It plays the `block` loop (Standing Block Idle).
 - Hits from the front (about a 110° arc each side, `COMBAT.block.arc`) glance off. You take 15% of the damage, get a small push, and hear a light clack and see sparks instead of the hurt flash. Each blocked hit costs 8 stamina.
 - With no stamina left, the guard breaks and the hit lands in full.
 - Hits from behind land normally. You can't move or attack while blocking; releasing either trigger drops the guard.
-- A quick L2 tap still rolls. Holding L2 while moving still slides.
+- A quick L2 tap still rolls. Holding L2 while moving still slides. Hold L1 + R1 + L2 + R2 to pray; movement stops while Rizer prays, and a hit interrupts the prayer.
 
 ## Astralthunder (lock on + d-pad ↓ · T)
 - While locked on an enemy, d-pad ↓ is Astralthunder (with no enemy locked it's still the emote); d-pad → is free. Rizer plants and plays `thunder` (Astralthunder_Lock_Down: hands up, then a slam down). The forked bolt drops from about 38 units up onto the locked Seer or Mori on the slam (`ASTRAL.thunder.strikeClip`, 0.98 s on the clip); the cast still spans 2.5 s.

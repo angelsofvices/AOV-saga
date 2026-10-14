@@ -14,7 +14,7 @@
 // State lives in inventory.focus { learned:[id], slots:{ up, right, down, left }, bulbs:[lightbulbId], chests:{ id:1 } },
 // saved with the bag, so everything learned and assigned survives a reload (a new game starts it clean).
 import * as THREE from 'three';
-import { inventory, saveInv } from './loot.js';
+import { inventory, saveInv, scatteredChestSpots } from './loot.js';
 
 export const DIRS = ['up', 'right', 'down', 'left'];
 export const DIR_NAME = { up: '↑', right: '→', down: '↓', left: '←' };
@@ -132,6 +132,7 @@ export function buildLightbulb(color = '#ffc24a') {
 // bulbs are remembered with the save (inventory.focus), so a reload puts each chest back the way it was left.
 export function createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, onCollect, onOpen, porch = null }) { // porch: the playtest spots (loot.js · porchChestSpots), one per Lightbulb in order
   const P = W.plaza || W.playerStart, S = W.playerStart, list = [];
+  const randomized = scatteredChestSpots(W, world, 'focus-moves', Object.keys(LIGHTBULBS).length);
   const clear = (x, z, r) => { const probe = new THREE.Vector3(x, world.groundAt(x, z), z); return !world.resolve(probe, r) && world.waterAt(x, z) < world.heightAt(x, z) - 0.2 && Math.abs(world.heightAt(x + 1.4, z) - world.heightAt(x - 1.4, z)) < 0.6 && Math.abs(world.heightAt(x, z + 1.4) - world.heightAt(x, z - 1.4)) < 0.6; };
   const places = world.interactables.filter(i => i.discover && Number.isFinite(i.cx) && !String(i.id).startsWith('cave:')); // Malezor's own landmarks (cave mouths across Zyraxis are not chest anchors: they would pull a chest out of Malezor)
   const used = [];
@@ -150,9 +151,9 @@ export function createLightbulbChests({ scene, world, W, fx, buildChest, chestFr
     return null;
   }
   for (const [n, [id, b]] of Object.entries(LIGHTBULBS).entries()) {
-    const at = porch?.[n] || spotFor(b.near); if (!at) { console.warn('[rp7d] no spot for', id); continue; }
+    const at = randomized[n] || porch?.[n] || spotFor(b.near); if (!at) { console.warn('[rp7d] no spot for', id); continue; }
     used.push(at);
-    const y = world.groundAt(at.x, at.z), C = buildChest('gold');
+    const y = world.groundAt(at.x, at.z), C = buildChest('silver');
     C.root.position.set(at.x, y, at.z); C.root.rotation.y = at.face; scene.add(C.root); world.addMesh?.(C.root);
     const front = new THREE.Vector3(Math.sin(at.face), 0, Math.cos(at.face));
     const rest = new THREE.Vector3(at.x, y + 1.15, at.z).addScaledVector(front, 0.15); // where the bulb hovers: over the open chest, in view past Rizer's shoulder
@@ -162,7 +163,7 @@ export function createLightbulbChests({ scene, world, W, fx, buildChest, chestFr
     if (opened) { C.hinge.rotation.x = -1.9; C.inner.material.emissiveIntensity = 0.6; }
     if (it.state === 'waiting') { bulb.visible = true; bulb.position.copy(rest); }
     it.front = () => chestFront(C);
-    it.chestSpot = { id: 'lbchest:' + id, kind: 'goldchest', discover: false, reach: 3.2, name: 'Open gold chest', x: at.x, z: at.z, cx: at.x, cz: at.z, active: () => it.state === 'closed' };
+    it.chestSpot = { id: 'lbchest:' + id, kind: 'goldchest', chestTier: 'silver', tutorialCategory: 'focusMove', discover: false, reach: 3.2, name: 'Open silver chest', x: at.x, z: at.z, cx: at.x, cz: at.z, active: () => it.state === 'closed', mapActive: () => it.state !== 'empty' };
     it.spot = { id: 'lightbulb:' + id, kind: 'lightbulb', door: true, discover: false, reach: 2.8, name: 'Collect Lightbulb', x: rest.x, z: rest.z, cx: rest.x, cz: rest.z, active: () => it.state === 'waiting' };
     world.interactables.push(it.chestSpot, it.spot); list.push(it);
   }

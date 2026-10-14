@@ -33,6 +33,7 @@ const PLAYER = {
   ladderClimb: { clip: L('Climbing Ladder'), inPlace: true },
   ladderTop: { clip: L('Climbing To Top Of Ladder'), inPlace: true },
   walk: { clip: L('walk_1'), stride: 1.15 }, // same 1.17 s cadence, 15% longer steps (legs swing wider, covers more ground)
+  tiredRun: { clip: L('Slow_Run'), inPlace: true }, // full looping run cycle while moving at zero stamina
   stairWalkUp: { clip: L('Ascending Stairs'), inPlace: true },
   stairRunUp: { clip: L('Running Up Stairs'), inPlace: true },
   stairWalkDown: { clip: L('Descending Stairs'), inPlace: true },
@@ -57,6 +58,7 @@ const PLAYER = {
   doublejump: { clip: L('double_jump_flip') },
   wallflip: { clip: L('Run_To_Flip') },          // jump at a wall, ✕ again before reaching it
   bigland: { clip: L('Falling_To_Landing') },
+  teleportLand: { clip: L('Teleport_Landing'), inPlace: true }, // map waypoint arrival: authored landing settles at the destination
   bail: { clip: L('Flight_Bail') },               // out of stamina mid-flight: flailing all the way down
   bailImpact: { clip: L('Flight_Bail_Impact') },   // ...slammed flat into the ground
   standup: { clip: L('Standing Up') },             // ...and back up if he survived it
@@ -151,6 +153,7 @@ const MORI = {
   idle: { clip: M('Zombie Idle') },
   walk: { clip: M('Slow_Walk'), inPlace: true },
   run: { clip: M('Jog_Chase'), inPlace: true },
+  undeadRun: { clip: M('Drunk_Run_Forward'), inPlace: true },
   crawl: { clip: M('Crawl'), inPlace: true },
   astraliftHit: { clip: L('blastback') },
   shocked: { clip: L('Being_Electrocuted') },     // struck by Astralthunder

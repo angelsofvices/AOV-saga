@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { clamp } from './util.js';
 
 export const ASTRAL = {
-  blast: { damage: 2, speed: 30, range: 42, radius: 1.1, turn: 7, cooldown: 0.35, anim: 1.15, move: 0.15 },
+  blast: { damage: 2, speed: 30, range: 42, radius: 1.1, turn: 7, cooldown: 0.35, anim: 1.15, move: 0.15, chargeLead: 0.24 },
   lock: { range: 30, keep: 42, assistCone: 0.6 },
   // Astralthunder (lock on + d-pad ↓): lightning out of the sky onto the locked target, with a small splash
   thunder: { energy: 30, damage: 6, splash: 2.6, splashDamage: 3, strikeAt: 0.62, strikeClip: 0.98, height: 38 }, // strikeClip: the slam, on the clip
@@ -49,13 +49,9 @@ export const ASTRAL_PALETTES = {
 };
 
 export function createAstral(scene, world, fx) {
-  // ── bolt visuals: a bright core in a soft coloured shell (bloom does the glow) ──
-  const coreGeo = new THREE.IcosahedronGeometry(0.22, 1), shellGeo = new THREE.IcosahedronGeometry(0.45, 1);
-  const mats = {};
-  for (const [k, P] of Object.entries(ASTRAL_PALETTES)) mats[k] = {
-    core: new THREE.MeshBasicMaterial({ color: new THREE.Color(P.core).multiplyScalar(3) }),
-    shell: new THREE.MeshBasicMaterial({ color: new THREE.Color(P.shell).multiplyScalar(2.2), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending })
-  };
+  // The Astralstrike is a forked, hand-released lightning bolt rather than a round projectile.
+  const boltCore = new THREE.MeshBasicMaterial({ color: '#e8f2ff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const boltGlow = new THREE.MeshBasicMaterial({ color: '#4a8cff', transparent: true, opacity: 0.62, depthWrite: false, blending: THREE.AdditiveBlending });
   let palKey = 'blue', pal = ASTRAL_PALETTES.blue;
   function setPalette(k) { if (ASTRAL_PALETTES[k]) { palKey = k; pal = ASTRAL_PALETTES[k]; } }
   const bolts = []; let boltSequence = 0, attackSequence = 0;
@@ -70,6 +66,18 @@ export function createAstral(scene, world, fx) {
   function segment(g, a, b, r, mat) {
     const len = a.distanceTo(b), m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 5, 1, true), mat);
     m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(_up, _b.copy(b).sub(a).normalize()); g.add(m);
+  }
+  function makeBolt() {
+    const g = new THREE.Group(), pts = [];
+    for (let i = 0; i <= 7; i++) pts.push(new THREE.Vector3((i === 0 || i === 7 ? 0 : (Math.random() - 0.5) * 0.24), (i === 0 || i === 7 ? 0 : (Math.random() - 0.5) * 0.2), i * 0.28));
+    for (let i = 0; i < pts.length - 1; i++) { segment(g, pts[i], pts[i + 1], 0.055, boltCore); segment(g, pts[i], pts[i + 1], 0.15, boltGlow); }
+    for (const index of [2, 4, 5]) {
+      const start = pts[index].clone();
+      const mid = start.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.55, (Math.random() - 0.5) * 0.4, 0.18));
+      const end = mid.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.45, (Math.random() - 0.5) * 0.4, 0.22));
+      for (const [a, b] of [[start, mid], [mid, end]]) { segment(g, a, b, 0.032, boltCore); segment(g, a, b, 0.09, boltGlow); }
+    }
+    return g;
   }
   // A jagged bolt from high above down to `p`, with a couple of forks.
   function lightning(p) {
@@ -98,25 +106,46 @@ export function createAstral(scene, world, fx) {
   const reticle = reticleSprite(); reticle.visible = false; scene.add(reticle);
   let lock = null; // { kind, ref, pos: () => Vector3, alive: () => bool }
 
-  // extra: targets other systems hand in already shaped ({ kind, ref, pos, alive, h, color?, label? }) — the Scanobots
-  const targetsOf = (seers, zyrex, loot, commonChests, friendlies = [], extra = []) => [
-    ...(seers?.grunts || []).filter(g => seers.alive(g)).map(g => ({ kind: 'enemy', ref: g, pos: () => g.pos, alive: () => seers.alive(g), h: 1.7 })),
-    ...(loot?.all || []).filter(c => c.state === 'closed').map(c => ({ kind: 'chest', ref: c, pos: () => c.chest.position, alive: () => c.state === 'closed', h: 2.3 })),
-    // Wooden coin chests: also astral-liftable — see canAstralift/updateLifts below for the coin-pop payoff.
-    ...(commonChests?.chests || []).filter(ch => ch.state === 'closed').map(ch => ({ kind: 'coinchest', ref: ch, pos: () => ch.C.root.position, alive: () => ch.state === 'closed', h: 1.6 })),
-    ...(zyrex || []).filter(z => !z.bonded).map(z => ({ kind: 'zyrex', ref: z, pos: () => z.pos, alive: () => !z.bonded, h: 2.2 * (z.def.scale || 1) })),
-    ...friendlies.filter(n => n?.met).map(n => ({ kind: 'friendly', ref: n, pos: () => n.root.position, alive: () => true, h: 1.8 })),
-    ...(world.nature?.userData?.stones?.list || []).filter(s => !s.broken).map(s => ({ kind: 'stone', ref: s, pos: () => new THREE.Vector3(s.x, s.y + s.h * 0.42, s.z), alive: () => !s.broken, h: 0 })),
-    ...(extra || []).filter(t => t.alive())
-  ];
+  // Extra targets from other systems can join the same proximity-based focus pool.
+  const targetsOf = (seers, zyrex, loot, commonChests, friendlies = [], extra = []) => {
+    const N = world.nature?.userData || {}, breakables = N.breakables;
+    const targets = [
+      ...(seers?.grunts || []).filter(g => seers.alive(g)).map(g => ({ kind: 'enemy', ref: g, pos: () => g.pos, alive: () => seers.alive(g), h: 1.7, label: g.T?.name?.toUpperCase() || 'ENEMY' })),
+      ...(loot?.all || []).filter(c => c.state === 'closed').map(c => ({ kind: 'chest', ref: c, pos: () => c.chest.position, alive: () => c.state === 'closed', h: 2.3, label: 'CHEST' })),
+      ...(commonChests?.chests || []).filter(ch => ch.state === 'closed').map(ch => ({ kind: 'coinchest', ref: ch, pos: () => ch.C.root.position, alive: () => ch.state === 'closed', h: 1.6, label: 'WOOD CHEST' })),
+      ...(zyrex || []).filter(z => !z.bonded).map(z => ({ kind: 'zyrex', ref: z, pos: () => z.pos, alive: () => !z.bonded, h: 2.2 * (z.def.scale || 1), label: `BOND · ${z.def.name.toUpperCase()}` })),
+      ...friendlies.filter(n => n?.met).map(n => ({ kind: 'friendly', ref: n, pos: () => n.root.position, alive: () => !!n.root?.visible && !n.removed, h: 1.8, label: n.downed ? 'REVIVE' : 'ALLY' })),
+      ...(N.stones?.list || []).filter(s => !s.broken).map(s => ({ kind: 'stone', ref: s, pos: () => new THREE.Vector3(s.x, s.y + s.h * 0.42, s.z), alive: () => !s.broken, h: 0, color: s.isAstraliteStone ? '#76ccff' : '#c8c6bc', label: s.isAstraliteStone ? 'ASTRALITE STONE' : 'STONE' })),
+      ...(breakables?.trees || []).filter(t => !t.broken).map(t => ({ kind: 'tree', ref: t, pos: () => new THREE.Vector3(t.x, t.gy + t.trunkH * 0.55, t.z), alive: () => !t.broken, h: 0, color: '#9ecb76', label: 'TREE' })),
+      ...(breakables?.bushes || []).filter(b => !b.broken).map(b => ({ kind: 'bush', ref: b, pos: () => new THREE.Vector3(b.x, b.gy + b.h * 0.5, b.z), alive: () => !b.broken, h: 0, color: '#91c77a', label: 'BUSH' })),
+      ...(breakables?.gates || []).filter(g => !g.broken).map(g => ({ kind: 'prop', ref: g, pos: () => new THREE.Vector3(g.x, g.gy + 0.55, g.z), alive: () => !g.broken, h: 0, label: 'WOODEN GATE' })),
+      // Ambient pickups and fae are real target states too, even when they are not combat targets.
+      ...['fae', 'faery', 'fae_astral', 'zyphere', 'fruits'].flatMap(key => (N[key]?.list || []).filter(f => !f.gone).map(f => ({
+        kind: key === 'fruits' ? 'pickup' : key === 'zyphere' ? 'zyphere' : 'fae', ref: f,
+        pos: () => new THREE.Vector3(f.x, f.y, f.z), alive: () => !f.gone,
+        h: 0, color: key === 'faery' ? '#f4a8e8' : key === 'fae_astral' ? '#77bcff' : key === 'fae' ? '#f4d48f' : '#b8d9ff',
+        label: key === 'faery' ? 'FAERY' : key === 'fae_astral' ? 'ASTRAL FAE' : key === 'fae' ? 'FAE' : key === 'zyphere' ? 'ZYSPHERE' : 'PICKUP'
+      }))),
+      ...(breakables?.pickups || []).filter(q => q.wood || q.ever || q.lifeSeed).filter(q => q.persistent || q.t <= q.life).map(q => ({ kind: 'pickup', ref: q, pos: () => new THREE.Vector3(q.x, q.y, q.z), alive: () => q.persistent || q.t <= q.life, h: 0, color: q.lifeSeed ? '#8fe86e' : q.ever ? '#c8c6bc' : '#e2c08a', label: q.lifeSeed ? 'LIFE SEED' : q.ever ? 'EVERSTONE' : 'FRESH WOOD' })),
+      // Any other live world interaction joins this same lock pool (doors, journal, astralite drops, etc.).
+      ...(world.interactables || []).filter(it => it.kind !== 'chest' && !it.common && (!it.active || it.active()) && Number.isFinite(it.cx ?? it.x) && Number.isFinite(it.cz ?? it.z)).map(it => ({
+        kind: 'prop', ref: it,
+        pos: () => new THREE.Vector3(it.cx ?? it.x, world.groundAt?.(it.cx ?? it.x, it.cz ?? it.z) ?? 0, it.cz ?? it.z),
+        alive: () => !it.active || !!it.active(), h: 0, label: (it.name || 'PROP').toUpperCase()
+      })),
+      ...(extra || []).filter(t => t.alive())
+    ];
+    return targets.filter((t, i, a) => a.findIndex(q => q.ref === t.ref) === i);
+  };
   // R3: lock the nearest actor in range, or release the current lock.
-  // Enemies come first: with one in range, lock-on takes it (the one nearest and most in front of Rizer) before any chest,
-  // stone, Zyrex or friendly. Only with no enemy around does it fall back to the nearest of anything else.
+  // Actively engaging enemies take priority; neutral patrols do not block peaceful focus on nearby world objects.
   const HOSTILE = k => k === 'enemy' || k === 'scanobot';
+  const THREAT_STATES = new Set(['alert', 'chase', 'windup', 'attack', 'evade', 'stagger', 'dazed', 'surprised', 'astraliftDown', 'gettingUp']);
+  const isThreat = t => HOSTILE(t.kind) && (!!t.ref?.hostile || THREAT_STATES.has(t.ref?.state) || !!t.ref?.combatThreat || !!t.ref?.inCombat);
   function pickEnemy(rizer, targets, range) {
     const p = rizer.position; let best = null, bs = Infinity;
     for (const t of targets) {
-      if (!HOSTILE(t.kind)) continue;
+      if (!isThreat(t)) continue;
       const q = t.pos(), d = q.distanceTo(p); if (d >= range) continue;
       const a = Math.atan2(q.x - p.x, q.z - p.z), off = Math.abs(Math.atan2(Math.sin(a - rizer.facing), Math.cos(a - rizer.facing)));
       const s = d + off * 2.5; if (s < bs) { bs = s; best = t; }
@@ -140,17 +169,26 @@ export function createAstral(scene, world, fx) {
     return best;
   }
   function clearLock() { lock = null; reticle.visible = false; }
-  function setLock(t) { lock = t; if (t) { const named = t.kind === 'zyrex' && t.ref.def.name; reticle.visible = true; reticle.draw(t.color || (t.kind === 'enemy' ? '#ff5a6e' : t.kind === 'friendly' ? '#7ce8bd' : t.kind === 'stone' && t.ref.isAstraliteStone ? '#76ccff' : '#e9c982'), t.label ?? (t.kind === 'enemy' ? 'FIGHT' : t.kind === 'friendly' ? (t.ref.downed ? 'REVIVE' : 'ALLY') : t.kind === 'zyrex' ? (named ? `BOND · ${t.ref.def.name.toUpperCase()}` : 'BOND') : t.kind === 'stone' ? (t.ref.isAstraliteStone ? 'ASTRALITE' : 'STONE') : '')); } }
+  function setLock(t) { lock = t; if (t) { const named = t.kind === 'zyrex' && t.ref.def.name; reticle.visible = true; reticle.draw(t.color || (HOSTILE(t.kind) ? '#ff5a6e' : t.kind === 'friendly' ? '#7ce8bd' : '#e9c982'), t.label ?? (t.kind === 'enemy' ? 'FIGHT' : t.kind === 'friendly' ? (t.ref.downed ? 'REVIVE' : 'ALLY') : t.kind === 'zyrex' ? (named ? `BOND · ${t.ref.def.name.toUpperCase()}` : 'BOND') : t.kind === 'stone' ? (t.ref.isAstraliteStone ? 'ASTRALITE' : 'STONE') : t.kind === 'tree' ? 'TREE' : t.kind === 'bush' ? 'BUSH' : t.kind === 'prop' ? (t.label || 'PROP') : t.kind === 'fae' ? (t.label || 'FAE') : t.kind === 'pickup' ? 'PICKUP' : '')); } }
   // Right-stick flick while locked: swap to the next target to the left (dir -1) or right (+1) on screen.
   const scr = new THREE.Vector3();
-  function switchLock(dir, rizer, seers, zyrex, camera, loot, commonChests, friendlies, extra) {
+  function switchLock(dir, rizer, seers, zyrex, camera, loot, commonChests, friendlies, extra, combatMode = false) {
     if (!lock) return null;
-    const sx = v => scr.set(v.x, v.y + 1.2, v.z).project(camera).x, ahead = v => scr.set(v.x, v.y + 1.2, v.z).project(camera).z < 1;
-    const cur = sx(lock.pos()), p = rizer.position;
+    const sx = v => scr.set(v.x, v.y + 1.2, v.z).project(camera).x;
+    const cur = sx(lock.pos()), p = rizer.position, all = targetsOf(seers, zyrex, loot, commonChests, friendlies, extra);
+    if (combatMode || isThreat(lock)) {
+      const foes = all.filter(t => HOSTILE(t.kind) && t.ref !== lock.ref && t.pos().distanceTo(p) <= ASTRAL.lock.range);
+      if (!foes.length) return null; // in combat, never flick from a foe onto scenery or loot
+      const close = foes.filter(t => Math.hypot(t.pos().x - p.x, t.pos().z - p.z) <= 6), pool = close.length ? close : foes;
+      const directional = pool.map(t => ({ t, x: sx(t.pos()) })).sort((a, b) => a.x - b.x);
+      const next = dir > 0
+        ? directional.find(q => q.x > cur + 0.02)?.t || directional[0].t
+        : directional.slice().reverse().find(q => q.x < cur - 0.02)?.t || directional[directional.length - 1].t;
+      setLock(next); return next;
+    }
     let best = null, bd = Infinity;
-    for (const t of targetsOf(seers, zyrex, loot, commonChests, friendlies, extra)) {
-      if (t.ref === lock.ref || t.pos().distanceTo(p) > ASTRAL.lock.range || !ahead(t.pos())) continue;
-      if (HOSTILE(lock.kind) && !HOSTILE(t.kind)) continue; // flicking between enemies never jumps to a chest
+    for (const t of all) {
+      if (t.ref === lock.ref || t.pos().distanceTo(p) > ASTRAL.lock.range) continue; // proximity is the only candidate gate; types never block a flick
       const dx = (sx(t.pos()) - cur) * dir; // how far over, in the flicked direction
       if (dx > 0.02 && dx < bd) { bd = dx; best = t; }
     }
@@ -218,14 +256,31 @@ export function createAstral(scene, world, fx) {
 
   // Launch a bolt from `from` along Rizer's facing, homing on `target` (a Seer grunt) if any.
   function fire(from, facing, target, damage = ASTRAL.blast.damage) {
-    const g = new THREE.Group(), core = new THREE.Mesh(coreGeo, mats[palKey].core), shell = new THREE.Mesh(shellGeo, mats[palKey].shell);
-    g.add(core, shell); g.position.copy(from); scene.add(g);
+    const g = makeBolt(); g.position.copy(from); scene.add(g);
     const dir = new THREE.Vector3(Math.sin(facing), 0, Math.cos(facing));
     const stoneTarget = lock?.kind === 'stone' && !lock.ref.broken ? lock.ref : null;
     if (stoneTarget) dir.set(stoneTarget.x - from.x, stoneTarget.y + stoneTarget.h * 0.42 - from.y, stoneTarget.z - from.z).normalize();
     else if (target) dir.copy(target.pos).setY(target.pos.y + (target.aimY ?? 1.4)).sub(from).normalize(); // aimY: a Scanobot's hull height
-    bolts.push({ id: ++boltSequence, g, shell, dir, target, stoneTarget, damage, travelled: 0, t: 0, pal });
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+    bolts.push({ id: ++boltSequence, g, dir, target, stoneTarget, damage, travelled: 0, t: 0, pal });
     fx.emit(from.x, from.y, from.z, 10, { color: pal.cast, speed: 2.5, up: 0.6, size: 0.35, life: 0.35, g: 0 });
+  }
+
+  // A brief static charge crawls over Rizer's rig immediately before each authored release.
+  function chargeBody(rizer) {
+    const model = rizer.actor?.model;
+    if (!model) return;
+    model.updateMatrixWorld(true);
+    const names = ['Head', 'Spine2', 'Spine', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm', 'LeftHand', 'RightHand', 'LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg'];
+    const bones = names.map(n => model.getObjectByName(`mixamorig${n}`)).filter(Boolean);
+    if (bones.length < 2) return;
+    for (let i = 0; i < 7; i++) {
+      const a = bones[Math.floor(Math.random() * bones.length)], b = bones[Math.floor(Math.random() * bones.length)];
+      if (a === b) continue;
+      arc(a.getWorldPosition(new THREE.Vector3()), b.getWorldPosition(new THREE.Vector3()), 0.18, 0.045, 0.15, 5);
+    }
+    const p = rizer.position;
+    fx.emit(p.x, p.y + 1.1, p.z, 8, { color: pal.cast, speed: 1.4, up: 1.1, size: 0.22, life: 0.24, g: -0.4 });
   }
 
   function burst(p, big, P = pal) {
@@ -533,11 +588,11 @@ export function createAstral(scene, world, fx) {
       if (!done && (tmp.y <= world.groundAt(tmp.x, tmp.z, tmp.y + 1) + 0.1 || world.rayClear(b.g.position, tmp, 0) < step - 1e-3)) done = true;
       b.travelled += step;
       if (b.travelled > B.range) done = true;
-      if (done) { burst(b.g.position, big, b.pal); scene.remove(b.g); bolts.splice(i, 1); continue; }
-      b.g.position.copy(tmp);
-      const pulse = 1 + Math.sin(b.t * 30) * 0.12; b.shell.scale.setScalar(pulse);
+      if (done) { burst(b.g.position, big, b.pal); scene.remove(b.g); b.g.traverse(o => o.geometry?.dispose()); bolts.splice(i, 1); continue; }
+      b.g.position.copy(tmp); b.g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), b.dir);
+      const pulse = 0.82 + Math.random() * 0.38; b.g.scale.set(pulse, pulse, 0.82 + Math.random() * 0.45);
       if (Math.random() < dt * 40) fx.emit(tmp.x, tmp.y, tmp.z, 1, { color: b.pal.trail, speed: 0.4, up: 0.2, size: 0.32, life: 0.3, g: 0, spread: 0.1 });
     }
   }
-  return { arc, get flash() { return flash; }, setPalette, get palette() { return palKey; }, toggleLock, autoLock, switchLock, clearLock, assistTarget, astralift, canAstralift, thunder, astralburst, shockwave, rollingThunder, fire, update, get bursting() { return bursts.length > 0; }, get rolling() { return rollers.length > 0; }, get rollingCast() { return rollers.some(q => q.castLeft > 0); }, get lock() { return lock; }, get bolts() { return bolts.length; } };
+  return { arc, chargeBody, get flash() { return flash; }, setPalette, get palette() { return palKey; }, toggleLock, autoLock, switchLock, clearLock, assistTarget, astralift, canAstralift, thunder, astralburst, shockwave, rollingThunder, fire, update, get bursting() { return bursts.length > 0; }, get rolling() { return rollers.length > 0; }, get rollingCast() { return rollers.some(q => q.castLeft > 0); }, get lock() { return lock; }, get bolts() { return bolts.length; } };
 }

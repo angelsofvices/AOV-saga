@@ -9,6 +9,7 @@ import { ASTRALITE_FAMILIES } from './loot.js';
 
 export const STATIONS = {
   EXPERIMENT_TABLE: { id: 'EXPERIMENT_TABLE', name: 'Experiment Table', device: 'experiment_table' },
+  FIELD_WORKSTATION: { id: 'FIELD_WORKSTATION', name: 'Field Workstation', device: 'field_workstation' },
   ASTRALITE_STATION: { id: 'ASTRALITE_STATION', name: 'Astralite Station', device: 'astralite_station' }
 };
 
@@ -19,12 +20,15 @@ const TEST = 'Test recipe · final cost and parts will change';
 export const RECIPES = [
   { id: 'field_workstation', name: 'Field Workstation', outputId: 'field_workstation', outputQuantity: 1,
     ingredients: [{ itemId: 'scrap_metal', quantity: 12 }, { itemId: 'fresh_wood', quantity: 8 }, { itemId: 'everstone', quantity: 4 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
-  { id: 'guitar', name: "Psychosyd's Signed Red Guitar", outputId: 'guitar', outputQuantity: 1,
-    ingredients: [{ itemId: 'fresh_wood', quantity: 14 }, { itemId: 'scrap_metal', quantity: 8 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
-  { id: 'telescope', name: 'Stargazer Telescope', outputId: 'telescope', outputQuantity: 1,
-    ingredients: [{ itemId: 'scrap_metal', quantity: 20 }, { itemId: 'everstone', quantity: 8 }, { itemId: 'fresh_wood', quantity: 6 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
-  { id: 'astralboard', name: 'Astralboard', outputId: 'astralboard', outputQuantity: 1,
-    ingredients: [{ itemId: 'scrap_metal', quantity: 30 }, { itemId: 'everstone', quantity: 14 }, { itemId: 'fresh_wood', quantity: 10 }, { itemId: 'gemshard', quantity: 3 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST + ' · Gemshards come from the Astralite Station' },
+  ...[
+    { id: 'guitar', name: "Psychosyd's Signed Red Guitar", outputId: 'guitar', broken: 'broken_guitar', materials: [['fresh_wood',14],['scrap_metal',8]] },
+    { id: 'telescope', name: 'Stargazer Telescope', outputId: 'telescope', broken: 'broken_telescope', materials: [['scrap_metal',20],['everstone',8],['fresh_wood',6]] },
+    { id: 'astralboard', name: 'Astralboard', outputId: 'astralboard', broken: 'broken_astralboard', materials: [['scrap_metal',30],['everstone',14],['fresh_wood',10],['gemshard',3]] }
+  ].flatMap(x => ['EXPERIMENT_TABLE','FIELD_WORKSTATION'].map(stationType => ({
+    id: `repair_${x.id}_${stationType.toLowerCase()}`, name: `Repair · ${x.name}`, outputId: x.outputId, outputQuantity: 1,
+    ingredients: [{ itemId: x.broken, quantity: 1 }, ...x.materials.map(([itemId, quantity]) => ({ itemId, quantity }))],
+    known: true, prerequisites: [], stationType, testRecipe: true, note: `${TEST} · returns the repaired item to ${stationType === 'EXPERIMENT_TABLE' ? 'Home Storage' : 'the Zycube'}`
+  }))),
   // Astralite Station: every one of the 63 Astralites can be synthesised into Gemshards (placeholder rate: 3 of one → 1 Gemshard).
   ...ASTRALITE_FAMILIES.flatMap(f => f.items.map(a => ({
     id: `synth_${a.key}`, name: `${a.symbol} · ${a.name}`, outputId: 'gemshard', outputQuantity: 1,
@@ -62,7 +66,8 @@ export function availability(recipeOrId) {
   if (!defOf(r.outputId)) return { ...out, ok: false, reason: 'UNKNOWN_ITEM', message: 'Unknown output' };
   if (lines.some(l => l.have < l.need)) return { ...out, ok: false, reason: 'MISSING_RESOURCES', message: 'Missing resources' };
   // Output lands in the Home PC (reserve storage has no limit). A unique weapon already owned is the only refusal.
-  const c = storage.canStore(LOC.HOME_PC, r.outputId, r.outputQuantity);
+  const outputLoc = r.stationType === 'FIELD_WORKSTATION' ? LOC.ZYCUBE : LOC.HOME_PC;
+  const c = storage.canStore(outputLoc, r.outputId, r.outputQuantity);
   if (!c.ok) return { ...out, ok: false, reason: c.reason, message: c.message };
   return { ...out, ok: true };
 }
@@ -84,9 +89,10 @@ export function craft(recipeId) {
     }
     if (need > 0) { refund(); return { ok: false, reason: 'MISSING_RESOURCES', message: 'Missing resources' }; }
   }
-  const out = storage.add(LOC.HOME_PC, r.outputId, r.outputQuantity);
+  const outputLoc = r.stationType === 'FIELD_WORKSTATION' ? LOC.ZYCUBE : LOC.HOME_PC;
+  const out = storage.add(outputLoc, r.outputId, r.outputQuantity);
   if (!out.ok) { refund(); return { ok: false, reason: out.reason, message: out.message }; }
-  return { ok: true, recipe: r, outputId: r.outputId, quantity: r.outputQuantity, message: `${defOf(r.outputId).name} crafted · stored in your Home PC` };
+  return { ok: true, recipe: r, outputId: r.outputId, quantity: r.outputQuantity, message: `${defOf(r.outputId).name} repaired · stored in ${outputLoc === LOC.HOME_PC ? 'Home Storage' : 'your Zycube'}` };
 }
 // Craft the same recipe repeatedly until something runs out (each pass is its own atomic craft).
 export function craftMax(recipeId, limit = 99) {

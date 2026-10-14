@@ -1,5 +1,5 @@
 // The Zyphone: Rizer's phone — the game's menu and hub. Opens from the
-// controller touchpad (Tab on keyboard). Tabs: Map · Time · Field Notes ·
+// controller touchpad (Z on keyboard). Tabs: Map · Time · Field Notes ·
 // Rizer · Armory · Controls · Options · Dev. Time skipping lives only here.
 import { describeHour } from './sky.js';
 import { focus as focusMoves, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY } from './focus-moves.js';
@@ -7,6 +7,7 @@ import { focus as focusMoves, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY } from './foc
 const $ = s => document.querySelector(s);
 const TABS = ['home', 'map', 'time', 'notes', 'rizer', 'zyrex', 'weapons', 'items', 'missions', 'contacts', 'zydex', 'astral', 'portal', 'experiment', 'camera', 'controls', 'options', 'dev'];
 const HOME_KEY = 'rp7d.zyphone.home.v1';
+const SKIN_LIBRARY_KEY = 'rp7d.skinLibrary.v1';
 // The head bar shows six sections; each section folds its related pages under one second-row strip.
 // Every page still exists and still opens by its own id (zy.open('map'), the Home app grid, the HUD panels).
 const GROUPS = [
@@ -36,10 +37,10 @@ export const TIME_PRESETS = [
 const CONTROL_GUIDE = {
   field: { name:'On foot', rows:[
     ['Move','W A S D / arrows','Left stick'],['Look','Mouse drag / captured mouse','Right stick'],['Walk / run','WASD / Shift','Left stick / R2'],
-    ['Jump / double jump','Space / Space again','✕ / ✕ again'],['Crouch / stealth','X','L3'],['Interact / pick up','E','○'],['Lock / release target','R / middle click','R3'],['Open Zyphone','Tab','Touchpad']
+    ['Jump / double jump','Space / Space again','✕ / ✕ again'],['Crouch / stealth','X','L3'],['Interact / pick up','E','○'],['Lock / release target','R / middle click','R3'],['Open Zyphone','Z','Touchpad']
   ]},
   combat: { name:'Combat & Astral', rows:[
-    ['Punch combo','J / left click','□'],['Kick combo','K / right click','△'],['Astral Blast','F','○'],['Dodge roll / slide','C tap / hold','L2 tap / hold'],['Block','Shift + C hold','L2 + R2 hold'],['Astralvision','B','L3 + R3'],['Focus move','Direction keys shown in Focus setup','Lock + assigned D-pad direction'],['Swap locked target','Z / V','Right-stick flick']
+    ['Punch combo','J / left click','□'],['Kick combo','K / right click','△'],['Astral Blast','F','○'],['AstralSlam','Airborne + locked target + J / left click','Airborne + locked target + □'],['Dodge roll / slide','C tap / hold','L2 tap / hold'],['Block','Shift + C hold','L1 + R1 hold'],['Pray','L1 + R1 + L2 + R2 hold','L1 + R1 + L2 + R2 hold'],['Astralvision','B','L3 + R3'],['Focus move','Direction keys shown in Focus setup','Lock + assigned D-pad direction'],['Swap locked target','V','Right-stick flick']
   ]},
   traversal: { name:'Parkour & flight', rows:[
     ['Jump / double jump','Space / Space again','✕ / ✕ again'],['Fly','Double jump, hold Space','Double jump, hold ✕'],['Rise / descend','Space / X','✕ / L3'],['Grab a ledge','Jump toward its edge','✕ toward its edge'],['Climb while hanging','Space','✕'],['Drop while hanging','X or C','L3 or L2'],['Crouch / walk to an edge','X / WASD','L3 / left stick'],['Vault a low obstacle','Run + Space','Run + ✕']
@@ -54,7 +55,7 @@ const CONTROL_GUIDE = {
     ['Steer','W A S D / arrows','Left stick'],['Accelerate','Shift','R2'],['Rise / descend','Space / C','✕ / L3'],['Turbo / locked laser','F','○'],['Exit craft','E','△']
   ]},
   interior: { name:'Interiors & menus', rows:[
-    ['Move / look','W A S D / mouse','Left / right stick'],['Interact / doors','E / Space at door','○ / ✕ at door'],['Move furniture','R to lock · J to pick · E cancel','R3 · □ · ○'],['Zyphone','Tab','Touchpad'],['Navigate menus','Arrows / Enter / Esc','D-pad / ✕ / ○']
+    ['Move / look','W A S D / mouse','Left / right stick'],['Interact / doors','E / Space at door','○ / ✕ at door'],['Move furniture','R to lock · J to pick · E cancel','R3 · □ · ○'],['Zyphone','Z','Touchpad'],['Navigate menus','Arrows / Enter / Esc','D-pad / ✕ / ○']
   ]}
 };
 
@@ -63,7 +64,11 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   let isOpen = false, tab = 0, focus = 0;
   let fpick = null, axMode = 'attr'; // Focus: the move being placed on a D-pad direction · which side of the page (attributes | moves)
   let carry = null; // Armory: what's being moved — { from: 'slot', i, k } or { from: 'bag', k }
-  let homeEdit = false, homeDrag = null, journalOpen = false;
+  let homeEdit = false, homeDrag = null, journalOpen = false, mapPoiDetailOpen = false;
+  let skinLibrary = [];
+  try { const saved = JSON.parse(localStorage.getItem(SKIN_LIBRARY_KEY) || '[]'); if (Array.isArray(saved)) skinLibrary = saved.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string' && s.data?.colors); } catch {}
+  const saveSkinLibrary = () => { try { localStorage.setItem(SKIN_LIBRARY_KEY, JSON.stringify(skinLibrary)); } catch {} };
+  const skinToast = message => { const el = $('#toast'); if (el) { el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 1800); } };
   let controlContext = null;
   const lastIn = {}; // the page each section was last on, so coming back to a section returns there
   const tabsEl = root.querySelector('.zy-tabs'), subEl = document.createElement('nav');
@@ -81,9 +86,40 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     list.forEach((el, i) => el.classList.toggle('focus', i === focus));
     list[focus]?.scrollIntoView({ block: 'nearest' });
   }
+  function moveSpatial(dx, dy) {
+    const list = items(); if (!list.length) return;
+    focus = Math.max(0, Math.min(focus, list.length - 1));
+    const current = list[focus], a = current?.getBoundingClientRect();
+    if (!a || !a.width || !a.height) { focus = (focus + (dy > 0 || dx > 0 ? 1 : -1) + list.length) % list.length; paintFocus(); return; }
+    const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+    let best = -1, bestScore = Infinity;
+    for (let i = 0; i < list.length; i++) {
+      if (i === focus) continue;
+      const r = list[i].getBoundingClientRect(); if (!r.width || !r.height) continue;
+      const vx = r.left + r.width / 2 - ax, vy = r.top + r.height / 2 - ay;
+      const primary = dx ? vx * dx : vy * dy, cross = dx ? Math.abs(vy) : Math.abs(vx);
+      if (primary <= 1) continue;
+      const score = primary + cross * 1.65;
+      if (score < bestScore) { best = i; bestScore = score; }
+    }
+    if (best < 0) {
+      let edge = -Infinity;
+      for (let i = 0; i < list.length; i++) {
+        const r = list[i].getBoundingClientRect(); if (!r.width || !r.height) continue;
+        const pos = dx ? (r.left + r.width / 2) * dx : (r.top + r.height / 2) * dy;
+        const cross = dx ? Math.abs(r.top + r.height / 2 - ay) : Math.abs(r.left + r.width / 2 - ax);
+        const score = pos - cross * 1.65;
+        if (score > edge) { edge = score; best = i; }
+      }
+    }
+    if (best >= 0) focus = best;
+    paintFocus();
+  }
   function render() {
     const st = getState(), key = TABS[tab];
     const gi = groupOf(key), G = GROUPS[gi]; lastIn[gi] = key;
+    root.classList.toggle('map-focus-mode', key === 'map' && hud.mapFocusMode);
+    const padHint = $('#zy-controller-hint'); if (padHint) padHint.textContent = key === 'map' && hud.mapFocusMode ? 'LEFT STICK BROWSE · R2/L2 ZOOM · ✕ DETAILS · □ TELEPORT · △ PING · ○ EXIT FOCUS' : 'L1/R1 SECTIONS · L2/R2 APPS · D-PAD NAVIGATE · ✕ SELECT · ○ OR TOUCHPAD CLOSE';
     tabsEl.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-selected', i === gi));
     subEl.hidden = G.pages.length < 2;
     heroEl.hidden = key === 'home';
@@ -92,9 +128,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     root.querySelectorAll('.zy-page').forEach(p => p.classList.toggle('on', p.dataset.page === key));
     if (key === 'home') renderHome(st);
     if (key === 'map') {
-      const counts = {};
-      for (const it of hud.places) { const q = hud.regionOf(it.cx, it.cz); counts[q] ||= [0, 0]; counts[q][1]++; if (hud.found.has(it.id)) counts[q][0]++; }
-      $('#zy-regions').innerHTML = Object.entries(counts).map(([n, [f, t]]) => `<li><b>${n}</b><span>${f} / ${t}</span></li>`).join('');
+      renderMapBrowser();
       hud.resize();
     }
     if (key === 'time') {
@@ -120,7 +154,13 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
       let cards;
       if (!J.started) cards = '<article><small>NO ACTIVE MISSION</small><b>Playtest Journal</b><span>Your first Zyphone reminder will arrive during gameplay. It will point you to Rizer’s journal near the Malezor Square fountain.</span></article>';
       else if (!J.found) cards = '<article><small>ACTIVE · MAIN MISSION</small><b>INTO MALEZOR SQUARE</b><span>Go to the fountain and pick up your journal.</span></article>';
-      else if (journalOpen) cards = '<article class="current"><small>COMPLETE · MAIN MISSION</small><b>INTO MALEZOR SQUARE</b><span>You found your journal at the fountain.</span></article><button class="zy-item" data-item data-journal-back>← Back to Missions</button><article><small>PLAYTEST JOURNAL</small><b>Rizer’s Journal</b><span>Demo walkthrough and gameplay tasks. New playtest tasks will be added here as features are ready.</span></article><div class="zy-note locked"><small>TUTORIAL TASKS</small><p>Tasks will appear here as the demo grows.</p></div>';
+      else if (journalOpen) {
+        const T = J.tutorial || {}, basics = T.basics || {}, basicRows = [['jump','Jump'],['doubleJump','Double jump'],['sprint','Sprint'],['punch','Punch'],['kick','Kick'],['astralstrike','Astralstrike · ○'],['treeDodge','Sprint-dodge a tree'],['farmGateVault','Run + X hurdle-roll over a waist-high obstacle'],['treeSpin','Spin around a tree while sprinting']];
+        const moves = Object.entries(FOCUS_MOVES).map(([id, m]) => `<li class="${(T.focusUsed || []).includes(id) ? 'done' : ''}">${(T.focusUsed || []).includes(id) ? '✓' : '·'} ${esc(m.name)} · ${(T.focusUsed || []).includes(id) ? 'used' : 'learn and use'}</li>`).join('');
+        const weaponIds = ['rubypaw','sword','bow','axe'], foundWeapons = weaponIds.filter(id => (T.weaponsFound || []).includes(id)).length, usedWeapons = weaponIds.filter(id => (T.weaponsUsed || []).includes(id)).length;
+        const weaponRows = [['rubypaw','Rubypaw Longsword of Rakoron'],['sword','Sapphire Tearsword of Azurel'],['bow','Pearlbow of Ivirium'],['axe','Jaded Axe of Emeralix']].map(([id,name]) => `<li class="${(T.weaponsUsed || []).includes(id) ? 'done' : ''}">${(T.weaponsUsed || []).includes(id) ? '✓' : '·'} ${esc(name)} · ${(T.weaponsUsed || []).includes(id) ? 'used' : 'find and try'}</li>`).join('');
+        cards = '<article class="current"><small>COMPLETE · MAIN MISSION</small><b>INTO MALEZOR SQUARE</b><span>You found your journal at the fountain.</span></article><button class="zy-item" data-item data-journal-back>← Back to Missions</button><article><small>PLAYTEST JOURNAL · TUTORIAL</small><b>Movement and combat</b><span>Complete an action to check it off. Punch and kick are checked when they connect.</span><ul class="journal-checklist">' + basicRows.map(([id,label]) => `<li class="${basics[id] ? 'done' : ''}">${basics[id] ? '✓' : '·'} ${label}</li>`).join('') + '</ul></article><article><small>FOCUS TRAINING · ' + (T.focusCollected || []).length + '/6 LEARNED · ' + (T.focusUsed || []).length + '/6 USED</small><b>Silver chests</b><span>Open the Zyphone Map, select a silver chest icon, then press △ to ping it. Follow the meter distance.</span><ul class="journal-checklist">' + moves + '</ul></article><article><small>GEMLORD ARMORY · ' + foundWeapons + '/4 FOUND · ' + usedWeapons + '/4 USED</small><b>Mythic chests</b><span>Find and try the four Gemlord weapons near their caves. Map pings work the same way.</span><ul class="journal-checklist">' + weaponRows + '</ul></article>';
+      }
       else cards = '<article><small>COMPLETE · MAIN MISSION</small><b>INTO MALEZOR SQUARE</b><span>You found your journal at the fountain.</span></article><button class="zy-item" data-item data-journal-open><span>Rizer’s Journal</span><small>OPEN PLAYTEST TASKS ›</small></button>';
       if (page) page.innerHTML = `<h2>MISSIONS</h2><p>Playtest objectives and tutorial tasks for the current build.</p><div class="zy-system-cards">${cards}</div>`;
     }
@@ -187,11 +227,17 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
           ${row('data-build-lab', 'Open Build Lab', 'CONSTRUCT ›', ' rz-open')}`)}
         ${bin('02', 'SKINS', 'COLOUR · LOOK', `
           ${v.skins.map(k => row(`data-char="${esc(k.key)}"`, k.name, k.current ? 'WEARING' : 'WEAR', k.current ? ' current' : '')).join('')}
+          <div class="rz-skin-library" data-skin-library-drop>
+            <small class="rz-sub">SAVED SKINS · DROP SKIN LAB JSON HERE</small>
+            ${skinLibrary.length ? skinLibrary.map(s => `<button class="zy-item rz-skin-card${s.data.character === 'rizer' ? ' rz-skin-default' : ''}" data-item data-skin-saved="${esc(s.id)}" draggable="true" title="Drag outside this cell to remove"><span>${esc(s.name)}<em>${esc(s.data.character || 'Rizer')} · ${Object.keys(s.data.colors || {}).length} colours</em></span><small>WEAR · DRAG OUT TO REMOVE</small></button>`).join('') : '<p class="rz-note">Drop an exported Skin Lab JSON file here to save it in this library.</p>'}
+          </div>
           <div class="rz-chips">${v.colors.map(c => `<i title="${esc(c.label)} ${c.hex}" style="--c:${c.hex}"></i>`).join('')}</div>
           ${row('data-skin-lab', 'Open Skin Lab', 'PAINT ›', ' rz-open')}
           ${row('data-labs="resetColors"', 'Reset colours', v.charName.toUpperCase())}`)}
         ${bin('03', 'ANIMATIONS', 'CLIPS · STATES', `
           <p class="rz-note">Clips play on the body you are wearing. Assign, preview and import them in the Anim Lab.</p>
+          ${row('data-labs="prayerStyle"', 'Prayer style', `‹ ${v.prayerStyle.toUpperCase()}${v.prayerStyle === 'meditating' && !v.meditationReady ? ' · CLIPS NEEDED' : ''} ›`, ' rz-cycle')}
+          ${v.prayerStyle === 'meditating' && !v.meditationReady ? '<p class="rz-note">Assign Meditation · settle, hold and stand clips in Anim Lab to complete this style.</p>' : ''}
           ${row('data-lab', 'Open Anim Lab', 'ASSIGN ›', ' rz-open')}`)}
       </div>
       <div class="rz-stage" aria-hidden="true"><span class="rz-tl"></span><span class="rz-tr"></span><span class="rz-bl"></span><span class="rz-br"></span>
@@ -399,13 +445,29 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     $('#zy-hp').textContent = Math.ceil(st.hp); $('#zy-hp-fill').style.width = `${f * 100}%`;
     $('#zy-hp-fill').parentElement.classList.toggle('low', f < 0.3);
   }
-  function setTab(i) { tab = (i + TABS.length) % TABS.length; focus = 0; carry = null; fpick = null; homeEdit = false; render(); }
+  function setTab(i) { if (TABS[tab] === 'map' && TABS[(i + TABS.length) % TABS.length] !== 'map' && hud.mapFocusMode) hud.setMapFocus(false); tab = (i + TABS.length) % TABS.length; focus = 0; carry = null; fpick = null; homeEdit = false; render(); }
   const setPage = key => setTab(TABS.indexOf(key));
   const stepPage = d => setPage(ORDER[(ORDER.indexOf(TABS[tab]) + d + ORDER.length) % ORDER.length]); // next page, running on into the next section
   const stepInGroup = d => { const P = GROUPS[groupOf(TABS[tab])].pages; if (P.length > 1) setPage(P[(P.indexOf(TABS[tab]) + d + P.length) % P.length]); }; // stays inside the section, wrapping round
   const stepGroup = d => { const g = (groupOf(TABS[tab]) + d + GROUPS.length) % GROUPS.length; setPage(lastIn[g] || GROUPS[g].pages[0]); };
   function activate(el = items()[focus]) {
     if (!el) return;
+    if (el.dataset.skinSaved) {
+      const saved = skinLibrary.find(s => s.id === el.dataset.skinSaved); if (!saved) return;
+      Promise.resolve(onCharacter(saved.data.character || 'rizer')).then(() => {
+        const applied = skinLab?.load(saved.data, saved.data.character || 'rizer');
+        skinToast(applied?.ok ? `SKIN APPLIED · ${saved.name}` : `SKIN COULD NOT APPLY · ${saved.name}`);
+        if (isOpen && TABS[tab] === 'rizer') render();
+      }); return;
+    }
+    if (el.dataset.mapAction === 'world') { hud.setMapView('world'); render(); return; }
+    if (el.dataset.mapAction === 'ping') { hud.toggleMapPing(); render(); return; }
+    if (el.dataset.mapAction === 'details') { if (hud.mapSelectedPoi) { mapPoiDetailOpen = true; render(); } return; }
+    if (el.dataset.mapAction === 'back') { mapPoiDetailOpen = false; render(); return; }
+    if (el.dataset.mapAction === 'teleport') { onAction?.('map-teleport'); return; }
+    if (el.dataset.mapDistrict) { hud.selectDistrict(el.dataset.mapDistrict); render(); return; }
+    if (el.dataset.mapCategory) { hud.setMapCategory(el.dataset.mapCategory); render(); return; }
+    if (el.dataset.mapPoi) { hud.selectPoi(el.dataset.mapPoi); mapPoiDetailOpen = true; render(); return; }
     if (el.dataset.journalOpen != null) { journalOpen = true; render(); return; }
     if (el.dataset.journalBack != null) { journalOpen = false; render(); return; }
     if (el.dataset.controlContext) { controlContext = el.dataset.controlContext; render(); focus = items().findIndex(x => x.dataset.controlContext === controlContext); paintFocus(); return; }
@@ -426,15 +488,59 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (el.dataset.slot != null || el.dataset.bag) { armoryPick(el); return; }
     if (el.dataset.act) { const keep = focus; onAction?.(el.dataset.act); if (isOpen) { render(); focus = keep; paintFocus(); } }
   }
+  function renderMapBrowser() {
+    const ds = hud.districts, d = ds.find(q => q.id === hud.viewedDistrict) || ds[0], worldView = hud.mapView === 'world';
+    const area = $('#zy-map-area'), back = $('#zy-map-view'), districtList = $('#zy-map-districts'), cats = $('#zy-map-categories'), list = $('#zy-map-pois'), title = $('#zy-map-list-title');
+    if (area) area.textContent = worldView ? 'ZYRAXIS · 10 DISTRICTS' : `${d.name.toUpperCase()} · DISTRICT ${d.numeral}`;
+    if (back) { back.hidden = worldView; back.textContent = '← FULL ZYRAXIS MAP'; }
+    if (districtList) districtList.innerHTML = `<small>DISTRICTS · SELECT TO ZOOM</small>` + ds.map(q => `<button class="zy-map-row district${q.id === d.id && !worldView ? ' current' : ''}" data-item data-map-district="${q.id}"><span><b>${q.numeral} · ${esc(q.name)}</b><em>${esc(q.land)}</em></span><i>${q.built ? 'OPEN' : 'REGION'}</i></button>`).join('');
+    const categories = [['all','All POIs'],['landmarks','Landmarks'],['services','Civic & services'],['chests','Chests'],['seer','Seer territory'],['gemlord','Gemlord sites']];
+    if (cats) cats.innerHTML = categories.map(([id,label]) => `<button class="zy-map-category${hud.mapCategory === id ? ' current' : ''}" data-item data-map-category="${id}">${label}</button>`).join('');
+    const rows = hud.mapPois().filter(it => worldView || hud.districtAt(it.cx,it.cz)?.id === d.id);
+    if (title) title.textContent = worldView ? 'SELECT A DISTRICT TO BROWSE ITS POIS' : `${rows.length} LOCATIONS · ${d.name.toUpperCase()}`;
+    if (list) list.innerHTML = rows.length ? rows.map(it => `<li><button class="zy-map-row${hud.mapSelectedPoi === it.id ? ' current' : ''}${hud.mapPingPoi === it.id ? ' pinged' : ''}" data-item data-map-poi="${esc(it.id)}"><span><b>${esc(it.name)}</b><em>${esc(hud.kindLabel(it.kind))}${hud.found.has(it.id) ? ' · FOUND' : ''}</em></span><i>${hud.mapPingPoi === it.id ? 'PINGED' : 'VIEW'}</i></button></li>`).join('') : `<li class="zy-map-empty">${worldView ? 'Choose a district on the map or from the list above.' : 'No mapped points in this district yet. Its world region is ready for future location data.'}</li>`;
+    const canvas = $('#map-canvas'), detail = $('#zy-map-detail'), poi = hud.mapPois().find(it => it.id === hud.mapSelectedPoi);
+    if (detail && mapPoiDetailOpen && poi) {
+      canvas.hidden = true; detail.hidden = false;
+      const placeDistrict = hud.districtAt(poi.cx, poi.cz) || d;
+      const description = poi.note || (poi.kind === 'goldchest' || poi.kind === 'chest' ? `${poi.chestTier ? `${poi.chestTier.toUpperCase()} ` : ''}Chest · open it in the world to claim its contents.` : `Mapped ${hud.kindLabel(poi.kind).toLowerCase()} point of interest in ${placeDistrict.name}.`);
+      detail.innerHTML = `<small>LOCATION RECORD · ${esc(placeDistrict.name.toUpperCase())}</small><h2>${esc(poi.name)}</h2><span>${esc(hud.kindLabel(poi.kind))}</span><p>${esc(description)}</p><div class="zy-map-detail-coords">X ${poi.cx.toFixed(1)} · Z ${poi.cz.toFixed(1)}</div><div class="zy-map-detail-actions"><button class="zy-layout-button" data-item data-map-action="teleport">□ TELEPORT · PLAYTEST</button><button class="zy-layout-button" data-item data-map-action="back">○ BACK TO MAP</button></div><small class="zy-map-detail-note">FAST TRAVEL IS UNLOCKED FOR THIS PLAYTEST</small>`;
+    } else { if (canvas) canvas.hidden = false; if (detail) detail.hidden = true; }
+  }
   function open(which) {
     if (isOpen) { if (which) setTab(TABS.indexOf(which)); return; }
     isOpen = true; root.hidden = false; if (which) tab = TABS.indexOf(which); focus = 0; render(); status(); onOpen?.();
   }
-  function close() { if (!isOpen) return; isOpen = false; carry = null; fpick = null; root.hidden = true; root.classList.remove('labs'); onLabsView?.(false); onClose?.(); }
+  function close() { if (!isOpen) return; if (hud.mapFocusMode) hud.setMapFocus(false); root.classList.remove('map-focus-mode'); isOpen = false; carry = null; fpick = null; root.hidden = true; root.classList.remove('labs'); onLabsView?.(false); onClose?.(); }
 
   tabsEl.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const g = GROUPS.findIndex(x => x.id === b.dataset.group); setPage(lastIn[g] || GROUPS[g].pages[0]); });
   subEl.addEventListener('click', e => { const b = e.target.closest('button'); if (b) setPage(b.dataset.pageTab); });
   root.addEventListener('click', e => { const el = e.target.closest('[data-item]'); if (el) { focus = items().indexOf(el); paintFocus(); activate(el); } });
+  root.addEventListener('skin-library-file', async e => {
+    const file = e.detail?.file; if (!file) return;
+    const label = file.name.replace(/\.json$/i, '');
+    let data; try { data = JSON.parse(await file.text()); } catch { skinToast(`${label} · not a valid skin JSON`); return; }
+    const key = typeof data?.character === 'string' && characters[data.character] ? data.character : 'rizer';
+    const colors = {};
+    for (const [part, value] of Object.entries(data?.colors && typeof data.colors === 'object' ? data.colors : {})) {
+      if (/^(R|M|N)_\w+$/.test(part) && /^#?[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(String(value))) colors[part] = String(value).startsWith('#') ? String(value) : `#${value}`;
+    }
+    if (!Object.keys(colors).length) { skinToast(`${label} · no skin colours found`); return; }
+    const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    skinLibrary.push({ id, name: String(data.name || label || 'Saved skin').slice(0, 48), data: { character:key, colors, ...(typeof data.hair === 'string' ? { hair:data.hair } : {}) } });
+    saveSkinLibrary(); render(); skinToast(`SKIN SAVED · ${label}`);
+  });
+  root.addEventListener('dragover', e => { if (!e.target.closest('[data-skin-library-drop]')) return; e.preventDefault(); e.stopPropagation(); e.target.closest('[data-skin-library-drop]').classList.add('drag-over'); });
+  root.addEventListener('dragleave', e => { const zone = e.target.closest('[data-skin-library-drop]'); if (zone && !zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+  root.addEventListener('dragstart', e => { const card = e.target.closest('[data-skin-saved]'); if (!card) return; card.classList.add('dragging'); e.dataTransfer?.setData('text/plain', card.dataset.skinSaved); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; });
+  root.addEventListener('dragend', e => { const card = e.target.closest('[data-skin-saved]'); if (!card) return; card.classList.remove('dragging'); const r = card.getBoundingClientRect(), x = e.clientX, y = e.clientY; if (x < r.left || x > r.right || y < r.top || y > r.bottom) { skinLibrary = skinLibrary.filter(s => s.id !== card.dataset.skinSaved); saveSkinLibrary(); render(); } });
+  $('#map-canvas').addEventListener('click', e => {
+    if (!isOpen || TABS[tab] !== 'map' || mapPoiDetailOpen) return;
+    const point = hud.mapToWorld(e.clientX, e.clientY), result = hud.chooseMapPoint(point);
+    if (!result) return;
+    render();
+    if (result.poi) root.querySelector(`[data-map-poi="${CSS.escape(result.poi)}"]`)?.scrollIntoView({ block: 'nearest' });
+  });
   root.addEventListener('mousedown', e => e.stopPropagation());
 
   // Keyboard while open. Returns true when the key was used.
@@ -448,7 +554,8 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
       const cols = 5, delta = code === 'ArrowLeft' ? -1 : code === 'ArrowRight' ? 1 : code === 'ArrowUp' ? -cols : cols;
       const from = +(items()[focus]?.dataset.appIndex ?? 0); swapHome(from, Math.max(0, Math.min(homeOrder.length - 1, from + delta)));
     }
-    else if (code === 'Tab' || code === 'Escape' || code === 'Backspace') close();
+    else if (TABS[tab] === 'map' && mapPoiDetailOpen && (code === 'Escape' || code === 'Backspace')) { mapPoiDetailOpen = false; render(); }
+    else if (code === 'KeyZ' || code === 'Tab' || code === 'Escape' || code === 'Backspace') close();
     else if (TABS[tab] === 'weapons' && code === 'KeyE') equipFocused();
     else if (code === 'KeyQ' || code === 'PageUp') stepGroup(-1);
     else if (code === 'KeyR' || code === 'PageDown') stepGroup(1);
@@ -460,21 +567,35 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     else return false;
     return true;
   }
-  // Controller while open: L1/R1 or d-pad ←/→ tabs, d-pad ↑/↓ choose, ✕ select, ○/touchpad close.
-  function pad(p) {
+  // Shoulder/trigger buttons change Zyphone sections and apps. All four D-pad directions stay inside the open page.
+  function pad(p, dt = 1 / 60) {
     if (!isOpen) return;
+    if (TABS[tab] === 'map' && hud.mapFocusMode) {
+      if (p.edge(1) || p.edge(17)) { hud.setMapFocus(false); mapPoiDetailOpen = false; root.classList.remove('map-focus-mode'); render(); return; }
+      hud.moveMapFocus(p.x || 0, p.z || 0, dt);
+      if (p.btn(7)) hud.zoomMapFocus(1, dt); if (p.btn(6)) hud.zoomMapFocus(-1, dt);
+      if (p.edge(0) && hud.mapSelectedPoi) { mapPoiDetailOpen = true; render(); return; }
+      if (p.edge(2) && hud.mapSelectedPoi) { onAction?.('map-teleport'); return; }
+      return;
+    }
+    if (TABS[tab] === 'map' && p.edge(11)) { hud.setMapFocus(true); mapPoiDetailOpen = false; root.classList.add('map-focus-mode'); render(); return; }
     if (carry && p.edge(1)) { carry = null; render(); return; }
     if (fpick && p.edge(1)) { fpick = null; render(); return; } // ○ drops what you're moving back where it was
+    if (TABS[tab] === 'map' && mapPoiDetailOpen && p.edge(1)) { mapPoiDetailOpen = false; render(); return; }
+    if (TABS[tab] === 'map' && p.edge(2)) { if (hud.mapSelectedPoi) onAction?.('map-teleport'); return; } // □ fast travel · temporarily open for playtesting
     if (p.edge(1) || p.edge(17)) return close();
+    if (TABS[tab] === 'map' && p.edge(0)) { const focused = items()[focus]; if (focused?.dataset.mapPoi) hud.selectPoi(focused.dataset.mapPoi); if (hud.mapSelectedPoi) { mapPoiDetailOpen = true; render(); } return; } // ✕ interacts with the selected POI
     if (TABS[tab] === 'weapons' && p.edge(2)) equipFocused(); // □ equips
     if (TABS[tab] === 'home' && homeEdit && (p.edge(12) || p.edge(13) || p.edge(14) || p.edge(15))) {
       const delta = p.edge(14) ? -1 : p.edge(15) ? 1 : p.edge(12) ? -5 : 5;
       const from = +(items()[focus]?.dataset.appIndex ?? 0); swapHome(from, Math.max(0, Math.min(homeOrder.length - 1, from + delta))); return;
     }
-    if (p.edge(4)) stepGroup(-1); else if (p.edge(6) || p.edge(14)) stepInGroup(-1); // L1 / R1 sections · L2 / R2 (LT / RT) or d-pad ← → pages within the section
-    if (p.edge(5)) stepGroup(1); else if (p.edge(7) || p.edge(15)) stepInGroup(1);
-    if (p.edge(12)) { focus--; paintFocus(); }
-    if (p.edge(13)) { focus++; paintFocus(); }
+    if (p.edge(4)) stepGroup(-1); else if (p.edge(5)) stepGroup(1);
+    if (p.edge(6)) stepPage(-1); else if (p.edge(7)) stepPage(1);
+    if (p.edge(12)) moveSpatial(0, -1);
+    if (p.edge(13)) moveSpatial(0, 1);
+    if (p.edge(14)) moveSpatial(-1, 0);
+    if (p.edge(15)) moveSpatial(1, 0);
     if (p.edge(0)) activate();
   }
   return { open, close, toggle: w => (isOpen ? close() : open(w)), refresh: () => { if (isOpen) render(); }, key, pad, status, get isOpen() { return isOpen; }, get tab() { return TABS[tab]; } };

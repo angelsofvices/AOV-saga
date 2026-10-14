@@ -57,7 +57,7 @@ export const COMBAT = {
   //   astral  · charges up from landed melee blows: `astralHit` per blow by combo stage, `astralFinisher` extra on the finisher
   regen: { hp: 0, hpDelay: 5, stamina: 7, combatStamina: 3, staminaDelay: 0.9, combatStaminaDelay: 0.55, astral: 0, astralHit: [1, 1.5, 2.5, 3.5], astralFinisher: 3 },
   dodge: { stamina: 4, time: 0.62, dist: 6.2, cooldown: 0.12, anim: 1.15, rise: 0.6, riseAnim: 0.8, getUp: 0.9 }, // athletic roll cost · burst / recovery timing
-  block: { hold: 0.12, reduce: 0.15, stamina: 4, arc: 1.9, push: 1.2 }, // hold L2 + R2 standing: blocks every hit while the guard is up · takes `reduce` of the damage · each block costs stamina (the guard does not break yet) · push: how hard a blocked blow shoves him back
+  block: { hold: 0.12, reduce: 0.15, stamina: 4, arc: 1.9, push: 1.2 }, // hold L1 + R1 (controller) or Shift + C (keyboard) to guard
   // Parry: a perfect block. The guard has to have gone up within `window` s before the blow lands, with the attacker in
   // front (block.arc): no damage, no stamina, the parry clip plays and the attacker is stunned (game.js · onPlayerHit) if
   // within `reach`. Any later and it is an ordinary block.
@@ -201,7 +201,7 @@ export class Rizer {
     this.scarfVel = [0, 0, 0]; this.scarfAng = [0, 0, 0];
     this.actor = null; this.cast = {}; this.charKey = null; this.C = null;
     this.comboStage = 0; this.comboT = 0; this.strikeStage = 1; this.comboKind = null;
-    this.weapon = 'fists'; this.swordAt = 'hip'; this.handWeapon = null; this.swap = null; this.pick = null; this.crouched = false; this.autoLand = false; this.lockPos = null; this.flying = false; this.dodgeT = 0; this.dodgeCool = 0; this.dodgeDir = new THREE.Vector3(); this.usedDouble = false; this.swimW = 0; this.ledge = null; this.ledgeCooldown = 0; this.teeter = null; this.groundNormal = new THREE.Vector3(0, 1, 0); this.slopeSliding = false; this.prayer = null; this.prayerIntent = 0; this.prayerSpentHold = false;
+    this.weapon = 'fists'; this.swordAt = 'hip'; this.handWeapon = null; this.swap = null; this.prayerStyle = 'regular'; this.prayerPending = null; this.pick = null; this.crouched = false; this.autoLand = false; this.lockPos = null; this.flying = false; this.dodgeT = 0; this.dodgeCool = 0; this.dodgeDir = new THREE.Vector3(); this.usedDouble = false; this.swimW = 0; this.ledge = null; this.ledgeCooldown = 0; this.teeter = null; this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0; this.groundNormal = new THREE.Vector3(0, 1, 0); this.slopeSliding = false; this.prayer = null; this.prayerIntent = 0; this.prayerSpentHold = false;
     this.hp = this.maxHp; this.stamina = this.maxStamina; this.astralEnergy = this.maxAstralEnergy; this.hurtT = 0; this.sinceHurt = 99; this.attack = null; this.knock = new THREE.Vector3(); this.flinch = 0; this.guardT = 0; this.parryT = 0; this.lastParried = false;
     this.ready = this.setCharacter(DEFAULT_CHARACTER);
   }
@@ -235,7 +235,7 @@ export class Rizer {
   strike(kind) {
     const at = this.attack;
     if (this.dodgeT <= 0 && this.dodgeLock > 0) { this.dodgeLock = 0; this.actor?.release(this.dodgeKind === 'aerial' ? 'aerialEvade' : this.dodgeKind || 'dodge', 0.12); } // strike straight out of a roll
-    if (this.dodgeT > 0 || this.landLock > 0 || this.hp <= 0 || this.blocking || this.vault || this.ledge || this.teeter || this.fc || this.slam) return false;
+    if (this.dodgeT > 0 || this.landLock > 0 || this.hp <= 0 || this.blocking || this.vault || this.wallRun || this.ledge || this.teeter || this.fc || this.slam) return false;
     if (kind === 'punch' && (this.weapon === 'bow' || this.weapon === 'guitar' || this.weapon === 'telescope' || this.weapon === 'blaster')) return false; // bow shots are ranged (Pearlbow); □ with the guitar plays it (game.js · toggleGuitar)
     if (kind === 'punch' && BLADES[this.weapon]) kind = this.weapon; // □ swings the equipped melee weapon
     this.finishSwap(0.1);
@@ -312,7 +312,8 @@ export class Rizer {
     const from = Ck.from != null ? Ck.from : Ck.lead != null ? Math.max(0, T.hits[0] - Ck.lead) : 0; if (Ck.from != null) T.hits = T.hits.filter(h => h >= from);
     const recover = Ck.tail != null ? Math.min(full, T.hits[T.hits.length - 1] + Ck.tail) : full;
     const od = Ck.overdrive?.stage === stage ? Ck.overdrive : null;
-    this.attack = { kind, slot, stage, spd, od, t: from / spd, hits: T.hits, hi: 0, recover, queued };
+    this.attack = { kind, slot, stage, spd, od, t: from / spd, hits: T.hits, hi: 0, recover, queued,
+      chargeAt: kind === 'blast' ? Math.max(0.04, T.hits[0] / spd - (COMBAT.blast.chargeLead || 0.24)) : Infinity, chargeSent: false };
     if (kind === 'flykick' || kind === 'runpunch' || slotOverride) { this.attack.entry = this.speed; this.attack.run = !!slotOverride; }
     if (kind === 'kickup') this.attack.hits = [COMBAT.kickup.hit]; // one blow: the inverted kick
     this.comboKind = kind; this.comboStage = stage; this.comboT = 0; this.comboFlash = stage;
@@ -357,7 +358,7 @@ export class Rizer {
     const D = COMBAT.dodge, dur = this.actor?.has('dodge') ? this.actor.acts.dodge.getClip().duration : 0;
     this.dodgeLock = dur ? Math.max(D.time, dur * D.rise / D.anim + dur * (D.getUp - D.rise) / D.riseAnim) : D.time;
     this.dodgeCool = D.time + D.cooldown; // chainable: roll again as soon as this roll's burst is done
-    this.keepChain(was); this.actor?.play('dodge', COMBAT.dodge.anim);
+    this.keepChain(was); this.actor?.play('dodge', COMBAT.dodge.anim); this.events.push('dodge');
     return true;
   }
   // Emote (Flair): loops until you move, jump or fight.
@@ -599,7 +600,49 @@ export class Rizer {
     A.release('emote'); A.play('vault', spd, { from: t0 });
     this.vault = { t: t0, spd, face: Math.atan2(fx, fz), entry: sp, H, up: false, down: false };
     this.facing = this.vault.face; this.attack = null;
+    this.events.push('vault');
     return true;
+  }
+  // Holding ✕ during a sprint suppresses take-off only when a real, full-height collision
+  // surface is ahead. Tapping ✕ still jumps; its airborne double-tap remains wall-flip.
+  wallRunProbe(world, dx, dz, range = 4.2) {
+    const D = Math.hypot(dx, dz); if (D < 0.2) return null; dx /= D; dz /= D;
+    const p = this.position, probe = (ox, oz, y) => {
+      const q = new THREE.Vector3();
+      for (let d = 0.22; d <= range; d += 0.25) { q.set(ox + dx * d, p.y + y, oz + dz * d); if (world.resolve(q, 0.12, { stealth: true })) return { x: q.x, z: q.z, d }; }
+      return null;
+    };
+    const hit = probe(p.x, p.z, 0.78), top = probe(p.x, p.z, 1.48);
+    if (!hit || !top || Math.abs(hit.d - top.d) > 0.55) return null; // low gates and rocks remain vault / jump obstacles
+    let nx = -dx, nz = -dz;
+    const sx = -dz * 0.42, sz = dx * 0.42, l = probe(p.x + sx, p.z + sz, 0.78), r = probe(p.x - sx, p.z - sz, 0.78);
+    if (l && r && Math.abs(l.d - r.d) < 0.65) {
+      const tx = r.x - l.x, tz = r.z - l.z, length = Math.hypot(tx, tz) || 1; nx = tz / length; nz = -tx / length;
+      if (nx * dx + nz * dz > 0) { nx = -nx; nz = -nz; }
+    }
+    if (-(nx * dx + nz * dz) < 0.38) return null;
+    let tx = -nz, tz = nx;
+    const clear = sign => { const q = new THREE.Vector3(p.x + tx * sign * 0.85 + nx * 0.58, p.y + 0.85, p.z + tz * sign * 0.85 + nz * 0.58); return !world.resolve(q, 0.28, { stealth: true }); };
+    const a = clear(1), b = clear(-1), fwd = tx * dx + tz * dz, sign = a && !b ? 1 : b && !a ? -1 : fwd >= 0 ? 1 : -1;
+    return { d: hit.d, tx: tx * sign, tz: tz * sign };
+  }
+  beginWallRun(wall) {
+    const A = this.actor; if (!A?.has('wallRun') || this.wallRun || this.wallRunCool > 0 || !this.onGround || this.flying) return false;
+    const speed = Math.max(6.2, this.speed || 0);
+    this.wallRun = { t: 0, duration: Math.max(0.35, A.acts.wallRun.getClip().duration), fx: wall.tx, fz: wall.tz, speed, crack: 0 };
+    this.wallRunHold = true; this.attack = null; this.buffer = 0;
+    this.facing = Math.atan2(wall.tx, wall.tz); this.vel.x = wall.tx * speed; this.vel.z = wall.tz * speed;
+    A.release(); A.play('wallRun', 1); this.events.push('wallrunStart'); return true;
+  }
+  wallRunStep(dt, ev) {
+    const w = this.wallRun; if (!w) return;
+    if (!this.onGround || this.flying || this.hp <= 0 || this.hurtT > 0 || this.actor?.shot?.kind !== 'wallRun') {
+      this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0.9; this.actor?.release('wallRun', 0.18); ev.push('wallrunEnd'); return;
+    }
+    w.t += dt; w.crack -= dt; this.vel.x = w.fx * w.speed; this.vel.z = w.fz * w.speed;
+    this.facing = dampAngle(this.facing, Math.atan2(w.fx, w.fz), 18, dt);
+    if (w.crack <= 0) { w.crack = 0.1; ev.push('wallrunCrackle'); }
+    if (w.t >= w.duration) { this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0.9; this.actor?.release('wallRun', 0.22); ev.push('wallrunEnd'); }
   }
   // Wall flip: called on the second ✕ in the air. Looks ahead for a wall tall enough to take a foot;
   // if there is one, he keeps flying at it (no snapping), plants a foot at the clip's own contact
@@ -727,7 +770,7 @@ export class Rizer {
   }
   sheatheThen(next = null) {
     const A = this.actor, slot = this.handling(this.handWeapon, 'sheathe'), C = COMBAT[slot];
-    if (A?.has(slot) && this.onGround && !this.flying) { A.play(slot, C.speed, { overlay: true }); this.swap = { to: 'hip', w: this.handWeapon, next, t: 0, at: A.acts[slot].getClip().duration * C.grab / C.speed }; }
+    if (A?.has(slot)) { A.play(slot, C.speed, { overlay: true }); this.swap = { to: 'hip', w: this.handWeapon, next, t: 0, at: A.acts[slot].getClip().duration * C.grab / C.speed }; }
     else { this.swordAt = 'hip'; if (next) this.drawBlade(next); }
   }
   // Put what's in hand away (after picking up a new weapon); if a different weapon is equipped, draw it next.
@@ -870,33 +913,61 @@ export class Rizer {
   }
   startPrayer() {
     const A = this.actor;
-    if (!A?.has('prayKneel') || !A.has('prayHold') || !A.has('prayStand')) return false;
-    this.finishSwap(0.1); this.setBlock(false);
-    this.l2 = null; this.dodgeBuf = 0; this.auto = null; this.crouched = false;
+    const style = this.prayerStyle === 'meditating' ? 'meditate' : 'pray';
+    const slot = (phase) => A?.has(`${style}${phase}`) ? `${style}${phase}` : `pray${phase}`;
+    const slots = { kneel: slot('Kneel'), hold: slot('Hold'), stand: slot('Stand') };
+    if (!A?.has(slots.kneel) || !A.has(slots.hold) || !A.has(slots.stand)) return false;
+    this.setBlock(false);
+    this.attack = null; this.l2 = null; this.dodgeBuf = 0; this.auto = null; this.crouched = false;
     this.vel.set(0, 0, 0); this.speed = 0; this.vy = 0;
-    this.prayer = { phase: 'kneel', t: 0, standAfterKneel: false };
+    this.prayer = { phase: 'kneel', t: 0, standAfterKneel: false, airborne: !this.onGround, slots, style: this.prayerStyle };
+    this.flying = false;
     this.prayerSpentHold = true;
-    A.play('prayKneel', 1, { hold: true });
+    A.play(slots.kneel, 1, { hold: true });
     return true;
   }
-  prayerStep(dt, keepPraying) {
+  requestPrayer() {
+    const A = this.actor;
+    if (this.swap?.to === 'hand') this.finishSwap(0); // interrupt a draw, then put that item away before raising his hands
+    if (A?.shot?.kind?.startsWith('sheathe')) {
+      this.prayerPending = { remaining: Math.max(0, (A.shot.dur - A.shot.t) / Math.max(0.01, A.shot.speed)) };
+      this.prayerSpentHold = true; return true;
+    }
+    if (this.swordAt === 'hand' && BLADES[this.handWeapon]) {
+      const slot = this.handling(this.handWeapon, 'sheathe'), C = COMBAT[slot], clip = A?.acts[slot]?.getClip();
+      this.attack = null;
+      if (clip) {
+        this.sheatheThen(null);
+        this.prayerPending = { remaining: clip.duration / Math.max(0.01, C?.speed || 1) };
+        this.prayerSpentHold = true; return true;
+      }
+      this.swordAt = 'hip';
+    }
+    return this.startPrayer();
+  }
+  prayerStep(dt, keepPraying, world = this.lastWorld) {
     const p = this.prayer, A = this.actor; if (!p || !A) return;
     if (!keepPraying) p.standAfterKneel = true;
-    p.t += dt; this.vel.set(0, 0, 0); this.speed = 0; this.vy = 0; this.onGround = true;
+    p.t += dt; this.vel.set(0, 0, 0); this.speed = 0;
+    if (p.airborne && world) {
+      this.onGround = false; this.vy -= TUNE.gravity * (this.vy < 0 ? TUNE.fallMul : 1) * dt; this.position.y += this.vy * dt;
+      const floor = world.groundAt(this.position.x, this.position.z, this.position.y + 1);
+      if (this.position.y <= floor) { this.position.y = floor; this.vy = 0; this.onGround = true; p.airborne = false; }
+    } else { this.vy = 0; this.onGround = true; }
     this.restT = (this.restT || 0) + dt;
-    if (p.phase === 'kneel' && p.t >= A.acts.prayKneel.getClip().duration) {
+    if (p.phase === 'kneel' && p.t >= A.acts[p.slots.kneel].getClip().duration) {
       p.phase = p.standAfterKneel ? 'stand' : 'hold'; p.t = 0;
-      A.play(p.phase === 'hold' ? 'prayHold' : 'prayStand', 1, { hold: true, loop: p.phase === 'hold' });
+      A.play(p.slots[p.phase], 1, { hold: true, loop: p.phase === 'hold' });
     } else if (p.phase === 'hold') {
-      if (p.standAfterKneel) { p.phase = 'stand'; p.t = 0; A.play('prayStand', 1, { hold: true }); }
+      if (p.standAfterKneel) { p.phase = 'stand'; p.t = 0; A.play(p.slots.stand, 1, { hold: true }); }
       else {
         const P = COMBAT.prayer;
         this.hp = Math.min(this.maxHp, this.hp + P.hp * HP_SCALE * dt);
         this.astralEnergy = Math.min(this.maxAstralEnergy, this.astralEnergy + P.astral * dt);
         this.stamina = Math.min(this.maxStamina, this.stamina + P.stamina * dt);
       }
-    } else if (p.phase === 'stand' && p.t >= A.acts.prayStand.getClip().duration) {
-      A.release('prayStand', 0.18); this.prayer = null;
+    } else if (p.phase === 'stand' && p.t >= A.acts[p.slots.stand].getClip().duration) {
+      A.release(p.slots.stand, 0.18); this.prayer = null;
     }
     this.animate(dt, this.vel, {}); this.animateModel(dt);
   }
@@ -909,6 +980,7 @@ export class Rizer {
   timing(kind) { return this.actor ? this.actor.timing(kind) : CLIPS[kind]; }
   animateModel(dt) {
     const A = this.actor, still = !!A.preview;
+    A.tiredRunning = !!this.isTiredRunning;
     A.update(dt, this.speed, this.onGround, this.vy);
     // Procedural slope contact is limited to the anatomical chain below the
     // waist. The locomotion clip supplies the stride; knees and ankles absorb
@@ -956,15 +1028,26 @@ export class Rizer {
     const p = this.obj.position, ev = this.events; ev.length = 0; this.lastWorld = world;
     if (this.seq) { this.doorStep(dt, world); return; } // walking through a door: the clip owns him
     if (this.sit) { this.sitStep(dt); return; } // seated (seating.js): the seat controller places him; only the animation runs here
-    const prayerButtons = !!inp.dodgeHeld && !!inp.run;
+    const prayerButtons = !!inp.prayerHeld;
     if (!prayerButtons) this.prayerSpentHold = false;
     if (this.prayer && (this.hp <= 0 || this.hurtT > 0)) { this.prayer = null; this.prayerSpentHold = true; }
-    if (this.prayer) { this.prayerStep(dt, prayerButtons && !inp.inCombat); return; }
-    const prayerReady = prayerButtons && inp.allowPrayer !== false && !this.prayerSpentHold && !this.teeter && !inp.inCombat && this.onGround && !this.flying && !this.wading &&
-      !this.attack && !this.pick && !this.rpick && !this.vault && !this.fc && !this.wf && !this.bail && this.dodgeT <= 0 && this.dodgeLock <= 0 &&
-      this.landLock <= 0 && this.hurtT <= 0 && this.hp > 0 && Math.hypot(inp.x || 0, inp.z || 0) < 0.25 && Math.hypot(this.vel.x, this.vel.z) < 1.2;
+    if (this.prayer) { this.prayerStep(dt, prayerButtons, world); return; }
+    if (this.prayerPending) {
+      if (!prayerButtons || this.hp <= 0 || this.hurtT > 0) { this.prayerPending = null; if (this.hurtT > 0 || this.hp <= 0) this.prayerSpentHold = true; }
+      else {
+        this.prayerPending.remaining -= dt;
+        if (this.prayerPending.remaining <= 0) {
+          this.prayerPending = null;
+          if (this.startPrayer()) { this.prayerStep(dt, true, world); return; }
+        }
+      }
+    }
+    const prayerReady = prayerButtons && !this.prayerSpentHold && this.hurtT <= 0 && this.hp > 0;
     this.prayerIntent = prayerReady ? this.prayerIntent + dt : 0;
-    if (this.prayerIntent >= COMBAT.prayer.hold && this.startPrayer()) { this.prayerIntent = 0; this.prayerStep(0, true); return; }
+    if (this.prayerIntent >= COMBAT.prayer.hold) {
+      this.prayerIntent = 0;
+      if (this.requestPrayer()) { if (this.prayer) this.prayerStep(0, true, world); return; }
+    }
     if (this.teeter && this.teeterStep(dt, world, inp, camYaw)) return;
     if (this.ledge) { this.ledgeStep(dt, world, inp); return; }
     if (this.slam) { this.slamStep(dt, world); return; } // the aerial slam owns him from the dive to getting up
@@ -990,7 +1073,7 @@ export class Rizer {
     this.dodgeLock = Math.max(0, (this.dodgeLock || 0) - dt);
     this.landLock = Math.max(0, (this.landLock || 0) - dt);
     if (this.dodgeLock > 0 && this.dodgeT <= 0 && want.lengthSq() > 0.01) this.dodgeLock = 0; // steering out of a roll: skip the get-up and keep moving (roll → run chains)
-    if (this.swap) { this.swap.t += dt; if (this.swap.t >= this.swap.at) this.completeSwap(); else if (!this.onGround) this.finishSwap(); }
+    if (this.swap) { this.swap.t += dt; if (this.swap.t >= this.swap.at) this.completeSwap(); else if (!this.onGround && !this.prayerPending) this.finishSwap(); }
     if (this.pick) { // stepping in and reaching down: hold still until the item is in hand
       const k = this.pick; k.t += dt;
       if (!k.done && k.t >= k.grab) { k.done = true; k.onGrab?.(); }
@@ -1000,33 +1083,45 @@ export class Rizer {
     }
     if ((this.dodgeLock > 0 && this.dodgeT <= 0) || this.landLock > 0 || this.blocking || this.parryT > 0) want.set(0, 0, 0); // getting up / landing: hold still, ease to a stop
     const mag = Math.min(1, want.length()); if (mag > 0) want.normalize();
-    const running = !autoTop && !!inp.run && mag > 0.08 && !this.flying && this.dodgeT <= 0 && this.stamina > 0;
-    this.isRunning = running; this.runGrace = running ? 0.3 : Math.max(0, (this.runGrace || 0) - dt); // a press just as a stride leaves the ground (or R2 lifts) still counts as running
+    const runIntent = !autoTop && !!inp.run && mag > 0.08 && !this.flying && this.dodgeT <= 0;
+    const running = runIntent && this.stamina > 0;
+    const tiredRunning = runIntent && this.stamina <= 0 && this.onGround;
+    this.isTiredRunning = tiredRunning;
+    this.isRunning = running || tiredRunning; this.runGrace = this.isRunning ? 0.3 : Math.max(0, (this.runGrace || 0) - dt); // a press just as a stride leaves the ground (or R2 lifts) still counts as running
+    this.wallRunCool = Math.max(0, this.wallRunCool - dt);
+    let wallRunCandidate = null;
+    const wallRunInput = !this.wallRun && this.wallRunCool <= 0 && this.onGround && runIntent && mag > 0.08 && inp.jumpHeld && !this.attack && !this.vault && !this.wf && !this.spin && !this.crouched && !this.flying;
+    if (wallRunInput) {
+      const v = Math.hypot(this.vel.x, this.vel.z) > 1 ? this.vel : want;
+      wallRunCandidate = this.wallRunProbe(world, v.x, v.z);
+      if (wallRunCandidate) {
+        this.wallRunHold = true;
+        if (wallRunCandidate.d <= 1.35 && this.speed >= 5.2) this.beginWallRun(wallRunCandidate);
+      }
+    }
     // Flight only costs stamina while actively climbing or cruising under power; holding altitude in
     // place and any descent (controlled float-down or a fast dive) are free, same as standing still.
     const flyIdle = this.flying && (!!this.autoLand || (mag < 0.08 && !inp.jumpHeld));
-    const exerting = running || (this.flying && !flyIdle) || this.dodgeT > 0 || this.dodgeLock > 0 || this.blocking || this.attack || this.vault || this.wf || !this.onGround || this.bail;
+    const exerting = running || tiredRunning || (this.flying && !flyIdle) || this.dodgeT > 0 || this.dodgeLock > 0 || this.blocking || this.attack || this.vault || this.wf || !this.onGround || this.bail;
     this.restT = exerting ? 0 : (this.restT || 0) + dt; // how long he's been taking it easy
     const R = COMBAT.regen, regenDelay = inp.inCombat ? R.combatStaminaDelay : R.staminaDelay;
-    const passiveRegen = !this.attack && this.restT > regenDelay ? (inp.inCombat ? R.combatStamina : R.stamina) * staminaRegenMul() : 0;
+    const passiveRegen = !tiredRunning && !this.attack && this.restT > regenDelay ? (inp.inCombat ? R.combatStamina : R.stamina) * staminaRegenMul() : 0;
     const staminaRate = running ? -COMBAT.runStamina : (this.flying && !flyIdle) ? -COMBAT.flightStamina : passiveRegen;
     this.stamina = clamp(this.stamina + staminaRate * dt, 0, this.maxStamina);
     const astralRate = COMBAT.regen.astral + astralRegen(); // Calm Mind (LABS › ASTRAL)
     if (astralRate) this.astralEnergy = clamp(this.astralEnergy + astralRate * dt, 0, this.maxAstralEnergy);
-    // L2 (C): a tap rolls, a hold slides. The press is decided on release, or once it's been held `slide.hold` s.
-    // L2 + R2 while still prays outside combat; in combat it blocks.
+    // L2 (C): a tap rolls, a hold slides. Prayer and guard have dedicated controller chords.
     if (inp.dodgePressed && !this.flying) this.l2 = { t: 0 };
     if (this.l2) {
       if (inp.dodgeHeld === undefined) { this.l2 = null; this.dodgeBuf = 0.3; } // no hold info (lab / scripts): a plain roll
       else if (inp.dodgeHeld) {
         this.l2.t += dt;
-        if (inp.run && mag < 0.3 && !inp.inCombat) { /* wait for prayer rather than spending L2 on a dodge */ }
-        else if (inp.run && mag < 0.3 && inp.inCombat && this.l2.t >= COMBAT.block.hold) { this.l2 = null; this.setBlock(true); }
-        else if (this.l2.t >= COMBAT.slide.hold) { this.l2 = null; if (!this.slide(mag > 0.08 ? want.clone().normalize() : null)) this.dodgeBuf = 0.3; }
+        if (this.l2.t >= COMBAT.slide.hold) { this.l2 = null; if (!this.slide(mag > 0.08 ? want.clone().normalize() : null)) this.dodgeBuf = 0.3; }
       }
       else { this.l2 = null; this.dodgeBuf = 0.3; } // released quickly: roll
     }
-    if (this.blocking && (!inp.inCombat || !inp.dodgeHeld || !inp.run || !this.onGround || this.flying || this.hp <= 0 || this.swimW > 0.5 || this.dodgeT > 0)) this.setBlock(false);
+    if (inp.blockHeld && this.hp > 0 && !this.flying && this.onGround && this.swimW <= 0.5 && this.dodgeT <= 0 && !this.prayer) this.setBlock(true);
+    if (this.blocking && (!inp.blockHeld || !this.onGround || this.flying || this.hp <= 0 || this.swimW > 0.5 || this.dodgeT > 0 || this.prayer)) this.setBlock(false);
     if (this.blocking) this.guardT += dt;
     if (this.parryT > 0) this.parryT = Math.max(0, this.parryT - dt);
     this.dodgeAge = (this.dodgeAge ?? 9) + dt;
@@ -1042,7 +1137,7 @@ export class Rizer {
     // Stealth crouch (L3): toggles on the ground; running, jumping, rolling, flying or swimming stands him back up.
     if (inp.crouchPressed && this.onGround && !this.flying) { this.crouched = !this.crouched; this.events.push(this.crouched ? 'crouch' : 'stand'); }
     if (this.crouched && (inp.run || !this.onGround || this.flying || this.dodgeT > 0 || this.swimW > 0.5 || this.hp <= 0)) { this.crouched = false; this.events.push('stand'); }
-    let top = this.crouched ? COMBAT.crouch.speed : running ? TUNE.run : walkTop;
+    let top = this.crouched ? COMBAT.crouch.speed : running ? TUNE.run : tiredRunning ? TUNE.sprint * 0.5 : walkTop;
     top *= autoTop ? autoTop : inp.analog ? Math.max(mag, 0.35) : 1;
     if (this.pulling) top = Math.min(top, this.pulling.speed);
     { const sp = this.actor?.stairMotion && this.actor.stairPace?.[this.actor.stairMotion]; if (sp) top = Math.min(top, sp); } // on the flight he climbs at the stair clip's pace // dragging furniture: a slow, steady pull
@@ -1118,10 +1213,11 @@ export class Rizer {
     if (this.fc) this.faeCatchStep(dt); // catching a fae: the jog-in and the clip's own travel own his motion
     this.vel.x += this.knock.x; this.vel.z += this.knock.z; this.knock.set(0, 0, 0);
     if (this.wf) this.wallFlipMove(dt, world, ev); // wall flip: the approach, the foot on the wall and the fall away own his motion
+    this.wallRunStep(dt, ev); // short wall traverse; does not replace the airborne wall flip
     this.speed = Math.hypot(this.vel.x, this.vel.z);
 
     // Running into a tree: instead of stopping dead on the trunk he spins off it (Tree Spin Evade) and keeps his run.
-    if (this.onGround && !this.spin && this.spinCool <= 0 && this.speed >= 5.5 && !this.flying && !this.attack && !this.vault && !this.wf && !this.fc && !this.bail && !this.pick && this.dodgeT <= 0 && this.hurtT <= 0 && !this.crouched && !this.blocking && this.actor?.has('treeSpin')) {
+    if (this.onGround && !this.spin && this.spinCool <= 0 && !this.wallRun && this.speed >= 5.5 && !this.flying && !this.attack && !this.vault && !this.wf && !this.fc && !this.bail && !this.pick && this.dodgeT <= 0 && this.hurtT <= 0 && !this.crouched && !this.blocking && this.actor?.has('treeSpin')) {
       const list = world.nature?.userData?.trees?.list;
       if (list) {
         const fx = this.vel.x / this.speed, fz = this.vel.z / this.speed; let best = null, bd = 1.5, blat = 0;
@@ -1248,7 +1344,9 @@ export class Rizer {
     } else {
     // Jump: coyote time + input buffer + variable height.
     this.coyote = this.onGround ? TUNE.coyote : this.coyote - dt;
-    this.buffer = inp.jumpPressed ? TUNE.buffer : this.buffer - dt;
+    if (this.wallRun || (this.wallRunHold && inp.jumpHeld) || (wallRunInput && wallRunCandidate)) this.buffer = 0;
+    else if (!inp.jumpHeld && this.wallRunHold) { this.wallRunHold = false; this.buffer = TUNE.buffer; }
+    else this.buffer = inp.jumpPressed ? TUNE.buffer : this.buffer - dt;
     if (this.fc) this.buffer = 0; // mid fae-catch: ✕ waits
     if (this.onGround) this.usedDouble = false;
     else if (inp.jumpPressed && this.coyote <= 0 && !this.usedDouble && this.airTime > 0.08 && this.dodgeT <= 0 && this.startWallFlip(world)) { // a wall ahead: plant a foot on it and backflip off
@@ -1365,6 +1463,9 @@ export class Rizer {
     if (hpRate && this.sinceHurt > COMBAT.regen.hpDelay && this.hp > 0) this.hp = Math.min(this.maxHp, this.hp + hpRate * dt);
     if (this.attack) {
       const at = this.attack, spd = at.spd || COMBAT[at.kind].speed; at.t += dt;
+      // Each Astralstrike clip has its own hit frame from Actor.timing(); start the body static
+      // shortly before that frame so combo stages charge at their individual release timings.
+      if (at.kind === 'blast' && !at.chargeSent && at.t >= at.chargeAt) { at.chargeSent = true; ev.push(`blastCharge${at.stage}`); }
       while (at.hi < at.hits.length && at.t >= at.hits[at.hi] / spd) { at.hi++; this.strikeStage = at.stage; ev.push(at.kind === 'blast' ? `blast${at.stage > 1 ? at.stage : ''}` : at.kind); }
       const landed = at.hi >= at.hits.length, next = at.recover / spd - COMBAT.comboBlend;
       if (at.queued && landed && at.t >= next) {

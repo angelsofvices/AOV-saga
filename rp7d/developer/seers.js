@@ -293,7 +293,7 @@ export async function createSeers(scene, world, W) {
     // spawnY: a patrol on one floor of a cave (cave-interior.js) picks that floor; undefined everywhere else
     g.pos.set(s.x, world.groundAt(s.x, s.y, g.spawnY), s.y); g.wp = Math.min(1, g.pts.length - 1); g.dir = 1;
     g.heading = g.pts.length > 1 ? Math.atan2(g.pts[1].x - s.x, g.pts[1].y - s.y) : 0;
-    g.rxpPaid = false; g.tech = null; g.state = 'patrol'; g.timer = 0; g.hp = g.T.hp; g.lost = 0; g.cool = 0; g.evadeCool = 0; g.evadeThreat = null; g.atk = null; g.next = null; g.feedRetry = 0; g.barT = 0; g.fall = 0; g.sink = 0; g.looted = false; g.stag = 0; g.dazed = 0; g.dazedMode = null; g.observeLost = 0; g.stuck = 0; g.avoidT = 0; g.actor.dazed = false; g.actor.fighting = false; g.actor.crawling = false;
+    g.rxpPaid = false; g.tech = null; g.hitByRizer = false; g.actor.undeadHostile = false; g.state = 'patrol'; g.timer = 0; g.hp = g.T.hp; g.lost = 0; g.cool = 0; g.evadeCool = 0; g.evadeThreat = null; g.atk = null; g.next = null; g.feedRetry = 0; g.barT = 0; g.fall = 0; g.sink = 0; g.looted = false; g.stag = 0; g.dazed = 0; g.dazedMode = null; g.observeLost = 0; g.stuck = 0; g.avoidT = 0; g.actor.dazed = false; g.actor.fighting = false; g.actor.crawling = false;
     g.root.visible = true; g.root.position.copy(g.pos); g.actor.release(); g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.bang.visible = false;
     g.lootBag.visible = false;
     if (g.drop && !world.interactables.includes(g.drop)) world.interactables.push(g.drop);
@@ -344,6 +344,7 @@ export async function createSeers(scene, world, W) {
   function hitGrunt(g, damage, dx, dz, kind, power = 1) {
     releaseFeed(g);
     const beforeHit = g.state, priorDazedMode = g.dazedMode;
+    g.hitByRizer = true;
     g.hp -= damage * (1 - (g.T.armor || 0) * 0.2); g.barT = 4; g.bar.redraw(Math.max(0, g.hp) / g.T.hp);
     // trading blows: a light jab that lands while his own blow is already coming through doesn't stop it
     if (g.hp > 0 && kind === 'punch' && power < 1 && g.state === 'attack' && g.atk && windowAt(g.atk.hits, g.atk.t, g.T.clipSpeed) >= 0) {
@@ -756,6 +757,7 @@ export async function createSeers(scene, world, W) {
       }
       // body
       g.root.position.copy(p); g.root.rotation.y = g.heading;
+      g.actor.undeadHostile = (g.T.family === 'daemon' || ['mori', 'crept', 'skellor'].includes(g.T.key)) && !!g.hitByRizer && g.state === 'chase';
       g.actor.update(dt, g.state === 'down' || g.state === 'sinking' ? 0 : Math.abs(g.speed) + Math.hypot(g.knock.x, g.knock.z) * 0.2, true);
       const pv = g.actor.pivot;
       g.lootBag.position.set(g.pos.x, g.pos.y + 0.18 + Math.sin(t * 2.2 + g.pos.x) * 0.04, g.pos.z);
@@ -812,6 +814,7 @@ export async function createSeers(scene, world, W) {
     if (!show) { g.animAcc = 0; return; }
     if (g.speed > 0 || g.frame % 20 === 0) p.y = world.groundAt(p.x, p.z, p.y + 0.5);
     g.root.position.copy(p); g.root.rotation.y = g.heading;
+    g.actor.undeadHostile = (g.T.family === 'daemon' || ['mori', 'crept', 'skellor'].includes(g.T.key)) && !!g.hitByRizer && g.state === 'chase';
     g.animAcc += dt;
     if (g.frame % 3 === 0) { g.actor.update(g.animAcc, g.state === 'down' ? 0 : g.speed, true); g.animAcc = 0; }
     if (g.lootBag.visible) g.lootBag.position.set(p.x, p.y + 0.18, p.z);

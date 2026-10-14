@@ -133,6 +133,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   const group = new THREE.Group();
   const stones = [];
   const trees = [];
+  const gates = [];
   const tri = new THREE.Triangle(), ray = new THREE.Ray(), edgeA = new THREE.Vector3(), edgeB = new THREE.Vector3();
   const point = new THREE.Vector3(), nearest = new THREE.Vector3(), contact = new THREE.Vector3();
   const instance = new THREE.Matrix4(), worldInstance = new THREE.Matrix4();
@@ -364,7 +365,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     },
     wood: '#5f4b35', fresh: '#caa877'
   };
-  const bushes = [], swaying = new Set(), falling = new Set();
+  const bushes = [], swaying = new Set(), falling = new Set(), fallingGates = new Set();
   let woodDebris = null, leafDebris = null, stumpMesh = null, notchMesh = null, stumps = 0, notches = 0, natureFX = null;
   const softMat = () => new THREE.MeshStandardMaterial({ roughness: 0.95, flatShading: true });
   function greenPools() {
@@ -479,6 +480,32 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     natureFX?.('bush', 'break', bush.x, bush.gy + 0.5 * s, bush.z, bush);
     return true;
   }
+  function damageGate(gate, damage, hitKey, from = null) {
+    if (gate.broken || !(damage > 0) || gate.hitKeys.has(hitKey)) return false;
+    gate.hitKeys.add(hitKey); if (gate.hitKeys.size > 24) gate.hitKeys.clear();
+    greenPools(); gate.hp = Math.max(0, gate.hp - damage);
+    const stage = gate.hp <= 0 ? 3 : gate.hp <= gate.maxHP * 0.34 ? 2 : gate.hp < gate.maxHP ? 1 : 0;
+    if (stage !== gate.stage) {
+      gate.stage = stage;
+      gate.material.color.set(stage >= 2 ? '#5b4230' : stage === 1 ? '#80603d' : '#8a6945');
+    }
+    const dx = from ? gate.x - from.x : Math.random() - 0.5, dz = from ? gate.z - from.z : Math.random() - 0.5, d = Math.hypot(dx, dz) || 1;
+    for (let i = 0; i < (gate.hp > 0 ? 3 : 12); i++) {
+      const a = Math.random() * Math.PI * 2, sz = 0.055 + Math.random() * 0.07;
+      woodDebris.add({ x: gate.x + (Math.random() - 0.5) * gate.width * 0.7, y: gate.gy + 0.45 + Math.random() * 0.55, z: gate.z + (Math.random() - 0.5) * 0.15,
+        vx: Math.cos(a) * (1 + Math.random() * 2) + dx / d, vy: 1.5 + Math.random() * 2.4, vz: Math.sin(a) * (1 + Math.random() * 2) + dz / d,
+        sx: sz * 0.55, sy: sz * 2.8, sz: sz * 0.5, color: woodColor(stage > 0), half: sz * 0.4, life: 2.8 + Math.random() * 1.5 });
+    }
+    natureFX?.('tree', 'hit', gate.x, gate.gy + 0.55, gate.z, gate);
+    if (gate.hp > 0) return true;
+    gate.broken = true; gate.collider.active = false; gate.fall = { a: 0, w: 0 }; fallingGates.add(gate);
+    // The side posts remain as a visibly damaged gate frame; the leaf crumbles
+    // away and leaves collectible Fresh Wood, using the same persistent debris pool as trees.
+    const side = from ? Math.sign((gate.x - from.x) * Math.sin(gate.rot) + (gate.z - from.z) * Math.cos(gate.rot)) || 1 : 1;
+    gate.fall.dir = side;
+    natureFX?.('tree', 'fall', gate.x, gate.gy + 0.55, gate.z, gate);
+    return true;
+  }
   function updateGreenery(dt) {
     for (const e of swaying) {
       e.shake -= dt;
@@ -499,19 +526,31 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
       if (f.a >= end) { falling.delete(tree); crashTree(tree); continue; }
       tipped(tree, tree.dir[0], tree.dir[1], f.a, sM); setInstance(tree, sM);
     }
+    for (const gate of fallingGates) {
+      const f = gate.fall; f.w += 4.5 * dt; f.a = Math.min(Math.PI / 2, f.a + f.w * dt);
+      gate.leaf.rotation.x = f.dir * f.a;
+      if (f.a >= Math.PI / 2) {
+        fallingGates.delete(gate); gate.leaf.visible = false;
+        for (let i = 0; i < 3; i++) {
+          const x = gate.x + (i - 1) * gate.width * 0.24;
+          woodDebris.add({ x, y: T.heightAt(x, gate.z) + 0.28, z: gate.z, vx: (Math.random() - 0.5) * 1.3, vy: 0.8 + Math.random() * 0.8, vz: (Math.random() - 0.5) * 1.3,
+            sx: 0.18, sy: 0.72, sz: 0.16, rz: Math.PI / 2, color: woodColor(), half: 0.12, life: 8, wood: 1 });
+        }
+      }
+    }
   }
   // ── one way in for everything that can hurt the world ──
   // A grid over every stone, tree and bush, so a blow or a blast only looks at what is near it.
   const CELL = 8, cells = new Map(), cellKey = (x, z) => Math.floor(x / CELL) + ',' + Math.floor(z / CELL);
   let gridBuilt = false;
-  function buildGrid() { gridBuilt = true; for (const e of [...stones, ...trees, ...bushes]) { const k = cellKey(e.x, e.z); (cells.get(k) || cells.set(k, []).get(k)).push(e); } }
+  function buildGrid() { gridBuilt = true; for (const e of [...stones, ...trees, ...bushes, ...gates]) { const k = cellKey(e.x, e.z); (cells.get(k) || cells.set(k, []).get(k)).push(e); } }
   function nearby(x, z, r) {
     if (!gridBuilt) buildGrid();
     const out = [], x0 = Math.floor((x - r - 3) / CELL), x1 = Math.floor((x + r + 3) / CELL), z0 = Math.floor((z - r - 3) / CELL), z1 = Math.floor((z + r + 3) / CELL);
     for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) { const c = cells.get(i + ',' + j); if (c) for (const e of c) if (!e.broken) out.push(e); }
     return out;
   }
-  const damageEntry = (e, damage, hitKey, from, at, force) => e.kind === 'rock' ? damageStone(e, damage, hitKey, from, force) : e.kind === 'bush' ? damageBush(e, damage, hitKey, from) : damageTree(e, damage, hitKey, from, at);
+  const damageEntry = (e, damage, hitKey, from, at, force) => e.kind === 'rock' ? damageStone(e, damage, hitKey, from, force) : e.kind === 'bush' ? damageBush(e, damage, hitKey, from) : e.kind === 'woodGate' ? damageGate(e, damage, hitKey, from) : damageTree(e, damage, hitKey, from, at);
   const bA = new THREE.Vector3(), bB = new THREE.Vector3(), bC = new THREE.Vector3(), bD = new THREE.Vector3();
   const segPoint = (a, b, p) => { bC.subVectors(b, a); const L = bC.lengthSq(), t = L > 1e-9 ? Math.max(0, Math.min(1, bD.subVectors(p, a).dot(bC) / L)) : 0; return bD.copy(a).addScaledVector(bC, t).distanceTo(p); };
   // Does this capsule (a limb, a blade, a bolt or an arrow: { a, b, r, pa?, pb? }) touch it?
@@ -519,11 +558,24 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     const r = seg.r ?? 0.12;
     if (e.kind === 'rock') return Math.hypot(seg.b.x - e.x, seg.b.z - e.z) < e.scale * 1.4 + r + 1 && stoneSurfaceTouch(e, seg);
     if (e.kind === 'bush') { bA.set(e.x, e.gy + e.h * 0.5, e.z); return segPoint(seg.a, seg.b, bA) <= e.radius * 0.85 + r; }
+    if (e.kind === 'woodGate') {
+      const c = Math.cos(e.rot), s = Math.sin(e.rot), steps = Math.max(8, Math.ceil(seg.a.distanceTo(seg.b) / 0.12));
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps, wx = seg.a.x + (seg.b.x - seg.a.x) * t, wy = seg.a.y + (seg.b.y - seg.a.y) * t, wz = seg.a.z + (seg.b.z - seg.a.z) * t;
+        const dx = wx - e.x, dz = wz - e.z, lx = dx * c - dz * s, lz = dx * s + dz * c, ly = wy - e.gy;
+        if (Math.abs(lz) > 0.11 + r || ly < 0.12 - r || ly > 1.04 + r) continue;
+        if (ly < 0.29 + r && ly > 0.11 - r || Math.abs(ly - 0.59) < 0.09 + r || ly > 0.88 - r) return true; // three visible cross rails
+        const plank = Math.round((lx + e.halfWidth - 0.12) / e.plankStep);
+        if (plank >= 0 && plank < e.plankCount && Math.abs(lx - (-e.halfWidth + 0.12 + plank * e.plankStep)) < 0.095 + r) return true;
+      }
+      return false;
+    }
     bA.set(e.x, e.gy, e.z); bB.set(e.x, e.gy + e.trunkH, e.z); // a tree is struck on its trunk
     return segSeg(seg.a, seg.b, bA, bB, edgeA, edgeB) <= e.hitR + r || (!!seg.pa && segSeg(seg.pa, seg.a, bA, bB, edgeA, edgeB) <= e.hitR + r);
   }
   const breakables = {
-    get stones() { return stones; }, get trees() { return trees; }, get bushes() { return bushes; },
+    get stones() { return stones; }, get trees() { return trees; }, get bushes() { return bushes; }, get gates() { return gates; },
+    get pickups() { return [...(rockDebris?.list || []).filter(q => q.ever), ...(woodDebris?.list || []).filter(q => q.wood || q.lifeSeed)]; },
     setHitEffect(fn) { natureFX = fn; }, // fn(kind 'tree' | 'bush', event 'hit' | 'fall' | 'crash' | 'break' | 'rustle', x, y, z, entry, extra)
     // A blow, a blade, a bolt, an arrow: damages whatever it actually touches. Returns how many things it hit.
     // only: restrict to one entry (a locked stone) · first: stop at the first thing hit (projectiles).
@@ -945,6 +997,39 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
       }
     }
     pi.castShadow = ri.castShadow = true; group.add(pi, ri);
+    // Real hinged wooden gates close the road-facing opening. They use the same
+    // visible mesh, collision, hit grid and persistent wood debris as the trees.
+    for (const pd of W.paddocks) {
+      const cos = Math.cos(pd.rot), sin = Math.sin(pd.rot), toW = (lx, lz) => [pd.x + lx * cos + lz * sin, pd.z - lx * sin + lz * cos];
+      const corners = [[-pd.w / 2, -pd.d / 2], [pd.w / 2, -pd.d / 2], [pd.w / 2, pd.d / 2], [-pd.w / 2, pd.d / 2]];
+      const road = T.roads.nearest(pd.x, pd.z, 60), gateDir = road ? Math.atan2(road.x - pd.x, road.z - pd.z) : 0;
+      let found = false;
+      for (let side = 0; side < 4 && !found; side++) {
+        const [ax, az] = corners[side], [bx, bz] = corners[(side + 1) % 4], len = Math.hypot(bx - ax, bz - az), mid = toW((ax + bx) / 2, (az + bz) / 2);
+        const sideDir = Math.atan2(mid[0] - pd.x, mid[1] - pd.z);
+        if (Math.abs(((sideDir - gateDir + Math.PI * 3) % (Math.PI * 2)) - Math.PI) >= Math.PI / 4) continue;
+        const width = Math.min(5.4, len * 0.235), halfWidth = width / 2, [x, z] = toW((ax + bx) / 2, (az + bz) / 2), gy = T.heightAt(x, z);
+        const rot = Math.atan2(-(bz - az), bx - ax), plankCount = Math.max(7, Math.ceil(width / 0.46)), plankStep = width / (plankCount - 1);
+        const frameMat = wood, panelMat = new THREE.MeshStandardMaterial({ color: '#8a6945', roughness: 0.95, flatShading: true });
+        const root = new THREE.Group(); root.position.set(x, gy, z); root.rotation.y = rot; root.userData.noCollide = true;
+        const box = (w, h, d, mat, px, py, pz, parent = root) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
+        box(0.18, 1.08, 0.18, frameMat, -halfWidth, 0.54, 0);
+        box(0.18, 1.08, 0.18, frameMat, halfWidth, 0.54, 0);
+        const leaf = new THREE.Group(); leaf.position.set(-halfWidth, 0, 0); root.add(leaf);
+        const inner = width - 0.18;
+        for (const y of [0.2, 0.56, 0.92]) box(inner, 0.13, 0.12, panelMat, inner / 2, y, 0, leaf);
+        for (let i = 0; i < plankCount; i++) box(0.16, 0.72, 0.1, panelMat, inner * i / (plankCount - 1), 0.56, 0, leaf);
+        const collider = { type: 'box', x, z, hw: halfWidth - 0.12, hd: 0.09, rot, top: gy + 1.07, active: true };
+        const postColliders = [-halfWidth, halfWidth].map(offset => {
+          const px = x + offset * Math.cos(rot), pz = z - offset * Math.sin(rot), post = { type: 'circle', x: px, z: pz, r: 0.13, top: gy + 1.08, active: true };
+          obstacles.push(post); return post;
+        });
+        obstacles.push(collider); group.add(root);
+        gates.push({ kind: 'woodGate', id: `farm-gate-${gates.length + 1}`, x, z, gy, rot, width, halfWidth, radius: halfWidth, plankCount, plankStep,
+          hp: 24, maxHP: 24, stage: 0, hitKeys: new Set(), broken: false, root, leaf, material: panelMat, collider, postColliders });
+        found = true;
+      }
+    }
     // hay bales inside paddocks
     const hay = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.75, 0.75, 1.3, 12), new THREE.MeshStandardMaterial({ color: '#cfb26a', roughness: 1 }), W.detail.hay);
     let n = 0;

@@ -1,5 +1,4 @@
-// Loot: three silver chests by Rizer's home (Tearsword, Jaded Axe and Pearlbow),
-// the common wooden chests around Malezor (coins), and the small inventory the
+// Loot: Gemlord Mythic chests at their caves, wooden resource chests around Malezor, and the small inventory the
 // Zyphone's Weapons tab and the weapon wheel equip from.
 //   chest closed → (○ / E) Rizer walks up, lifts the lid, the weapon springs out and settles
 //   hovering at hand height → (○ / E) he takes it with the Picking Up clip and puts it away
@@ -11,16 +10,15 @@ import { DVDS } from './dvd-registry.js';
 
 // ── inventory (kept per browser; fine to lose) ───────────────────────
 const KEY = 'rp7d.inventory.v1';
-// Mythic weapons are tied to the Gemlords. For the playtest both wait in silver chests by Rizer's
-// home; they'll be much harder to earn later.
+// The four Gemlord weapons are Mythic rewards, each placed by its own Gemlord cave.
 export const WEAPONS = {
   fists: { name: 'Fists', blurb: 'Punches and kicks. Always with you.' },
-  sword: { name: 'Tearsword of Azurel', tier: 'Mythic', gemlord: 'Azurel', color: '#6fb4ff', blurb: 'A mythic blade tied to the Gemlord Azurel: tempered steel with an azure fuller, gold guard, a teardrop sapphire in the pommel. □ swings a four-cut combo.' },
+  sword: { name: 'Sapphire Tearsword of Azurel', tier: 'Mythic', gemlord: 'Azurel', color: '#6fb4ff', blurb: 'A mythic blade tied to the Gemlord Azurel: tempered steel with an azure fuller, gold guard, a teardrop sapphire in the pommel. □ swings a four-cut combo.' },
   axe: { name: 'Jaded Axe of Emeralix', tier: 'Mythic', gemlord: 'Emeralix', color: '#3dff7a', blurb: 'A mythic double-bladed war axe tied to the Gemlord Emeralix: emerald crescent edges on a moss-green head, a caged emerald at its heart. Heavy — every blow lands hard. □ swings a four-stage combo.' },
   bow: { name: 'Pearlbow of Ivirium', tier: 'Mythic', gemlord: 'Ivirium', color: '#f4ddff', blurb: 'An ivory and pearl bow with gold fittings. Tap □ to loose a traveling arrow; hold □ to aim while walking. Lock on to choose a target.' },
   // Psychosyd — Baelgor rockstar, electric-guitar apex of the Zyraxis Humanoidlands — signed this cherry-red guitar.
   guitar: { name: "Psychosyd's Signed Red Guitar", tier: 'Legendary', color: '#ff3b3b', banner: 'LEGENDARY · PSYCHOSYD', blurb: 'Cherry-red electric guitar with a gold signature: "Keep it loud. — PSYCHOSYD." □ plays the solo; every Seer and Mori in earshot drops everything and dances until it ends. □ again, moving or taking a hit stops it.' },
-  rubypaw: { name: 'Rubypaw Sword · Longsword of Rakoron', tier: 'Uncommon', color: '#ff2a2a', banner: 'RUBYPAW · RAKORON', blurb: 'Rakoron’s heavy crimson longsword: obsidian inset, ruby edge and clawed guard. Stows across Rizer’s back. □ swings the Jaded Axe’s four-stage combo.' },
+  rubypaw: { name: 'Rubypaw Longsword of Rakoron', tier: 'Mythic', gemlord: 'Rakoron', color: '#ff2a2a', banner: 'MYTHIC WEAPON · RAKORON', blurb: 'Rakoron’s heavy crimson longsword: obsidian inset, ruby edge and clawed guard. Stows across Rizer’s back. □ swings the Jaded Axe’s four-stage combo.' },
   telescope: { name: 'Stargazer Telescope', tier: 'Uncommon', color: '#6fb4ff', banner: 'EXPLORATION · STARGAZER', blurb: 'A brass-and-glass refractor on a wooden tripod. Draw it, then □ to set it up: Rizer crafts it piece by piece and plants it in the overworld. ○ / E beside it looks through it into the Aethryx Expanse; □ beside it packs it away.' },
   // The crafted Field Workstation, as an Armory tool (game.js · syncWorkstationKit): on the wheel while one is owned; □ builds it.
   workstation: { name: 'Field Workstation', tier: 'Crafted', color: '#7fd6ff', banner: 'FIELD EQUIPMENT · BUILD', blurb: 'The Field Workstation you crafted at your Experiment Table. Draw it, then □ to build it where you look; ○ / E sets it down. It stays in the Armory while you own one.' },
@@ -107,6 +105,9 @@ export const ITEMS = {
   'fruit-violet': { name: 'Purple Fruit', kind: 'consumable', color: '#8a63c4', boost: { astral: 8 }, blurb: 'A purple fruit that hums faintly with astral energy. Restores a little astral energy.' },
   'fruit-white': { name: 'White Fruit', kind: 'consumable', color: '#efe8dc', boost: { hp: 15, stamina: 15, astral: 15 }, blurb: 'A rare pale fruit. Restores health, stamina and astral energy.' },
   gemshard: { name: 'Gemshard', kind: 'material', color: '#9fe8ff', blurb: 'A crystalline shard fused from Astralites at the Astralite Station. Used in advanced crafting.' },
+  broken_guitar: { name: 'Broken Red Guitar', kind: 'material', color: '#8d4141', blurb: 'Psychosyd’s guitar needs repair at Rizer’s Experiment Table or a Field Workstation.' },
+  broken_astralboard: { name: 'Broken Astralboard', kind: 'material', color: '#6553a5', blurb: 'A damaged Astralite hoverboard. Repair it at Rizer’s Experiment Table or a Field Workstation.' },
+  broken_telescope: { name: 'Broken Stargazer Telescope', kind: 'material', color: '#6c7d9a', blurb: 'A damaged telescope. Repair it at Rizer’s Experiment Table or a Field Workstation.' },
   // Gold Coins: currency and collectible, found in wooden chests throughout Malezor
   'coins': { name: 'Gold Coins', kind: 'currency', color: '#ffd700', blurb: 'Golden coins of Malezor. Valuable for trade and treasure.' }
 };
@@ -389,23 +390,33 @@ export function buildTelescope() {
 export const WEAPON_MESH = { blaster: buildBlasterRifle, telescope: buildTelescope, sword: buildSword, axe: buildAxe, bow: buildPearlbow, guitar: buildGuitar, rubypaw: buildRubypaw, astralboard: buildAstralboard };
 
 // ── chests ───────────────────────────────────────────────────────────
-// One standard chest, two finishes. Every chest in the game is this size.
-//   common   · wooden: oak planks, black-iron bands and lock · coins inside
-//   uncommon · silver: dark slate wood, polished silver bands and lock, a pale-blue gem · a weapon inside
-//   gold     · gilded: gold body and bands, a blue crystal lock · a Lightbulb inside
+// One shared chest controller, four official finishes: wood → silver → gold → mythic.
 export const CHEST = { w: 1.1, d: 0.7, h: 0.55 }; // body size (units); the rounded lid adds ~0.22
+export const CHEST_TIERS = Object.freeze(['wood', 'silver', 'gold', 'mythic']);
+const canonicalChestTier = tier => ({ common: 'wood', uncommon: 'silver', cosmic: 'mythic' }[tier] || (CHEST_TIERS.includes(tier) ? tier : 'wood'));
 const FINISH = {
-  common: { wood: '#7a5230', dark: '#553823', band: '#3b3d42', bandM: 0.6, gem: null, glow: '#ffcf7a', inner: '#e9c982' },
-  uncommon: { wood: '#4d5561', dark: '#363c46', band: '#d6dde6', bandM: 0.95, gem: '#bfe4ff', glow: '#dff0ff', inner: '#cfe6ff' },
-  // gold · gilded body, bright gold bands, a blue crystal lock · a Lightbulb inside (focus-moves.js)
-  gold: { wood: '#c08a2a', woodM: 0.75, woodR: 0.35, dark: '#5e3f0e', band: '#ffd76a', bandM: 1, gem: '#4fa8ff', glow: '#ffd98a', inner: '#ffe7a8' }
+  wood: { wood: '#7a5230', dark: '#553823', band: '#3b3d42', bandM: 0.6, gem: null, glow: '#ffcf7a', inner: '#e9c982' },
+  silver: { wood: '#4d5561', dark: '#363c46', band: '#d6dde6', bandM: 0.95, gem: '#bfe4ff', glow: '#dff0ff', inner: '#cfe6ff' },
+  gold: { wood: '#c08a2a', woodM: 0.75, woodR: 0.35, dark: '#5e3f0e', band: '#ffd76a', bandM: 1, gem: '#4fa8ff', glow: '#ffd98a', inner: '#ffe7a8' },
+  mythic: { wood: '#080d24', woodM: 0.42, woodR: 0.24, dark: '#161331', band: '#ffd76a', bandM: 1, gem: '#b34dff', glow: '#916cff', inner: '#9d68ff', cosmic: true }
 };
-export function buildChest(tier = 'common') {
-  const F = FINISH[tier] || FINISH.common, root = new THREE.Group();
-  const wood = M(F.wood, { roughness: F.woodR ?? 0.82, metalness: F.woodM ?? 0 }), dark = M(F.dark, { roughness: 0.88 }), band = M(F.band, { metalness: F.bandM, roughness: tier !== 'common' ? 0.22 : 0.5 });
+function mythicChestTexture() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, 256, 128); bg.addColorStop(0, '#080b22'); bg.addColorStop(.5, '#211044'); bg.addColorStop(1, '#071b39'); g.fillStyle = bg; g.fillRect(0, 0, 256, 128);
+  for (const [x, y, r, color] of [[58,58,49,'rgba(87,35,206,.46)'],[177,69,44,'rgba(13,132,255,.38)'],[126,18,26,'rgba(187,56,255,.23)']]) { const a = g.createRadialGradient(x,y,0,x,y,r); a.addColorStop(0,color); a.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=a; g.fillRect(x-r,y-r,r*2,r*2); }
+  let seed = 7307; const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  for (let i = 0; i < 145; i++) { const x=rand()*256, y=rand()*128, r=rand()*1.25+.3; g.fillStyle = `rgba(${rand()>.5?'170,205,255':'255,210,255'},${.3+rand()*.7})`; g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill(); }
+  for (const [x,y,r] of [[62,62,19],[182,62,14]]) { g.strokeStyle='rgba(166,116,255,.58)'; g.lineWidth=1.2; g.beginPath(); g.ellipse(x,y,r,r*.46,-.5,0,Math.PI*2); g.stroke(); g.fillStyle='#c4eaff'; g.fillRect(x-1,y-1,2,2); }
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+}
+const MYTHIC_PANEL_TEX = mythicChestTexture();
+export function buildChest(tier = 'wood') {
+  tier = canonicalChestTier(tier);
+  const F = FINISH[tier], root = new THREE.Group();
+  const wood = M(F.wood, { roughness: F.woodR ?? 0.82, metalness: F.woodM ?? 0, ...(F.cosmic ? { map: MYTHIC_PANEL_TEX, emissiveMap: MYTHIC_PANEL_TEX, emissive: new THREE.Color('#5638a8'), emissiveIntensity: 0.5 } : {}) }), dark = M(F.dark, { roughness: 0.88 }), band = M(F.band, { metalness: F.bandM, roughness: tier !== 'wood' ? 0.22 : 0.5 });
   const { w: W, d: D, h: H } = CHEST;
   const body = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), wood); body.position.y = H / 2; root.add(body);
-  for (const y of [H * 0.33, H * 0.66]) { const seam = new THREE.Mesh(new THREE.BoxGeometry(W + 0.005, 0.012, D + 0.005), dark); seam.position.y = y; root.add(seam); } // plank lines
+  if (!F.cosmic) for (const y of [H * 0.33, H * 0.66]) { const seam = new THREE.Mesh(new THREE.BoxGeometry(W + 0.005, 0.012, D + 0.005), dark); seam.position.y = y; root.add(seam); } // wood plank lines
   const inner = new THREE.Mesh(new THREE.BoxGeometry(W - 0.1, 0.02, D - 0.1), M('#2b1d12', { emissive: new THREE.Color(F.inner), emissiveIntensity: 0 })); inner.position.y = H - 0.05; root.add(inner);
   for (const x of [-W / 2 + 0.06, W / 2 - 0.06]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.07, H + 0.02, D + 0.03), band); b.position.set(x, H / 2, 0); root.add(b); }
   const rim = new THREE.Mesh(new THREE.BoxGeometry(W + 0.03, 0.05, D + 0.03), band); rim.position.y = H; root.add(rim);
@@ -414,6 +425,12 @@ export function buildChest(tier = 'common') {
   const hinge = new THREE.Group(); hinge.position.set(0, H, -D / 2); root.add(hinge);
   const lid = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, W, 12, 1, false, 0, Math.PI), M(F.wood, { roughness: F.woodR ?? 0.82, metalness: F.woodM ?? 0, side: THREE.DoubleSide })); lid.rotation.set(0, 0, Math.PI / 2); lid.scale.set(0.62, 1, 1); lid.position.set(0, 0, D / 2); hinge.add(lid);
   for (const x of [-W / 2 + 0.06, 0, W / 2 - 0.06]) { const arc = new THREE.Mesh(new THREE.TorusGeometry(D / 2, 0.03, 5, 14, Math.PI), band); arc.rotation.set(0, Math.PI / 2, 0); arc.scale.set(1, 0.62, 1); arc.position.set(x, 0, D / 2); hinge.add(arc); }
+  if (F.cosmic) {
+    const panelMat = M('#ffffff', { map: MYTHIC_PANEL_TEX, emissiveMap: MYTHIC_PANEL_TEX, emissive: new THREE.Color('#412080'), emissiveIntensity: 0.42, roughness: 0.38, metalness: 0.22 });
+    for (const side of [-1, 1]) { const panel = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.2, H - 0.14), panelMat); panel.position.set(0, H / 2, side * (D / 2 + 0.008)); if (side < 0) panel.rotation.y = Math.PI; root.add(panel); }
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.075), M('#7fdcff', { emissive: new THREE.Color('#438cff'), emissiveIntensity: 1.25, metalness: .4, roughness: .18 })); star.position.set(0, H + .08, 0); root.add(star);
+    for (const x of [-W*.28, W*.28]) { const rune = new THREE.Mesh(new THREE.BoxGeometry(.025,.2,.025), M('#8e71ff',{emissive:new THREE.Color('#572cff'),emissiveIntensity:.8,metalness:.5})); rune.position.set(x,H*.5,D/2+.016); root.add(rune); }
+  }
   const lock = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.2, 0.05), band); lock.position.set(0, H - 0.06, D / 2 + 0.02); root.add(lock);
   let lockGem = null;
   if (F.gem) { lockGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.05), M(F.gem, { roughness: 0.15, metalness: 0.2, emissive: new THREE.Color(F.gem), emissiveIntensity: 0.9 })); lockGem.position.set(0, H - 0.06, D / 2 + 0.06); root.add(lockGem); }
@@ -439,13 +456,46 @@ function chestCollider(world, x, z, y, face, mesh) { world.addMesh?.(mesh); }
 // Where Rizer stands to open a chest: square in front of the lock, facing it.
 export function chestFront(C) { const f = C.root.rotation.y, p = C.root.position; return { x: p.x + Math.sin(f) * 1.15, z: p.z + Math.cos(f) * 1.15, face: f + Math.PI, around: { x: p.x, z: p.z, r: 0.66 } }; }
 
-// ── playtest layout: every silver and gold chest in two arcs in front of Rizer's porch ──
-// PLAYTEST_PORCH_CHESTS on: the six silver chests (weapons, rides) stand in an inner arc and the six gold Lightbulb
-// chests (focus-moves.js) in an outer one, all facing the porch, on clear ground (no walls, water, slopes, nor the
-// West Lake bus parked beside the porch). Off: each chest goes back to its own place in the world. Chest progress is
-// saved by chest id, so moving them never resets what was opened or collected.
-export const PLAYTEST_PORCH_CHESTS = true;
+// Legacy porch-layout helper retained for compatibility. Active playtest chests now use scattered world layouts.
+export const PLAYTEST_PORCH_CHESTS = false;
 let porchCache = null;
+// Chest sites are rolled once per save, then kept so a map ping always points to the same place.
+// The sampler stays inside Malezor and only accepts walkable, unobstructed ground.
+export function scatteredChestSpots(W, world, layoutId, count, avoid = []) {
+  const layouts = inventory.tutorialChestLayouts ||= {};
+  const saved = layouts[layoutId];
+  if (Array.isArray(saved) && saved.length === count && saved.every(p => Number.isFinite(p.x) && Number.isFinite(p.z))) return saved;
+  const keyHash = [...String(layoutId)].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
+  let seed = (keyHash ^ (W.seed || 7) ^ ((Math.random() * 0xffffffff) >>> 0)) >>> 0;
+  const rand = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const extent = Math.min(world.bound || 300, W.extent - 12), taken = [...avoid];
+  for (const [k, arr] of Object.entries(layouts)) if (k !== layoutId) for (const p of arr || []) taken.push(p);
+  const clear = (x, z) => {
+    if (Math.hypot(x - W.playerStart.x, z - W.playerStart.z) < 22 || !world.containsLand(x, z)) return false;
+    const h = world.heightAt(x, z);
+    if (world.waterAt(x, z) > h - 0.2 || Math.abs(world.heightAt(x + 1.5, z) - world.heightAt(x - 1.5, z)) > 0.65 || Math.abs(world.heightAt(x, z + 1.5) - world.heightAt(x, z - 1.5)) > 0.65) return false;
+    const probe = new THREE.Vector3(x, world.groundAt(x, z), z);
+    return !world.resolve(probe, 2.1) && !taken.some(p => Math.hypot(p.x - x, p.z - z) < 24);
+  };
+  const out = [];
+  for (let tries = 0; tries < 12000 && out.length < count; tries++) {
+    const x = (rand() * 2 - 1) * extent, z = (rand() * 2 - 1) * extent;
+    if (!clear(x, z)) continue;
+    const face = rand() * Math.PI * 2, p = { x: +x.toFixed(2), z: +z.toFixed(2), face };
+    out.push(p); taken.push(p);
+  }
+  if (out.length < count) { // deterministic fallback to clear sites near known Malezor landmarks
+    for (const it of world.interactables) {
+      if (out.length >= count || !Number.isFinite(it.cx)) continue;
+      for (let r = 12; r <= 90 && out.length < count; r += 8) for (let k = 0; k < 16 && out.length < count; k++) {
+        const a = k * Math.PI / 8, x = it.cx + Math.sin(a) * r, z = it.cz + Math.cos(a) * r;
+        if (clear(x, z)) { const face = Math.atan2(it.cx - x, it.cz - z), p = { x: +x.toFixed(2), z: +z.toFixed(2), face }; out.push(p); taken.push(p); }
+      }
+    }
+  }
+  layouts[layoutId] = out; saveInv();
+  return out;
+}
 export function porchChestSpots(W, world) {
   if (porchCache) return porchCache;
   const s = W.playerStart, chosen = [], avoid = [{ x: s.x + 14, z: s.z + 8, r: 8 }]; // the bus
@@ -466,10 +516,47 @@ export function porchChestSpots(W, world) {
   return (porchCache = { silver, gold });
 }
 
-// ── the silver weapon chests by Rizer's home ─────────────────────────
-// Three near the doorstep, with clear walk-up space and lids toward Rizer's home.
+// Four unique Mythic weapon chests, each anchored to its canon Gemlord cave.
+function gemlordCaveChestSpots(world) {
+  const lords = ['Rakoron', 'Azurel', 'Ivirium', 'Emeralix'], key = 'gemlord-mythic-caves-v1';
+  const saved = inventory.tutorialChestLayouts?.[key];
+  if (Array.isArray(saved) && saved.length === 4 && saved.every(p => Number.isFinite(p.x) && Number.isFinite(p.z)) && lords.every(n => saved.some(p => p.lord === n))) return Object.fromEntries(saved.map(p => [p.lord, p]));
+  const taken = [], out = {};
+  const clear = (x, z) => {
+    if (!world.onLand?.(x, z)) return false;
+    const h = world.heightAt(x, z), water = world.waterAt(x, z);
+    if (water > h - 0.2 || Math.abs(world.heightAt(x + 1.5, z) - world.heightAt(x - 1.5, z)) > 0.75 || Math.abs(world.heightAt(x, z + 1.5) - world.heightAt(x, z - 1.5)) > 0.75) return false;
+    const probe = new THREE.Vector3(x, world.groundAt(x, z), z);
+    return !world.resolve(probe, 1.9) && !taken.some(p => Math.hypot(p.x - x, p.z - z) < 9);
+  };
+  for (const lord of lords) {
+    const f = world.caves?.formations?.find(q => q.cave?.classification === 'gemlord' && q.cave.gemlord === lord);
+    const anchor = f?.stand || (() => { const it = world.interactables.find(q => q.cave === f?.cave?.id); return it && { x: it.x, z: it.z, face: 0 }; })();
+    if (!anchor) { console.warn(`[rp7d] no cave anchor for ${lord} Mythic chest`); continue; }
+    const face = Number.isFinite(anchor.face) ? anchor.face : 0;
+    // Search outward from the walk-up point, favoring the approach side so the cave mouth remains clear.
+    let chosen = null;
+    search: for (const r of [8, 11, 14, 17, 20, 24, 28]) for (const da of [0, .35, -.35, .7, -.7, 1.05, -1.05, 1.4, -1.4, Math.PI]) {
+      const a = face + Math.PI + da, x = anchor.x + Math.sin(a) * r, z = anchor.z + Math.cos(a) * r;
+      if (!clear(x, z)) continue;
+      chosen = { lord, x: +x.toFixed(2), z: +z.toFixed(2), face: Math.atan2(anchor.x - x, anchor.z - z) }; break search;
+    }
+    // Pinned Ruby Cave has a compact approach; if nearby geometry is dense, allow the nearest open spot on its perimeter.
+    if (!chosen && f) for (let r = 8; r <= 42 && !chosen; r += 3) for (let k = 0; k < 24; k++) {
+      const a = k * Math.PI / 12, x = f.center.x + Math.sin(a) * r, z = f.center.z + Math.cos(a) * r;
+      if (clear(x, z)) { chosen = { lord, x: +x.toFixed(2), z: +z.toFixed(2), face: Math.atan2(anchor.x - x, anchor.z - z) }; break; }
+    }
+    if (chosen) { out[lord] = chosen; taken.push(chosen); }
+  }
+  const layout = Object.values(out); (inventory.tutorialChestLayouts ||= {})[key] = layout; saveInv();
+  return out;
+}
+
+// ── the four Gemlord Mythic weapon chests ─────────────────────────────
 export function createLoot(scene, world, fx, W) {
-  const porch = PLAYTEST_PORCH_CHESTS ? porchChestSpots(W, world).silver : null, atPorch = (i, o) => porch?.[i] ? { ...o, ...porch[i] } : o;
+  const gemlord = gemlordCaveChestSpots(world);
+  // Utility item chests join the same saved, scattered overworld layout as tutorial treasure.
+  const utilitySpots = scatteredChestSpots(W, world, 'utility-item-chests-v1', 2), atUtility = (i, o) => utilitySpots[i] ? { ...o, ...utilitySpots[i] } : o;
   const s = W.playerStart; let x = s.x, z = s.z, face = 0, side = 1;
   const clear = (cx, cz, r) => { const probe = new THREE.Vector3(cx, world.groundAt(cx, cz), cz); return !world.resolve(probe, r) && world.waterAt(cx, cz) < world.heightAt(cx, cz) - 0.2 && Math.abs(world.heightAt(cx + 1.5, cz) - world.heightAt(cx - 1.5, cz)) < 0.35 && Math.abs(world.heightAt(cx, cz + 1.5) - world.heightAt(cx, cz - 1.5)) < 0.35; };
   // Near Rizer's front door, in the first open spot with room for both chests, a few steps off the way he faces at the start.
@@ -478,9 +565,9 @@ export function createLoot(scene, world, fx, W) {
     if (!clear(cx, cz, 2.2)) continue;
     for (const sd of [1, -1]) { const ox = cx + Math.cos(f) * 3.6 * sd, oz = cz - Math.sin(f) * 3.6 * sd; if (clear(ox, oz, 1.6)) { x = cx; z = cz; face = f; side = sd; break search; } }
   }
-  const sword = itemChest(scene, world, fx, atPorch(0, { id: 'rizer-chest', item: 'sword', x, z, face, isOpen: () => !!inventory.chestOpen, setOpen: () => { inventory.chestOpen = true; } }));
+  const sword = itemChest(scene, world, fx, { id: 'rizer-chest', item: 'sword', tier: 'mythic', x: gemlord.Azurel?.x ?? x, z: gemlord.Azurel?.z ?? z, face: gemlord.Azurel?.face ?? face, isOpen: () => !!inventory.chestOpen, setOpen: () => { inventory.chestOpen = true; } });
   const ax = x + Math.cos(face) * 3.6 * side, az = z - Math.sin(face) * 3.6 * side;
-  const axe = itemChest(scene, world, fx, atPorch(1, { id: 'emeralix-chest', item: 'axe', x: ax, z: az, face, isOpen: () => !!inventory.chests?.['emeralix-chest'], setOpen: () => { (inventory.chests ||= {})['emeralix-chest'] = 1; } }));
+  const axe = itemChest(scene, world, fx, { id: 'emeralix-chest', item: 'axe', tier: 'mythic', x: gemlord.Emeralix?.x ?? ax, z: gemlord.Emeralix?.z ?? az, face: gemlord.Emeralix?.face ?? face, isOpen: () => !!inventory.chests?.['emeralix-chest'], setOpen: () => { (inventory.chests ||= {})['emeralix-chest'] = 1; } });
   let bx = x - Math.cos(face) * 3.6 * side, bz = z + Math.sin(face) * 3.6 * side;
   if (!clear(bx, bz, 1.6)) {
     bowSpot: for (const r of [3.8, 4.6, 5.6, 7]) for (let i = 0; i < 12; i++) {
@@ -488,16 +575,15 @@ export function createLoot(scene, world, fx, W) {
       if (Math.hypot(tx - ax, tz - az) > 3.4 && Math.hypot(tx - x, tz - z) > 3.4 && clear(tx, tz, 1.6)) { bx = tx; bz = tz; break bowSpot; }
     }
   }
-  const bow = itemChest(scene, world, fx, atPorch(2, { id: 'ivirium-chest', item: 'bow', x: bx, z: bz, face, isOpen: () => !!inventory.chests?.['ivirium-chest'], setOpen: () => { (inventory.chests ||= {})['ivirium-chest'] = 1; } }));
-  // Rubypaw Sword's chest: a fourth silver chest in the same home cluster, tucked wherever there's still
-  // room around the sword/axe/bow trio.
+  const bow = itemChest(scene, world, fx, { id: 'ivirium-chest', item: 'bow', tier: 'mythic', x: gemlord.Ivirium?.x ?? bx, z: gemlord.Ivirium?.z ?? bz, face: gemlord.Ivirium?.face ?? face, isOpen: () => !!inventory.chests?.['ivirium-chest'], setOpen: () => { (inventory.chests ||= {})['ivirium-chest'] = 1; } });
+  // Rakoron's Rubypaw chest remains keyed to its existing save id, now by his Ruby Cave.
   let rx = x, rz = z + 2.5;
   rubySpot: for (const r of [3.8, 4.6, 5.6, 7, 9]) for (let i = 0; i < 14; i++) {
     const a = face + i * (Math.PI / 7), tx = x + Math.sin(a) * r, tz = z + Math.cos(a) * r;
     if (Math.hypot(tx - ax, tz - az) > 3.4 && Math.hypot(tx - bx, tz - bz) > 3.4 && Math.hypot(tx - x, tz - z) > 3.4 && clear(tx, tz, 1.6)) { rx = tx; rz = tz; break rubySpot; }
   }
   const rface = Math.atan2(x - rx, z - rz);
-  const rubypaw = itemChest(scene, world, fx, atPorch(3, { id: 'rubypaw-chest', item: 'rubypaw', x: rx, z: rz, face: rface, isOpen: () => !!inventory.chests?.['rubypaw-chest'], setOpen: () => { (inventory.chests ||= {})['rubypaw-chest'] = 1; } }));
+  const rubypaw = itemChest(scene, world, fx, { id: 'rubypaw-chest', item: 'rubypaw', tier: 'mythic', x: gemlord.Rakoron?.x ?? rx, z: gemlord.Rakoron?.z ?? rz, face: gemlord.Rakoron?.face ?? rface, isOpen: () => !!inventory.chests?.['rubypaw-chest'], setOpen: () => { (inventory.chests ||= {})['rubypaw-chest'] = 1; } });
   // The spot on the west side of Malezor Square's fountain anchors the Astralboard and Telescope chests. (Psychosyd's guitar
   // used to wait in a chest here; it now lies on the floor of Rizer's room, home-interior.js.)
   const P = W.plaza; let gx = P.x - (P.r - 3), gz = P.z, gFace = Math.PI / 2;
@@ -508,31 +594,32 @@ export function createLoot(scene, world, fx, W) {
   // Astralboard chest sits beside that spot in Malezor Square.
   let qx = gx + Math.cos(gFace) * 3.6, qz = gz - Math.sin(gFace) * 3.6;
   if (!clear(qx, qz, 1.6)) { qx = gx - Math.cos(gFace) * 3.6; qz = gz + Math.sin(gFace) * 3.6; }
-  const astralboard = itemChest(scene, world, fx, atPorch(4, { id: 'astralboard-chest', item: 'astralboard', ride: true, x: qx, z: qz, face: gFace, isOpen: () => !!inventory.chests?.['astralboard-chest'], setOpen: () => { (inventory.chests ||= {})['astralboard-chest'] = 1; } }));
+  const astralboard = itemChest(scene, world, fx, atUtility(0, { id: 'astralboard-chest', item: 'astralboard', brokenId: 'broken_astralboard', tier: 'wood', x: qx, z: qz, face: gFace, isOpen: () => !!inventory.chests?.['astralboard-chest'], setOpen: () => { (inventory.chests ||= {})['astralboard-chest'] = 1; } }));
   // Stargazer Telescope chest: on the spot's other side from the Astralboard, so the two face each other across it.
   let sx = 2 * gx - qx, sz = 2 * gz - qz;
   if (!clear(sx, sz, 1.6)) { sx = qx + (qx - gx); sz = qz + (qz - gz); }
-  const telescope = itemChest(scene, world, fx, atPorch(5, { id: 'stargazer-chest', item: 'telescope', x: sx, z: sz, face: gFace, isOpen: () => !!inventory.chests?.['stargazer-chest'], setOpen: () => { (inventory.chests ||= {})['stargazer-chest'] = 1; } }));
+  const telescope = itemChest(scene, world, fx, atUtility(1, { id: 'stargazer-chest', item: 'telescope', brokenId: 'broken_telescope', tier: 'wood', x: sx, z: sz, face: gFace, isOpen: () => !!inventory.chests?.['stargazer-chest'], setOpen: () => { (inventory.chests ||= {})['stargazer-chest'] = 1; } }));
   const all = [sword, axe, bow, rubypaw, astralboard, telescope];
   return { all, sword, axe, bow, rubypaw, astralboard, telescope, update: (dt, t) => all.forEach(c => c.update(dt, t)), get spot() { return sword.spot; } };
 }
 
-// One silver chest holding one weapon. States: closed → opening → launch → waiting → empty.
-function itemChest(scene, world, fx, { id, item, ride = false, x, z, face, isOpen, setOpen }) {
+// One tiered chest holding one item. States: closed → opening → launch → waiting → empty.
+function itemChest(scene, world, fx, { id, item, ride = false, brokenId = null, tier = 'silver', x, z, face, isOpen, setOpen }) {
+  tier = canonicalChestTier(tier);
   const W8 = WEAPONS[item] || RIDES[item], tint = W8.color || '#bcd6ff';
   const y = world.groundAt(x, z);
-  const C = buildChest('uncommon'); C.root.position.set(x, y, z); C.root.rotation.y = face; scene.add(C.root); // silver: an uncommon-or-better weapon inside, no coins
+  const C = buildChest(tier); C.root.position.set(x, y, z); C.root.rotation.y = face; scene.add(C.root);
   chestCollider(world, x, z, y, face, C.root);
   const front = new THREE.Vector3(Math.sin(face), 0, Math.cos(face));
   const mesh = WEAPON_MESH[item](); mesh.visible = false; scene.add(mesh);
   const rest = new THREE.Vector3(x, y, z).addScaledVector(front, 1.25); rest.y = y + 0.36; // hovers where Rizer's hand closes in the pick-up clip (he reaches from the front, a step back from the lid)
-  const owns = () => ride ? (inventory.rides || []).includes(item) : hasWeapon(item);
+  const owns = () => brokenId ? (inventory.items?.[brokenId] || 0) > 0 : ride ? (inventory.rides || []).includes(item) : hasWeapon(item);
   let state = isOpen() ? (owns() ? 'empty' : 'waiting') : 'closed', t = 0;
   if (state !== 'closed') C.hinge.rotation.x = -1.9;
   if (state === 'waiting') { mesh.visible = true; mesh.position.copy(rest); }
   const spot = { // the chest as an interactable (hud.js prompts for it like any place)
-    id, kind: 'chest', item, discover: false, reach: 3.2,
-    get name() { return state === 'closed' ? 'Open silver chest' : state === 'waiting' ? `Take the ${W8.name}` : 'Empty chest'; },
+    id, kind: 'chest', item, brokenId, chestTier: tier, tutorialCategory: W8.gemlord ? 'gemlordWeapon' : 'otherItem', discover: false, reach: 3.2, mapActive: () => state !== 'empty' && !owns(),
+    get name() { return state === 'closed' ? `Open ${tier === 'mythic' ? 'Mythic' : tier === 'gold' ? 'gold' : tier === 'silver' ? 'silver' : 'wooden'} chest` : state === 'waiting' ? `Take the ${W8.name}` : 'Empty chest'; },
     get x() { return state === 'waiting' ? rest.x : x; }, get z() { return state === 'waiting' ? rest.z : z; },
     get cx() { return state === 'waiting' ? rest.x : x; }, get cz() { return state === 'waiting' ? rest.z : z; }
   };
@@ -549,7 +636,8 @@ function itemChest(scene, world, fx, { id, item, ride = false, x, z, face, isOpe
   function take() {
     if (state !== 'waiting') return false;
     state = 'empty'; mesh.visible = false; reach = null;
-    if (ride) { const rides = inventory.rides ||= []; if (!rides.includes(item)) rides.push(item); }
+    if (brokenId) addItem(brokenId, 1);
+    else if (ride) { const rides = inventory.rides ||= []; if (!rides.includes(item)) rides.push(item); }
     else if (!hasWeapon(item)) inventory.owned.push(item);
     saveInv();
     fx.emit(rest.x, rest.y, rest.z, 18, { color: tint, speed: 2.2, up: 1.2, size: 0.35, life: 0.5, g: 0 });
@@ -565,7 +653,7 @@ function itemChest(scene, world, fx, { id, item, ride = false, x, z, face, isOpe
       C.light.intensity = 9 * e; C.inner.material.emissiveIntensity = 1.4 * e;
       if (k >= 1) {
         state = 'launch'; t = 0; mesh.visible = true; arcFrom.set(x, y + C.H, z);
-        fx.emit(x, y + C.H + 0.2, z, 30, { color: '#ffd98a', speed: 3.2, up: 3, size: 0.45, life: 0.8, g: 3 });
+        fx.emit(x, y + C.H + 0.2, z, 30, { color: tier === 'mythic' ? '#a778ff' : '#ffd98a', speed: 3.2, up: 3, size: 0.45, life: 0.8, g: 3 });
         fx.emit(x, y + C.H + 0.2, z, 14, { color: tint, speed: 2, up: 2.5, size: 0.35, life: 0.7, g: 1 });
       }
     } else if (state === 'launch') { // springs up out of the chest, spins, drifts to the front and settles
@@ -586,7 +674,7 @@ function itemChest(scene, world, fx, { id, item, ride = false, x, z, face, isOpe
       if (Math.random() < dt * 8) fx.emit(rest.x, rest.y + 0.4 + Math.random() * 0.6, rest.z, 1, { color: tint, speed: 0.2, up: 0.4, size: 0.25, life: 0.8, g: -0.3, spread: 0.15 });
     } else if (state === 'empty') { C.light.intensity = Math.max(0, C.light.intensity - dt * 4); C.inner.material.emissiveIntensity = Math.max(0.2, C.inner.material.emissiveIntensity - dt); }
   }
-  return { id, item, ride, spot, open, take, attract, update, rest, chest: C.root, mesh, front: () => chestFront(C), dir: front, get state() { return state; } };
+  return { id, item, ride, brokenId, spot, open, take, attract, update, rest, chest: C.root, mesh, front: () => chestFront(C), dir: front, get state() { return state; } };
 }
 
 // ── common wooden chests scattered through Malezor: 1–100 coins each, opened once ──
@@ -608,7 +696,7 @@ export function createCommonChests(scene, world, fx, W, isCore, avoid = [], onPo
     got[zone]++; taken.push({ x, z }); list.push({ id: `chest-${zone}-${got[zone]}`, x, z, face });
   }
   const chests = list.map(c => {
-    const y = world.groundAt(c.x, c.z), C = buildChest('common'); C.root.position.set(c.x, y, c.z); C.root.rotation.y = c.face; scene.add(C.root);
+    const y = world.groundAt(c.x, c.z), C = buildChest('wood'); C.root.position.set(c.x, y, c.z); C.root.rotation.y = c.face; scene.add(C.root);
     chestCollider(world, c.x, c.z, y, c.face, C.root);
     const ch = { ...c, y, C, state: opened[c.id] ? 'empty' : 'closed', t: 0 };
     if (ch.state === 'empty') { C.hinge.rotation.x = -1.9; C.inner.material.emissiveIntensity = 0.2; }

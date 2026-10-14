@@ -3531,6 +3531,27 @@
       }
     });
     if (!st.cleared) for (var si = 0; si < st.total; si++) spawnSeerOutpost(no, lv, r, si);
+    // The Immortal Zone is the reward room at the end of each cave. Keep its
+    // six Nova Guardians around the caches and rare Aethren so the rewards are
+    // defended without replacing any of the zone's existing foes.
+    if (M.immortal) {
+      var izAnchors = (M.landmarks || []).filter(function(l){ return l.izLoot; })
+        .map(function(l){ return { x:l.x, y:l.y }; })
+        .concat((M.spawns || []).map(function(s){ return { x:s.x, y:s.y }; }));
+      if (!izAnchors.length) izAnchors.push({ x:24, y:12 });
+      var izOffsets = [[-2,0],[2,0],[0,-2],[0,2],[-2,-1],[2,1],[-1,2],[1,-2],[-3,0],[3,0],[0,-3],[0,3]];
+      for (var ig = 0; ig < 6; ig++) {
+        var izKey = 'iz-guardian:' + no + ':' + ig;
+        if (S.found[izKey]) continue;
+        var anchor = izAnchors[ig % izAnchors.length], guardianSpot = null;
+        for (var io = 0; io < izOffsets.length; io++) {
+          var off = izOffsets[(io + ig) % izOffsets.length], gx2 = anchor.x + off[0], gy2 = anchor.y + off[1];
+          if (freeFor({ flies:false }, gx2, gy2)) { guardianSpot = { x:gx2, y:gy2 }; break; }
+        }
+        if (!guardianSpot) guardianSpot = freeNear({ flies:false }, anchor.x, anchor.y, 5);
+        if (guardianSpot) spawnGroup('nova', guardianSpot.x, guardianSpot.y, lv + 6, { name:'IMMORTAL ZONE NOVA GUARDIAN', count:1, immortalGuard:true, immortalNo:no, immortalIndex:ig });
+      }
+    }
     // The entrance guard belongs to the cave approach, not to cave-room combat.
     // Its cleared state is saved separately so returning to the planet does not respawn it.
     var cave = (M.landmarks || []).filter(function(l){ return l.id === 'dcave_' + no; })[0], caveKey = 'cave-guard:' + no;
@@ -3631,6 +3652,7 @@
     if (g && !left && !g.done) {
       g.done = true; S.fightsWon = (S.fightsWon || 0) + 1;
       if (g.caveGuard && g.caveNo != null) { S.found['cave-guard:' + g.caveNo] = 1; toast('CAVE MOUTH CLEARED · the route is open'); }
+      else if (g.immortalGuard && g.immortalNo != null && g.immortalIndex != null) { S.found['iz-guardian:' + g.immortalNo + ':' + g.immortalIndex] = 1; toast('IMMORTAL ZONE GUARDIAN DEFEATED · the rare cache is safe'); }
       else if (g.onWin) g.onWin();
       else toast((g.name || 'THEY') + (e.sp ? ' ARE CALMED' : ' DEFEATED') + ' · your party gained ' + xp + ' XP each');
       save(); sfx.reveal();

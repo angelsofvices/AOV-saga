@@ -3755,6 +3755,9 @@
       var wm = buildMap('w' + no), ml = wm && (wm.landmarks || []).filter(function(l){ return l.id === 'dcave_' + no; })[0], at = (S.mouth && S.mouth[no]) || (ml && ml.stand) || { x:1, y:1 };
       S.pos = { map:'w' + no, x:at.x, y:at.y, dir:'down' }; parked = null; save();
     } else parkField();
+    // Keep field hit effects paused with the field. Cave effects use a fresh
+    // list and are aged by updateSide, so damage labels cannot persist here.
+    fxs = [];
     var C = GEN.cave(no);
     var viaHole = !!(lm && lm.hole);
     SIDE = { no:no, cave:C, rooms:[], k:-1, C:null, npcs:[], aethren:[], viaHole:viaHole, regular:viaHole ? regularStand(no) : null, g:null, p:{ x:1, y:1, vx:0, vy:0, ground:true, groundGrace:0, face:1, safe:{ x:1, y:1 }, inv:0, atkT:0, atkCd:0, jumpBuf:0, dust:[], anim:0, moving:false, gait:'steady', t:0 }, en:[], taken:0, t0:performance.now(), toastT:0 };
@@ -3952,10 +3955,14 @@
     if (p.y > H - 1.2) { sHurt(10); p.x = p.safe.x; p.y = p.safe.y - .2; p.vy = 0; toast('You fall into the pit. Back to solid ground.', 'red'); }
     // spikes
     if (sTile(p.x + .3, p.y + .85) === 'H' && p.inv <= 0) sHurt(8);
-    // loot under you, or in reach
-    var cx = Math.floor(p.x + .3), cy = Math.floor(p.y + .45);
-    for (var yy = cy - 1; yy <= cy + 1; yy++) for (var xx = cx - 1; xx <= cx + 1; xx++) {
-      if (s.g[yy] && s.g[yy][xx] === '$') { s.g[yy][xx] = '.'; s.taken++; var got = ['scrap', 'fibre', 'crystal', 'data', 'terra'][(Math.random() * 5) | 0]; gain(got, 1 + (Math.random() < .3 ? 1 : 0), true); fxs.push({ k:'spark', x:xx + .5, y:yy + .5, t:0, life:.4, color:'#ffe08a' }); }
+    // A gold shard is a cave gem: safe to touch, always worth one Crystal.
+    // Collect only when the player reaches its tile, never from a broad scan.
+    var gemX = Math.floor(p.x + .3), gemY = Math.floor(p.y + .45);
+    if (s.g[gemY] && s.g[gemY][gemX] === '$' && Math.abs(gemX + .5 - (p.x + .3)) < .72 && Math.abs(gemY + .5 - (p.y + .45)) < 1.05) {
+      s.g[gemY][gemX] = '.'; s.taken++; gain('crystal', 1, true);
+      fxs.push({ k:'spark', x:gemX + .5, y:gemY + .5, t:0, life:.4, color:'#ffe08a' });
+      fxs.push({ k:'num', x:gemX + .5, y:gemY - .1, t:0, life:.7, txt:'+1 CRYSTAL', color:'#ffe08a' });
+      toast('CAVE GEM · +1 Crystal');
     }
     // enemies
     s.en.forEach(function(e){
@@ -3979,6 +3986,9 @@
     // climb out at the mouth
     if (held === 'up' && s.k === 0 && p.x < 3.2) { cavePassOut('You climb back out to the cave mouth.'); return; }   // at the mouth, up is out
     updateBolts(dt); updateUtilities(dt); updateCaveParty(dt);
+    // The surface loop ages these effects in updateShots; the cave loop must
+    // do the same so damage and pickup labels always disappear.
+    fxs = fxs.filter(function(f){ f.t += dt; return f.t < f.life; });
     p.coyote = p.ground ? SIDE_COYOTE : Math.max(0, (p.coyote || 0) - dt);
     if (p.sq) { p.sq.t -= dt; if (p.sq.t <= 0) p.sq = null; }
     if (p.landT > 0) p.landT -= dt;
@@ -4072,7 +4082,10 @@
       } else if (c === 'H') {
         ctx.fillStyle = '#a04a4a'; for (var k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(X + k * TZ / 3, Y + TZ); ctx.lineTo(X + (k + .5) * TZ / 3, Y + TZ * .45); ctx.lineTo(X + (k + 1) * TZ / 3, Y + TZ); ctx.fill(); }
       } else if (c === '$') {
-        var gl = (Math.floor(now / 240) + x) % 2; ctx.fillStyle = gl ? '#ffe08a' : '#d9a441'; ctx.fillRect(X + TZ * .4, Y + TZ * .3, TZ * .2, TZ * .4); ctx.fillRect(X + TZ * .3, Y + TZ * .4, TZ * .4, TZ * .2);
+        var gl = (Math.floor(now / 240) + x) % 2;
+        ctx.fillStyle = gl ? 'rgba(255,224,138,.24)' : 'rgba(217,164,65,.22)'; ctx.beginPath(); ctx.arc(X + TZ / 2, Y + TZ / 2, TZ * .4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = gl ? '#fff2ac' : '#ffe08a'; ctx.beginPath(); ctx.moveTo(X + TZ * .5, Y + TZ * .14); ctx.lineTo(X + TZ * .8, Y + TZ * .45); ctx.lineTo(X + TZ * .54, Y + TZ * .88); ctx.lineTo(X + TZ * .23, Y + TZ * .47); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#b88ae8'; ctx.fillRect(X + TZ * .46, Y + TZ * .27, Math.max(1, z), TZ * .43);
       } else if (c === 'E') {
         ctx.fillStyle = '#100a14'; ctx.fillRect(X + TZ * .15, Y - TZ * .6, TZ * .7, TZ * 1.6);
         ctx.fillStyle = '#b86aff'; ctx.globalAlpha = .5 + .3 * Math.sin(now / 300); ctx.fillRect(X + TZ * .3, Y - TZ * .3, TZ * .4, TZ * 1.2); ctx.globalAlpha = 1;

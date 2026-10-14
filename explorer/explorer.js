@@ -3531,6 +3531,14 @@
       }
     });
     if (!st.cleared) for (var si = 0; si < st.total; si++) spawnSeerOutpost(no, lv, r, si);
+    // The entrance guard belongs to the cave approach, not to cave-room combat.
+    // Its cleared state is saved separately so returning to the planet does not respawn it.
+    var cave = (M.landmarks || []).filter(function(l){ return l.id === 'dcave_' + no; })[0], caveKey = 'cave-guard:' + no;
+    var caveAlreadyEntered = !!((S.mouth && S.mouth[no]) || (S.iz && S.iz[no]));
+    if (cave && !S.found[caveKey] && !caveAlreadyEntered) {
+      var gx = cave.stand ? cave.stand.x + 2 : cave.x + 2, gy = cave.stand ? cave.stand.y : cave.y;
+      spawnGroup('nova', gx, gy, lv + 3, { name:'CAVE MOUTH NOVA GUARDIANS', count:2, caveGuard:true, caveNo:no });
+    }
   }
   function foeTargets(){ return allies.filter(function(a){ return a.state !== 'down' && a.state !== 'gone'; }).concat([{ x:P.x, y:P.y, pilot:true }]); }
   function updateFoe(e, dt){
@@ -3621,8 +3629,11 @@
     if (!e.sp && Math.random() < .55) gain(['scrap', 'scrap', 'crystal', 'relic', 'data'][(Math.random() * 5) | 0], 1, true);
     var g = foeGroups[e.group], left = foes.filter(function(f){ return f.group === e.group && f.state !== 'dead'; }).length;
     if (g && !left && !g.done) {
-      g.done = true; S.fightsWon = (S.fightsWon || 0) + 1; save(); sfx.reveal();
-      if (g.onWin) g.onWin(); else toast((g.name || 'THEY') + (e.sp ? ' ARE CALMED' : ' DEFEATED') + ' · your party gained ' + xp + ' XP each');
+      g.done = true; S.fightsWon = (S.fightsWon || 0) + 1;
+      if (g.caveGuard && g.caveNo != null) { S.found['cave-guard:' + g.caveNo] = 1; toast('CAVE MOUTH CLEARED · the route is open'); }
+      else if (g.onWin) g.onWin();
+      else toast((g.name || 'THEY') + (e.sp ? ' ARE CALMED' : ' DEFEATED') + ' · your party gained ' + xp + ' XP each');
+      save(); sfx.reveal();
       hudRefresh();
     } else save();
   }
@@ -3737,6 +3748,8 @@
   }
   function openCave(lm){
     if (dialogOpen || encounterOpen || doc.querySelector('.x-modal, .x-battle')) return;
+    var caveAlreadyEntered = !!((S.mouth && S.mouth[lm.dungeon]) || (S.iz && S.iz[lm.dungeon]));
+    if (!S.found['cave-guard:' + lm.dungeon] && !caveAlreadyEntered) { toast('NOVA GUARDIANS HOLD THE CAVE MOUTH · defeat them before entering', 'red'); sfx.bump(); return; }
     if (!lm.hole) { S.mouth = S.mouth || {}; S.mouth[lm.dungeon] = { x:lm.stand.x, y:lm.stand.y }; }
     var zone = !!(S.iz && S.iz[lm.dungeon]), nm = placeName(lm.dungeon), kind = GEN.caveKind(lm.dungeon), where = kind === 'peak' ? 'up to a peak' : 'down into a valley';
     var lines = ['A cave mouth in the rock of ' + nm + '. Cold air comes out of it, and the stone is worn smooth on the inside.',

@@ -21,7 +21,7 @@ export const CLIPS = {
   punch: { name: 'Punch', active: 0.17, recover: 0.46 },
   kick: { name: 'Kick', active: 0.3, recover: 0.66 }
 };
-const ONE_SHOTS = ['punch', 'punch2', 'punch3', 'punch4', 'kick', 'kick2', 'kick3', 'kick4', 'bite', 'feedBody', 'turn', 'astralift', 'astraliftHit', 'stunned', 'standup', 'dodge', 'doublejump', 'enter', 'pickup', 'store', 'land', 'teleportLand', 'hurt', 'knockdown', 'interact', 'emote', 'blast', 'blast2', 'blast3', 'sword', 'sword2', 'sword3', 'sword4', 'axe', 'axe2', 'axe3', 'axe4', 'teeter', 'astralboardPush', 'rollingThunder', ...Array.from({ length: 10 }, (_, i) => `bond${i + 1}`)];
+const ONE_SHOTS = ['punch', 'punch2', 'punch3', 'punch4', 'kick', 'kick2', 'kick3', 'kick4', 'stomp', 'bite', 'feedBody', 'turn', 'astralift', 'astraliftHit', 'stunned', 'standup', 'dodge', 'doublejump', 'enter', 'pickup', 'store', 'land', 'teleportLand', 'hurt', 'knockdown', 'interact', 'emote', 'blast', 'blast2', 'blast3', 'sword', 'sword2', 'sword3', 'sword4', 'axe', 'axe2', 'axe3', 'axe4', 'teeter', 'astralboardPush', 'rollingThunder', ...Array.from({ length: 10 }, (_, i) => `bond${i + 1}`)];
 const STAIR_SLOTS = ['stairWalkUp', 'stairRunUp', 'stairWalkDown', 'stairRunDown'];
 
 // Sneak-right clip: facing turned this far from the direction of travel so the side-steps carry him along it.
@@ -357,11 +357,12 @@ export class Actor {
       a.rifleAim?.setEffectiveWeight((1 - moving) * stand * aimW);
       const hasWalk = !!a.rifleWalk, wk = moving * stand * (hasWalk ? 1 - rr : 0), rn = moving * stand * (hasWalk ? rr : 1);
       const back = a.rifleBack ? this.backW : 0, aw = a.rifleAimWalk ? aimW : 0;
-      a.rifleWalk?.setEffectiveWeight(wk * (1 - back) * (1 - aw)); a.rifleAimWalk?.setEffectiveWeight(wk * (1 - back) * aw); a.rifleBack?.setEffectiveWeight((wk + rn) * back);
       const sl = a.rifleStrafeL ? Math.max(0, this.strafeW) : 0, sr = a.rifleStrafeR ? Math.max(0, -this.strafeW) : 0;
-      if (a.rifleRun) a.rifleRun.setEffectiveWeight(rn * (1 - back) * (1 - sl - sr) * (1 - tiredRunW)); else if (a.run) a.run.setEffectiveWeight(rn * (1 - tiredRunW));
-      a.tiredRun?.setEffectiveWeight(a.tiredRun.getEffectiveWeight() + rn * (1 - back) * (1 - sl - sr) * tiredRunW);
-      a.rifleStrafeL?.setEffectiveWeight(rn * (1 - back) * sl); a.rifleStrafeR?.setEffectiveWeight(rn * (1 - back) * sr);
+      const side = Math.min(1, sl + sr), moveW = wk + rn;
+      a.rifleWalk?.setEffectiveWeight(wk * (1 - back) * (1 - aw) * (1 - side)); a.rifleAimWalk?.setEffectiveWeight(wk * (1 - back) * aw * (1 - side)); a.rifleBack?.setEffectiveWeight(moveW * back);
+      if (a.rifleRun) a.rifleRun.setEffectiveWeight(rn * (1 - back) * (1 - side) * (1 - tiredRunW)); else if (a.run) a.run.setEffectiveWeight(rn * (1 - back) * (1 - side) * (1 - tiredRunW));
+      a.tiredRun?.setEffectiveWeight(a.tiredRun.getEffectiveWeight() + rn * (1 - back) * (1 - side) * tiredRunW);
+      a.rifleStrafeL?.setEffectiveWeight(moveW * (1 - back) * sl); a.rifleStrafeR?.setEffectiveWeight(moveW * (1 - back) * sr);
       if (airW && a.rifleJump) {
         const m = this.meta.rifleJump || {}, d = a.rifleJump.getClip().duration;
         a.rifleJump.time = Math.min(d * 0.34 + this.airT, d * 0.6);

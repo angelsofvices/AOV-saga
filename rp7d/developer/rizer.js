@@ -34,6 +34,7 @@ export const COMBAT = {
   vault: { lo: 0.3, hi: 1.12, depth: 1.8, land: 1.1, near: 0.55, reach: 7, over: [0.32, 1.17], peak: 0.73, t0Max: 0.4, out: 1.62, touch: 1.13, speed: [1, 1.6], clipSpeed: 4.3 },
   ledge: { reach: 1.35, riseMin: 0.55, riseMax: 2.85, hangBelow: 2.4, grabSpeed: 1.3, climbSpeed: 1.55 },
   kickup: { damage: 5.5, speed: 1, move: 0, hit: 0.66, minSpeed: 6, tap: 0.35 }, // running + △△ (a second △ within `tap` s of the flying kick): the inverted kick lands at `hit` (clip s), then he kips up and runs on
+  stomp: { damage: 0, reach: 2.7, arc: Math.PI, speed: 1, move: 0 }, // △ beside a grounded enemy: committed stomp finisher, no extra corpse damage
   flykick: { damage: 4, reach: 3.2, arc: 0.9, speed: 1.05, move: 0.9, carry: 0.85, minSpeed: 6 }, // running (R2 held) + △: a leaping kick that carries the run's momentum · minSpeed: also triggers at this speed without R2
   kick: { damage: 2, reach: 3.0, arc: 0.9, speed: 1.0, move: 0.15, stageSpeed: [1, 1, 1, 1.3], overdrive: { stage: 4, damage: 1.75, power: 1.9 } }, // stage 4 (the backflip kick): comes through 30% faster and hits in overdrive
   blast: { damage: 2, speed: 1.15, move: 0.15 },
@@ -256,6 +257,16 @@ export class Rizer {
     this.actor?.release('emote');
     const cont = this.comboT > 0 && this.comboKind === kind && this.comboStage < this.comboMax(kind);
     return this.startStrike(kind, cont ? this.comboStage + 1 : 1);
+  }
+  stomp(target) {
+    const A = this.actor, p = this.position;
+    if (!target || !A?.has('stomp') || !this.onGround || this.flying || this.attack || this.hp <= 0 || this.hurtT > 0 || this.blocking || this.ledge || this.teeter || this.vault || this.wallRun || this.fc || this.slam || this.pick || this.seq || this.prayer) return false;
+    const dx = target.x - p.x, dz = target.z - p.z, d = Math.hypot(dx, dz);
+    if (d > COMBAT.stomp.reach) return false;
+    this.finishSwap(0.1); this.crouched = false; this.auto = null; this.vel.set(0, 0, 0); this.speed = 0;
+    const face = Math.atan2(dx, dz); this.facing = face; A.release('emote');
+    const started = this.startStrike('stomp', 1); if (started) this.facing = face;
+    return started;
   }
   // Aerial slam: start the dive at `target` (a world point: the locked enemy). False when he can't (on the ground,
   // too low, too far, busy). slamStep owns him until he is back on his feet; 'slamImpact' fires as he hits the ground.

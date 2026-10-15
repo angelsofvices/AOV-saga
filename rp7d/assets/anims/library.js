@@ -6,6 +6,7 @@
 //   loop    true for cycles (idle, walk, run), false for one-shots
 //   inPlace true strips forward travel (the game moves the character itself)
 export default [
+  { file: 'rizer/Stomp_Enemy_On_Ground.fbx', name: 'Rizer · Stomp kick (△ near a grounded enemy)', loop: false, inPlace: true },
   { file: 'rizer/Plant_Tree.fbx', name: 'Treehouse · Plant seeds', loop: false, inPlace: true },
   { file: 'rizer/Start Climbing Ladder.fbx', name: 'Treehouse · Start ladder climb', loop: false, inPlace: true },
   { file: 'rizer/Climbing Ladder.fbx', name: 'Treehouse · Climb ladder', loop: true, inPlace: true },
@@ -48,7 +49,7 @@ export default [
   ...['dance cheer','Flair','guy dance 2','guy dance 3','gyat dance 2','gyat dance 3','gyat dance girl','kid dance','pop lock dance','Rockstar hips variaint 2','Rockstar Hips','Zombie dance'].map(name => ({ file: `dance/${name}.fbx`, name: `Dance · ${name}`, loop: true, inPlace: true })),
   // Rifle set (Mixamo): Rizer and the Nova Guardian with the Thardin Blaster Rifle
   ...[['Rifle_Idle','Idle',1],['Rifle_Aiming_Idle','Aiming Idle',1],['Rifle_Aiming_Idle_1','Aiming Idle 2',1],['Idle_Crouching_Aiming','Crouching Aim',1],['Firing_Rifle','Firing',1],
-    ['Walk_With_Rifle','Walk',1],['Walk_Forward','Walk Forward (aiming)',1],['Walk_Backward_Right','Walk Backward Right',1],['Rifle_Run','Run',1],['Run_Left','Run Left',1],['Run_Right','Run Right',1],
+    ['Walk_With_Rifle','Walk',1],['Walk_Forward','Walk Forward (aiming)',1],['Walk_Backward_Right','Walk Backward Right',1],['Rifle_Run','Run',1],['Run_Left','Run Left',1],['Run_Right','Run Right',1],['Strafe_Left_Rifle','Sprint Strafe Left',1],['Strafe_Right_Rifle','Sprint Strafe Right',1],
     ['Rifle_Start_Run','Start Run',0],['Rifle_Jump','Jump',0],['Rifle_Aim_To_Kneel','Aim To Kneel',0],['Rifle_Death','Death',0],
     ['Grab_Rifle_From_Behind_Shoulder','Grab From Behind Shoulder',0],['Put_Back_Rifle_Behind_Shoulder','Put Back Behind Shoulder',0]]
     .map(([f, n, loop]) => ({ file: `rifle/${f}.fbx`, name: `Rifle · ${n}`, loop: !!loop, inPlace: true })),

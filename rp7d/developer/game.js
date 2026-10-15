@@ -553,6 +553,16 @@ function solidPass() {
     for (const o of scanobots?.bodies || []) if (o.pos && o.alive !== false && o.state !== 'down') pushOut(o.pos, o.r ?? 0.4, B, 0.9);
   }
 }
+function nearestGroundedStompTarget() {
+  const p = rizer?.position; if (!p) return null;
+  const candidates = [];
+  for (const g of seers?.grunts || []) if (g.state === 'down' && g.pos && g.root?.visible !== false) candidates.push({ ref: g, pos: g.pos });
+  for (const b of scanobots?.bots || []) if (b.state === 'wreck' && b.pos && b.root?.visible !== false) candidates.push({ ref: b, pos: b.pos });
+  for (const g of novas?.list || []) if (g.state === 'down' && g.pos && g.root?.visible !== false) candidates.push({ ref: g, pos: g.pos });
+  let best = null, bd = 2.7;
+  for (const c of candidates) { const d = Math.hypot(c.pos.x - p.x, c.pos.z - p.z); if (d < bd) { best = c; bd = d; } }
+  return best && { ...best.pos, ref: best.ref };
+}
 const RUNNING_FRUIT_YIELD = 1.5;
 function collectLoot(L, { running = false } = {}) {
   if (L.kind === 'zycube') return takeZycube();
@@ -1235,7 +1245,7 @@ function build() {
   caveSys = createCaveInteriors({ scene, caves: CAVES, toast: showToast, fx, state: caveState });
   world.setInterior({ name: x => caveSys.planAt(x)?.cave.name, owns: caveSys.owns, groundAt: (x, z, y) => caveSys.planAt(x)?.phys.groundAt(x, z, y) ?? -60, resolve: (p, r) => caveSys.planAt(p.x)?.phys.resolve(p, r) ?? false, rayClear: (a, b) => caveSys.planAt(a.x)?.phys.rayClear(a, b) ?? a.distanceTo(b) });
   caveLight = new THREE.PointLight('#ffd9a8', 0, 18, 1.6); scene.add(caveLight); // one light, always in the scene (a light appearing later would recompile every material)
-  westLakeBus = createWestLakeBus(scene, world, fx, showToast, { x:W.playerStart.x + 14, z:W.playerStart.z + 8, facing:Math.PI * 0.15 });
+  westLakeBus = createWestLakeBus(scene, world, fx, showToast, { x:-87.36, y:13.32, z:60.44, facing:-0.27 }); // Malezor Central · beside the school
   commonChests = createCommonChests(scene, world, fx, W, (x, z) => quarterAt(x, z, W) === 'core', [...loot.all.filter(c => !['psychosyd-chest', 'astralboard-chest'].includes(c.id)).map(c => ({ x: c.chest.position.x, z: c.chest.position.z })), ...(lightbulbs?.list || []).map(c => ({ x: c.x, z: c.z })), { x: W.playerStart.x, z: W.playerStart.z }],
     (ch, n) => showToast(`✦ ASTRALIFT · ${n} coin pile${n === 1 ? '' : 's'} shaken loose`), // the astral-pop payoff
     (ch, rolls, at) => coinPiles?.spawn(at, ch.face, rolls)); // every wooden chest: its 1–3 rolled piles fly out of the reward point, fanned toward its front
@@ -1793,7 +1803,7 @@ function updateBlaster(dt, held) {
   if (tg) _rf[1].set(tg.pos.x, tg.pos.y + (tg.aimY ?? 1.25), tg.pos.z).sub(from).normalize(); else _rf[1].set(Math.sin(f), 0, Math.cos(f));
   bolts.fire(from, _rf[1], { owner: rizer, hostile: false });
   rifleCool = R.fireInterval; rifleKick = 0.1; cam.kick(0.12);
-  if (rizer.actor?.has('rifleFire') && !rizer.attack) rizer.actor.play('rifleFire', 1, { overlay: rizer.speed > 1.4 }); // Firing Rifle: one recoil per bolt
+  if (rizer.actor?.has('rifleFire') && !rizer.attack && rizer.speed <= 1.4) rizer.actor.play('rifleFire', 1); // Stationary shot clip; moving fire preserves the rifle locomotion pose and uses authored weapon recoil.
 }
 const held_ = () => held;
 function boltEvent(type, d) {
@@ -2541,7 +2551,10 @@ function update(dt, t, realDt = dt) {
     else if (!rizer.flying && square) {
       if (rizer.weapon === 'bow') firePearlbow(); else if (rizer.weapon === 'guitar') toggleGuitar(); else if (rizer.weapon === 'telescope') toggleScope(); else if (rizer.weapon === 'workstation') buildWorkstation(); else if (rizer.weapon === 'blaster') rifleUp = Math.max(rifleUp, 0.01); else rizer.strike('punch');
     }
-    if (!rizer.flying && !ufoTriangle && !busTriangle && !boardTriangle && (pressed.has('KeyK') || pressed.has('MouseKick') || padAct?.kick)) rizer.strike('kick');
+    if (!rizer.flying && !ufoTriangle && !busTriangle && !boardTriangle && (pressed.has('KeyK') || pressed.has('MouseKick') || padAct?.kick)) {
+      const downed = nearestGroundedStompTarget();
+      if (!downed || !rizer.stomp(downed)) rizer.strike('kick');
+    }
     // ○ is contextual: a place in front → interact · otherwise → Astral Blast (bonding is lock on + D-pad ↓, below)
     const circle = padAct?.interact, lk = astral.lock;
     // ○ near loot picks it up (flowers, a defeated enemy's bag), mid-fight too; otherwise ○ interacts or casts Astralstrike.
@@ -2769,6 +2782,7 @@ function update(dt, t, realDt = dt) {
     if (e === 'land' || e === 'landHard') sfx.play('land', e === 'landHard' ? 1.15 : 0.9);
     if (e === 'slide') sfx.play('slide');
     if (e === 'treeSpin') { sfx.play('whoosh', 0.6, 0.9); tutorialMark('basics', 'treeSpin'); }
+    if (e === 'stomp') { sfx.play('heavy', 0.9, 0.72); cam.kick(0.45); const q = rizer.position; fx.emit(q.x, q.y + 0.08, q.z, 10, { color: '#d8c49b', speed: 1.9, up: 0.6, size: 0.24, life: 0.32 }); }
     if (e === 'perfectDodge') perfectDodge();
     if (e === 'dodge' && rizer.isRunning && rizer.speed > 3.4) {
       const nearbyTree = world.nature?.userData?.breakables?.trees?.some(tree => !tree.broken && Math.hypot(tree.x - rizer.position.x, tree.z - rizer.position.z) <= 3.4);

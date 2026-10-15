@@ -105,7 +105,7 @@ function textPanel(text,w,h,color,font) {
 
 export function createWestLakeBus(scene, world, fx, toast, at) {
   const visual=buildBus(), root=visual.root; scene.add(root);
-  root.position.set(at.x,world.groundAt(at.x,at.z)+SIZE.clearance,at.z); root.rotation.y=at.facing||0;
+  root.position.set(at.x,Number.isFinite(at.y)?at.y+SIZE.clearance:world.groundAt(at.x,at.z)+SIZE.clearance,at.z); root.rotation.y=at.facing||0;
   const pos=root.position, velocity=new THREE.Vector3();
   let driving=false, speed=0, heading=root.rotation.y, steer=0, boostT=0, boostCool=0, handbrake=false, lights=false, radio=0, radioWheel=false, stopOpen=false, impactClock=0, blockedT=0;
   let audioCtx=null, lastSpark=0, lastGround=pos.y;

@@ -17,6 +17,7 @@ import DEFAULT_ASSIGNMENTS from './anim-assignments.js';
 
 // Every slot an actor can fill. `kind` decides how the actor drives it.
 export const SLOTS = [
+  { key: 'stomp', label: 'Stomp kick (△ near a grounded enemy)', kind: 'oneshot' },
   { key: 'plantTree', label: 'Plant tree seeds', kind: 'oneshot' },
   { key: 'ladderClimb', label: 'Treehouse ladder climb / descent', kind: 'state' },
   { key: 'ladderStart', label: 'Treehouse · start climbing ladder', kind: 'oneshot' },

@@ -15,8 +15,8 @@ const RIFLE = {
   rifleAimWalk: { clip: RF('Walk_Forward'), inPlace: true },
   rifleBack: { clip: RF('Walk_Backward_Right'), inPlace: true },
   rifleRun: { clip: RF('Rifle_Run'), inPlace: true },
-  rifleStrafeL: { clip: RF('Run_Left'), inPlace: true },
-  rifleStrafeR: { clip: RF('Run_Right'), inPlace: true },
+  rifleStrafeL: { clip: RF('Strafe_Left_Rifle'), inPlace: true },
+  rifleStrafeR: { clip: RF('Strafe_Right_Rifle'), inPlace: true },
   rifleStart: { clip: RF('Rifle_Start_Run'), inPlace: true },
   rifleJump: { clip: RF('Rifle_Jump'), inPlace: true },
   rifleCrouch: { clip: RF('Idle_Crouching_Aiming'), inPlace: true },
@@ -28,6 +28,7 @@ const RIFLE = {
 const M = f => 'lib:mori/' + f + '.fbx';
 const DEATHS = { clip: L('death_1'), more: [L('death_2'), L('death_3'), L('death_4')] };
 const PLAYER = {
+  stomp: { clip: L('Stomp_Enemy_On_Ground'), inPlace: true },
   plantTree: { clip: L('Plant_Tree'), inPlace: true },
   ladderStart: { clip: L('Start Climbing Ladder'), inPlace: true },
   ladderClimb: { clip: L('Climbing Ladder'), inPlace: true },

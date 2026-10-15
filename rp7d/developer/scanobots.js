@@ -265,7 +265,7 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
       id: `scanobot-${n}`, isScanobot: true, T: S, name: S.name, home: homePt, pts, wp: 1, ...d, bar,
       pos: new THREE.Vector3(), center: new THREE.Vector3(), vel: new THREE.Vector3(), knock: new THREE.Vector3(), heading: 0,
       alt: S.hover, phase: Math.random() * 10, side: n % 2 ? 1 : -1, r: S.radius,
-      state: 'patrol', t: 0, hp: S.hp, cool: 0, lost: 0, flash: 0, barT: 0, dropped: false, respawnAt: 0, vy: 0, spin: 0, seenT: 0, seen: false,
+      state: 'patrol', t: 0, hp: S.hp, damageStage: 0, breakFrame: 0, cool: 0, lost: 0, flash: 0, barT: 0, dropped: false, respawnAt: 0, vy: 0, spin: 0, seenT: 0, seen: false,
       get alive() { return alive(bot); },
       get aimY() { return bot.alt; },
       hit: (damage, dx, dz, kind, power) => hitBot(bot, damage, dx, dz, kind, power)
@@ -276,7 +276,7 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
   function reset(b) {
     const s = b.pts[0]; b.pos.set(s.x, world.groundAt(s.x, s.y), s.y); b.wp = 1 % b.pts.length;
     b.heading = Math.atan2(b.pts[b.wp].x - s.x, b.pts[b.wp].y - s.y); b.vel.set(0, 0, 0); b.knock.set(0, 0, 0);
-    b.rxpPaid = false; b.state = 'patrol'; b.t = 0; b.hp = S.hp; b.cool = 0; b.lost = 0; b.flash = 0; b.barT = 0; b.dropped = false; b.vy = 0; b.spin = 0; b.alt = S.hover; b.seen = false;
+    b.rxpPaid = false; b.state = 'patrol'; b.t = 0; b.hp = S.hp; b.damageStage = 0; b.breakFrame = 0; b.cool = 0; b.lost = 0; b.flash = 0; b.barT = 0; b.dropped = false; b.vy = 0; b.spin = 0; b.alt = S.hover; b.seen = false;
     b.root.visible = !hidden; b.root.rotation.set(0, b.heading, 0); b.root.scale.setScalar(S.scale); b.body.rotation.set(0, 0, 0);
     b.hullMat.emissive.setRGB(0, 0, 0); b.bar.visible = false; b.bar.redraw(1); b.bar.drawn = true;
     placeBody(b);
@@ -311,6 +311,8 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
   function hitBot(b, damage, dx, dz, kind = 'punch', power = 1) {
     if (!alive(b)) return null;
     b.hp -= damage; b.barT = 4; b.bar.redraw(Math.max(0, b.hp) / S.hp); b.flash = 0.14;
+    const stage = b.hp <= 0 ? 3 : b.hp <= S.hp * 0.34 ? 2 : b.hp <= S.hp * 0.67 ? 1 : 0;
+    if (stage > b.damageStage) { b.damageStage = stage; fx?.emit(b.center.x, b.center.y, b.center.z, stage === 3 ? 24 : 8 + stage * 4, { color: stage >= 2 ? '#ffae68' : '#8fd7ff', speed: 2.8 + stage * 0.4, up: 1.2, size: 0.19 + stage * 0.04, life: 0.38, g: 4 }); }
     const push = (kind === 'kick' ? 7 : kind === 'flykick' || kind === 'kickup' ? 9 : kind === 'blast' ? 6 : kind === 'axe' ? 7 : kind === 'bow' ? 3 : 4.5) * power;
     b.knock.set(dx, 0, dz).multiplyScalar(push);
     const at = { x: b.center.x, y: b.center.y, z: b.center.z, name: S.name, scanobot: true, down: false };
@@ -507,13 +509,14 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
           break;
         case 'down': { // falling out of the air, tumbling
           b.t += dt; b.vy -= 14 * dt; b.alt += b.vy * dt;
+          b.breakFrame = Math.min(3, Math.floor((b.t += dt) / 0.2));
           b.body.rotation.x += b.spin * dt; b.body.rotation.z += b.spin * 0.6 * dt;
           if (Math.random() < dt * 25) fx?.emit(b.center.x, b.center.y, b.center.z, 1, { color: Math.random() < 0.5 ? '#ffd38a' : '#8fd0ff', speed: 1.5, up: 0.8, size: 0.12, life: 0.3, g: 5 });
           if (b.alt <= 0.24) { b.alt = 0.24; b.state = 'wreck'; b.t = 40; /* it lies there to be salvaged (resources.js); stripped, it goes at once */ b.knock.set(0, 0, 0); fx?.emit(b.center.x, b.pos.y + 0.2, b.center.z, 14, { speed: 2.4, up: 0.8, size: 0.4, life: 0.5 }); }
           break;
         }
-        case 'wreck': // lies there sparking, then sinks away
-          b.t -= dt; if (b.salvaged && b.t > 0.8) b.t = 0.8;
+        case 'wreck': // staged collapsed shell remains solid and salvageable, then sinks away
+          b.t -= dt; b.breakFrame = Math.min(3, Math.floor((40 - b.t) / 0.18)); if (b.salvaged && b.t > 0.8) b.t = 0.8;
           if (b.t < 0.8) b.root.scale.setScalar(S.scale * Math.max(0.01, b.t / 0.8));
           else if (Math.random() < dt * 4) fx?.emit(b.center.x, b.center.y + 0.1, b.center.z, 2, { color: '#9fd4ff', speed: 1.2, up: 1, size: 0.1, life: 0.25 });
           if (b.t <= 0) { b.state = 'gone'; b.root.visible = false; b.respawnAt = clock + S.respawn; }

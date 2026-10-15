@@ -170,7 +170,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
     const p = {
       id: `penumbra-${n}`, isScanobot: true, isPenumbra: true, T: P, name: P.name, home: homePt, pts, wp: 1, ...m, bar, // isScanobot: the shared "tech body" interface (alive · aimY · hit) the lock-on, bolts and arrows use
       pos: new THREE.Vector3(), center: new THREE.Vector3(), knock: new THREE.Vector3(), heading: 0, speed: 0, walkT: 0, r: 0.95,
-      state: 'patrol', t: 0, hp: P.hp, seen: false, seenT: 0, lit: 0, hurt: 0, flash: 0, barT: 0, sink: 0, dropped: false, respawnAt: 0, nextPod: 0, move: null, side: n % 2 ? 1 : -1,
+      state: 'patrol', t: 0, hp: P.hp, damageStage: 0, breakFrame: 0, seen: false, seenT: 0, lit: 0, hurt: 0, flash: 0, barT: 0, sink: 0, dropped: false, respawnAt: 0, nextPod: 0, move: null, side: n % 2 ? 1 : -1,
       get alive() { return alive(p); }, get aimY() { return 2.1; },
       hit: (damage, dx, dz, kind, power) => hit(p, damage, dx, dz, kind, power)
     };
@@ -180,7 +180,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
   }
   function reset(p) {
     const s = p.pts[0]; p.pos.set(s.x, world.groundAt(s.x, s.y), s.y); p.wp = 1 % p.pts.length; p.heading = Math.atan2(p.pts[p.wp].x - s.x, p.pts[p.wp].y - s.y);
-    p.rxpPaid = false; p.state = 'patrol'; p.t = 0; p.hp = P.hp; p.seen = false; p.lit = 0; p.hurt = 0; p.flash = 0; p.barT = 0; p.sink = 0; p.dropped = false; p.speed = 0; p.knock.set(0, 0, 0); p.move = null;
+    p.rxpPaid = false; p.state = 'patrol'; p.t = 0; p.hp = P.hp; p.damageStage = 0; p.breakFrame = 0; p.seen = false; p.lit = 0; p.hurt = 0; p.flash = 0; p.barT = 0; p.sink = 0; p.dropped = false; p.speed = 0; p.knock.set(0, 0, 0); p.move = null;
     for (const pod of p.pods) { pod.cool = 0; pod.g.rotation.x = 0; }
     p.upper.position.set(0, 0, 0); p.upper.rotation.set(0, 0, 0); p.root.visible = !hidden; p.bar.redraw(1); place(p);
   }
@@ -214,6 +214,8 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
   function hit(p, damage, dx, dz, kind = 'punch', power = 1) {
     if (!alive(p)) return null;
     p.hp -= damage; p.hurt += damage; p.flash = 0.12; p.barT = 5; p.bar.redraw(Math.max(0, p.hp) / P.hp);
+    const stage = p.hp <= 0 ? 3 : p.hp <= P.hp * 0.34 ? 2 : p.hp <= P.hp * 0.67 ? 1 : 0;
+    if (stage > p.damageStage) { p.damageStage = stage; p.breakFrame = 0; fx?.emit(p.center.x, p.center.y, p.center.z, stage === 3 ? 30 : 12 + stage * 4, { color: stage >= 2 ? '#ff9c58' : '#8fd7ff', speed: stage >= 2 ? 3.4 : 2.4, up: 1.3, size: stage >= 2 ? 0.28 : 0.16, life: 0.42, g: 4 }); }
     p.knock.set(dx, 0, dz).multiplyScalar(Math.min(1.6, 0.5 * power));
     const at = { x: p.center.x, y: p.center.y, z: p.center.z, name: P.name, scanobot: true, down: false, chips: P.chips };
     fx?.emit(at.x, at.y, at.z, 6, { color: '#ffc27a', speed: 3.2, up: 1, size: 0.14, life: 0.3, g: 6 });
@@ -392,10 +394,11 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
           break;
         }
         case 'stagger': p.t -= dt; if (p.t <= 0) p.state = 'track'; break;
-        case 'down': // shutdown and collapse; the wreck smokes, then sinks away
-          p.t += dt; p.sink = damp(p.sink, 0.95, 3.2, dt);
-          p.upper.position.y = -p.sink; p.upper.rotation.x = damp(p.upper.rotation.x, 0.42, 2.5, dt); p.upper.rotation.z = damp(p.upper.rotation.z, 0.12 * p.side, 2.5, dt);
-          for (const [i, L] of p.legs.entries()) L.rotation.x = damp(L.rotation.x, i ? 0.5 : -0.4, 3, dt);
+        case 'down': // shutdown; staged mechanical break, then a solid wreck that sinks away
+          p.t += dt; p.breakFrame = Math.min(3, Math.floor(p.t / 0.22)); p.sink = damp(p.sink, 0.95, 3.2, dt);
+          p.upper.position.y = -p.sink - Math.max(0, p.t - 0.18) * 0.28; p.upper.rotation.x = damp(p.upper.rotation.x, 0.42 + Math.min(0.35, p.breakFrame * 0.1), 2.5, dt); p.upper.rotation.z = damp(p.upper.rotation.z, (0.12 + p.breakFrame * 0.035) * p.side, 2.5, dt);
+          for (const [i, L] of p.legs.entries()) L.rotation.x = damp(L.rotation.x, (i ? 0.5 : -0.4) + (p.breakFrame >= 2 ? (i ? 0.28 : -0.18) : 0), 3, dt);
+          if (p.breakFrame > (p.lastBreakFx || 0) && p.breakFrame < 4) { p.lastBreakFx = p.breakFrame; fx?.emit(p.center.x, p.center.y, p.center.z, 8 + p.breakFrame * 3, { color: p.breakFrame >= 2 ? '#ff9c58' : '#8fd7ff', speed: 2.6 + p.breakFrame * 0.35, up: 1.1, size: 0.22, life: 0.45, g: 4 }); }
           if (p.t < P.wreck && Math.random() < dt * 5) fx?.emit(p.center.x + (Math.random() - 0.5), p.center.y, p.center.z + (Math.random() - 0.5), 1, { color: Math.random() < 0.3 ? '#ffc27a' : '#77757c', speed: 0.6, up: 1.8, size: 0.6, life: 1.2, g: -1 });
           if (p.t > P.wreck || p.salvaged) { p.salvaged = true; p.root.position.y -= dt * 1.4; if ((p.sinkT = (p.sinkT || 0) + dt) > 2.6) { p.sinkT = 0; p.salvaged = false; p.state = 'gone'; p.root.visible = false; p.respawnAt = clock + P.respawn; } }
           break;

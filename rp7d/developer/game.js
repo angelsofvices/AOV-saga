@@ -831,17 +831,25 @@ addEventListener('keydown', e => {
   const tick = () => {
     if (started) return;
     const gp = [...(navigator.getGamepads?.() || [])].find(g => g && g.connected);
-    if (gp && $('#game').classList.contains('intro-on')) prev = Object.fromEntries(gp.buttons.map((x, i) => [i, x.pressed])); // the intro movie owns the pad
-    else if (gp) {
+    const menuVisible = $('#intro').classList.contains('menu-ready');
+    if (gp && $('#game').classList.contains('intro-on') && !menuVisible) {
+      // The boot gate, intro movie and story selector are handled by the startup controller.
+      // Keep the edge state current so a held confirm cannot leak into the character menu.
+      prev = Object.fromEntries(gp.buttons.map((x, i) => [i, x.pressed]));
+      stickHeld = 0;
+    } else if (gp) {
       setPad(true);
       const b = i => !!gp.buttons[i]?.pressed, edge = i => b(i) && !prev[i];
       const y = gp.axes[1] || 0, stick = Math.abs(y) > 0.6 ? Math.sign(y) : 0;
       if (edge(12) || (stick < 0 && stickHeld >= 0)) titleFocus(titleIndex - 1);
       if (edge(13) || (stick > 0 && stickHeld <= 0)) titleFocus(titleIndex + 1);
       stickHeld = stick;
-      if (edge(0) && world) titleButtons()[titleIndex]?.click();
+      if (menuVisible) {
+        if (edge(0)) titleButtons()[titleIndex]?.click(); // ✕ / A selects the focused New or Load action.
+        if (edge(1)) $('#menu-back').click(); // ○ / B returns to the story selector.
+      } else if (edge(0) && world) titleButtons()[titleIndex]?.click();
       prev = Object.fromEntries(gp.buttons.map((x, i) => [i, x.pressed]));
-    }
+    } else { prev = {}; stickHeld = 0; }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

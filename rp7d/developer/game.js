@@ -350,6 +350,7 @@ function setOutdoorActorsVisible(value) {
 // Rizer back where he went in. Inventory, gold, progress: untouched by the trip.
 function showInterior(I = homeInterior) {
   if (homeMode || !I) return;
+  music.setHostPaused(true);
   homeReturn = { x: rizer.position.x, y: rizer.position.y, z: rizer.position.z, facing: rizer.facing };
   indoor = I; homeMode = true; world.setExteriorVisible(false); I.show(true); setOutdoorActorsVisible(false);
   $('#game').classList.add('home-interior'); astral.clearLock(); I.start(rizer, cam, 1);
@@ -732,16 +733,18 @@ function leaveHomeInterior() {
   const at = homeReturn || { x: W.playerStart.x, z: W.playerStart.z, facing: W.playerStart.facing };
   rizer.position.set(at.x, world.groundAt(at.x, at.z, Number.isFinite(at.y) ? at.y + 0.5 : undefined), at.z); rizer.facing = at.facing; rizer.vel.set(0, 0, 0); rizer.vy = 0; rizer.speed = 0; rizer.onGround = true; rizer.flying = false; // the ground he went in from, never a roof above the doorway
   snapOutsideDoor(3.4); homeReturn = null;
+  music.setHostPaused(false); music.unlock(); // gameplay music begins only when Rizer reaches the overworld
   showToast('Outside · the door will still be here');
 }
-// Soundtrack: the draft pack loops in the background. It starts on the Wake Up click (a user
-// gesture, so Chrome lets it play); Zyphone → Options has Music on/off and volume, and M toggles it.
+// Soundtrack: remain silent through boot, story selection, the intro, and Rizer's room. It starts
+// when he exits to the overworld; Zyphone → Options controls volume and mute, and M toggles it.
 let musicState = null;
 const MUSIC_VOLS = [0.05, 0.1, 0.16, 0.25, 0.4, 0.6, 0.8, 1];
 const music = createSoundtrack({ onChange: s => {
   const was = musicState?.status; musicState = s;
   if (was && was !== s.status && zy?.isOpen && zy.tab === 'options') zy.open('options');
 } });
+music.setHostPaused(true); // New sessions begin in Rizer's room; remain quiet until the exterior loads.
 const musicNote = () => {
   const s = musicState || music.getState();
   return s.error ? s.error : s.status === 'waiting' ? 'Press any button or click to start it (the browser is holding it back).' : s.status === 'playing' ? 'Playing · the draft music pack, looping.' : s.status === 'muted' ? 'Muted.' : 'Starts when you wake up.';
@@ -764,38 +767,43 @@ const later = (sec, fn) => timers.push({ at: elapsed + sec, fn }); // swing-and-
 function toggleMusic() { const m = !music.getState().muted; music.setMuted(m); showToast(m ? 'Music off' : 'Music on'); }
 // ── Title screen · NEW GAME / LOAD GAME (mouse, keyboard and DualSense) ─────────
 // The save is Rizer's place in the world; inventory, settings and music are saved on their own keys.
-const SAVE_KEY = 'rp7d.save.v1';
-const readSave = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } };
-let newArmed = false, titleIndex = 0, lastSaveAt = readSave()?.t || 0, saveFailed = false;
+const SAVE_KEYS = { rizer: 'rp7d.save.v1', andre: 'rp7d.andre.save.v1' };
+const selectedCharacter = () => { try { return sessionStorage.getItem('rp7d.selectedCharacter') === 'andre' ? 'andre' : 'rizer'; } catch (e) { return 'rizer'; } };
+const saveKey = (character = selectedCharacter()) => SAVE_KEYS[character] || SAVE_KEYS.rizer;
+const readSave = (character = selectedCharacter()) => { try { return JSON.parse(localStorage.getItem(saveKey(character)) || 'null'); } catch (e) { return null; } };
+let newArmed = false, titleIndex = 0, lastSaveAt = readSave('rizer')?.t || 0, saveFailed = false;
 function saveGame() {
   if (!started || !rizer || koT > 0 || ufoPilot || astralboard?.active) return false;
   treehouses?.save();
   const hero = npcs?.npcs.find(n => n.role === 'hero');
   if (hero) { inventory.zorynMet = hero.met; inventory.zorynRecruited = hero.recruited || hero.wasRecruited; inventory.zorynDowned = hero.downed; inventory.zorynHealth = hero.health; saveInv(); }
   const p = rizer.position, at = homeMode ? homeReturn : caveMode && caveReturn ? { x: caveReturn.x, y: world.groundAt(caveReturn.x, caveReturn.z), z: caveReturn.z, facing: caveReturn.face } : { x: p.x, y: p.y, z: p.z, facing: rizer.facing };
-  try { const t = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, t, home: homeMode && indoor === homeInterior, treehouse: homeMode && indoor.treehouse ? indoor.id : null, at, hour, region: hud?.regionOf(p.x, p.z) })); lastSaveAt = t; saveFailed = false; return true; }
+  try { const t = Date.now(); localStorage.setItem(saveKey(), JSON.stringify({ v: 1, t, home: homeMode && indoor === homeInterior, treehouse: homeMode && indoor.treehouse ? indoor.id : null, at, hour, region: hud?.regionOf(p.x, p.z) })); lastSaveAt = t; saveFailed = false; return true; }
   catch (e) { saveFailed = true; return false; }
 }
 function titleButtons() { return [...document.querySelectorAll('#title-menu .title-btn')].filter(b => !b.disabled); }
 function titleFocus(i) { const list = titleButtons(); if (!list.length) return; titleIndex = (i + list.length) % list.length; list.forEach((b, k) => b.classList.toggle('focus', k === titleIndex)); }
 function refreshTitle() {
-  const sv = readSave(), enter = $('#enter'), load = $('#load-game'), ready = !!world;
-  enter.disabled = !ready;
-  load.disabled = !ready || !sv;
-  $('#new-sub').textContent = ready ? 'Wake up in Rizer’s room' : 'Loading Malezor…';
-  if (!ready) $('#load-sub').textContent = 'Loading Malezor…';
+  const character = selectedCharacter(), andre = character === 'andre', sv = readSave(character), enter = $('#enter'), load = $('#load-game'), ready = !!world;
+  enter.disabled = !ready || andre;
+  load.disabled = !ready || !sv || andre;
+  $('#new-sub').textContent = andre ? 'Viridia campaign · Coming soon' : ready ? 'Wake up in Rizer’s room' : 'Loading Malezor…';
+  if (andre) $('#load-sub').textContent = 'Andre save files · Coming soon';
+  else if (!ready) $('#load-sub').textContent = 'Loading Malezor…';
   else if (!sv) $('#load-sub').textContent = 'No save yet';
-  if (sv && ready) { const d = new Date(sv.t); $('#load-sub').textContent = `${sv.home ? 'Rizer’s Home' : sv.region || 'Malezor'} · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`; }
-  titleFocus(sv && ready ? 1 : 0); // a returning player lands on LOAD GAME once the world is ready
+  if (sv && ready && !andre) { const d = new Date(sv.t); $('#load-sub').textContent = `${sv.home ? 'Rizer’s Home' : sv.region || 'Malezor'} · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`; }
+  titleFocus(andre ? 0 : sv && ready ? 1 : 0); // Andre's save slot is isolated and stays unavailable until Viridia is playable.
 }
-function beginPlay() { $('#intro').classList.add('hidden'); $('#game').classList.add('playing'); tryLock(); started = true; canvas.focus?.(); music.unlock(); sfx.unlock(); }
+function beginPlay() { $('#intro').classList.add('hidden'); $('#game').classList.add('playing'); tryLock(); started = true; canvas.focus?.(); sfx.unlock(); }
 function startNewGame() {
+  if (selectedCharacter() !== 'rizer') return;
   if (readSave() && !newArmed) { newArmed = true; $('#title-confirm').hidden = false; $('#new-sub').textContent = 'Press again to start over'; return; }
   // A new game resets progress (inventory, chest, save) and reloads into a fresh Malezor, straight past the title.
-  try { localStorage.removeItem('rp7d.inventory.v1'); localStorage.removeItem('rp7d.homeLayout.v1'); localStorage.removeItem(SAVE_KEY); sessionStorage.setItem('rp7d.boot', 'new'); } catch (e) {}
+  try { localStorage.removeItem('rp7d.inventory.v1'); localStorage.removeItem('rp7d.homeLayout.v1'); localStorage.removeItem(saveKey('rizer')); sessionStorage.setItem('rp7d.boot', 'new'); } catch (e) {}
   location.reload();
 }
 function loadGame() {
+  if (selectedCharacter() !== 'rizer') return;
   const sv = readSave(); if (!sv || !world) return;
   if (typeof sv.hour === 'number') { hour = sv.hour; hourTarget = null; }
   if (!sv.home && sv.at) { homeReturn = { ...sv.at }; leaveHomeInterior(); }
@@ -804,6 +812,7 @@ function loadGame() {
 }
 $('#enter').addEventListener('click', () => { if (world) startNewGame(); });
 $('#load-game').addEventListener('click', () => loadGame());
+window.addEventListener('rp7d:character-menu', () => { newArmed = false; $('#title-confirm').hidden = true; refreshTitle(); });
 document.querySelectorAll('#title-menu .title-btn').forEach((b, i) => b.addEventListener('pointerenter', () => titleFocus(titleButtons().indexOf(b))));
 addEventListener('keydown', e => {
   if (started || $('#intro').classList.contains('hidden')) return;

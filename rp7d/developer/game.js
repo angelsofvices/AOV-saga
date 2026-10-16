@@ -2871,14 +2871,14 @@ function update(dt, t, realDt = dt) {
   if (inventory.hip && (!inventory.owned.includes(inventory.hip) || !inventory.wheel?.includes(inventory.hip))) inventory.hip = null; // only weapons on the wheel ride on his body
   // Rifle stance: with the blaster in hand the rifle clips carry idle / walk / run / jump, and □ brings it to the shoulder.
   const rifleClips = hasRifleClips(rizer.actor), rifleOut = rizer.swordAt === 'hand' && rizer.handWeapon === 'blaster' && inventory.wheel?.includes('blaster') && rizer.swimW < 0.5;
+  const drawn = rizer.swordAt === 'hand' ? rizer.handWeapon : null, swim = rizer.swimW >= 0.5;
   if (rizer.actor) {
     const A = rizer.actor, v = rizer.vel, sp = v ? Math.hypot(v.x, v.z) : 0, rel = sp > 0.6 ? Math.atan2(v.x, v.z) - rizer.facing : 0;
     A.heavy = rizer.swordAt === 'hand' && (rizer.handWeapon === 'axe' || rizer.handWeapon === 'rubypaw') && inventory.wheel?.includes(rizer.handWeapon) && rizer.swimW < 0.5;
     A.rifle = rifleClips && rifleOut && !rizer.flying && !jam; A.pistol = drawn === 'plasmabeam' && !swim && !rizer.flying && !jam; A.aiming = rifleUp > 0;
     A.strafe = (A.rifle || A.pistol ? A.aiming || A.pistol : true) && sp > 0.6 ? Math.sin(rel) * Math.min(1, Math.abs(Math.sin(rel)) * 1.6) : 0; A.backing = A.rifle && A.aiming && sp > 0.6 ? Math.max(0, -Math.cos(rel) * 1.6 - 0.6) : 0;
   }
-  { const drawn = rizer.swordAt === 'hand' ? rizer.handWeapon : null, swim = rizer.swimW >= 0.5;
-    held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, !inventory.owned.includes(k) || !inventory.wheel?.includes(k) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null]))); }
+  held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, !inventory.owned.includes(k) || !inventory.wheel?.includes(k) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null])));
   if (rifleClips && rifleOut && held.meshes.blaster.parent) gripRifle(rizer.actor, held.meshes.blaster, rifleKick * 0.4); // both hands on it, wherever the clip carries it
   else if (rifleK > 0.02 && rizer.weapon === 'blaster' && rizer.actor && held.meshes.blaster.parent) { held.meshes.blaster.position.z -= rifleKick * 0.4; holdRifle(rizer.actor, held.meshes.blaster, rifleK); }
   held.update(dt, !lab.previewing, !!BLADES[rizer.attack?.kind]);

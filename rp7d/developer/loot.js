@@ -782,7 +782,8 @@ const MOUNTS = {
   plasmabeam: {
     // Lift the model so the pistol grip (below its origin) sits in the palm instead of the receiver crossing the fist.
     // Keep the barrel's local +Z axis pointed forward and the handle centered in the right palm.
-    hand: { bone:'mixamorigRightHand', off:new THREE.Vector3(0,.085,.04), blade:new THREE.Vector3(0,1,0), edge:new THREE.Vector3(1,0,0) },
+    // The weapon grip is below its origin; this offset moves that grip from the wrist joint into the palm.
+    hand: { bone:'mixamorigRightHand', off:new THREE.Vector3(0,.19,.04), blade:new THREE.Vector3(0,1,0), edge:new THREE.Vector3(1,0,0) },
     stow: { bone:'mixamorigHips', off:new THREE.Vector3(-.24,-.04,.02), blade:new THREE.Vector3(0,0,-1), edge:new THREE.Vector3(-1,0,0) }
   },
   sword: {

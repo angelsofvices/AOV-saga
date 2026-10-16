@@ -252,8 +252,7 @@ export class Actor {
       for (const suffix of ['Walk', 'AimWalk', 'Back', 'Run', 'StrafeL', 'StrafeR']) { const k = gunSlot(suffix); if (a[k]) rat(k, suffix === 'Walk' || suffix === 'AimWalk' || suffix === 'Back' ? RW : RR); }
       for (const k of gunProfile === 'pistol' ? ['pistolIdle', 'pistolKneel'] : ['rifleIdle', 'rifleAim', 'rifleCrouch']) if (a[k]) {
         const duration = Math.max(a[k].getClip().duration, 1e-3);
-        if (k === 'pistolIdle' && moving < 0.02) a[k].time = 0;
-        else a[k].time = (a[k].time + dt) % duration;
+        a[k].time = (a[k].time + dt) % duration;
       }
       this.aimW = clamp((this.aimW || 0) + ((this.aiming ? 1 : 0) - (this.aimW || 0)) * Math.min(1, dt * 10), 0, 1);
       this.backW = (this.backW || 0) + (clamp(this.backing || 0, 0, 1) - (this.backW || 0)) * Math.min(1, dt * 8);

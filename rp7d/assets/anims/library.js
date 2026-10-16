@@ -7,6 +7,7 @@
 //   inPlace true strips forward travel (the game moves the character itself)
 export default [
   { file: 'rizer/Pistol_Draw.fbx', name: 'Plasmabeam · draw pistol', loop: false, inPlace: true },
+  { file: 'rizer/Pistol_Idle.fbx', name: 'Plasmabeam · pistol idle', loop: true, inPlace: true },
   { file: 'rizer/Pistol_Put_Away.fbx', name: 'Plasmabeam · put pistol away', loop: false, inPlace: true },
   { file: 'rizer/Pistol_Fire.fbx', name: 'Plasmabeam · fire', loop: false, inPlace: true },
   { file: 'rizer/Pistol_Whip.fbx', name: 'Plasmabeam · pistol whip', loop: false, inPlace: true },

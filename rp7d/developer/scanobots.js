@@ -443,16 +443,18 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
     clock += dt;
     const rp = rizer.position, inView = hooks.inView;
     for (const b of bots) {
+      if (b.frost?.frozen && alive(b)) { b.knock.set(0, 0, 0); continue; }
+      const statusDt = dt * (b.frost?.slow ?? 1);
       const p = b.pos, dx = rp.x - p.x, dz = rp.z - p.z, dist = Math.hypot(dx, dz), toP = Math.atan2(dx, dz);
       if (b.state === 'gone') {
         if (clock >= b.respawnAt && Math.hypot(rp.x - b.pts[0].x, rp.z - b.pts[0].y) > S.respawnDist) reset(b);
         continue;
       }
       const far = dist > S.active && !hostile(b) && alive(b);
-      b.cool = Math.max(0, b.cool - dt); b.barT = Math.max(0, b.barT - dt);
+      b.cool = Math.max(0, b.cool - statusDt); b.barT = Math.max(0, b.barT - statusDt);
       let want = 0, face = null, strafe = 0;
       // sight is checked a few times a second (it casts a ray)
-      if (!far && alive(b) && (b.seenT -= dt) <= 0) { b.seenT = 0.15 + Math.random() * 0.1; b.seen = canSee(b, rizer); }
+      if (!far && alive(b) && (b.seenT -= statusDt) <= 0) { b.seenT = 0.15 + Math.random() * 0.1; b.seen = canSee(b, rizer); }
       if (far) b.seen = false;
       switch (b.state) {
         case 'patrol': case 'return': {
@@ -462,14 +464,14 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
           face = Math.atan2(tx, tz); want = b.state === 'return' ? S.patrol * 1.6 : S.patrol; break;
         }
         case 'scan': // hovers and sweeps its lens
-          b.t -= dt; face = b.heading + dt * 1.2 * b.side;
+          b.t -= statusDt; face = b.heading + statusDt * 1.2 * b.side;
           if (b.seen) { b.state = 'alert'; b.t = 0.45; alertAround(b); } else if (b.t <= 0) b.state = 'patrol';
           break;
         case 'alert': // spotted: turn to him, lens flares
-          b.t -= dt; face = toP; if (b.t <= 0) { b.state = 'chase'; b.lost = 0; b.cool = Math.max(b.cool, 0.6); }
+          b.t -= statusDt; face = toP; if (b.t <= 0) { b.state = 'chase'; b.lost = 0; b.cool = Math.max(b.cool, 0.6); }
           break;
         case 'chase': {
-          b.lost = b.seen ? 0 : b.lost + dt; face = toP;
+          b.lost = b.seen ? 0 : b.lost + statusDt; face = toP;
           // the hunt is relentless: it ends when the drone is destroyed, Rizer is knocked out, or he is in another district
           if (rizer.hp <= 0 || districtAt(rp.x, rp.z, W) !== (b.district ||= districtAt(b.home.x, b.home.y, W))) { b.state = 'return'; b.wp = nearestWp(b); break; }
           if (dist > S.standoff[1]) want = S.chase * (dist > 10 ? 1 : 0.7);
@@ -483,16 +485,16 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
           break;
         }
         case 'charge': // the tell: it stops, the lens brightens, then the bolt
-          b.t -= dt; face = toP;
-          if (Math.random() < dt * 30) { tA.set(0, 0, 0.3).applyAxisAngle(_up, b.heading).add(b.center); fx?.emit(tA.x + (Math.random() - 0.5) * 0.5, tA.y + (Math.random() - 0.5) * 0.5, tA.z + (Math.random() - 0.5) * 0.5, 1, { color: '#9fd4ff', speed: 0.3, up: 0, size: 0.12, life: 0.2, g: 0 }); }
+          b.t -= statusDt; face = toP;
+          if (Math.random() < statusDt * 30) { tA.set(0, 0, 0.3).applyAxisAngle(_up, b.heading).add(b.center); fx?.emit(tA.x + (Math.random() - 0.5) * 0.5, tA.y + (Math.random() - 0.5) * 0.5, tA.z + (Math.random() - 0.5) * 0.5, 1, { color: '#9fd4ff', speed: 0.3, up: 0, size: 0.12, life: 0.2, g: 0 }); }
           if (b.t <= 0) { if (rizer.hp > 0) fire(b, rizer); b.state = 'chase'; b.cool = rand(S.cooldown); if (Math.random() < 0.5) b.side *= -1; }
           break;
         case 'clawWind':
-          b.t -= dt; face = toP;
+          b.t -= statusDt; face = toP;
           if (b.t <= 0) { b.state = 'claw'; b.t = S.claw.swipe; b.struck = false; }
           break;
         case 'claw': {
-          b.t -= dt; face = toP; want = 2.2;
+          b.t -= statusDt; face = toP; want = 2.2;
           if (!b.struck && b.t < S.claw.swipe * 0.55) {
             b.struck = true;
             const dy = b.center.y - (rp.y + 1.1);
@@ -505,31 +507,31 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
           break;
         }
         case 'stagger':
-          b.t -= dt; if (b.t <= 0) { b.state = 'chase'; b.lost = 0; }
+          b.t -= statusDt; if (b.t <= 0) { b.state = 'chase'; b.lost = 0; }
           break;
         case 'down': { // falling out of the air, tumbling
-          b.t += dt; b.vy -= 14 * dt; b.alt += b.vy * dt;
-          b.breakFrame = Math.min(3, Math.floor((b.t += dt) / 0.2));
-          b.body.rotation.x += b.spin * dt; b.body.rotation.z += b.spin * 0.6 * dt;
-          if (Math.random() < dt * 25) fx?.emit(b.center.x, b.center.y, b.center.z, 1, { color: Math.random() < 0.5 ? '#ffd38a' : '#8fd0ff', speed: 1.5, up: 0.8, size: 0.12, life: 0.3, g: 5 });
+          b.t += statusDt; b.vy -= 14 * statusDt; b.alt += b.vy * statusDt;
+          b.breakFrame = Math.min(3, Math.floor((b.t += statusDt) / 0.2));
+          b.body.rotation.x += b.spin * statusDt; b.body.rotation.z += b.spin * 0.6 * statusDt;
+          if (Math.random() < statusDt * 25) fx?.emit(b.center.x, b.center.y, b.center.z, 1, { color: Math.random() < 0.5 ? '#ffd38a' : '#8fd0ff', speed: 1.5, up: 0.8, size: 0.12, life: 0.3, g: 5 });
           if (b.alt <= 0.24) { b.alt = 0.24; b.state = 'wreck'; b.t = 40; /* it lies there to be salvaged (resources.js); stripped, it goes at once */ b.knock.set(0, 0, 0); fx?.emit(b.center.x, b.pos.y + 0.2, b.center.z, 14, { speed: 2.4, up: 0.8, size: 0.4, life: 0.5 }); }
           break;
         }
         case 'wreck': // staged collapsed shell remains solid and salvageable, then sinks away
-          b.t -= dt; b.breakFrame = Math.min(3, Math.floor((40 - b.t) / 0.18)); if (b.salvaged && b.t > 0.8) b.t = 0.8;
+          b.t -= statusDt; b.breakFrame = Math.min(3, Math.floor((40 - b.t) / 0.18)); if (b.salvaged && b.t > 0.8) b.t = 0.8;
           if (b.t < 0.8) b.root.scale.setScalar(S.scale * Math.max(0.01, b.t / 0.8));
-          else if (Math.random() < dt * 4) fx?.emit(b.center.x, b.center.y + 0.1, b.center.z, 2, { color: '#9fd4ff', speed: 1.2, up: 1, size: 0.1, life: 0.25 });
+          else if (Math.random() < statusDt * 4) fx?.emit(b.center.x, b.center.y + 0.1, b.center.z, 2, { color: '#9fd4ff', speed: 1.2, up: 1, size: 0.1, life: 0.25 });
           if (b.t <= 0) { b.state = 'gone'; b.root.visible = false; b.respawnAt = clock + S.respawn; }
           break;
       }
       if (b.state === 'gone') continue;
       // movement (in the air: a smoothed velocity, pushed by blows, kept out of buildings and trees)
-      if (face !== null && alive(b)) b.heading = dampAngle(b.heading, face, b.state === 'patrol' || b.state === 'scan' ? 3 : 8, dt);
+      if (face !== null && alive(b)) b.heading = dampAngle(b.heading, face, b.state === 'patrol' || b.state === 'scan' ? 3 : 8, statusDt);
       const fx_ = Math.sin(b.heading), fz_ = Math.cos(b.heading);
       const wantX = fx_ * want + fz_ * strafe, wantZ = fz_ * want - fx_ * strafe;
-      b.vel.x = damp(b.vel.x, alive(b) ? wantX : 0, S.accel, dt); b.vel.z = damp(b.vel.z, alive(b) ? wantZ : 0, S.accel, dt);
+      b.vel.x = damp(b.vel.x, alive(b) ? wantX : 0, S.accel, statusDt); b.vel.z = damp(b.vel.z, alive(b) ? wantZ : 0, S.accel, statusDt);
       const ox = p.x, oz = p.z;
-      p.x += (b.vel.x + b.knock.x) * dt; p.z += (b.vel.z + b.knock.z) * dt; b.knock.multiplyScalar(Math.exp(-6 * dt));
+      p.x += (b.vel.x + b.knock.x) * statusDt; p.z += (b.vel.z + b.knock.z) * statusDt; b.knock.multiplyScalar(Math.exp(-6 * statusDt));
       if (!far) {
         probe.set(p.x, p.y, p.z); if (world.resolve(probe, 0.42)) { p.x = probe.x; p.z = probe.z; if (b.state === 'patrol' || b.state === 'return') b.wp = (b.wp + 1) % b.pts.length; }
         world.keepOnLand?.(p, ox, oz);
@@ -539,7 +541,7 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
       }
       p.x = clamp(p.x, -B - 10, B + 10); p.z = clamp(p.z, -B - 10, B + 10);
       if (!far || (b.frame = (b.frame || 0) + 1) % 15 === 0) p.y = baseY(p.x, p.z, p.y);
-      if (alive(b)) b.alt = damp(b.alt, S.hover + Math.sin(t * 1.9 + b.phase) * 0.07 + (b.state === 'claw' ? -0.15 : 0), 4, dt);
+      if (alive(b)) b.alt = damp(b.alt, S.hover + Math.sin(t * 1.9 + b.phase) * 0.07 + (b.state === 'claw' ? -0.15 : 0), 4, statusDt);
       placeBody(b);
       // visibility: drawn when near and on screen
       const show = !hidden && dist < S.visible && (dist < 10 || !inView || inView(b.pos));
@@ -549,10 +551,10 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
       b.root.rotation.y = b.heading;
       if (alive(b)) {
         const fwd = b.vel.x * fx_ + b.vel.z * fz_, side = b.vel.x * fz_ - b.vel.z * fx_;
-        b.body.rotation.x = damp(b.body.rotation.x, clamp(fwd * 0.07, -0.3, 0.3) + (b.state === 'stagger' ? -0.45 : 0), 8, dt);
-        b.body.rotation.z = damp(b.body.rotation.z, clamp(-side * 0.08, -0.3, 0.3), 8, dt);
+        b.body.rotation.x = damp(b.body.rotation.x, clamp(fwd * 0.07, -0.3, 0.3) + (b.state === 'stagger' ? -0.45 : 0), 8, statusDt);
+        b.body.rotation.z = damp(b.body.rotation.z, clamp(-side * 0.08, -0.3, 0.3), 8, statusDt);
         const swing = b.state === 'clawWind' ? -1.4 * (1 - b.t / S.claw.windup) : b.state === 'claw' ? -1.4 + 2.2 * (1 - b.t / S.claw.swipe) : Math.sin(t * 2.3 + b.phase) * 0.12;
-        for (const a of b.arms) { a.sh.rotation.x = damp(a.sh.rotation.x, swing, 14, dt); a.sh.rotation.z = a.s * (0.32 + Math.sin(t * 1.7 + b.phase + a.s) * 0.06); a.el.rotation.x = b.state === 'claw' || b.state === 'clawWind' ? -0.3 : -0.75 + Math.sin(t * 2.1 + b.phase) * 0.1; }
+        for (const a of b.arms) { a.sh.rotation.x = damp(a.sh.rotation.x, swing, 14, statusDt); a.sh.rotation.z = a.s * (0.32 + Math.sin(t * 1.7 + b.phase + a.s) * 0.06); a.el.rotation.x = b.state === 'claw' || b.state === 'clawWind' ? -0.3 : -0.75 + Math.sin(t * 2.1 + b.phase) * 0.1; }
       }
       const charge = b.state === 'charge' ? 1 - b.t / S.zap.windup : b.state === 'alert' ? 0.6 : 0;
       b.lensMat.color.setScalar(1.6 + charge * 2.4 + (b.seen && hostile(b) ? 0.3 : 0));
@@ -562,7 +564,7 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
       b.flame.scale.set(1, Math.max(0.01, thrust * (1 + Math.min(1, Math.hypot(b.vel.x, b.vel.z) / S.chase) * 0.4)), 1); b.flame.visible = thrust > 0;
       b.thrGlow.visible = thrust > 0; b.thrGlow.scale.setScalar(0.42 * thrust);
       for (const a of b.antennas) a.children[2].rotation.y = t * 1.5;
-      b.flash = Math.max(0, b.flash - dt);
+      b.flash = Math.max(0, b.flash - statusDt);
       b.hullMat.emissive.setScalar(b.flash > 0 ? 0.9 * b.flash / 0.14 : 0);
       b.bar.visible = alive(b) && (b.barT > 0 || hostile(b));
       if (b.bar.visible && !b.bar.drawn) { b.bar.redraw(b.hp / S.hp); b.bar.drawn = true; }

@@ -26,6 +26,12 @@ export const SLOTS = [
   { key: 'walk', label: 'Walk', kind: 'locomotion' },
   { key: 'run', label: 'Run', kind: 'locomotion' },
   { key: 'tiredRun', label: 'Running tired (zero stamina)', kind: 'locomotion' },
+  { key: 'strafeWalkL', label: 'Strafe left · walk', kind: 'locomotion' },
+  { key: 'strafeWalkR', label: 'Strafe right · walk', kind: 'locomotion' },
+  { key: 'strafeSprintL', label: 'Strafe left · sprint', kind: 'locomotion' },
+  { key: 'strafeSprintR', label: 'Strafe right · sprint', kind: 'locomotion' },
+  { key: 'strafeTiredL', label: 'Strafe left · tired run', kind: 'locomotion' },
+  { key: 'strafeTiredR', label: 'Strafe right · tired run', kind: 'locomotion' },
   { key: 'stairWalkUp', label: 'Walk up stairs', kind: 'locomotion' },
   { key: 'stairRunUp', label: 'Run up stairs', kind: 'locomotion' },
   { key: 'stairWalkDown', label: 'Walk down stairs', kind: 'locomotion' },
@@ -61,6 +67,17 @@ export const SLOTS = [
   { key: 'chairTyping', label: 'Chair · typing at a keyboard', kind: 'state' },
   { key: 'heavyRun', label: 'Heavy weapon · run (axe, longswords)', kind: 'locomotion' },
   { key: 'rifleIdle', label: 'Rifle · idle', kind: 'state' },
+  { key: 'drawPlasmabeam', label: 'Plasmabeam · draw', kind: 'oneshot' },
+  { key: 'sheathePlasmabeam', label: 'Plasmabeam · put away', kind: 'oneshot' },
+  { key: 'pistolIdle', label: 'Pistol · idle', kind: 'state' },
+  { key: 'pistolFire', label: 'Pistol · fire', kind: 'oneshot' },
+  { key: 'pistolWhip', label: 'Pistol · whip', kind: 'oneshot' },
+  { key: 'pistolJump', label: 'Pistol · jump', kind: 'air' },
+  { key: 'pistolKneel', label: 'Pistol · kneeling idle', kind: 'state' },
+  { key: 'pistolWalk', label: 'Pistol · walk', kind: 'locomotion' },
+  { key: 'pistolRun', label: 'Pistol · run', kind: 'locomotion' },
+  { key: 'pistolStrafeL', label: 'Pistol · strafe left', kind: 'locomotion' },
+  { key: 'pistolStrafeR', label: 'Pistol · strafe right', kind: 'locomotion' },
   { key: 'rifleAim', label: 'Rifle · aim', kind: 'state' },
   { key: 'rifleFire', label: 'Rifle · fire', kind: 'oneshot' },
   { key: 'rifleWalk', label: 'Rifle · walk', kind: 'locomotion' },
@@ -114,17 +131,20 @@ export const SLOTS = [
   { key: 'kick2', label: 'Kick · combo 2', kind: 'oneshot' },
   { key: 'kick3', label: 'Kick · combo 3', kind: 'oneshot' },
   { key: 'kick4', label: 'Kick · combo 4', kind: 'oneshot' },
+  { key: 'kick5', label: 'Kick · combo 5 · 360 ground kick', kind: 'oneshot' },
   { key: 'flykick', label: 'Flying kick (running + △)', kind: 'oneshot' },
+  { key: 'runKickHold', label: 'Running kick hold (sprint + hold △)', kind: 'oneshot' },
   { key: 'runpunch', label: 'Running punch (running + □)', kind: 'oneshot' },
   { key: 'kickHeavy', label: 'Heavy weapon · kick (△ with the axe or a longsword drawn)', kind: 'oneshot' },
   { key: 'aerialEvade', label: 'Aerial evade (perfect dodge of a projectile)', kind: 'oneshot' },
   { key: 'treeSpin', label: 'Tree spin evade (running into a tree)', kind: 'oneshot' },
   { key: 'heavyRunAttack', label: 'Heavy weapon · running attack (running + □)', kind: 'oneshot' },
   { key: 'blast', label: 'Astral Blast (○)', kind: 'oneshot' },
-  { key: 'blast2', label: 'Astralstrike · combo 2 (○)', kind: 'oneshot' },
-  { key: 'blast3', label: 'Astralstrike · combo 3 · two-hand blast (○)', kind: 'oneshot' },
+  { key: 'blast2', label: 'Astralstrike · combo 2 · two-hand blast (○)', kind: 'oneshot' },
+  { key: 'blast3', label: 'Astralstrike · combo 3 (○)', kind: 'oneshot' },
+  { key: 'blast4', label: 'Astralstrike · combo 4 · Volstorm ultimate (○)', kind: 'oneshot' },
   { key: 'dodge', label: 'Dodge roll', kind: 'oneshot' },
-  { key: 'block', label: 'Block (hold L1 + R1)', kind: 'state' },
+  { key: 'block', label: 'Block (hold L2 + R2)', kind: 'state' },
   { key: 'parry', label: 'Parry (perfect block: guard up just as the blow lands)', kind: 'oneshot' },
   { key: 'airslam', label: 'Aerial slam (in the air + lock on + □)', kind: 'oneshot' },
   { key: 'thunder', label: 'Astralthunder cast (lock + d-pad ↓)', kind: 'oneshot' },
@@ -141,7 +161,10 @@ export const SLOTS = [
   { key: 'vault', label: 'Running vault (run + ✕ at a low obstacle)', kind: 'oneshot' },
   { key: 'ledgeGrab', label: 'Ledge · jump to hang', kind: 'oneshot' },
   { key: 'ledgeClimb', label: 'Ledge · climb up', kind: 'oneshot' },
-  { key: 'wallRun', label: 'Wall run · sprint transition (hold ✕ + sprint)', kind: 'oneshot' },
+  { key: 'ledgeShimmyL', label: 'Ledge · shimmy left', kind: 'state' },
+  { key: 'ledgeShimmyR', label: 'Ledge · shimmy right', kind: 'state' },
+  { key: 'wallRun', label: 'Wall run · hold ✕ + sprint to sustain', kind: 'state' },
+  { key: 'wallRunRight', label: 'Wall run · right-side wall (mirrored)', kind: 'state' },
   { key: 'prayKneel', label: 'Prayer · kneel (L1 + R1 + L2 + R2)', kind: 'oneshot' },
   { key: 'prayHold', label: 'Prayer · hold and charge Astral Energy', kind: 'state' },
   { key: 'prayStand', label: 'Prayer · stand on release', kind: 'oneshot' },
@@ -162,13 +185,14 @@ export const SLOTS = [
   { key: 'interact', label: 'Interact (landmark)', kind: 'oneshot' },
   { key: 'enter', label: 'Enter door', kind: 'oneshot' },
   { key: 'pickup', label: 'Pick up item', kind: 'oneshot' },
+  { key: 'pickupWaist', label: 'Pick up waist-height item', kind: 'oneshot' },
   { key: 'store', label: 'Kneel · store ground loot', kind: 'oneshot' },
   { key: 'emote', label: 'Emote', kind: 'oneshot' },
   { key: 'fly', label: 'Fly (double jump + hold ✕)', kind: 'state' },
   { key: 'descend', label: 'Flight descent (L3)', kind: 'state' },
   { key: 'hover', label: 'Hover (unused yet)', kind: 'state' }
 ];
-const AIR = new Set(['jump', 'rifleJump', 'fall', 'doublejump', 'wallflip', 'hover', 'fly', 'descend', 'fastfall', 'bail']); // physics owns height for these
+const AIR = new Set(['jump', 'rifleJump', 'pistolJump', 'fall', 'doublejump', 'wallflip', 'hover', 'fly', 'descend', 'fastfall', 'bail']); // physics owns height for these
 const FIXED_ROOT = new Set(['ledgeGrab', 'ledgeClimb', 'ladderClimb', 'ladderStart', 'ladderTop']); // geometry drives the root; clips supply the body pose
 const DROP = new Set(['bigland', 'fastland']);
 const FLOOR = new Set(['bailImpact', 'airslam']); // physics owns the fall; the body keeps its whole drop to the floor (it ends lying down) // physics owns the fall; keep only the landing's downward give
@@ -572,12 +596,12 @@ async function applyTo(actor) {
   await Promise.all(SLOT_KEYS.map(async slot => {
     const a = mine[slot];
     if (!a) return actor.setSlot(slot, null);
-    const ids = [a.clip, ...(a.more || [])], feet = slot.startsWith('kick') || slot === 'flykick';
+    const ids = [a.clip, ...(a.more || [])], feet = slot.startsWith('kick') || slot === 'flykick' || slot === 'runKickHold';
     try {
       const list = await Promise.all(ids.map(async id => {
         const r = await clipFor(id, actor, { inPlace: a.inPlace, rootY: FIXED_ROOT.has(slot) ? 'fixed' : DROP.has(slot) ? 'down' : FLOOR.has(slot) ? 'floor' : !AIR.has(slot), yaw: a.yaw || 0, stride: a.stride || 1, mirror: !!a.mirror });
         const primary = feet ? r.hitsFeet : r.hits, backup = feet ? r.hits : r.hitsFeet;
-        const hits = (slot === 'blast' || slot === 'blast2') && r.peak != null ? [r.peak] : primary?.length ? primary : backup; // astral casts release once
+        const hits = (slot === 'blast' || slot === 'blast2' || slot === 'blast3' || slot === 'blast4') && r.peak != null ? [r.peak] : primary?.length ? primary : backup; // every Astralstrike stage releases once at its authored hand peak
         return { clip: r.clip, meta: { travel: r.travel, clipId: id, hits, takeoff: r.takeoff, landT: r.landT, touch: r.touch } };
       }));
       actor.setSlot(slot, list);

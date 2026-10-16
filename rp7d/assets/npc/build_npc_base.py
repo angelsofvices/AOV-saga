@@ -64,7 +64,8 @@ ico(Hc + Vector((0, -0.04, -0.075)), (0.075, 0.07, 0.05), 'skin', B('Head'), sub
 for sx in (-1, 1):
     box(Hc + Vector((sx * 0.041, -0.113, 0.004)), (0.015, 0.01, 0.015), 'eye', B('Head'))          # dot eyes
     box(Hc + Vector((sx * 0.043, -0.114, 0.028)), (0.04, 0.01, 0.007), 'brow', B('Head'))  # line brows, level
-    box(Hc + Vector((sx * 0.1, 0.0, 0.0)), (0.018, 0.04, 0.05), 'skin', B('Head'))                # ears
+    # Embed the inner edge into the skull so the ears remain attached through head animation.
+    box(Hc + Vector((sx * 0.095, 0.0, 0.0)), (0.034, 0.04, 0.05), 'skin', B('Head'))              # ears
 box(Hc + Vector((0, -0.125, -0.018)), (0.018, 0.02, 0.035), 'skin', B('Head'), rx=0.3)             # nose
 box(Hc + Vector((0, -0.112, -0.058)), (0.034, 0.008, 0.006), 'mouth', B('Head'))                  # line mouth
 # ── neck and bare torso: smooth, no ribs ──
@@ -94,8 +95,8 @@ for side, sx in (('Left', 1), ('Right', -1)):
     prism(an + Vector((0, 0, 0.05)), an + Vector((0, 0, -0.08)), (0.034, 0.034), (0.036, 0.036), 6, 'skin', B(S('Leg')))  # ankle, down into the foot
     fx, tb = an.x + sx * 0.005, head(S('ToeBase'))
     y0, y1 = an.y + 0.045, tb.y - 0.01                                                               # heel → ball of the foot
-    box((fx, (y0 + y1) / 2, 0.055), (0.085, y0 - y1, 0.11), 'skin', B(S('Foot')))                    # bare foot, up to the ankle
-    box((fx + sx * 0.005, (tb.y + toe.y) / 2 - 0.005, 0.03), (0.085, tb.y - toe.y + 0.03, 0.06), 'skin', B(S('ToeBase')))  # toes
+    box((fx, (y0 + y1) / 2, 0.055), (0.085, y0 - y1 + 0.02, 0.11), 'skin', B(S('Foot')))           # heel and arch overlap toe base
+    box((fx + sx * 0.005, (tb.y + toe.y) / 2 + 0.008, 0.03), (0.085, tb.y - toe.y + 0.045, 0.06), 'skin', B(S('ToeBase')))  # toes overlap arch
 
 # ── assemble ── (Rizer's head scale, about the same point)
 P = Vector((0, -0.34, 1.585))

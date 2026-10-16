@@ -21,7 +21,7 @@ export const CLIPS = {
   punch: { name: 'Punch', active: 0.17, recover: 0.46 },
   kick: { name: 'Kick', active: 0.3, recover: 0.66 }
 };
-const ONE_SHOTS = ['punch', 'punch2', 'punch3', 'punch4', 'kick', 'kick2', 'kick3', 'kick4', 'stomp', 'bite', 'feedBody', 'turn', 'astralift', 'astraliftHit', 'stunned', 'standup', 'dodge', 'doublejump', 'enter', 'pickup', 'store', 'land', 'teleportLand', 'hurt', 'knockdown', 'interact', 'emote', 'blast', 'blast2', 'blast3', 'sword', 'sword2', 'sword3', 'sword4', 'axe', 'axe2', 'axe3', 'axe4', 'teeter', 'astralboardPush', 'rollingThunder', ...Array.from({ length: 10 }, (_, i) => `bond${i + 1}`)];
+const ONE_SHOTS = ['punch', 'punch2', 'punch3', 'punch4', 'kick', 'kick2', 'kick3', 'kick4', 'kick5', 'stomp', 'bite', 'feedBody', 'turn', 'astralift', 'astraliftHit', 'stunned', 'standup', 'dodge', 'doublejump', 'enter', 'pickup', 'pickupWaist', 'store', 'land', 'teleportLand', 'hurt', 'knockdown', 'interact', 'emote', 'blast', 'blast2', 'blast3', 'blast4', 'sword', 'sword2', 'sword3', 'sword4', 'axe', 'axe2', 'axe3', 'axe4', 'teeter', 'astralboardPush', 'rollingThunder', 'drawPlasmabeam', 'sheathePlasmabeam', 'pistolFire', 'pistolWhip', ...Array.from({ length: 10 }, (_, i) => `bond${i + 1}`)];
 const STAIR_SLOTS = ['stairWalkUp', 'stairRunUp', 'stairWalkDown', 'stairRunDown'];
 
 // Sneak-right clip: facing turned this far from the direction of travel so the side-steps carry him along it.
@@ -226,27 +226,32 @@ export class Actor {
     if (grounded) this.cycle = (this.cycle + speed * dt / (this.scale * dist)) % 1;
     const at = (slot, st) => { if (a[slot]) a[slot].time = ((this.cycle + st.phase) % 1) * a[slot].getClip().duration * Math.min(1, st.cycle / a[slot].getClip().duration); };
     at('walk', W); at('run', R); at('heavyRun', R); at('sprint', S);
+    for (const [slot, st] of [['strafeWalkL', W], ['strafeWalkR', W], ['strafeSprintL', S], ['strafeSprintR', S]]) at(slot, st);
     // Slow Run is authored at the pace it should play. Keep its FBX time at 1×
     // instead of stride-locking it to movement speed (which made the tired
     // cycle look sped up); Rizer's movement remains half sprint speed.
     if (a.tiredRun && this.tiredRunning && grounded && moving > 0.02) {
       const duration = Math.max(a.tiredRun.getClip().duration, 1e-3);
       a.tiredRun.time = (a.tiredRun.time + dt) % duration;
+      for (const slot of ['strafeTiredL', 'strafeTiredR']) if (a[slot]) a[slot].time = (a[slot].time + dt) % a[slot].getClip().duration;
     }
+    this.strafeW = (this.strafeW || 0) + (clamp(this.strafe || 0, -1, 1) - (this.strafeW || 0)) * Math.min(1, dt * 8);
     // Rifle stance (actor.rifle): the rifle set takes over idle / walk / run, on its own stride so its feet plant too.
-    const rifleOn = this.rifle && a.rifleIdle ? 1 : 0;
+    const gun = this.pistol && a.pistolIdle ? 'pistol' : this.rifle && a.rifleIdle ? 'rifle' : null;
+    if (gun) this.gunProfile = gun;
+    const gunProfile = gun || this.gunProfile;
+    const rifleOn = gun ? 1 : 0;
     this.rifleW = clamp((this.rifleW || 0) + (rifleOn - (this.rifleW || 0)) * Math.min(1, dt * 9), 0, 1);
-    const rw = this.rifleW; let rr = 0;
+    const rw = this.rifleW, gunSlot = suffix => gunProfile + suffix; let rr = 0;
     if (rw > 0) {
-      const RW = this.stride(a.rifleWalk ? 'rifleWalk' : 'walk'), RR = this.stride(a.rifleRun ? 'rifleRun' : 'run');
+      const RW = this.stride(a[gunSlot('Walk')] ? gunSlot('Walk') : 'walk'), RR = this.stride(a[gunSlot('Run')] ? gunSlot('Run') : 'run');
       const rwV = RW.dist * this.scale / RW.cycle, rrV = RR.dist * this.scale / RR.cycle;
-      rr = a.rifleRun ? smoothstep(rwV * 1.2, Math.max(rrV * 0.85, rwV * 1.6), speed) : 0;
+      rr = a[gunSlot('Run')] ? smoothstep(rwV * 1.2, Math.max(rrV * 0.85, rwV * 1.6), speed) : 0;
       if (grounded) this.rcycle = ((this.rcycle || 0) + speed * dt / (this.scale * (RW.dist + (RR.dist - RW.dist) * rr))) % 1;
       const rat = (slot, st) => { if (a[slot]) a[slot].time = (((this.rcycle || 0) + st.phase) % 1) * a[slot].getClip().duration; };
-      rat('rifleWalk', RW); rat('rifleAimWalk', RW); rat('rifleBack', RW); rat('rifleRun', RR); rat('rifleStrafeL', RR); rat('rifleStrafeR', RR);
-      for (const k of ['rifleIdle', 'rifleAim', 'rifleCrouch']) if (a[k]) a[k].time = (a[k].time + dt) % a[k].getClip().duration;
+      for (const suffix of ['Walk', 'AimWalk', 'Back', 'Run', 'StrafeL', 'StrafeR']) { const k = gunSlot(suffix); if (a[k]) rat(k, suffix === 'Walk' || suffix === 'AimWalk' || suffix === 'Back' ? RW : RR); }
+      for (const k of gunProfile === 'pistol' ? ['pistolIdle', 'pistolKneel'] : ['rifleIdle', 'rifleAim', 'rifleCrouch']) if (a[k]) a[k].time = (a[k].time + dt) % a[k].getClip().duration;
       this.aimW = clamp((this.aimW || 0) + ((this.aiming ? 1 : 0) - (this.aimW || 0)) * Math.min(1, dt * 10), 0, 1);
-      this.strafeW = (this.strafeW || 0) + (clamp(this.strafe || 0, -1, 1) - (this.strafeW || 0)) * Math.min(1, dt * 8);
       this.backW = (this.backW || 0) + (clamp(this.backing || 0, 0, 1) - (this.backW || 0)) * Math.min(1, dt * 8);
     }
     const DW = a.dazedWalk ? this.stride('dazedWalk') : W, DR = a.dazedRun ? this.stride('dazedRun') : R;
@@ -339,34 +344,43 @@ export class Actor {
     const undeadRunW = this.undeadRunW;
     this.tiredRunW = clamp((this.tiredRunW || 0) + ((this.tiredRunning && a.tiredRun ? 1 : 0) - (this.tiredRunW || 0)) * Math.min(1, dt * 9), 0, 1);
     const tiredRunW = this.tiredRunW;
-    a.walk?.setEffectiveWeight(moving * (1 - r) * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW));
+    const strafeL = Math.max(0, this.strafeW), strafeR = Math.max(0, -this.strafeW), strafe = Math.min(1, strafeL + strafeR), walkSide = strafe, sprintSide = strafe, tiredSide = strafe;
+    a.walk?.setEffectiveWeight(moving * (1 - r) * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * (1 - strafe));
+    a.strafeWalkL?.setEffectiveWeight(moving * (1 - r) * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * walkSide * (strafeL ? 1 : 0));
+    a.strafeWalkR?.setEffectiveWeight(moving * (1 - r) * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * walkSide * (strafeR ? 1 : 0));
     a.run?.setEffectiveWeight(hv === 'run' ? moving * r * (1 - sp) * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * (1 - undeadRunW) : 0);
     a.heavyRun?.setEffectiveWeight(hv === 'heavyRun' ? moving * r * (1 - sp) * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * (1 - undeadRunW) : 0);
-    a.sprint?.setEffectiveWeight(moving * r * sp * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * (1 - undeadRunW));
+    a.sprint?.setEffectiveWeight(moving * r * sp * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * (1 - undeadRunW) * (1 - strafe));
+    a.strafeSprintL?.setEffectiveWeight(moving * r * sp * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * (1 - undeadRunW) * sprintSide * (strafeL ? 1 : 0));
+    a.strafeSprintR?.setEffectiveWeight(moving * r * sp * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * (1 - undeadRunW) * sprintSide * (strafeR ? 1 : 0));
     a.undeadRun?.setEffectiveWeight(moving * r * locomotion * ordinaryLocomotion * (1 - dazedW) * (1 - tiredRunW) * undeadRunW);
-    a.tiredRun?.setEffectiveWeight(moving * locomotion * ordinaryLocomotion * (1 - dazedW) * tiredRunW);
+    a.tiredRun?.setEffectiveWeight(moving * locomotion * ordinaryLocomotion * (1 - dazedW) * tiredRunW * (1 - strafe));
+    a.strafeTiredL?.setEffectiveWeight(moving * locomotion * ordinaryLocomotion * (1 - dazedW) * tiredRunW * tiredSide * (strafeL ? 1 : 0));
+    a.strafeTiredR?.setEffectiveWeight(moving * locomotion * ordinaryLocomotion * (1 - dazedW) * tiredRunW * tiredSide * (strafeR ? 1 : 0));
     a.dazedWalk?.setEffectiveWeight(moving * (1 - r) * locomotion * ordinaryLocomotion * dazedW);
     a.dazedRun?.setEffectiveWeight(moving * r * locomotion * ordinaryLocomotion * dazedW);
     for (const key of STAIR_SLOTS) a[key]?.setEffectiveWeight(moving * this.stairWeights[key] * locomotion);
     if (rw > 0) {
       // Crouched in stealth with the rifle up: the kneeling aim. In the air: the rifle jump. Otherwise idle ↔ aim, walk ↔ run.
-      const rg = base * (1 - water) * (1 - this.flyW) * rw, crouchR = a.rifleCrouch ? this.crouchW * (1 - moving) : 0;
-      if (crouchR) { a.crouch?.setEffectiveWeight(this.crouchW * base * (1 - airW) * (1 - water) * (1 - this.flyW) * (1 - rw * (1 - moving))); a.rifleCrouch.setEffectiveWeight(rg * (1 - airW) * crouchR); }
-      const stand = rg * (1 - airW) * (1 - this.crouchW), aimW = a.rifleAim ? this.aimW : 0;
-      a.rifleIdle.setEffectiveWeight((1 - moving) * stand * (1 - aimW));
-      a.rifleAim?.setEffectiveWeight((1 - moving) * stand * aimW);
-      const hasWalk = !!a.rifleWalk, wk = moving * stand * (hasWalk ? 1 - rr : 0), rn = moving * stand * (hasWalk ? rr : 1);
-      const back = a.rifleBack ? this.backW : 0, aw = a.rifleAimWalk ? aimW : 0;
-      const sl = a.rifleStrafeL ? Math.max(0, this.strafeW) : 0, sr = a.rifleStrafeR ? Math.max(0, -this.strafeW) : 0;
+      const idleKey = gunSlot('Idle'), aimKey = gunSlot('Aim'), crouchKey = gunProfile === 'pistol' ? 'pistolKneel' : 'rifleCrouch';
+      const walkKey = gunSlot('Walk'), aimWalkKey = gunSlot('AimWalk'), backKey = gunSlot('Back'), runKey = gunSlot('Run'), leftKey = gunSlot('StrafeL'), rightKey = gunSlot('StrafeR'), jumpKey = gunSlot('Jump');
+      const rg = base * (1 - water) * (1 - this.flyW) * rw, crouchR = a[crouchKey] ? this.crouchW * (1 - moving) : 0;
+      if (crouchR) { a.crouch?.setEffectiveWeight(this.crouchW * base * (1 - airW) * (1 - water) * (1 - this.flyW) * (1 - rw * (1 - moving))); a[crouchKey].setEffectiveWeight(rg * (1 - airW) * crouchR); }
+      const stand = rg * (1 - airW) * (1 - this.crouchW), aimW = a[aimKey] ? this.aimW : 0;
+      a[idleKey]?.setEffectiveWeight((1 - moving) * stand * (1 - aimW));
+      a[aimKey]?.setEffectiveWeight((1 - moving) * stand * aimW);
+      const hasWalk = !!a[walkKey], wk = moving * stand * (hasWalk ? 1 - rr : 0), rn = moving * stand * (hasWalk ? rr : 1);
+      const back = a[backKey] ? this.backW : 0, aw = a[aimWalkKey] ? aimW : 0;
+      const sl = a[leftKey] ? Math.max(0, this.strafeW) : 0, sr = a[rightKey] ? Math.max(0, -this.strafeW) : 0;
       const side = Math.min(1, sl + sr), moveW = wk + rn;
-      a.rifleWalk?.setEffectiveWeight(wk * (1 - back) * (1 - aw) * (1 - side)); a.rifleAimWalk?.setEffectiveWeight(wk * (1 - back) * aw * (1 - side)); a.rifleBack?.setEffectiveWeight(moveW * back);
-      if (a.rifleRun) a.rifleRun.setEffectiveWeight(rn * (1 - back) * (1 - side) * (1 - tiredRunW)); else if (a.run) a.run.setEffectiveWeight(rn * (1 - back) * (1 - side) * (1 - tiredRunW));
+      a[walkKey]?.setEffectiveWeight(wk * (1 - back) * (1 - aw) * (1 - side)); a[aimWalkKey]?.setEffectiveWeight(wk * (1 - back) * aw * (1 - side)); a[backKey]?.setEffectiveWeight(moveW * back);
+      if (a[runKey]) a[runKey].setEffectiveWeight(rn * (1 - back) * (1 - side) * (1 - tiredRunW)); else if (a.run) a.run.setEffectiveWeight(rn * (1 - back) * (1 - side) * (1 - tiredRunW));
       a.tiredRun?.setEffectiveWeight(a.tiredRun.getEffectiveWeight() + rn * (1 - back) * (1 - side) * tiredRunW);
-      a.rifleStrafeL?.setEffectiveWeight(moveW * (1 - back) * sl); a.rifleStrafeR?.setEffectiveWeight(moveW * (1 - back) * sr);
-      if (airW && a.rifleJump) {
-        const m = this.meta.rifleJump || {}, d = a.rifleJump.getClip().duration;
-        a.rifleJump.time = Math.min(d * 0.34 + this.airT, d * 0.6);
-        a.rifleJump.setEffectiveWeight(airW * rg); this._rifleAir = 1 - rw;
+      a[leftKey]?.setEffectiveWeight(moveW * (1 - back) * sl); a[rightKey]?.setEffectiveWeight(moveW * (1 - back) * sr);
+      if (airW && a[jumpKey]) {
+        const d = a[jumpKey].getClip().duration;
+        a[jumpKey].time = Math.min(d * 0.34 + this.airT, d * 0.6);
+        a[jumpKey].setEffectiveWeight(airW * rg); this._rifleAir = 1 - rw;
       } else this._rifleAir = 1;
     } else this._rifleAir = 1;
     if (airW) {

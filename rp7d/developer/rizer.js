@@ -22,7 +22,7 @@ export const CHARACTERS = {
 export const DEFAULT_CHARACTER = 'rizer';
 // Player combat: damage dealt to Seers, reach in units, and how hits land on you.
 // Weapons held in the hands: each has its own combo slots (sword, sword2… / axe, axe2…).
-export const BLADES = { sword: true, axe: true, bow: true, guitar: true, rubypaw: true, telescope: true, blaster: true }; // what can be in hand (the guitar is played, not swung)
+export const BLADES = { plasmabeam: true, sword: true, axe: true, bow: true, guitar: true, rubypaw: true, telescope: true, blaster: true }; // what can be in hand (the guitar is played, not swung)
 // Rizer's run cycles a little slower than the clip's natural pace (same ground speed, longer-looking strides).
 const RUN_CADENCE = { run: 0.86, heavyRun: 0.86, sprint: 0.86 };
 export const COMBAT = {
@@ -36,6 +36,7 @@ export const COMBAT = {
   kickup: { damage: 5.5, speed: 1, move: 0, hit: 0.66, minSpeed: 6, tap: 0.35 }, // running + △△ (a second △ within `tap` s of the flying kick): the inverted kick lands at `hit` (clip s), then he kips up and runs on
   stomp: { damage: 0, reach: 2.7, arc: Math.PI, speed: 1, move: 0 }, // △ beside a grounded enemy: committed stomp finisher, no extra corpse damage
   flykick: { damage: 4, reach: 3.2, arc: 0.9, speed: 1.05, move: 0.9, carry: 0.85, minSpeed: 6 }, // running (R2 held) + △: a leaping kick that carries the run's momentum · minSpeed: also triggers at this speed without R2
+  runKickHold: { damage: 4, speed: 1, move: 0.22, carry: 0.82, minSpeed: 6, radius: 2.6 }, // sprint + hold △: spin and discharge lightning into foes close to Rizer
   kick: { damage: 2, reach: 3.0, arc: 0.9, speed: 1.0, move: 0.15, stageSpeed: [1, 1, 1, 1.3], overdrive: { stage: 4, damage: 1.75, power: 1.9 } }, // stage 4 (the backflip kick): comes through 30% faster and hits in overdrive
   blast: { damage: 2, speed: 1.15, move: 0.15 },
   sword: { damage: 3, reach: 3.7, arc: 1.3, speed: 1.1, move: 0.3 }, // Tearsword of Azurel: 3 per swing (split across the clip's blows), longer reach than fists
@@ -50,6 +51,8 @@ export const COMBAT = {
   drawAxe: { speed: 1.1, grab: 0.47 },    // Unarmed Equip Underarm: the hand closes on the axe at the right hip, 47% in
   sheatheAxe: { speed: 1.1, grab: 0.35 }, // Standing Disarm Underarm: it lets go at the hip, 35% in  // Sword Put Away: the blade seats in the scabbard 74% in // pick-up clip speed · grab frame (0-1 of the clip) · how far in front of Rizer the item sits // Astral Blast cast (the bolt itself: ASTRAL.blast in astral.js)
   drawBow: { speed: 1.05, grab: 0.55 },
+  drawPlasmabeam: { speed: 1, grab: 0.48 },
+  sheathePlasmabeam: { speed: 1, grab: 0.52 },
   maxHp: 100, invuln: 0.7,
   // Meters (fruit refills all three; waking after a knock-out refills everything):
   //   health  · never regenerates (hp 0) — archetypes and perks (the Rizer build) may turn it on later
@@ -58,7 +61,7 @@ export const COMBAT = {
   //   astral  · charges up from landed melee blows: `astralHit` per blow by combo stage, `astralFinisher` extra on the finisher
   regen: { hp: 0, hpDelay: 5, stamina: 7, combatStamina: 3, staminaDelay: 0.9, combatStaminaDelay: 0.55, astral: 0, astralHit: [1, 1.5, 2.5, 3.5], astralFinisher: 3 },
   dodge: { stamina: 4, time: 0.62, dist: 6.2, cooldown: 0.12, anim: 1.15, rise: 0.6, riseAnim: 0.8, getUp: 0.9 }, // athletic roll cost · burst / recovery timing
-  block: { hold: 0.12, reduce: 0.15, stamina: 4, arc: 1.9, push: 1.2 }, // hold L1 + R1 (controller) or Shift + C (keyboard) to guard
+  block: { hold: 0.12, reduce: 0.15, stamina: 4, arc: 1.9, push: 1.2 }, // hold L2 + R2 or stationary Shift + C to guard
   // Parry: a perfect block. The guard has to have gone up within `window` s before the blow lands, with the attacker in
   // front (block.arc): no damage, no stamina, the parry clip plays and the attacker is stunned (game.js · onPlayerHit) if
   // within `reach`. Any later and it is an ordinary block.
@@ -201,7 +204,7 @@ export class Rizer {
     this.speed = 0; this.mode = 'idle'; this.wading = false; this.events = [];
     this.scarfVel = [0, 0, 0]; this.scarfAng = [0, 0, 0];
     this.actor = null; this.cast = {}; this.charKey = null; this.C = null;
-    this.comboStage = 0; this.comboT = 0; this.strikeStage = 1; this.comboKind = null;
+    this.comboStage = 0; this.comboT = 0; this.strikeStage = 1; this.comboKind = null; this.chainStages = Object.create(null);
     this.weapon = 'fists'; this.swordAt = 'hip'; this.handWeapon = null; this.swap = null; this.prayerStyle = 'regular'; this.prayerPending = null; this.pick = null; this.crouched = false; this.autoLand = false; this.lockPos = null; this.flying = false; this.dodgeT = 0; this.dodgeCool = 0; this.dodgeDir = new THREE.Vector3(); this.usedDouble = false; this.swimW = 0; this.ledge = null; this.ledgeCooldown = 0; this.teeter = null; this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0; this.groundNormal = new THREE.Vector3(0, 1, 0); this.slopeSliding = false; this.prayer = null; this.prayerIntent = 0; this.prayerSpentHold = false;
     this.hp = this.maxHp; this.stamina = this.maxStamina; this.astralEnergy = this.maxAstralEnergy; this.hurtT = 0; this.sinceHurt = 99; this.attack = null; this.knock = new THREE.Vector3(); this.flinch = 0; this.guardT = 0; this.parryT = 0; this.lastParried = false;
     this.ready = this.setCharacter(DEFAULT_CHARACTER);
@@ -227,18 +230,18 @@ export class Rizer {
       return C.name;
     } catch (e) { console.warn('[rp7d] character model failed, keeping current body', e); }
   }
-  // Punch or kick. Both chain: presses in quick succession walk the combo
-  // 1 → 2 → 3 → 4 (as far as the actor has combo clips: punch/punch2.. or kick/kick2..),
-  // then start over at 1. No mashing: every hit plays its whole clip. A press only counts once
-  // the current hit has landed (earlier presses are ignored); it queues the next stage, which
-  // starts as the current clip finishes. After a hit ends, a press inside COMBAT.comboWindow
-  // continues the chain; switching punch ↔ kick (or weapon) starts that chain at 1.
+  // Punches, kicks, and Astralstrikes share a chain window, while each move family
+  // keeps its own stage. For example: punch 1 → kick 1 → punch 2, or
+  // punch 1 → Astralstrike 1 → kick 1 → Astralstrike 2. Other weapon chains stay separate.
+  // No mashing: each clip plays through, and only a press after its hit queues the next stage.
+  isSharedCombo(kind) { return kind === 'punch' || kind === 'kick' || kind === 'blast'; }
   strike(kind) {
     const at = this.attack;
     if (this.dodgeT <= 0 && this.dodgeLock > 0) { this.dodgeLock = 0; this.actor?.release(this.dodgeKind === 'aerial' ? 'aerialEvade' : this.dodgeKind || 'dodge', 0.12); } // strike straight out of a roll
     if (this.dodgeT > 0 || this.landLock > 0 || this.hp <= 0 || this.blocking || this.vault || this.wallRun || this.ledge || this.teeter || this.fc || this.slam) return false;
-    if (kind === 'punch' && (this.weapon === 'bow' || this.weapon === 'guitar' || this.weapon === 'telescope' || this.weapon === 'blaster')) return false; // bow shots are ranged (Pearlbow); □ with the guitar plays it (game.js · toggleGuitar)
+    if (kind === 'punch' && (this.weapon === 'plasmabeam' || this.weapon === 'bow' || this.weapon === 'guitar' || this.weapon === 'telescope' || this.weapon === 'blaster')) return false; // ranged/tools use their own input paths
     if (kind === 'punch' && BLADES[this.weapon]) kind = this.weapon; // □ swings the equipped melee weapon
+    if (kind === 'runKickHold' && (!this.isRunning || this.speed < COMBAT.runKickHold.minSpeed || !this.actor?.has('runKickHold'))) return false;
     this.finishSwap(0.1);
     if (BLADES[kind] && (this.swordAt !== 'hand' || this.handWeapon !== kind)) { this.swordAt = 'hand'; this.handWeapon = kind; } // never swing an empty hand
     if (this.pick) return false;
@@ -255,8 +258,13 @@ export class Rizer {
     if (at) return false; // a different attack waits for this one to play out
     if (kind === 'kick' && !this.onGround) return false;
     this.actor?.release('emote');
-    const cont = this.comboT > 0 && this.comboKind === kind && this.comboStage < this.comboMax(kind);
-    return this.startStrike(kind, cont ? this.comboStage + 1 : 1);
+    const activeChain = this.comboT > 0;
+    if (!activeChain || !this.isSharedCombo(kind)) this.chainStages = Object.create(null);
+    const previousStage = this.isSharedCombo(kind) ? (this.chainStages[kind] || 0) : 0;
+    const stage = activeChain && this.isSharedCombo(kind) && previousStage
+      ? previousStage < this.comboMax(kind) ? previousStage + 1 : 1
+      : activeChain && this.comboKind === kind && this.comboStage < this.comboMax(kind) ? this.comboStage + 1 : 1;
+    return this.startStrike(kind, stage);
   }
   stomp(target) {
     const A = this.actor, p = this.position;
@@ -310,9 +318,24 @@ export class Rizer {
   }
   // Sword swings use the sword slots, falling back to the punch combo clips until sword clips are assigned.
   heavyDrawn() { return this.swordAt === 'hand' && (this.handWeapon === 'axe' || this.handWeapon === 'rubypaw'); }
-  slotFor(kind, stage) { if (kind === 'kick' && this.heavyDrawn() && this.actor?.has('kickHeavy')) return 'kickHeavy'; const s = kind === 'rubypaw' ? (stage === 1 ? 'axe' : 'axe' + stage) : stage === 1 ? kind : kind + stage; return BLADES[kind] && !this.actor?.has(s) ? (stage === 1 ? 'punch' : 'punch' + stage) : s; }
+  slotFor(kind, stage) {
+    if (kind === 'kick' && this.weapon === 'plasmabeam' && this.swordAt === 'hand' && this.handWeapon === 'plasmabeam' && this.actor?.has('pistolWhip')) return 'pistolWhip';
+    if (kind === 'kick' && this.heavyDrawn() && this.actor?.has('kickHeavy')) return 'kickHeavy';
+    const base = kind === 'rubypaw' ? 'axe' : kind;
+    let custom = null; try { custom = JSON.parse(localStorage.getItem('rp7d.skillTree.combos.v1') || '{}')?.[base]; } catch {}
+    const selected = Array.isArray(custom) ? custom[stage - 1] : null;
+    if (selected && this.actor?.has(selected)) return selected;
+    const s = base === 'axe' && kind === 'rubypaw' && stage === 1 ? 'axe' : stage === 1 ? base : base + stage;
+    return BLADES[kind] && !this.actor?.has(s) ? (stage === 1 ? 'punch' : 'punch' + stage) : s;
+  }
   // How many combo stages the current character has for `kind` (filled in a row).
-  comboMax(kind = 'punch') { if (kind === 'kick' && this.heavyDrawn() && this.actor?.has('kickHeavy')) return 1; if (kind === 'rubypaw') kind = 'axe'; if (BLADES[kind] && !this.actor?.has(kind)) kind = 'punch'; let n = 1; while (n < 4 && this.actor?.has(kind + (n + 1))) n++; return n; }
+  comboMax(kind = 'punch') {
+    if (kind === 'kick' && this.heavyDrawn() && this.actor?.has('kickHeavy')) return 1;
+    const base = kind === 'rubypaw' ? 'axe' : BLADES[kind] && !this.actor?.has(kind) ? 'punch' : kind;
+    let custom = null; try { custom = JSON.parse(localStorage.getItem('rp7d.skillTree.combos.v1') || '{}')?.[base]; } catch {}
+    if (Array.isArray(custom) && custom.length) { let n = 0; for (const slot of custom) { if (!this.actor?.has(slot)) break; n++; } if (n) return n; }
+    let n = 1; while (n < 5 && this.actor?.has(base + (n + 1))) n++; return n;
+  }
   startStrike(kind, stage, queued = 0, slotOverride = null) {
     if (kind === 'blast' && !this.spendEnergy(8)) return false;
     const slot = slotOverride || this.slotFor(kind, stage), T = this.timing(slot);
@@ -325,9 +348,11 @@ export class Rizer {
     const od = Ck.overdrive?.stage === stage ? Ck.overdrive : null;
     this.attack = { kind, slot, stage, spd, od, t: from / spd, hits: T.hits, hi: 0, recover, queued,
       chargeAt: kind === 'blast' ? Math.max(0.04, T.hits[0] / spd - (COMBAT.blast.chargeLead || 0.24)) : Infinity, chargeSent: false };
-    if (kind === 'flykick' || kind === 'runpunch' || slotOverride) { this.attack.entry = this.speed; this.attack.run = !!slotOverride; }
+    if (kind === 'flykick' || kind === 'runpunch' || kind === 'runKickHold' || slotOverride) { this.attack.entry = this.speed; this.attack.run = !!slotOverride || kind === 'runKickHold'; }
     if (kind === 'kickup') this.attack.hits = [COMBAT.kickup.hit]; // one blow: the inverted kick
     this.comboKind = kind; this.comboStage = stage; this.comboT = 0; this.comboFlash = stage;
+    if (this.isSharedCombo(kind)) this.chainStages[kind] = stage;
+    else this.chainStages = Object.create(null);
     this.actor?.play(slot, spd, { from });
     return true;
   }
@@ -337,6 +362,7 @@ export class Rizer {
   slide(dir) {
     const S = COMBAT.slide, A = this.actor;
     if (!A?.has('slide') || !this.onGround || this.flying || this.dodgeT > 0 || this.dodgeCool > 0 || this.hp <= 0 || this.stamina < S.stamina || this.swimW > 0.5) return false;
+    if (this.blocking) this.setBlock(false);
     this.stamina = Math.max(0, this.stamina - S.stamina);
     const d = dir && dir.lengthSq() > 0.01 ? dir.clone().setY(0).normalize() : new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing));
     this.dodgeAge = 0; this.perfectDone = false;
@@ -352,6 +378,7 @@ export class Rizer {
   }
   dodge(dir) {
     if (!this.onGround || this.flying || this.dodgeT > 0 || this.dodgeCool > 0 || this.hp <= 0 || this.vault || this.fc || this.stamina < COMBAT.dodge.stamina * dodgeCostMul()) return false;
+    if (this.blocking) this.setBlock(false);
     this.dodgeKind = 'dodge'; this.dodgeAge = 0; this.perfectDone = false;
     this.stamina = Math.max(0, this.stamina - COMBAT.dodge.stamina * dodgeCostMul());
     if (this.boltThreat != null && this.boltThreat <= COMBAT.perfect.bolt && this.actor?.has('aerialEvade')) { // a bolt is about to land: the jump spin carries him clear of it
@@ -376,7 +403,9 @@ export class Rizer {
   // Running pick-up: scoop loot off the ground without breaking stride (Pick Up Item). He steers so the item
   // passes his right hand at the scoop, and onGrab fires on that frame.
   runPick(L, onGrab) {
-    const A = this.actor; if (!A?.has('runpickup') || this.attack || this.pick || this.rpick || !this.onGround) return false;
+    const A = this.actor; if (!A?.has('runpickup') || this.pick || this.rpick || !this.onGround) return false;
+    if (this.attack) { const slot = this.attack.slot; this.attack = null; this.comboT = 0; this.actor?.release(slot, 0.12); }
+    if (this.blocking) this.setBlock(false);
     const spd = clamp(this.speed / 6.5, 0.9, 1.3);
     A.play('runpickup', spd); this.rpick = { t: 0, L, onGrab, spd, grab: COMBAT.runPick.grab / spd, end: A.acts.runpickup.getClip().duration / spd, v: Math.max(this.speed, COMBAT.runPick.min) };
     return true;
@@ -543,7 +572,8 @@ export class Rizer {
     const l = this.ledge, A = this.actor, p = this.position;
     if (!l) return;
     const slot = l.phase === 'climb' ? 'ledgeClimb' : 'ledgeGrab';
-    if (!A || this.hp <= 0 || this.hurtT > 0 || this.flying || A.shot?.kind !== slot) {
+    const hangingShot = l.phase === 'hang' && ['ledgeGrab', 'ledgeShimmyL', 'ledgeShimmyR'].includes(A?.shot?.kind);
+    if (!A || this.hp <= 0 || this.hurtT > 0 || this.flying || (l.phase === 'hang' ? !hangingShot : A.shot?.kind !== slot)) {
       A?.release(slot, 0.12); this.ledge = null; this.ledgeCooldown = 0.5; this.vy = -1; this.onGround = false; return;
     }
     l.t += dt; this.vel.set(0, 0, 0); this.speed = 0; this.vy = 0; this.onGround = false; this.facing = l.face;
@@ -560,6 +590,24 @@ export class Rizer {
         this.events.push('ledgeHang');
       }
     } else if (l.phase === 'hang') {
+      const ix = inp.x || 0, iz = inp.z || 0, camYaw = this.lastCamYaw || 0;
+      const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw), rx = -fz, rz = fx;
+      const mx = fx * -iz + rx * ix, mz = fz * -iz + rz * ix;
+      const tangent = { x: Math.cos(l.face), z: -Math.sin(l.face) };
+      const lateral = mx * tangent.x + mz * tangent.z;
+      if (Math.abs(lateral) > 0.28) {
+        const dir = Math.sign(lateral), next = clamp((l.shimmyOffset || 0) + dir * Math.min(1, Math.abs(lateral)) * 1.25 * dt, -3.5, 3.5);
+        const hx = (l.baseHx ?? l.hx) + tangent.x * next, hz = (l.baseHz ?? l.hz) + tangent.z * next;
+        const floor = world.surfaceAt?.(hx + Math.sin(l.face) * 0.75, hz + Math.cos(l.face) * 0.75, l.top + 0.25);
+        const probe = new THREE.Vector3(hx, l.hangY, hz);
+        if (Number.isFinite(floor) && Math.abs(floor - l.top) < 0.28 && !world.resolve(probe, 0.22, { stealth: true })) {
+          l.baseHx ??= l.hx; l.baseHz ??= l.hz; l.shimmyOffset = next; l.hx = hx; l.hz = hz;
+          const shimmy = dir < 0 ? 'ledgeShimmyL' : 'ledgeShimmyR';
+          if (A.shot?.kind !== shimmy) { A.release(A.shot?.kind, 0.1); A.play(shimmy, 1, { loop: true }); }
+        }
+      } else if (A.shot?.kind === 'ledgeShimmyL' || A.shot?.kind === 'ledgeShimmyR') {
+        A.release(A.shot.kind, 0.1); A.play('ledgeGrab', 1, { hold: true, from: A.acts.ledgeGrab.getClip().duration - 1e-3 });
+      }
       p.set(l.hx, l.hangY, l.hz);
       if (inp.crouchPressed || inp.dodgePressed) {
         A.release('ledgeGrab', 0.12); this.ledge = null; this.ledgeCooldown = 0.65;
@@ -620,7 +668,7 @@ export class Rizer {
     const D = Math.hypot(dx, dz); if (D < 0.2) return null; dx /= D; dz /= D;
     const p = this.position, probe = (ox, oz, y) => {
       const q = new THREE.Vector3();
-      for (let d = 0.22; d <= range; d += 0.25) { q.set(ox + dx * d, p.y + y, oz + dz * d); if (world.resolve(q, 0.12, { stealth: true })) return { x: q.x, z: q.z, d }; }
+      for (let d = 0.16; d <= range; d += 0.12) { q.set(ox + dx * d, p.y + y, oz + dz * d); if (world.resolve(q, TUNE.radius, { stealth: true })) return { x: q.x, z: q.z, d }; }
       return null;
     };
     const hit = probe(p.x, p.z, 0.78), top = probe(p.x, p.z, 1.48);
@@ -633,27 +681,55 @@ export class Rizer {
     }
     if (-(nx * dx + nz * dz) < 0.38) return null;
     let tx = -nz, tz = nx;
-    const clear = sign => { const q = new THREE.Vector3(p.x + tx * sign * 0.85 + nx * 0.58, p.y + 0.85, p.z + tz * sign * 0.85 + nz * 0.58); return !world.resolve(q, 0.28, { stealth: true }); };
-    const a = clear(1), b = clear(-1), fwd = tx * dx + tz * dz, sign = a && !b ? 1 : b && !a ? -1 : fwd >= 0 ? 1 : -1;
-    return { d: hit.d, tx: tx * sign, tz: tz * sign };
+    // Keep the direction Rizer was already running. Picking the open side here can
+    // reverse the tangent and send him away from the wall on mirrored approaches.
+    if (tx * dx + tz * dz < 0) { tx = -tx; tz = -tz; }
+    return { d: hit.d, x: hit.x, z: hit.z, nx, nz, tx, tz };
   }
   beginWallRun(wall) {
     const A = this.actor; if (!A?.has('wallRun') || this.wallRun || this.wallRunCool > 0 || !this.onGround || this.flying) return false;
+    // The normal points from the wall toward Rizer. Pick the pose using the wall's
+    // side relative to his right vector once the travel tangent is established.
+    const wallOnRight = -wall.nx * wall.tz + wall.nz * wall.tx > 0;
+    const clip = wallOnRight && A.has('wallRunRight') ? 'wallRunRight' : 'wallRun';
     const speed = Math.max(6.2, this.speed || 0);
-    this.wallRun = { t: 0, duration: Math.max(0.35, A.acts.wallRun.getClip().duration), fx: wall.tx, fz: wall.tz, speed, crack: 0 };
+    this.wallRun = { t: 0, fx: wall.tx, fz: wall.tz, nx: wall.nx, nz: wall.nz, speed, crack: 0, clip };
     this.wallRunHold = true; this.attack = null; this.buffer = 0;
+    // The probe resolves with Rizer's body radius, so this puts his feet/body
+    // directly beside the wall instead of beginning the run at a loose distance.
+    this.position.x = wall.x; this.position.z = wall.z;
     this.facing = Math.atan2(wall.tx, wall.tz); this.vel.x = wall.tx * speed; this.vel.z = wall.tz * speed;
-    A.release(); A.play('wallRun', 1); this.events.push('wallrunStart'); return true;
+    A.release(); A.play(clip, 1, { loop: true }); this.events.push('wallrunStart'); return true;
   }
-  wallRunStep(dt, ev) {
+  wallRunStep(dt, ev, inp, world) {
     const w = this.wallRun; if (!w) return;
-    if (!this.onGround || this.flying || this.hp <= 0 || this.hurtT > 0 || this.actor?.shot?.kind !== 'wallRun') {
-      this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0.9; this.actor?.release('wallRun', 0.18); ev.push('wallrunEnd'); return;
+    if (!inp?.jumpHeld) { // release ✕: drop cleanly back into the active sprint
+      this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0.9;
+      this.actor?.release(w.clip, 0.18); ev.push('wallrunEnd'); return;
     }
+    if (!this.onGround || this.flying || this.hp <= 0 || this.hurtT > 0 || this.actor?.shot?.kind !== w.clip) {
+      this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0.9; this.actor?.release(w.clip, 0.18); ev.push('wallrunEnd'); return;
+    }
+    if (this.stamina <= 0 && this.actor?.has('bailImpact')) { // exhaustion drops him face-first out of the wall run
+      this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 1.2; this.vel.x = 0; this.vel.z = 0;
+      this.bail = { peak: 0, phase: 'down', dmg: 0, lie: 0 }; this.landLock = 99; this.attack = null;
+      this.actor.release(w.clip, 0.08); this.actor.play('bailImpact', 1); ev.push('wallrunEnd', 'bail'); return;
+    }
+    // Advance along the wall, then probe inward at foot and torso height. Both
+    // contacts must resolve against the same face; otherwise end at the edge
+    // instead of letting the wall-run animation continue in open air.
+    const p = this.position, tx = p.x + w.fx * w.speed * dt, tz = p.z + w.fz * w.speed * dt;
+    const contact = y => { const q = new THREE.Vector3(tx - w.nx * 0.24, p.y + y, tz - w.nz * 0.24); return world?.resolve(q, TUNE.radius, { stealth: true }) ? q : null; };
+    const feet = contact(0.22), chest = contact(1.22);
+    if (!feet || !chest || Math.hypot(feet.x - chest.x, feet.z - chest.z) > 0.24) {
+      this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0.45;
+      this.vel.x = w.fx * w.speed * 0.72; this.vel.z = w.fz * w.speed * 0.72;
+      this.actor?.release(w.clip, 0.14); ev.push('wallrunEnd'); return;
+    }
+    p.x = (feet.x + chest.x) * 0.5; p.z = (feet.z + chest.z) * 0.5;
     w.t += dt; w.crack -= dt; this.vel.x = w.fx * w.speed; this.vel.z = w.fz * w.speed;
     this.facing = dampAngle(this.facing, Math.atan2(w.fx, w.fz), 18, dt);
     if (w.crack <= 0) { w.crack = 0.1; ev.push('wallrunCrackle'); }
-    if (w.t >= w.duration) { this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0.9; this.actor?.release('wallRun', 0.22); ev.push('wallrunEnd'); }
   }
   // Wall flip: called on the second ✕ in the air. Looks ahead for a wall tall enough to take a foot;
   // if there is one, he keeps flying at it (no snapping), plants a foot at the clip's own contact
@@ -730,7 +806,12 @@ export class Rizer {
   // onGrab at the clip's grab frame. Movement is held until just after the grab.
   // `from` (optional): the side to reach from, as a unit direction pointing from the item toward where he stands.
   pickUp(target, onGrab, animation = 'pickup', { from = null, around = null } = {}) {
-    if (this.attack || !this.onGround || this.flying || this.pick || this.hp <= 0) return false;
+    if (!this.onGround || this.flying || this.pick || this.hp <= 0) return false;
+    // Reach upward for items around waist height (Lightbulbs, desk props); low loot keeps the ground pickup.
+    if (animation === 'pickup' && Number.isFinite(target?.y) && target.y - this.position.y >= 0.72 && this.actor?.has('pickupWaist')) animation = 'pickupWaist';
+    // Nearby pickups are contextual actions and remain available during combat.
+    if (this.attack) { const slot = this.attack.slot; this.attack = null; this.comboT = 0; this.actor?.release(slot, 0.12); }
+    if (this.blocking) this.setBlock(false);
     const P = COMBAT[animation === 'store' ? 'store' : 'pickup'];
     let dx = target.x - this.position.x, dz = target.z - this.position.z, d = Math.hypot(dx, dz) || 1;
     if (from) { dx = -from.x; dz = -from.z; d = Math.hypot(dx, dz) || 1; }
@@ -740,7 +821,9 @@ export class Rizer {
     return this.walkTo(stand, face, () => this.startPick(target, onGrab, animation), { around });
   }
   startPick(target, onGrab, animation) {
-    if (this.attack || !this.onGround || this.flying || this.pick || this.hp <= 0) return false;
+    if (!this.onGround || this.flying || this.pick || this.hp <= 0) return false;
+    if (this.attack) { const slot = this.attack.slot; this.attack = null; this.comboT = 0; this.actor?.release(slot, 0.12); }
+    if (this.blocking) this.setBlock(false);
     const A = this.actor, P = COMBAT[animation === 'store' ? 'store' : 'pickup'], dur = A?.has(animation) ? A.acts[animation].getClip().duration : 0;
     this.facing = Math.atan2(target.x - this.position.x, target.z - this.position.z);
     this.pick = { t: 0, grab: dur ? dur * P.grab / P.speed : 0.3, onGrab, animation };
@@ -931,11 +1014,17 @@ export class Rizer {
     this.setBlock(false);
     this.attack = null; this.l2 = null; this.dodgeBuf = 0; this.auto = null; this.crouched = false;
     this.vel.set(0, 0, 0); this.speed = 0; this.vy = 0;
-    this.prayer = { phase: 'kneel', t: 0, standAfterKneel: false, airborne: !this.onGround, slots, style: this.prayerStyle };
+    this.prayer = { phase: 'kneel', t: 0, standAfterKneel: false, stopRequested: false, focused: false, airborne: !this.onGround, slots, style: this.prayerStyle };
     this.flying = false;
     this.prayerSpentHold = true;
     A.play(slots.kneel, 1, { hold: true });
     return true;
+  }
+  togglePrayerFocus() {
+    const p = this.prayer; if (!p) return false;
+    if (p.focused) { p.focused = false; p.stopRequested = true; }
+    else { p.focused = true; p.stopRequested = false; p.standAfterKneel = false; }
+    return p.focused;
   }
   requestPrayer() {
     const A = this.actor;
@@ -958,7 +1047,7 @@ export class Rizer {
   }
   prayerStep(dt, keepPraying, world = this.lastWorld) {
     const p = this.prayer, A = this.actor; if (!p || !A) return;
-    if (!keepPraying) p.standAfterKneel = true;
+    if (!keepPraying || p.stopRequested) p.standAfterKneel = true;
     p.t += dt; this.vel.set(0, 0, 0); this.speed = 0;
     if (p.airborne && world) {
       this.onGround = false; this.vy -= TUNE.gravity * (this.vy < 0 ? TUNE.fallMul : 1) * dt; this.position.y += this.vy * dt;
@@ -976,6 +1065,9 @@ export class Rizer {
         this.hp = Math.min(this.maxHp, this.hp + P.hp * HP_SCALE * dt);
         this.astralEnergy = Math.min(this.maxAstralEnergy, this.astralEnergy + P.astral * dt);
         this.stamina = Math.min(this.maxStamina, this.stamina + P.stamina * dt);
+        if (p.focused && this.hp >= this.maxHp - 0.01 && this.stamina >= this.maxStamina - 0.01 && this.astralEnergy >= this.maxAstralEnergy - 0.01) {
+          p.focused = false; p.stopRequested = true; p.standAfterKneel = true;
+        }
       }
     } else if (p.phase === 'stand' && p.t >= A.acts[p.slots.stand].getClip().duration) {
       A.release(p.slots.stand, 0.18); this.prayer = null;
@@ -1037,6 +1129,7 @@ export class Rizer {
 
   update(dt, inp, world, camYaw) {
     const p = this.obj.position, ev = this.events; ev.length = 0; this.lastWorld = world;
+    this.lastCamYaw = camYaw;
     if (this.seq) { this.doorStep(dt, world); return; } // walking through a door: the clip owns him
     if (this.sit) { this.sitStep(dt); return; } // seated (seating.js): the seat controller places him; only the animation runs here
     const prayerButtons = !!inp.prayerHeld;
@@ -1201,7 +1294,7 @@ export class Rizer {
         this.spin = null; this.spinCool = 0.45; this.runGrace = Math.max(this.runGrace || 0, 0.3);
       } else { const f = Math.sin(s.dir), c = Math.cos(s.dir), l = s.t < s.dur * 0.4 ? s.lat * s.side : 0; this.vel.x = f * s.v + c * l; this.vel.z = c * s.v - f * l; }
     }
-    if (this.attack?.kind === 'flykick' || this.attack?.kind === 'runpunch' || this.attack?.run) { // running moves carry the run: keep driving forward until the blow lands
+    if (this.attack?.kind === 'flykick' || this.attack?.kind === 'runpunch' || this.attack?.kind === 'runKickHold' || this.attack?.run) { // running moves carry the run: keep driving forward until the blow lands
       const at = this.attack, end = at.hits[0] / at.spd; // up to the first blow
       if (at.t < end) { const f = Math.sin(this.facing), c = Math.cos(this.facing), v = (at.entry || 0) * (COMBAT[at.kind].carry ?? 0.8) * (1 - 0.5 * at.t / end), cur = this.vel.x * f + this.vel.z * c; if (cur < v) { this.vel.x += f * (v - cur); this.vel.z += c * (v - cur); } }
     }
@@ -1224,7 +1317,7 @@ export class Rizer {
     if (this.fc) this.faeCatchStep(dt); // catching a fae: the jog-in and the clip's own travel own his motion
     this.vel.x += this.knock.x; this.vel.z += this.knock.z; this.knock.set(0, 0, 0);
     if (this.wf) this.wallFlipMove(dt, world, ev); // wall flip: the approach, the foot on the wall and the fall away own his motion
-    this.wallRunStep(dt, ev); // short wall traverse; does not replace the airborne wall flip
+    this.wallRunStep(dt, ev, inp, world); // hold ✕ to sustain the wall run; the airborne double-tap flip stays separate
     this.speed = Math.hypot(this.vel.x, this.vel.z);
 
     // Running into a tree: instead of stopping dead on the trunk he spins off it (Tree Spin Evade) and keeps his run.
@@ -1337,7 +1430,10 @@ export class Rizer {
       this.actor.play('bail', 1, { loop: true }); ev.push('bail');
     }
     if (this.flying) {
-      if (inp.crouchPressed) this.autoLand = this.autoLand ? false : inp.run && this.actor?.has('fastland') ? 'fast' : true; // L3 while flying: float down and land · with R2 held: dive and roll out
+      if (inp.crouchPressed) {
+        const fastFlight = inp.run || this.speed >= COMBAT.fly.speed * 1.2;
+        this.autoLand = this.autoLand ? false : fastFlight && this.actor?.has('fastland') ? 'fast' : true;
+      } // L3 while coasting: gentle float-down; at sprint-flight speed: fast landing. Press ✕ to cancel and resume flight.
       if (inp.jumpPressed) this.autoLand = false;
       const diving = this.autoLand === 'fast';
       const want = diving ? -COMBAT.dive.speed / COMBAT.fly.climb : this.autoLand ? -COMBAT.fly.descend : inp.jumpHeld ? 1 : 0; // L3 descent: a slower, floating drop
@@ -1483,7 +1579,7 @@ export class Rizer {
         this.startStrike(at.kind, at.stage < this.comboMax(at.kind) ? at.stage + 1 : 1, at.queued - 1);
       } else if (at.t >= at.recover / spd) {
         this.attack = null; if (COMBAT[at.kind].tail != null) this.actor?.release(at.slot, 0.3); // heavy clips: blend out instead of playing their idle tail
-        this.comboT = at.stage < this.comboMax(at.kind) ? COMBAT.comboWindow : 0; // finished the chain → next press starts at 1
+        this.comboT = this.isSharedCombo(at.kind) || at.stage < this.comboMax(at.kind) ? COMBAT.comboWindow : 0;
       }
     }
     this.comboT = Math.max(0, (this.comboT || 0) - dt);

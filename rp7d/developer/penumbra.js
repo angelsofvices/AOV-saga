@@ -180,9 +180,11 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
   }
   function reset(p) {
     const s = p.pts[0]; p.pos.set(s.x, world.groundAt(s.x, s.y), s.y); p.wp = 1 % p.pts.length; p.heading = Math.atan2(p.pts[p.wp].x - s.x, p.pts[p.wp].y - s.y);
-    p.rxpPaid = false; p.state = 'patrol'; p.t = 0; p.hp = P.hp; p.damageStage = 0; p.breakFrame = 0; p.seen = false; p.lit = 0; p.hurt = 0; p.flash = 0; p.barT = 0; p.sink = 0; p.dropped = false; p.speed = 0; p.knock.set(0, 0, 0); p.move = null;
+    p.rxpPaid = false; p.state = 'patrol'; p.t = 0; p.hp = P.hp; p.damageStage = 0; p.breakFrame = 0; p.seen = false; p.lit = 0; p.hurt = 0; p.flash = 0; p.barT = 0; p.sink = 0; p.sinkT = 0; p.salvaged = false; p.wreckMotion = null; p.root.scale.setScalar(1); p.dropped = false; p.speed = 0; p.knock.set(0, 0, 0); p.move = null;
     for (const pod of p.pods) { pod.cool = 0; pod.g.rotation.x = 0; }
-    p.upper.position.set(0, 0, 0); p.upper.rotation.set(0, 0, 0); p.root.visible = !hidden; p.bar.redraw(1); place(p);
+    p.upper.position.set(0, 0, 0); p.upper.rotation.set(0, 0, 0); p.upper.scale.setScalar(1);
+    for (const [i, L] of p.legs.entries()) { L.position.set(i ? 0.5 : -0.5, 1.45, -0.05); L.rotation.set(0, 0, 0); L.scale.setScalar(1); }
+    p.root.visible = !hidden; p.bar.redraw(1); place(p);
   }
   const alive = p => p.state !== 'down' && p.state !== 'gone';
   const hostile = p => alive(p) && p.state !== 'patrol' && p.state !== 'idle' && p.state !== 'return';
@@ -231,7 +233,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
   }
   // Destroyed: AI and weapons off, it shuts down and collapses, and its reward is certain — 3 Portalchips, every time.
   function destroy(p, kind = 'punch') {
-    p.state = 'down'; p.t = 0; p.move = null; p.speed = 0; p.knock.set(0, 0, 0); p.bar.visible = false;
+    p.state = 'down'; p.t = 0; p.sink = 0; p.sinkT = 0; p.salvaged = false; p.lastBreakFx = 0; p.wreckMotion = { bodyAngle: 0, bodyVel: 5.1 + Math.random() * 0.8, bodyRoll: 0, bodyRollVel: p.side * (0.7 + Math.random() * 0.6), legVel: p.legs.map((_, i) => ({ x: (i ? 1 : -1) * (0.5 + Math.random() * 0.35), y: 0.2 + Math.random() * 0.35, z: (i ? 1 : -1) * (0.3 + Math.random() * 0.45), rx: (i ? 1 : -1) * (2.4 + Math.random()), rz: (i ? 1 : -1) * (0.5 + Math.random() * 0.4) })) }; p.move = null; p.speed = 0; p.knock.set(0, 0, 0); p.bar.visible = false;
     fx?.emit(p.center.x, p.center.y, p.center.z, 34, { color: '#ffb060', speed: 5, up: 2, size: 0.4, life: 0.6, g: 4 });
     fx?.emit(p.center.x, p.center.y, p.center.z, 18, { color: '#8a8f99', speed: 2, up: 2.4, size: 0.7, life: 1.2, g: -1 });
     opts.onEvent?.('destroyed', p, kind);
@@ -344,12 +346,14 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
     clock += dt; live.length = 0;
     const rp = rizer.position, rizerDistrict = districtAt(rp.x, rp.z, W);
     for (const p of list) {
+      const statusDt = dt * (p.frost?.slow ?? 1);
       const dx = rp.x - p.pos.x, dz = rp.z - p.pos.z, dist = Math.hypot(dx, dz), toP = Math.atan2(dx, dz);
       if (p.state === 'gone') { if (clock >= p.respawnAt && Math.hypot(rp.x - p.pts[0].x, rp.z - p.pts[0].y) > P.respawnDist) reset(p); continue; }
       if (alive(p)) live.push(p);
-      for (const pod of p.pods) pod.cool = Math.max(0, pod.cool - dt);
-      p.barT = Math.max(0, p.barT - dt); p.flash = Math.max(0, p.flash - dt);
-      if (alive(p) && (p.seenT -= dt) <= 0) { p.seenT = 0.2 + Math.random() * 0.1; p.seen = dist < P.ranges.max + 6 && canSee(p, rizer); }
+      if (p.frost?.frozen && alive(p)) { p.knock.set(0, 0, 0); continue; }
+      for (const pod of p.pods) pod.cool = Math.max(0, pod.cool - statusDt);
+      p.barT = Math.max(0, p.barT - statusDt); p.flash = Math.max(0, p.flash - statusDt);
+      if (alive(p) && (p.seenT -= statusDt) <= 0) { p.seenT = 0.2 + Math.random() * 0.1; p.seen = dist < P.ranges.max + 6 && canSee(p, rizer); }
       // once it has him the hunt is relentless: destroyed, Rizer knocked out, or another district
       const hunted = rizer.hp > 0 && rizerDistrict === (p.district ||= districtAt(p.home.x, p.home.y, W));
       let want = 0, face = null, dir = 0; // dir: 0 forward, π backward, ±π/2 sideways (relative to its heading)
@@ -360,9 +364,9 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
           if (Math.hypot(tx, tz) < 1.2) { p.state = 'idle'; p.t = 1.5 + Math.random() * 2; p.wp = (p.wp + 1) % p.pts.length; break; }
           face = Math.atan2(tx, tz); want = P.walk; break;
         }
-        case 'idle': p.t -= dt; if (p.seen) alertNow(p); else if (p.t <= 0) p.state = 'patrol'; break;
+        case 'idle': p.t -= statusDt; if (p.seen) alertNow(p); else if (p.t <= 0) p.state = 'patrol'; break;
         case 'alert': // the warning: it turns to him and its lights come up before anything is fired
-          face = toP; p.t -= dt; if (p.t <= 0) p.state = 'track'; break;
+          face = toP; p.t -= statusDt; if (p.t <= 0) p.state = 'track'; break;
         case 'track': { // decide the next action by range
           face = toP;
           if (!hunted) { p.state = 'return'; p.wp = nearestWp(p); break; }
@@ -377,42 +381,62 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
           break;
         }
         case 'move':
-          p.t -= dt; face = toP;
+          p.t -= statusDt; face = toP;
           if (p.move === 'advance') { want = P.combat; if (dist < P.ranges.mid * 0.8) p.t = 0; }
           else if (p.move === 'backstep') { want = P.combat * 0.85; dir = Math.PI; if (dist > P.ranges.close + 3) p.t = 0; }
           else { want = P.combat * 0.8; dir = p.side * Math.PI / 2; }
           if (p.t <= 0) { p.state = 'track'; p.move = null; }
           break;
         case 'rocket': { // TARGET → the pod lights and tilts onto its aim → FIRE → RECOVERY
-          p.t += dt; face = toP;
+          p.t += statusDt; face = toP;
           const k = Math.min(1, p.t / R.windup), pitch = -Math.atan2(rp.y + 1.1 - (p.pos.y + 3.2), Math.max(1, dist));
-          p.pod.g.rotation.x = damp(p.pod.g.rotation.x, clamp(pitch, -0.5, 0.35), 6, dt);
+          p.pod.g.rotation.x = damp(p.pod.g.rotation.x, clamp(pitch, -0.5, 0.35), 6, statusDt);
           p.pod.mat.emissiveIntensity = 0.4 + k * k * 5.5;
           if (!p.fired && p.t >= R.windup) { p.fired = true; if (rizer.hp > 0) fire(p, p.pod, rizer); }
           if (p.fired) p.pod.mat.emissiveIntensity = Math.max(0.3, 5.9 - (p.t - R.windup) * 9);
           if (p.t >= R.windup + R.recover) { p.state = 'track'; }
           break;
         }
-        case 'stagger': p.t -= dt; if (p.t <= 0) p.state = 'track'; break;
-        case 'down': // shutdown; staged mechanical break, then a solid wreck that sinks away
-          p.t += dt; p.breakFrame = Math.min(3, Math.floor(p.t / 0.22)); p.sink = damp(p.sink, 0.95, 3.2, dt);
-          p.upper.position.y = -p.sink - Math.max(0, p.t - 0.18) * 0.28; p.upper.rotation.x = damp(p.upper.rotation.x, 0.42 + Math.min(0.35, p.breakFrame * 0.1), 2.5, dt); p.upper.rotation.z = damp(p.upper.rotation.z, (0.12 + p.breakFrame * 0.035) * p.side, 2.5, dt);
-          for (const [i, L] of p.legs.entries()) L.rotation.x = damp(L.rotation.x, (i ? 0.5 : -0.4) + (p.breakFrame >= 2 ? (i ? 0.28 : -0.18) : 0), 3, dt);
+        case 'stagger': p.t -= statusDt; if (p.t <= 0) p.state = 'track'; break;
+        case 'down': // independent legs and torso fall onto the ground; only stripped wreckage sinks
+          p.t += statusDt; p.breakFrame = Math.min(3, Math.floor(p.t / 0.22)); p.sink = 0;
+          {
+            const M = p.wreckMotion ||= { bodyAngle: 0, bodyVel: 5.2, bodyRoll: 0, bodyRollVel: p.side * 0.8, legVel: p.legs.map((_, i) => ({ x: i ? 0.65 : -0.65, y: 0.25, z: i ? 0.45 : -0.45, rx: i ? 2.8 : -2.8, rz: i ? 0.7 : -0.7 })) };
+            M.bodyAngle = Math.min(Math.PI / 2, M.bodyAngle + M.bodyVel * statusDt); M.bodyVel *= Math.exp(-2.4 * statusDt);
+            M.bodyRoll += M.bodyRollVel * statusDt; M.bodyRollVel *= Math.exp(-3.5 * statusDt);
+            p.upper.position.set(0, 0.78 * Math.sin(M.bodyAngle), 0);
+            p.upper.rotation.set(M.bodyAngle, 0, clamp(M.bodyRoll, -0.24, 0.24));
+            for (const [i, L] of p.legs.entries()) {
+              const V = M.legVel[i], side = i ? 1 : -1;
+              L.position.x += V.x * statusDt; L.position.z += V.z * statusDt;
+              V.y -= 9.8 * statusDt; L.position.y += V.y * statusDt;
+              if (L.position.y < 0.73) { L.position.y = 0.73; if (V.y < -0.65) V.y = -V.y * 0.16; else V.y = 0; }
+              V.x *= Math.exp(-2.5 * statusDt); V.z *= Math.exp(-2.5 * statusDt);
+              L.rotation.x = damp(L.rotation.x, 1.52, 4.5, statusDt); L.rotation.z = damp(L.rotation.z, side * 0.16, 4.5, statusDt);
+            }
+          }
           if (p.breakFrame > (p.lastBreakFx || 0) && p.breakFrame < 4) { p.lastBreakFx = p.breakFrame; fx?.emit(p.center.x, p.center.y, p.center.z, 8 + p.breakFrame * 3, { color: p.breakFrame >= 2 ? '#ff9c58' : '#8fd7ff', speed: 2.6 + p.breakFrame * 0.35, up: 1.1, size: 0.22, life: 0.45, g: 4 }); }
-          if (p.t < P.wreck && Math.random() < dt * 5) fx?.emit(p.center.x + (Math.random() - 0.5), p.center.y, p.center.z + (Math.random() - 0.5), 1, { color: Math.random() < 0.3 ? '#ffc27a' : '#77757c', speed: 0.6, up: 1.8, size: 0.6, life: 1.2, g: -1 });
-          if (p.t > P.wreck || p.salvaged) { p.salvaged = true; p.root.position.y -= dt * 1.4; if ((p.sinkT = (p.sinkT || 0) + dt) > 2.6) { p.sinkT = 0; p.salvaged = false; p.state = 'gone'; p.root.visible = false; p.respawnAt = clock + P.respawn; } }
+          if (Math.random() < statusDt * 5 && !p.salvaged) fx?.emit(p.center.x + (Math.random() - 0.5), p.center.y, p.center.z + (Math.random() - 0.5), 1, { color: Math.random() < 0.3 ? '#ffc27a' : '#77757c', speed: 0.6, up: 1.8, size: 0.6, life: 1.2, g: -1 });
+          if (p.salvaged) {
+            p.sinkT += statusDt;
+            const crush = clamp(p.sinkT / 0.72, 0, 1), squash = 1 - crush * 0.72;
+            p.upper.scale.set(1 - crush * 0.58, squash, 1 - crush * 0.58);
+            for (const L of p.legs) { L.position.x = damp(L.position.x, 0, 4, statusDt); L.position.z = damp(L.position.z, 0, 4, statusDt); L.scale.setScalar(Math.max(0.12, 1 - crush * 0.72)); }
+            p.root.position.y -= statusDt * (p.sinkT > 0.72 ? 1.4 : 0);
+            if (p.sinkT > 2.6) { p.salvaged = false; p.state = 'gone'; p.root.visible = false; p.respawnAt = clock + P.respawn; }
+          }
           break;
       }
       if (p.state === 'gone') continue;
-      if (p.state === 'down') { p.lit = damp(p.lit, 0, 3, dt); p.lightMat.emissiveIntensity = 0.05 + p.lit * 2.6; for (const pod of p.pods) pod.mat.emissiveIntensity = damp(pod.mat.emissiveIntensity, 0.05, 3, dt); p.root.visible = !hidden && dist < P.visible; continue; }
+      if (p.state === 'down') { p.lit = damp(p.lit, 0, 3, statusDt); p.lightMat.emissiveIntensity = 0.05 + p.lit * 2.6; for (const pod of p.pods) pod.mat.emissiveIntensity = damp(pod.mat.emissiveIntensity, 0.05, 3, statusDt); p.root.visible = !hidden && dist < P.visible; continue; }
       // movement: slow to turn, heavy on its feet
-      if (face !== null) { const a = Math.atan2(Math.sin(face - p.heading), Math.cos(face - p.heading)), step = P.turn * (hostile(p) ? 1.35 : 1) * dt; p.heading += clamp(a, -step, step); }
-      p.speed = damp(p.speed, p.state === 'stagger' ? 0 : want, 4, dt);
+      if (face !== null) { const a = Math.atan2(Math.sin(face - p.heading), Math.cos(face - p.heading)), step = P.turn * (hostile(p) ? 1.35 : 1) * statusDt; p.heading += clamp(a, -step, step); }
+      p.speed = damp(p.speed, p.state === 'stagger' ? 0 : want, 4, statusDt);
       const ma = p.heading + dir, ox = p.pos.x, oz = p.pos.z;
-      const nx = p.pos.x + (Math.sin(ma) * p.speed + p.knock.x) * dt, nz = p.pos.z + (Math.cos(ma) * p.speed + p.knock.z) * dt; p.knock.multiplyScalar(Math.exp(-6 * dt));
+      const nx = p.pos.x + (Math.sin(ma) * p.speed + p.knock.x) * statusDt, nz = p.pos.z + (Math.cos(ma) * p.speed + p.knock.z) * statusDt; p.knock.multiplyScalar(Math.exp(-6 * statusDt));
       if (onLand(nx, nz) && Math.abs(nx) < B + 10 && Math.abs(nz) < B + 10) { p.pos.x = nx; p.pos.z = nz; } else if (p.state === 'move') p.t = 0;
-      probe.copy(p.pos); if (world.resolve(probe, P.radius)) { p.pos.x = probe.x; p.pos.z = probe.z; if (p.state === 'patrol' || p.state === 'return') { if ((p.stuck = (p.stuck || 0) + dt) > 1.5) { p.wp = (p.wp + 1) % p.pts.length; p.stuck = 0; } } else if (p.state === 'move' && p.move !== 'advance') p.side *= -1; }
-      p.pos.y = damp(p.pos.y, world.groundAt(p.pos.x, p.pos.z, p.pos.y + 1), 10, dt);
+      probe.copy(p.pos); if (world.resolve(probe, P.radius)) { p.pos.x = probe.x; p.pos.z = probe.z; if (p.state === 'patrol' || p.state === 'return') { if ((p.stuck = (p.stuck || 0) + statusDt) > 1.5) { p.wp = (p.wp + 1) % p.pts.length; p.stuck = 0; } } else if (p.state === 'move' && p.move !== 'advance') p.side *= -1; }
+      p.pos.y = damp(p.pos.y, world.groundAt(p.pos.x, p.pos.z, p.pos.y + 1), 10, statusDt);
       const moved = Math.hypot(p.pos.x - ox, p.pos.z - oz); p.walkT += moved * 2.1;
       // it is solid: the oriented body box in boxes() is resolved against Rizer and the other bodies by game.js · solidPass
       place(p);
@@ -423,12 +447,12 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
       const sw = Math.sin(p.walkT), stride = Math.min(1, p.speed / P.walk) * 0.42;
       p.legs[0].rotation.x = sw * stride; p.legs[1].rotation.x = -sw * stride;
       p.upper.position.y = Math.abs(Math.cos(p.walkT)) * 0.05 * Math.min(1, p.speed) + (p.state === 'stagger' ? -0.12 : 0);
-      p.upper.rotation.x = damp(p.upper.rotation.x, p.state === 'stagger' ? 0.2 : p.state === 'rocket' && p.fired && p.t < R.windup + 0.25 ? -0.09 : 0, 8, dt); // recoil
+      p.upper.rotation.x = damp(p.upper.rotation.x, p.state === 'stagger' ? 0.2 : p.state === 'rocket' && p.fired && p.t < R.windup + 0.25 ? -0.09 : 0, 8, statusDt); // recoil
       p.upper.rotation.z = Math.sin(p.walkT) * 0.02;
-      p.lit = damp(p.lit, hostile(p) ? 1 : 0.12, 3.5, dt);
+      p.lit = damp(p.lit, hostile(p) ? 1 : 0.12, 3.5, statusDt);
       p.lightMat.emissiveIntensity = 0.25 + p.lit * 2.6 + (p.state === 'alert' ? Math.sin(t * 16) * 0.8 + 0.8 : 0) + p.flash * 20;
-      for (const pod of p.pods) if (p.state !== 'rocket' || pod !== p.pod) { pod.g.rotation.x = damp(pod.g.rotation.x, 0, 4, dt); pod.mat.emissiveIntensity = damp(pod.mat.emissiveIntensity, pod.cool > 0 ? 0.08 : 0.3 + p.lit * 0.9, 5, dt); }
-      if (p.hp < P.hp * 0.35 && Math.random() < dt * 7) fx?.emit(p.center.x + (Math.random() - 0.5) * 1.2, p.center.y + Math.random(), p.center.z + (Math.random() - 0.5) * 1.2, 1, { color: Math.random() < 0.5 ? '#9fd4ff' : '#77757c', speed: 1, up: 1.4, size: Math.random() < 0.5 ? 0.14 : 0.5, life: 0.5, g: -0.5 });
+      for (const pod of p.pods) if (p.state !== 'rocket' || pod !== p.pod) { pod.g.rotation.x = damp(pod.g.rotation.x, 0, 4, statusDt); pod.mat.emissiveIntensity = damp(pod.mat.emissiveIntensity, pod.cool > 0 ? 0.08 : 0.3 + p.lit * 0.9, 5, statusDt); }
+      if (p.hp < P.hp * 0.35 && Math.random() < statusDt * 7) fx?.emit(p.center.x + (Math.random() - 0.5) * 1.2, p.center.y + Math.random(), p.center.z + (Math.random() - 0.5) * 1.2, 1, { color: Math.random() < 0.5 ? '#9fd4ff' : '#77757c', speed: 1, up: 1.4, size: Math.random() < 0.5 ? 0.14 : 0.5, life: 0.5, g: -0.5 });
     }
     playerBlows(dt, rizer, hooks);
     updateRockets(dt, rizer, hooks);
@@ -445,6 +469,12 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
       const out = [];
       for (const p of list) {
         if (p.state === 'gone' || p.salvaged || !p.root.visible && p.state !== 'down') continue;
+        if (p.state === 'down') {
+          const fx = Math.sin(p.heading), fz = Math.cos(p.heading), rx = Math.cos(p.heading), rz = -Math.sin(p.heading), y = world.groundAt(p.pos.x, p.pos.z);
+          out.push({ x: p.pos.x + fx * 2.3, z: p.pos.z + fz * 2.3, hw: 1.35, hd: 1.35, rot: p.heading, y, top: y + 0.95, owner: p });
+          for (const [i, L] of p.legs.entries()) { const x = p.pos.x + rx * L.position.x + fx * L.position.z, z = p.pos.z + rz * L.position.x + fz * L.position.z, ly = world.groundAt(x, z); out.push({ x, z, hw: 0.34, hd: 0.82, rot: p.heading, y: ly, top: ly + 0.78, owner: p }); }
+          continue;
+        }
         const f = (BODY.zmin + BODY.zmax) / 2, hd = (BODY.zmax - BODY.zmin) / 2;
         out.push({ x: p.pos.x + Math.sin(p.heading) * f, z: p.pos.z + Math.cos(p.heading) * f, hw: BODY.hw, hd, rot: p.heading, y: p.pos.y - p.sink, top: p.pos.y - p.sink + BODY.top, owner: p });
       }

@@ -12,6 +12,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng } from './util.js';
 import { quarterAt } from './world-data.js';
 import { inventory, saveInv } from './loot.js';
+import { storage, LOC } from './storage.js';
 
 export const GATELOCK = {
   count: 2, need: 10, item: 'portalchip',
@@ -231,7 +232,7 @@ export function createGatelocks(scene, world, W, fx, { toast, sfx, onEvent } = {
     if (g.state !== 'closed') return false;
     const have = chips();
     if (have < G.need) return false;
-    inventory.items[G.item] = have - G.need; saveInv();
+    if (!storage.remove(LOC.ZYCUBE, G.item, G.need).ok) return false;
     setState(g, 'activating');
     const p = g.root.position; fx?.emit(p.x, p.y + 1.4, p.z, 30, { color: '#8fc4ff', speed: 3, up: 2.2, size: 0.32, life: 0.7, g: -1 });
     sfx?.play?.('blast', 0.7, 0.7);

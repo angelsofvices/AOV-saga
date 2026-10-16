@@ -6,6 +6,7 @@ import { storage, LOC } from './storage.js';
 import { link } from './zylink.js';
 import { defOf } from './item-registry.js';
 import { ASTRALITE_FAMILIES } from './loot.js';
+import { AX36_INPUTS, AX36_RECIPE, AX36_COMPOUND, hasStudied } from './engineering-research.js';
 
 export const STATIONS = {
   EXPERIMENT_TABLE: { id: 'EXPERIMENT_TABLE', name: 'Experiment Table', device: 'experiment_table' },
@@ -18,6 +19,10 @@ const TEST = 'Test recipe · final cost and parts will change';
 // stone rubble). The rule for every cost: the more complex the item, the more material it takes to make (and, when
 // repairs come, to repair). A simple field tool takes a little of each; a machine like the Astralboard takes a lot.
 export const RECIPES = [
+  { id: AX36_RECIPE, name: 'Synthesize AX-36', outputId: AX36_COMPOUND, outputQuantity: 1,
+    ingredients: AX36_INPUTS.map(itemId => ({ itemId, quantity: 1 })), research: AX36_INPUTS,
+    known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', atomic: true, outputLoc: LOC.ZYCUBE,
+    note: 'Study AX-3 and AX-6 individually at the Astralite Station. Consumes one physical sample of each; research remains learned.' },
   { id: 'field_workstation', name: 'Field Workstation', outputId: 'field_workstation', outputQuantity: 1,
     ingredients: [{ itemId: 'scrap_metal', quantity: 12 }, { itemId: 'fresh_wood', quantity: 8 }, { itemId: 'everstone', quantity: 4 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
   ...[
@@ -63,8 +68,13 @@ export function availability(recipeOrId) {
   const lines = r.ingredients.map(i => ({ itemId: i.itemId, name: defOf(i.itemId)?.name || i.itemId, need: i.quantity, have: have(device, i.itemId).total }));
   const out = { lines, recipe: r };
   if (!isKnown(r)) return { ...out, ok: false, reason: 'NOT_KNOWN', message: 'Recipe not known yet' };
+  if (r.research?.some(id => !hasStudied(id))) return { ...out, ok: false, reason: 'RESEARCH_REQUIRED', message: 'Study AX-3 and AX-6 at the Astralite Station first' };
   if (!defOf(r.outputId)) return { ...out, ok: false, reason: 'UNKNOWN_ITEM', message: 'Unknown output' };
   if (lines.some(l => l.have < l.need)) return { ...out, ok: false, reason: 'MISSING_RESOURCES', message: 'Missing resources' };
+  if (r.atomic) {
+    const c = storage.exchange(exchangeInputs(r), [{ loc: r.outputLoc, id: r.outputId, qty: r.outputQuantity }], { preview: true });
+    return { ...out, ...c };
+  }
   // Output lands in the Home PC (reserve storage has no limit). A unique weapon already owned is the only refusal.
   const outputLoc = r.stationType === 'FIELD_WORKSTATION' ? LOC.ZYCUBE : LOC.HOME_PC;
   const c = storage.canStore(outputLoc, r.outputId, r.outputQuantity);
@@ -72,10 +82,27 @@ export function availability(recipeOrId) {
   return { ...out, ok: true };
 }
 
+function exchangeInputs(r) {
+  const device = dev(r), inputs = [];
+  for (const ing of r.ingredients) {
+    let left = ing.quantity;
+    for (const loc of [LOC.HOME_PC, LOC.ZYCUBE]) {
+      if (!left || !link.canRead(device, loc)) continue;
+      const qty = Math.min(left, storage.count(loc, ing.itemId));
+      if (qty) { inputs.push({ loc, id: ing.itemId, qty }); left -= qty; }
+    }
+  }
+  return inputs;
+}
+
 // Validate → consume → produce. Never consumes without producing: a failed output refunds exactly what was spent.
 export function craft(recipeId) {
   const a = availability(recipeId); if (!a.ok) return a;
   const r = a.recipe, device = dev(r), spent = [];
+  if (r.atomic) {
+    const res = storage.exchange(exchangeInputs(r), [{ loc: r.outputLoc, id: r.outputId, qty: r.outputQuantity }], { learnRecipeId: r.id });
+    return res.ok ? { ok: true, recipe: r, outputId: r.outputId, quantity: r.outputQuantity, message: 'AX-36 synthesized · stored in your Zycube · research preserved' } : res;
+  }
   const refund = () => { for (const s of spent.reverse()) storage.add(s.loc, s.itemId, s.qty); };
   for (const ing of r.ingredients) {
     let need = ing.quantity;

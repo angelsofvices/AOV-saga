@@ -3,23 +3,31 @@
 // Rizer · Armory · Controls · Options · Dev. Time skipping lives only here.
 import { describeHour } from './sky.js';
 import { focus as focusMoves, FOCUS_MOVES, DIRS, DIR_NAME, DIR_KEY } from './focus-moves.js';
+import { SLOTS } from './anim-lib.js';
 
 const $ = s => document.querySelector(s);
-const TABS = ['home', 'map', 'time', 'notes', 'rizer', 'zyrex', 'weapons', 'items', 'missions', 'contacts', 'zydex', 'astral', 'portal', 'experiment', 'camera', 'controls', 'options', 'dev'];
+import { createPortalChipsUI } from './portal-chips-ui.js';
+import { engineering, selectWeaponInstance } from './engineering.js';
+const TABS = ['home', 'map', 'time', 'notes', 'rizer', 'skilltree', 'zyrex', 'weapons', 'items', 'missions', 'contacts', 'zydex', 'astral', 'portal', 'experiment', 'camera', 'controls', 'options', 'dev'];
 const HOME_KEY = 'rp7d.zyphone.home.v1';
 const SKIN_LIBRARY_KEY = 'rp7d.skinLibrary.v1';
+const COMBO_LOADOUT_KEY = 'rp7d.skillTree.combos.v1';
+const COMBO_CHAINS = { punch: 4, kick: 5, sword: 4, axe: 4 };
+const COMBO_MOVES = { punch:['punch','punch2','punch3','punch4'], kick:['kick','kick2','kick3','kick4','kick5'], sword:['sword','sword2','sword3','sword4'], axe:['axe','axe2','axe3','axe4'] };
+const COMBO_LABEL = Object.fromEntries(Object.entries(COMBO_MOVES).flatMap(([kind, moves]) => moves.map(k => [k, `${kind[0].toUpperCase() + kind.slice(1)} · ${+(k.match(/\d+$/)?.[0] || 1)}`])));
+function readComboLoadout() { try { return JSON.parse(localStorage.getItem(COMBO_LOADOUT_KEY) || '{}'); } catch { return {}; } }
 // The head bar shows six sections; each section folds its related pages under one second-row strip.
 // Every page still exists and still opens by its own id (zy.open('map'), the Home app grid, the HUD panels).
 const GROUPS = [
   { id: 'home', name: 'Home', pages: ['home'] },
   { id: 'world', name: 'World', pages: ['map', 'portal', 'notes', 'time'] },        // where things are, how to get there, what's been found, when
-  { id: 'rizer', name: 'Labs', pages: ['rizer', 'astral', 'zyrex'] },               // LABS: Rizer (builds · skins · animations), Focus (the X-ray: attributes + Focus Moves), Zyrex
+  { id: 'rizer', name: 'Labs', pages: ['rizer', 'skilltree', 'astral', 'zyrex'] }, // Rizer, Skill Tree, Focus and Zyrex
   { id: 'gear', name: 'Gear', pages: ['weapons', 'items', 'experiment'] },          // what he carries and what he makes from it
   { id: 'journal', name: 'Journal', pages: ['missions', 'contacts', 'zydex', 'camera'] }, // what to do, who he knows, what he's recorded
   { id: 'system', name: 'System', pages: ['controls', 'options', 'dev'] }
 ];
 const ORDER = GROUPS.flatMap(g => g.pages), groupOf = key => GROUPS.findIndex(g => g.pages.includes(key));
-const PAGE_NAME = { home: 'Home', map: 'Map', portal: 'Portal', notes: 'Field Notes', time: 'Time', rizer: 'Rizer', astral: 'Focus', zyrex: 'Zyrex', weapons: 'Armory', items: 'Items', experiment: 'Experiment', missions: 'Missions', contacts: 'Contacts', zydex: 'Zydex', camera: 'Camera', controls: 'Controls', options: 'Options', dev: 'Dev' };
+const PAGE_NAME = { home: 'Home', map: 'Map', portal: 'Portal', notes: 'Field Notes', time: 'Time', rizer: 'Rizer', skilltree: 'Skill Tree', astral: 'Focus', zyrex: 'Zyrex', weapons: 'Armory', items: 'Items', experiment: 'Experiment', missions: 'Missions', contacts: 'Contacts', zydex: 'Zydex', camera: 'Camera', controls: 'Controls', options: 'Options', dev: 'Dev' };
 const APPS = Object.freeze([
   ['map','✦','Map','Locations & Navigation'], ['time','☀','Time','Day / Night & Weather'], ['notes','▤','Field Notes','Discoveries & Progress'],
   ['rizer','♟','Labs','Rizer · Builds, Skins & Animations'], ['zyrex','❧','Zyrex','Partners & Bonding'], ['weapons','⚔','Armory','Weapons & Equipment'],
@@ -40,7 +48,7 @@ const CONTROL_GUIDE = {
     ['Jump / double jump','Space / Space again','✕ / ✕ again'],['Crouch / stealth','X','L3'],['Interact / pick up','E','○'],['Lock / release target','R / middle click','R3'],['Open Zyphone','Z','Touchpad']
   ]},
   combat: { name:'Combat & Astral', rows:[
-    ['Punch combo','J / left click','□'],['Kick combo','K / right click','△'],['Astral Blast','F','○'],['AstralSlam','Airborne + locked target + J / left click','Airborne + locked target + □'],['Dodge roll / slide','C tap / hold','L2 tap / hold'],['Block','Shift + C hold','L1 + R1 hold'],['Pray','L1 + R1 + L2 + R2 hold','L1 + R1 + L2 + R2 hold'],['Astralvision','B','L3 + R3'],['Focus move','Direction keys shown in Focus setup','Lock + assigned D-pad direction'],['Swap locked target','V','Right-stick flick']
+    ['Punch combo','J / left click','□'],['Kick combo','K / right click','△'],['Astral Blast','F','○'],['AstralSlam','Airborne + locked target + J / left click','Airborne + locked target + □'],['Dodge roll / slide','C tap / hold','L2 tap / hold'],['Block','Shift + C hold','L2 + R2 hold'],['Switch WHUD type','Q / wheel page','L1 + R1'],['Pray','L1 + R1 + L2 + R2 hold','L1 + R1 + L2 + R2 hold'],['Astralvision','B','L3 + R3 (also during fast flight)'],['Focus move','Direction keys shown in Focus setup','Lock + assigned D-pad direction'],['Swap locked target','V','Right-stick flick']
   ]},
   traversal: { name:'Parkour & flight', rows:[
     ['Jump / double jump','Space / Space again','✕ / ✕ again'],['Fly','Double jump, hold Space','Double jump, hold ✕'],['Rise / descend','Space / X','✕ / L3'],['Grab a ledge','Jump toward its edge','✕ toward its edge'],['Climb while hanging','Space','✕'],['Drop while hanging','X or C','L3 or L2'],['Crouch / walk to an edge','X / WASD','L3 / left stick'],['Vault a low obstacle','Run + Space','Run + ✕']
@@ -65,6 +73,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   let fpick = null, axMode = 'attr'; // Focus: the move being placed on a D-pad direction · which side of the page (attributes | moves)
   let carry = null; // Armory: what's being moved — { from: 'slot', i, k } or { from: 'bag', k }
   let homeEdit = false, homeDrag = null, journalOpen = false, mapPoiDetailOpen = false;
+  let skillCategory = 'combat', skillSelected = 'punch';
   let skinLibrary = [];
   try { const saved = JSON.parse(localStorage.getItem(SKIN_LIBRARY_KEY) || '[]'); if (Array.isArray(saved)) skinLibrary = saved.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string' && s.data?.colors); } catch {}
   const saveSkinLibrary = () => { try { localStorage.setItem(SKIN_LIBRARY_KEY, JSON.stringify(skinLibrary)); } catch {} };
@@ -76,7 +85,12 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   subEl.className = 'zy-subtabs'; subEl.setAttribute('role', 'tablist'); tabsEl.after(subEl);
   // One frame for every page, the same as Home: a title block on top, the page's content beneath it.
   const heroEl = document.createElement('div'); heroEl.className = 'zy-home-hero zy-page-hero'; root.querySelector('.zy-body').prepend(heroEl);
-  let homeOrder = APPS.map(a => a.id);
+  let homeOrder = APPS.map(a => a.id), portalChips = null;
+  $('#zy-weapons').addEventListener('click', ev => {
+    const el = ev.target.closest('[data-plasma-instance]'); if (!el) return;
+    ev.stopPropagation(); const res = selectWeaponInstance(el.dataset.plasmaInstance);
+    if (res.ok && inventory.wheel?.includes('plasmabeam')) onWeapon?.('plasmabeam'); render();
+  });
   try { const saved = JSON.parse(localStorage.getItem(HOME_KEY) || '[]'); if (Array.isArray(saved)) homeOrder = [...saved.filter(id => APPS.some(a => a.id === id)), ...homeOrder.filter(id => !saved.includes(id))]; } catch {}
   const saveHome = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify(homeOrder)); } catch {} };
 
@@ -131,6 +145,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
       renderMapBrowser();
       hud.resize();
     }
+    if (key === 'skilltree') renderSkillTree();
     if (key === 'time') {
       $('#zy-times').innerHTML = st.dev ? TIME_PRESETS.map(p => {
         const cur = Math.abs(((st.hour - p.h + 36) % 24) - 12) > 11.5;
@@ -188,6 +203,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     }
     if (key === 'weapons') renderArmory();
     if (key === 'items') renderItems();
+    if (key === 'portal') { portalChips ||= createPortalChipsUI(root.querySelector('[data-page="portal"]')); portalChips.render(); }
     if (key === 'experiment') renderExperiment();
     if (key === 'controls') renderControls(st);
     if (key === 'options' || key === 'dev') { // generic setting / action rows supplied by game.js
@@ -244,8 +260,12 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
         <div class="rz-tag"><small>SUBJECT · LIVE</small><b>${esc(v.charName)}</b><em>${esc(v.hair.can ? v.hair.name : '')}</em></div>
         <div class="rz-scan"></div></div>
       <div class="rz-col rz-right">
-        ${bin('ID', 'SUBJECT', 'WHAT THE PLAYER WEARS', `
-          <dl class="rz-dl"><dt>BODY</dt><dd>${esc(v.bodyName)}</dd><dt>SKIN</dt><dd>${esc(v.charName)}</dd><dt>HAIR</dt><dd>${esc(v.hair.can ? v.hair.name : '—')}</dd><dt>COLOURS</dt><dd>${v.colors.filter(c => c.custom).length} custom</dd><dt>CLONES</dt><dd>${v.clones} live</dd></dl>`)}
+        <button class="zy-item rz-bin rz-skill-entry" data-item data-skill-tree aria-label="Open Rizer Skill Tree">
+          <header><i>✦</i><b>SKILL TREE</b><small>RIZER · MOVES & ANIMATIONS</small></header>
+          <strong>GO TO SKILL TREE <span>›</span></strong>
+          <p>Build Rizer’s combat combos, astral attacks, traversal, flight and special moves.</p>
+          <small class="rz-skill-entry-meta">${RIZER_SKILL_SLOTS.length} ANIMATION SLOTS · OPEN MODULE ›</small>
+        </button>
         ${bin('TPL', 'TEMPLATE', 'SAVE · CLONE · PLAY AS', `
           <label class="rz-name"><small>NAME</small><input data-labs-name type="text" maxlength="40" placeholder="e.g. Kelthor (blue)" value="${esc(keepName)}" spellcheck="false" autocomplete="off"></label>
           ${row('data-labs="save"', 'Save template', 'JSON ↓')}
@@ -256,6 +276,42 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
         ${row('data-labs="reset"', v.resetArmed ? 'Press again to reset' : 'Reset Rizer', 'DEFAULT LOOK', ' rz-danger')}
       </div></div>`;
     page.querySelectorAll('.rz-col').forEach((c, i) => { c.scrollTop = scroll[i] || 0; });
+  }
+  const SKILL_CATEGORIES = [
+    { id:'combat', label:'COMBAT', icon:'⚔', note:'Punches · kicks · weapons' },
+    { id:'astral', label:'ASTRAL', icon:'✦', note:'Astralstrike · focus attacks' },
+    { id:'traversal', label:'TRAVERSAL', icon:'↗', note:'Movement · parkour · evasion' },
+    { id:'flight', label:'FLIGHT', icon:'✧', note:'Flight · aerial movement' },
+    { id:'special', label:'SPECIAL', icon:'◈', note:'Prayer · interactions · bonds' }
+  ];
+  const RIZER_SKILL_EXCLUDES = new Set(['astraliftHit','standup','shocked','tornadoWobble','tornadoFloat','dazedWalk','dazedRun','undeadRun','crawl','stunned','bite','feedBody']);
+  function skillCategoryFor(slot) {
+    const k = slot.key;
+    if (/^(blast|astral|thunder|rollingThunder|airslam|astralclap|astralspin)/i.test(k)) return 'astral';
+    if (/^(fly|float|descend|fastfall|fastland|bigland|bail|bailImpact|astralboard|swim)/i.test(k)) return 'flight';
+    if (/^(punch|kick|sword|axe|stomp|runKick|runpunch|kickup|draw|sheathe|bow|rifle|heavy|block|parry)/i.test(k)) return 'combat';
+    if (/^(walk|run|sprint|tiredRun|strafe|stair|turn|jump|doublejump|fall|land|teleportLand|dodge|slide|treeSpin|vault|ledge|wall|teeter)/i.test(k)) return 'traversal';
+    return 'special';
+  }
+  const RIZER_SKILL_SLOTS = SLOTS.filter(slot => !RIZER_SKILL_EXCLUDES.has(slot.key));
+  function renderSkillTree() {
+    const host = root.querySelector('#zy-skill-tree'); if (!host) return;
+    const category = SKILL_CATEGORIES.find(c => c.id === skillCategory) || SKILL_CATEGORIES[0];
+    const slots = RIZER_SKILL_SLOTS.filter(slot => skillCategoryFor(slot) === category.id);
+    if (!slots.some(slot => slot.key === skillSelected)) skillSelected = slots[0]?.key || '';
+    const selected = slots.find(slot => slot.key === skillSelected) || slots[0];
+    const loadout = readComboLoadout();
+    const chainSlot = selected && Object.entries(COMBO_MOVES).flatMap(([kind, moves]) => moves.map((key, i) => ({ kind, key, i }))).find(entry => entry.key === selected.key);
+    const selectedComboStage = chainSlot ? (loadout[chainSlot.kind] || COMBO_MOVES[chainSlot.kind])[chainSlot.i] : null;
+    const comboLabel = selectedComboStage ? (COMBO_LABEL[selectedComboStage] || selectedComboStage) : '';
+    const iconFor = slot => ({oneshot:'✦',state:'◉',locomotion:'➤',air:'◇'})[slot.kind] || '•';
+    const nodes = slots.map((slot, i) => `<button class="zy-item skill-node${slot.key === selected?.key ? ' selected' : ''}${chainSlot && slot.key === selected.key ? ' equipped' : ''}" data-item data-skill-node="${slot.key}" style="--node-index:${i}" title="${esc(slot.label)}"><i>${iconFor(slot)}</i><span>${esc(slot.label)}</span>${chainSlot && slot.key === selected.key ? '<em>CHAIN SLOT</em>' : ''}</button>`).join('');
+    host.innerHTML = `<div class="skilltree-shell">
+      <header class="skilltree-head"><div><small>RIZER · ABILITY ARCHIVE</small><h2>SKILL TREE</h2><p>Choose the moves and animation clips that shape Rizer’s play style.</p></div><div class="skilltree-count"><b>${RIZER_SKILL_SLOTS.length}</b><small>AVAILABLE<br>ANIMATION SLOTS</small></div></header>
+      <nav class="skilltree-branches" aria-label="Skill categories">${SKILL_CATEGORIES.map(c => `<button class="zy-item skill-branch${c.id === skillCategory ? ' current' : ''}" data-item data-skill-category="${c.id}"><i>${c.icon}</i><span><b>${c.label}</b><small>${c.note}</small></span><em>${RIZER_SKILL_SLOTS.filter(s => skillCategoryFor(s) === c.id).length}</em></button>`).join('')}</nav>
+      <div class="skilltree-main"><section class="skilltree-map"><div class="skilltree-map-head"><div><small>${category.label} BRANCH</small><h3>${category.note}</h3></div><span>${slots.length} NODES</span></div><div class="skilltree-path"><div class="skilltree-root"><i>✦</i><span>RIZER</span><small>${category.label} PATH</small></div><div class="skilltree-links" aria-hidden="true"></div><div class="skilltree-nodes">${nodes}</div></div><p class="skilltree-foot">Move nodes are sourced from the project’s animation slot library. Unlock rules and progression costs can be added when the skill system is finalized.</p></section>
+      <aside class="skilltree-detail"><small>SELECTED ABILITY</small><div class="skilltree-detail-icon">${selected ? iconFor(selected) : '✦'}</div><h3>${esc(selected?.label || 'Choose a move')}</h3><span class="skilltree-kind">${selected ? `${category.label} · ${selected.kind.toUpperCase()} SLOT` : 'ANIMATION SLOT'}</span><p>${selected ? 'This node represents an existing Rizer animation slot. The live animation system remains the source for its assigned clip.' : 'Select an ability node to see its details.'}</p>${chainSlot ? `<div class="skilltree-equip"><small>COMBO ASSIGNMENT</small><b>${chainSlot.kind.toUpperCase()} · STAGE ${chainSlot.i + 1}</b><span>Currently assigned: ${esc(comboLabel)}</span><button class="zy-item skilltree-action" data-item data-combo-kind="${chainSlot.kind}" data-combo-stage="${chainSlot.i}">CYCLE THIS COMBO SLOT ↻</button></div>` : '<div class="skilltree-equip"><small>LOADOUT STATUS</small><b>ANIMATION SLOT READY</b><span>Move unlock and button assignment wiring will build on this tree.</span></div>'}<div class="skilltree-controls"><span>✕ SELECT NODE</span><span>← → CATEGORY</span></div></aside></div>
+    </div>`;
   }
   // ── LABS › ASTRAL: the X-ray Rizer · stats and mods on his nervous system (game.js · astralHub, astral-stats.js) ──
   function renderAstral() {
@@ -344,6 +400,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
       const tag = w.tier ? `<i class="zy-tier">${esc(w.tier.toUpperCase())}${w.gemlord ? ' · ' + esc(w.gemlord.toUpperCase()) : ''}</i>` : '';
       return `<button class="zy-item zy-weapon${k === eq ? ' current' : ''}${moving ? ' moving' : ''}" data-item data-bag="${k}" draggable="true"><i class="zy-wicon">${icons[k] || ''}</i><span><b>${esc(w.name)}</b>${tag}<em>${esc(w.blurb)}</em></span><small>${k === eq ? 'EQUIPPED' : at >= 0 ? 'WHEEL · ' + (at + 1) : 'IN BAG'}</small></button>`;
     }).join('') + (owned.length < Object.keys(weapons).length ? `<div class="zy-item zy-weapon locked"><span><b>? ? ?</b><em>More weapons wait out in the world.</em></span><small>LOCKED</small></div>` : '');
+    $('#zy-weapons').insertAdjacentHTML('beforeend', engineering().weapons.filter(w => w.loc === 'ZYCUBE').map(w => `<button class="zy-item" data-item data-plasma-instance="${w.uid}"><b>Plasmabeam · ${w.uid}</b><small>LEVEL ${w.level} · MODS ${w.mods.length}/${w.level} · ${esc(w.mode.toUpperCase())} · ${inventory.equippedUid === w.uid ? 'SELECTED' : inventory.wheel?.includes('plasmabeam') ? 'SELECT & EQUIP' : 'SELECT INSTANCE · ASSIGN PLASMABEAM TO WHEEL TO EQUIP'}</small></button>`).join(''));
   }
   // ── Items: everything that isn't a weapon, by kind (consumables · materials · key items) ──
   const ITEM_KINDS = [['consumable', 'CONSUMABLES'], ['material', 'MATERIALS'], ['key', 'KEY ITEMS']];
@@ -465,6 +522,15 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (el.dataset.mapAction === 'details') { if (hud.mapSelectedPoi) { mapPoiDetailOpen = true; render(); } return; }
     if (el.dataset.mapAction === 'back') { mapPoiDetailOpen = false; render(); return; }
     if (el.dataset.mapAction === 'teleport') { onAction?.('map-teleport'); return; }
+    if (el.dataset.skillCategory) { skillCategory = el.dataset.skillCategory; skillSelected = ''; renderSkillTree(); focus = items().indexOf(root.querySelector('.skill-branch.current')); paintFocus(); return; }
+    if (el.dataset.skillNode) { skillSelected = el.dataset.skillNode; renderSkillTree(); focus = items().indexOf(root.querySelector(`[data-skill-node="${CSS.escape(skillSelected)}"]`)); paintFocus(); return; }
+    if (el.dataset.comboKind) {
+      const loadout = readComboLoadout(), kind = el.dataset.comboKind, stage = +el.dataset.comboStage;
+      loadout[kind] ||= Array.from({ length: COMBO_CHAINS[kind] }, (_, i) => i ? `${kind}${i + 1}` : kind);
+      const options = COMBO_MOVES[kind], i = options.indexOf(loadout[kind][stage]); loadout[kind][stage] = options[(i + 1 + options.length) % options.length];
+      localStorage.setItem(COMBO_LOADOUT_KEY, JSON.stringify(loadout)); const keep = focus; render(); focus = keep; paintFocus(); return;
+    }
+    if (el.dataset.skillTree != null) { setPage('skilltree'); return; }
     if (el.dataset.mapDistrict) { hud.selectDistrict(el.dataset.mapDistrict); render(); return; }
     if (el.dataset.mapCategory) { hud.setMapCategory(el.dataset.mapCategory); render(); return; }
     if (el.dataset.mapPoi) { hud.selectPoi(el.dataset.mapPoi); mapPoiDetailOpen = true; render(); return; }

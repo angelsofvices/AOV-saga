@@ -59,7 +59,7 @@ export function createAstral(scene, world, fx) {
   const boltLights = [0, 1].map(() => { const L = new THREE.PointLight('#4a8cff', 0, 9, 2); scene.add(L); return L; });
   const flash = new THREE.PointLight('#cfe3ff', 0, 60, 1.6); scene.add(flash);
   // Astralthunder: pending strikes and the visible bolts
-  const strikes = [], zaps = [], rollers = [];
+  const strikes = [], zaps = [], rollers = [], volstorms = [];
   const zapCore = new THREE.MeshBasicMaterial({ color: new THREE.Color('#f4f8ff').multiplyScalar(3), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const zapGlow = new THREE.MeshBasicMaterial({ color: new THREE.Color('#5aa0ff').multiplyScalar(2.4), transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending });
   const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
@@ -142,6 +142,26 @@ export function createAstral(scene, world, fx) {
   const HOSTILE = k => k === 'enemy' || k === 'scanobot';
   const THREAT_STATES = new Set(['alert', 'chase', 'windup', 'attack', 'evade', 'stagger', 'dazed', 'surprised', 'astraliftDown', 'gettingUp']);
   const isThreat = t => HOSTILE(t.kind) && (!!t.ref?.hostile || THREAT_STATES.has(t.ref?.state) || !!t.ref?.combatThreat || !!t.ref?.inCombat);
+  const aimPoint = (t, out = new THREE.Vector3()) => out.copy(t.pos()).add(new THREE.Vector3(0, Math.max(0.65, (t.h || 1.7) * 0.5), 0));
+  function pickScreenTarget(rizer, targets, range, camera) {
+    if (!camera) return null;
+    const p = rizer.position, projected = new THREE.Vector3(); let best = null, bestRank = Infinity, bestCenter = Infinity, bestDistance = Infinity;
+    for (const t of targets) {
+      const point = aimPoint(t, projected), distance = point.distanceTo(p);
+      if (distance >= range) continue;
+      point.project(camera);
+      // R3 focuses what the reticle could actually see; don't snap through the camera to a target behind Rizer.
+      if (point.z < -1 || point.z > 1 || Math.abs(point.x) > 1.08 || Math.abs(point.y) > 1.08) continue;
+      const center = point.x * point.x + point.y * point.y;
+      // Hostiles win over scenery. Nearby active threats get the first tier so a close attacker
+      // cannot be displaced by a farther enemy that happens to sit nearer the reticle center.
+      const rank = isThreat(t) && distance <= 6 ? 0 : HOSTILE(t.kind) ? 1 : 2;
+      if (rank < bestRank || (rank === bestRank && (center < bestCenter - 1e-5 || (Math.abs(center - bestCenter) < 1e-5 && distance < bestDistance)))) {
+        best = t; bestRank = rank; bestCenter = center; bestDistance = distance;
+      }
+    }
+    return best;
+  }
   function pickEnemy(rizer, targets, range) {
     const p = rizer.position; let best = null, bs = Infinity;
     for (const t of targets) {
@@ -153,18 +173,18 @@ export function createAstral(scene, world, fx) {
     return best;
   }
   let manualOff = 0, lastAuto = 0;
-  function toggleLock(rizer, seers, zyrex, loot, commonChests, friendlies, extra) {
+  function toggleLock(rizer, seers, zyrex, loot, commonChests, friendlies, extra, camera = null) {
     if (lock) { lock = null; reticle.visible = false; manualOff = performance.now() + 6000; return null; } // released on purpose: no auto lock for a moment
     const all = targetsOf(seers, zyrex, loot, commonChests, friendlies, extra);
-    let best = pickEnemy(rizer, all, ASTRAL.lock.range);
-    if (!best) { const p = rizer.position; let bd = ASTRAL.lock.range; for (const t of all) { const d = t.pos().distanceTo(p); if (d < bd) { bd = d; best = t; } } }
+    const best = pickScreenTarget(rizer, all, ASTRAL.lock.range, camera) || (!camera ? pickEnemy(rizer, all, ASTRAL.lock.range) : null);
     setLock(best);
     return lock;
   }
   // In a fight with nothing locked: take the enemy in front automatically (the player can still release with R3).
-  function autoLock(rizer, seers, zyrex, loot, commonChests, friendlies, extra) {
+  function autoLock(rizer, seers, zyrex, loot, commonChests, friendlies, extra, camera = null) {
     const now = performance.now(); if (lock || now < manualOff || now - lastAuto < 250) return null; lastAuto = now;
-    const best = pickEnemy(rizer, targetsOf(seers, zyrex, loot, commonChests, friendlies, extra), 18);
+    const targets = targetsOf(seers, zyrex, loot, commonChests, friendlies, extra);
+    const best = pickScreenTarget(rizer, targets.filter(isThreat), 18, camera) || pickEnemy(rizer, targets, 18);
     if (best) setLock(best);
     return best;
   }
@@ -296,6 +316,11 @@ export function createAstral(scene, world, fx) {
     A?.play('thunder', speed); rizer.landLock = Math.max(rizer.landLock || 0, castTime); // planted through the full cast
     fx.emit(rizer.position.x, rizer.position.y + 2.2, rizer.position.z, 16, { color: '#cfe3ff', speed: 1.5, up: 2.5, size: 0.35, life: 0.6, g: -1 });
     strikes.push({ id: ++attackSequence, t: Math.max(0.25, Math.min(hit / speed, castTime * 0.85)), target, seers, onStrike });
+  }
+  // Volstorm: the fourth Astralstrike releases a staggered rain of sky bolts over every
+  // enemy Rizer can see in the camera field. Each target is checked again at impact.
+  function volstorm(targets, foes, damage, onStrike) {
+    targets.forEach((target, i) => volstorms.push({ target, foes, damage, onStrike, t: i * 0.095 }));
   }
   // Astralburst: the cast plays, lightning crackles over Rizer's body while he gathers it, and at the
   // release frame it explodes out around him.
@@ -518,6 +543,17 @@ export function createAstral(scene, world, fx) {
   // others: extra bodies the bolts can strike ({ center, r, alive, hit(damage, dx, dz, kind) } — the Scanobots)
   function update(dt, t, rizer, seers, onHit, others = null) {
     updateBursts(dt); updateSlamWave(dt); updateLifts(dt); updateRolling(dt);
+    // Combo-four Volstorm bolts land in a quick, readable sequence across the visible field.
+    for (let i = volstorms.length - 1; i >= 0; i--) {
+      const s = volstorms[i]; if ((s.t -= dt) > 0) continue; volstorms.splice(i, 1);
+      const g = s.target, S = s.foes; if (!S?.alive(g)) continue;
+      const p = (g.isScanobot ? g.center : g.pos).clone(); lightning(p);
+      flash.position.set(p.x, p.y + 6, p.z); flash.intensity = 60;
+      fx.emit(p.x, p.y + 0.2, p.z, 26, { color: '#d8ebff', speed: 5.5, up: 2.6, size: 0.46, life: 0.52, g: 5 });
+      fx.emit(p.x, p.y + 1, p.z, 16, { color: '#5aa0ff', speed: 3.2, up: 1.8, size: 0.38, life: 0.44, g: 0 });
+      const dx = p.x, dz = p.z, hit = S.shock(g, s.damage, 0, 0, 2.1);
+      s.onStrike?.(p, hit);
+    }
     // Astralthunder: strikes land, bolts flicker out, the flash fades
     for (let i = strikes.length - 1; i >= 0; i--) {
       const s = strikes[i]; if ((s.t -= dt) > 0) continue; strikes.splice(i, 1);
@@ -594,5 +630,5 @@ export function createAstral(scene, world, fx) {
       if (Math.random() < dt * 40) fx.emit(tmp.x, tmp.y, tmp.z, 1, { color: b.pal.trail, speed: 0.4, up: 0.2, size: 0.32, life: 0.3, g: 0, spread: 0.1 });
     }
   }
-  return { arc, chargeBody, get flash() { return flash; }, setPalette, get palette() { return palKey; }, toggleLock, autoLock, switchLock, clearLock, assistTarget, astralift, canAstralift, thunder, astralburst, shockwave, rollingThunder, fire, update, get bursting() { return bursts.length > 0; }, get rolling() { return rollers.length > 0; }, get rollingCast() { return rollers.some(q => q.castLeft > 0); }, get lock() { return lock; }, get bolts() { return bolts.length; } };
+  return { arc, chargeBody, get flash() { return flash; }, setPalette, get palette() { return palKey; }, toggleLock, autoLock, switchLock, clearLock, assistTarget, astralift, canAstralift, thunder, astralburst, volstorm, shockwave, rollingThunder, fire, update, get bursting() { return bursts.length > 0; }, get rolling() { return rollers.length > 0; }, get rollingCast() { return rollers.some(q => q.castLeft > 0); }, get lock() { return lock; }, get bolts() { return bolts.length; } };
 }

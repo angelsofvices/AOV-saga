@@ -17,6 +17,7 @@
 import { inventory, saveInv } from './loot.js';
 import { defOf, FIELD_EQUIPMENT, isWeaponId, isEquipmentId } from './item-registry.js';
 import { link } from './zylink.js';
+import { engineeringState, projectEngineering, mintStandardChips, spendStandardChips, mintPlasmabeam } from './engineering-ledger.js';
 
 export const LOC = Object.freeze({ ZYCUBE: 'ZYCUBE', HOME_PC: 'HOME_PC', DEPLOYED: 'DEPLOYED', WORLD: 'WORLD' });
 export const LOC_NAME = { ZYCUBE: 'Zycube', HOME_PC: 'Home Storage', DEPLOYED: 'Deployed', WORLD: 'World' };
@@ -46,7 +47,7 @@ function ensure() {
 function normalise() {
   ensure();
   const h = inventory.home, seen = new Set(inventory.owned);
-  h.weapons = h.weapons.filter(k => { if (seen.has(k) || !isWeaponId(k)) return false; seen.add(k); return true; });
+  h.weapons = h.weapons.filter(k => { if ((!defOf(k)?.multipleInstances && seen.has(k)) || !isWeaponId(k)) return false; seen.add(k); return true; });
   const uids = new Set();
   inventory.equipment = inventory.equipment.filter(e => e && e.uid && isEquipmentId(e.type) && !uids.has(e.uid) && uids.add(e.uid));
   for (const e of inventory.equipment) if (!['ZYCUBE', 'HOME_PC', 'DEPLOYED'].includes(e.loc)) e.loc = 'HOME_PC';
@@ -68,12 +69,15 @@ export function contents(loc) {
   const weaponList = loc === LOC.ZYCUBE ? inventory.owned : inventory.home.weapons;
   return {
     stacks: Object.entries(items).filter(([k, n]) => n > 0 && defOf(k)).map(([id, qty]) => ({ id, qty, def: defOf(id) })),
-    weapons: weaponList.filter(k => defOf(k)).map(id => ({ id, uid: id, def: defOf(id) })),
+    weapons: weaponList.filter(k => defOf(k)).flatMap(id => id === 'plasmabeam'
+      ? engineeringState(inventory).weapons.filter(w => w.type === id && w.loc === loc).map(w => ({ id, uid: w.uid, def: defOf(id) }))
+      : [{ id, uid: id, def: defOf(id) }]),
     equipment: inventory.equipment.filter(e => e.loc === loc).map(e => ({ id: e.type, uid: e.uid, def: defOf(e.type), at: e.at }))
   };
 }
 export function count(loc, id) {
   ensure();
+  if (id === 'plasmabeam') return engineeringState(inventory).weapons.filter(w => w.type === id && w.loc === loc).length;
   if (isEquipmentId(id)) return inventory.equipment.filter(e => e.type === id && e.loc === loc).length;
   if (isWeaponId(id)) return (loc === LOC.ZYCUBE ? inventory.owned : loc === LOC.HOME_PC ? inventory.home.weapons : []).includes(id) ? 1 : 0;
   if (loc === LOC.ZYCUBE) return inventory.items[id] || 0;
@@ -98,53 +102,80 @@ export function canStore(loc, id, qty = 1, { moving = false } = {}) {
   ensure();
   const d = defOf(id); if (!d) return fail('UNKNOWN_ITEM', 'Unknown item');
   if (!moving && isEquipmentId(id) && FIELD_EQUIPMENT[id].single && (total(id) > 0 || (id === 'astralboard' && inventory.rides?.includes('astralboard')))) return fail('DUPLICATE', `${d.name} is already owned`);
-  if (loc === LOC.HOME_PC) return !moving && d.unique && isWeaponId(id) && ownsWeapon(id) ? fail('DUPLICATE', `${d.name} is already owned`) : OK; // reserve storage has no limit
+  if (loc === LOC.HOME_PC) return !moving && d.unique && !d.multipleInstances && isWeaponId(id) && ownsWeapon(id) ? fail('DUPLICATE', `${d.name} is already owned`) : OK; // reserve storage has no limit
   if (loc !== LOC.ZYCUBE) return fail('BAD_LOCATION', 'Not a storage location');
   if (inventory.zycube) return fail('ZYCUBE_LOST', 'No Zycube · it dropped where you were knocked out');
-  if (!moving && d.unique && isWeaponId(id) && ownsWeapon(id)) return fail('DUPLICATE', `${d.name} is already owned`);
+  if (!moving && d.unique && !d.multipleInstances && isWeaponId(id) && ownsWeapon(id)) return fail('DUPLICATE', `${d.name} is already owned`);
   const cur = inventory.items[id] || 0;
-  const extra = d.stackable ? slotsOfStack(id, cur + qty) - slotsOfStack(id, cur) : d.slots * (d.unique ? 1 : qty);
+  const extra = d.stackable ? slotsOfStack(id, cur + qty) - slotsOfStack(id, cur) : d.slots * (d.unique && !d.multipleInstances ? 1 : qty);
   if (extra <= 0 || slotsUsed(LOC.ZYCUBE) + extra <= capacity()) return OK;
   return fail('INSUFFICIENT_CAPACITY', 'INSUFFICIENT ZYCUBE CAPACITY');
 }
 
 // ── mutation (private: use add / transfer / craft / deploy) ─────────────────
-const snap = () => JSON.stringify({ items: inventory.items, owned: inventory.owned, home: inventory.home, equipment: inventory.equipment, tier: inventory.zycubeTier });
-const restore = s => { const o = JSON.parse(s); inventory.items = o.items; inventory.owned = o.owned; inventory.home = o.home; inventory.equipment = o.equipment; inventory.zycubeTier = o.tier; };
+const snap = () => JSON.stringify({ items: inventory.items, owned: inventory.owned, home: inventory.home, equipment: inventory.equipment, tier: inventory.zycubeTier, engineering: inventory.engineering });
+const restore = s => { const o = JSON.parse(s); inventory.items = o.items; inventory.owned = o.owned; inventory.home = o.home; inventory.equipment = o.equipment; inventory.zycubeTier = o.tier; inventory.engineering = o.engineering; };
 let seq = 0;
 const newUid = type => { const used = new Set(inventory.equipment.map(e => e.uid)); let u; do u = `${type}-${Date.now().toString(36)}${(seq++).toString(36)}`; while (used.has(u)); return u; };
 
 function put(loc, id, qty) {
+  if (id === 'portalchip') { mintStandardChips(inventory, qty, loc); return; }
+  if (id === 'plasmabeam') { for (let i = 0; i < qty; i++) mintPlasmabeam(inventory, loc); return; }
   if (isEquipmentId(id)) { for (let i = 0; i < qty; i++) inventory.equipment.push({ uid: newUid(id), type: id, loc }); return; }
   if (isWeaponId(id)) { const l = loc === LOC.ZYCUBE ? inventory.owned : inventory.home.weapons; if (!l.includes(id)) l.push(id); return; }
   const m = loc === LOC.ZYCUBE ? inventory.items : inventory.home.items; m[id] = (m[id] || 0) + qty;
 }
 function take(loc, id, qty) {
+  if (id === 'portalchip') return spendStandardChips(inventory, qty, loc);
+  if (id === 'decoded_portalchip' || id === 'custom_portalchip') return false; // unique chips move through their explicit Lab/install transactions
+  if (id === 'plasmabeam') { const list = engineeringState(inventory).weapons.filter(w => w.type === id && w.loc === loc); if (list.length < qty) return false; for (const w of list.slice(0, qty)) w.loc = 'CONSUMED'; projectEngineering(inventory); return true; }
   if (isEquipmentId(id)) { for (let i = 0; i < qty; i++) { const k = inventory.equipment.findIndex(e => e.type === id && e.loc === loc); if (k < 0) return false; inventory.equipment.splice(k, 1); } return true; }
   if (isWeaponId(id)) { const l = loc === LOC.ZYCUBE ? inventory.owned : inventory.home.weapons, k = l.indexOf(id); if (k < 0) return false; l.splice(k, 1); return true; }
   const m = loc === LOC.ZYCUBE ? inventory.items : inventory.home.items; if ((m[id] || 0) < qty) return false;
   m[id] -= qty; if (m[id] <= 0) delete m[id]; return true;
 }
-function commit(type, data) { saveInv(); emit(type, data); }
+function commit(type, data) { if(!saveInv())return false; emit(type, data); return true; }
 
 // Put something new into a location (a pickup, a craft's output). Checked first; nothing changes on failure.
 export function add(loc, id, qty = 1) {
   const c = canStore(loc, id, qty); if (!c.ok) return c;
   const s = snap();
   try { put(loc, id, qty); } catch (e) { restore(s); return fail('ERROR', String(e)); }
-  commit('add', { loc, id, qty }); return { ok: true, id, qty, loc, total: count(loc, id) };
+  if(!commit('add', { loc, id, qty })){restore(s);return fail('SAVE_FAILED','Could not save · item unchanged');} return { ok: true, id, qty, loc, total: count(loc, id) };
 }
 // Take something out for good (spent by a recipe, handed over). False and unchanged if there isn't enough.
 export function remove(loc, id, qty = 1) {
   if (count(loc, id) < qty) return fail('INSUFFICIENT', 'Not enough');
   const s = snap();
   if (!take(loc, id, qty)) { restore(s); return fail('ERROR', 'Could not remove'); }
-  commit('remove', { loc, id, qty }); return OK;
+  if(!commit('remove', { loc, id, qty })){restore(s);return fail('SAVE_FAILED','Could not save · item unchanged');} return OK;
+}
+
+// A single durable material exchange. Capacity is checked after ingredients leave,
+// so using the last sample can free its slot for the output. Preview never saves.
+// A failed browser-storage write restores the entire in-memory inventory.
+export function exchange(inputs, outputs, { preview = false, learnRecipeId = null } = {}) {
+  ensure();
+  const rows = [...inputs, ...outputs];
+  if (!outputs.length || rows.some(r => ![LOC.ZYCUBE, LOC.HOME_PC].includes(r.loc) || !defOf(r.id) || !Number.isSafeInteger(r.qty) || r.qty <= 0)) return fail('INVALID_TRANSACTION', 'Invalid material exchange');
+  const before = snap(), recipesBefore = [...inventory.recipes];
+  const rollback = () => { restore(before); inventory.recipes = recipesBefore; };
+  try {
+    for (const r of inputs) if (!take(r.loc, r.id, r.qty)) { rollback(); return fail('INSUFFICIENT', 'Missing resources'); }
+    for (const r of outputs) {
+      const can = canStore(r.loc, r.id, r.qty); if (!can.ok) { rollback(); return can; }
+      put(r.loc, r.id, r.qty);
+    }
+    if (learnRecipeId && !inventory.recipes.includes(learnRecipeId)) inventory.recipes.push(learnRecipeId);
+    if (preview) { rollback(); return OK; }
+    if (!saveInv()) { rollback(); return fail('SAVE_FAILED', 'Could not save · no materials changed'); }
+  } catch (e) { rollback(); return fail('ERROR', String(e)); }
+  emit('exchange', { inputs, outputs, learnRecipeId }); return OK;
 }
 
 // Move between the Zycube and the Home PC. Only a device that moves things may do it, and in practice only the Home PC
 // screen passes one. ZyLink / the Zyphone do not, so nothing is pulled in from home remotely.
-export function transfer(from, to, id, qty = 1, { via } = {}) {
+export function transfer(from, to, id, qty = 1, { via, uid } = {}) {
   ensure();
   if (from === to) return fail('SAME_LOCATION', 'Already there');
   if (!link.canMove(via, from, to)) return fail('NO_REMOTE_TRANSFER', 'ZyLink connects your devices but does not move items · do it at your Home PC');
@@ -156,10 +187,11 @@ export function transfer(from, to, id, qty = 1, { via } = {}) {
   const c = canStore(to, id, qty, { moving: true }); if (!c.ok) return c; // checked before anything leaves the source
   const s = snap();
   try {
-    if (isEquipmentId(id)) { const e = inventory.equipment.find(q => q.type === id && q.loc === from); if (!e) throw new Error('missing'); e.loc = to; }
+    if (id === 'plasmabeam') { const w = engineeringState(inventory).weapons.find(w => w.type === id && w.loc === from && (!uid || w.uid === uid)); if (!w) throw new Error('missing weapon instance'); w.loc = to; projectEngineering(inventory); }
+    else if (isEquipmentId(id)) { const e = inventory.equipment.find(q => q.type === id && q.loc === from); if (!e) throw new Error('missing'); e.loc = to; }
     else { if (!take(from, id, qty)) throw new Error('missing'); put(to, id, qty); }
   } catch (e) { restore(s); return fail('ERROR', String(e)); }
-  commit('transfer', { from, to, id, qty }); return { ok: true, id, qty, from, to };
+  if(!commit('transfer', { from, to, id, qty })){restore(s);return fail('SAVE_FAILED','Could not save · item unchanged');} return { ok: true, id, qty, from, to };
 }
 export function transferAll(from, to, id, opts) { return transfer(from, to, id, count(from, id) || 1, opts); }
 
@@ -197,7 +229,7 @@ export function audit() {
   for (const [k, n] of Object.entries(inventory.home.items)) if (defOf(k)) bump(k, n);
   const w = [...inventory.owned, ...inventory.home.weapons];
   for (const k of w) bump(k, 1);
-  for (const k of new Set(w)) if (w.filter(x => x === k).length > 1) problems.push(`weapon ${k} exists twice`);
+  for (const k of new Set(w)) if (!defOf(k)?.multipleInstances && w.filter(x => x === k).length > 1) problems.push(`weapon ${k} exists twice`);
   const uids = inventory.equipment.map(e => e.uid);
   for (const e of inventory.equipment) bump(e.type, 1);
   if (new Set(uids).size !== uids.length) problems.push('equipment uid duplicated');
@@ -218,6 +250,6 @@ export function refundResources(recipe) {
   for (const [id,n] of Object.entries(recipe)) { if (!Number.isInteger(n) || n < 0) { restore(s); return fail('ERROR','Invalid recycling receipt'); } if (!n) continue; const c=canStore(LOC.ZYCUBE,id,n); if (!c.ok) { restore(s);return c; } put(LOC.ZYCUBE,id,n); }
   commit('recycling', { recipe }); return OK;
 }
-export const storage = { consumeResources, refundResources, LOC, LOC_NAME, ZYCUBE_TIERS, capacity, tier, nextTier, contents, count, total, ownsWeapon, equipmentIn, equipmentByUid, slotsUsed, canStore, add, remove, transfer, transferAll, deployEquipment, packEquipment, upgradeZycube, knownRecipes, learnRecipe, audit, onChange, addGuard };
+export const storage = { exchange, consumeResources, refundResources, LOC, LOC_NAME, ZYCUBE_TIERS, capacity, tier, nextTier, contents, count, total, ownsWeapon, equipmentIn, equipmentByUid, slotsUsed, canStore, add, remove, transfer, transferAll, deployEquipment, packEquipment, upgradeZycube, knownRecipes, learnRecipe, audit, onChange, addGuard };
 export default storage;
 export { FIELD_EQUIPMENT };

@@ -68,7 +68,7 @@ export const MALEZOR = {
   plaza: { ...fromRP7B(22, 87), r: 16, name: 'Malezor Square' },
   structures: [
     site('rakoron-cave', 'rubyCave', 22, 10, { name: "Rakoron's Ruby Cave", kind: 'gemlord', note: "Rakoron's sanctum. The north road ends at the foot of the ridge." }),
-    site('research-facility', 'research', 22, 38, { name: "Dad's Research Facility", kind: 'civic', note: "Dad's Beastology lab." }),
+    site('research-facility', 'research', 22, 38, { name: "Dad's Research Facility", kind: 'civic', note: "Dad's Beastology lab.", padEase: 36 }),
     site('malezor-gear-shop', 'gearShop', 16, 56, { name: 'Malezor Town Store', kind: 'shop', note: 'Two floors: the Rizer Department downstairs, the Zyrex Department upstairs.' }),
     site('town-hall', 'townHall', 22, 78, { name: 'Malezor Town Hall', kind: 'civic', note: 'Warden Kelthor keeps his hall here.' }),
     site('player-home', 'house', 22, 105, { variant: 'red', name: "Rizer's Home", kind: 'home', note: 'Rizer’s home on the civic spine.' }),
@@ -89,7 +89,7 @@ export const MALEZOR = {
     // Chests in the world today: Rizer's silver chest and the common wooden chests (loot.js).
   ],
   homes: [
-    [10,50,'far-north west','villager'], [35,60,'north-2 east','villager'], [10,80,'town-hall west','villager'], [10,110,'middle west','villager'], [35,120,'south east','villager'],
+    [35,60,'north-2 east','villager'], [10,80,'town-hall west','villager'], [10,110,'middle west','villager'], [35,120,'south east','villager'],
     [6,90,'red-roof','red'], [36,89,'red-roof','red'], [22,94,'red-roof','red'], [12,98,'red-roof','red'], [32,98,'Crazy’s House','red']
   ].map(([tx, ty, label, style], i) => site(`malezor-home-${i}`, 'house', tx, ty, {
     variant: style, name: label === 'Crazy’s House' ? label : `Malezor Home · ${label}`, kind: 'home', note: label === 'Crazy’s House' ? 'Crazy’s House.' : 'A Malezor family home.',
@@ -127,12 +127,12 @@ export const MALEZOR = {
       const zone = zones[i % zones.length], slot = Math.floor(i / zones.length), a = (i * 2.399963) % (Math.PI * 2), r = 5 + slot * 5;
       return { id: `wild-${species}`, species, bondDifficulty: bondDifficulty[species], habitat: zone.name, quarter: zone.quarter, x: zone.at.x + Math.cos(a) * r, z: zone.at.z + Math.sin(a) * r, palette: zone.palette, scale: 0.8 + (i % 3) * 0.1 };
     }).filter(d => malezorContains(d.x, d.z));
-    // Elzebub — the first official wild Zyrex, canon-placed by the treehouse (a blue dragon
-    // with golden spikes, standing apart from the generic roster above). Stats beyond
-    // level/tier arrive with the bonding system; rideable is a forward-looking flag.
-    const treehouse = fromRP7B(20, -20);
+    // Elzebub is the resident Zyrex at Kaizari's farm. The asset-backed wild entity
+    // uses his authored rest/idle clips and stays inside the existing barn footprint.
+    const farm = fromRP7B(35, 138);
     const elzebub = { id: 'elzebub-wild-1', species: 'elzebub', name: 'Elzebub', level: 10, tier: 1, bondDifficulty: 1, rideable: true,
-      habitat: "Rizer's Treehouse", quarter: 'highland', x: treehouse.x + 7, z: treehouse.z - 5, palette: 'elzebub', scale: 0.92 };
+      habitat: "Kaizari's Farm · Stable", quarter: 'open', x: farm.x, z: farm.z + 3, facing: 0,
+      assetUrl: './assets/elzebub/elzebub_rp7d_v1.glb', resident: true, restClip: 'rest', palette: 'elzebub', scale: 0.92 };
     return malezorContains(elzebub.x, elzebub.z) ? roster.concat([elzebub]) : roster;
   })(),
   anciuxorStart: { ...fromRP7B(22, -19) },

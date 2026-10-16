@@ -2,6 +2,8 @@
 // every wild moves, home habitat is permanent (a square patch), it freezes
 // and watches when Rizer comes near, bolts if rushed, then walks home.
 import * as THREE from 'three';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { loadGLB } from './actor.js';
 import { rng, damp, dampAngle, clamp } from './util.js';
 import { resolveZyrexMorphology } from './morphology.js';
 
@@ -173,13 +175,38 @@ export class WildZyrex {
     this.def = def; this.world = world; this.half = patchHalf;
     this.home = new THREE.Vector2(def.x, def.z);
     const seed = Math.floor(def.x * 97 + def.z * 13) >>> 0;
-    this.b = def.species === 'elzebub' ? buildElzebub(seed) : buildZyrex(def.palette, def.species, seed);
+    this.b = def.assetUrl
+      ? { root: new THREE.Group(), imported: true }
+      : def.species === 'elzebub' ? buildElzebub(seed) : buildZyrex(def.palette, def.species, seed);
     this.b.root.scale.multiplyScalar(def.scale || 1); scene.add(this.b.root);
     this.pos = new THREE.Vector3(def.x, world.heightAt(def.x, def.z), def.z);
     this.r = rng(Math.floor(def.x * 97 + def.z * 13) >>> 0);
     this.heading = this.r() * Math.PI * 2; this.state = 'idle'; this.timer = 1 + this.r() * 3;
     this.target = null; this.speed = 0; this.phase = 0; this.alert = 0;
+    if (def.assetUrl) {
+      this.heading = def.facing ?? Math.PI;
+      this.assetReady = loadGLB(def.assetUrl).then(gltf => {
+        if (this.disposed) return;
+        const model = cloneSkinned(gltf.scene);
+        // Blender's +Y forward becomes glTF -Z; RP7D creatures face +Z at heading zero.
+        model.rotation.y = Math.PI;
+        model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+        this.b.root.add(model);
+        this.assetMixer = new THREE.AnimationMixer(model);
+        this.assetActions = new Map(gltf.animations.map(clip => [clip.name.toLowerCase(), this.assetMixer.clipAction(clip)]));
+        this.playAssetClip(this.def.restClip || 'rest');
+        this.b.root.position.copy(this.pos); this.b.root.rotation.y = this.heading;
+      }).catch(error => console.warn('[rp7d] resident Zyrex asset failed to load', def.name, error));
+    }
   }
+  playAssetClip(name) {
+    if (!this.assetActions) return false;
+    const action = this.assetActions.get(String(name).toLowerCase()); if (!action) return false;
+    this.assetActive?.fadeOut(0.2);
+    action.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(0.2);
+    action.setLoop(THREE.LoopRepeat, Infinity).play(); this.assetActive = action; return true;
+  }
+  dispose() { this.disposed = true; this.assetMixer?.stopAllAction(); }
   inPatch(x, z, pad = 0) { return Math.abs(x - this.home.x) < this.half + pad && Math.abs(z - this.home.y) < this.half + pad; }
   pickTarget() {
     for (let i = 0; i < 12; i++) {
@@ -191,6 +218,11 @@ export class WildZyrex {
   }
   update(dt, t, rizer, guards = []) {
     if (this.bondCapture || this.bonded) return;
+    if (this.def.resident) {
+      this.assetMixer?.update(dt);
+      this.b.root.position.copy(this.pos); this.b.root.rotation.y = this.heading;
+      return;
+    }
     const p = this.pos, rp = rizer.position, dx = rp.x - p.x, dz = rp.z - p.z, dist = Math.hypot(dx, dz);
     let guard = null, guardDist = Infinity;
     for (const g of guards || []) {

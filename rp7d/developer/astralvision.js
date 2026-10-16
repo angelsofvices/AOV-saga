@@ -5,7 +5,7 @@
 // 10-second cooldown. Other systems add targets with astralvision.register({...}).
 import * as THREE from 'three';
 
-export const ASTRALVISION = { cooldown: 10, range: 90, speed: 70, hold: 8 };
+export const ASTRALVISION = { cooldown: 10, range: 90, speed: 70, hold: 16 };
 
 const holoVert = `varying vec3 vN; varying vec3 vV; varying float vY;
 void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - wp.xyz); vY = wp.y;
@@ -66,17 +66,17 @@ export function createAstralvision(scene, camera, fx) {
   function unmark(id) { const m = marks.get(id); if (!m) return; if (m.holo) { scene.remove(m.holo); m.holo.userData.mat.dispose(); } m.tag.remove(); marks.delete(id); }
 
   // Fire the scan. Returns false while it's recharging.
-  function pulse(origin) {
-    if (cool > 0) return false;
-    cool = ASTRALVISION.cooldown; scan = { origin: origin.clone(), r: 0, t: 0, hit: new Set() };
+  function pulse(origin, unlimited = false) {
+    if (!unlimited && cool > 0) return false;
+    cool = unlimited ? 0 : ASTRALVISION.cooldown; scan = { origin: origin.clone(), r: 0, t: 0, hit: new Set() };
     overlay.classList.remove('on'); void overlay.offsetWidth; overlay.classList.add('on');
     fx?.emit(origin.x, origin.y + 1.2, origin.z, 24, { color: '#7fb0ff', speed: 4, up: 0.8, size: 0.4, life: 0.5, g: 0 });
     for (const t of targets) if (t.far && t.active()) { scan.hit.add(t.id); mark(t); } // always found, however far (the dropped Zycube)
     return true;
   }
 
-  function update(dt, time, playerPos) {
-    cool = Math.max(0, cool - dt);
+  function update(dt, time, playerPos, unlimited = false) {
+    cool = unlimited ? 0 : Math.max(0, cool - dt);
     const f = 1 - cool / ASTRALVISION.cooldown, C = 2 * Math.PI * 17;
     document.getElementById('av-fill').style.strokeDashoffset = `${C * (1 - f)}`;
     badge.classList.toggle('ready', cool <= 0);

@@ -261,11 +261,13 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
     clock += dt; live.length = 0; updateDrops(dt);
     const rp = rizer.position, [nearR, farR] = P.preferredCombatRange;
     for (const g of list) {
+      const statusDt = dt * (g.frost?.slow ?? 1);
       const dx = rp.x - g.pos.x, dz = rp.z - g.pos.z, dist = Math.hypot(dx, dz), toP = Math.atan2(dx, dz);
       if (g.state === 'gone') { if (clock >= g.respawnAt && Math.hypot(rp.x - g.pts[0].x, rp.z - g.pts[0].y) > P.respawnDist) reset(g); continue; }
       if (alive(g)) live.push(g);
-      g.barT = Math.max(0, g.barT - dt); g.flash = Math.max(0, g.flash - dt);
-      if (alive(g) && (g.seenT -= dt) <= 0) { g.seenT = 0.15 + Math.random() * 0.1; g.seen = canSee(g, rizer); }
+      if (g.frost?.frozen && alive(g)) { g.knock.set(0, 0, 0); continue; }
+      g.barT = Math.max(0, g.barT - statusDt); g.flash = Math.max(0, g.flash - statusDt);
+      if (alive(g) && (g.seenT -= statusDt) <= 0) { g.seenT = 0.15 + Math.random() * 0.1; g.seen = canSee(g, rizer); }
       let want = 0, face = null, dir = 0, raise = 0; // dir: 0 forward · π back · ±π/2 sideways (relative to its heading)
       switch (g.state) {
         case 'patrol': case 'return': {
@@ -274,23 +276,23 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
           if (Math.hypot(tx, tz) < 0.9) { g.state = 'idle'; g.t = 1.2 + Math.random() * 2; g.wp = (g.wp + 1) % g.pts.length; break; }
           face = Math.atan2(tx, tz); want = P.walk; break;
         }
-        case 'idle': g.t -= dt; if (g.seen) alertNow(g); else if (g.t <= 0) g.state = 'patrol'; break;
-        case 'alert': face = toP; raise = 0.35; g.t -= dt; if (g.t <= 0) g.state = 'track'; break; // acquired: it turns to him first
+        case 'idle': g.t -= statusDt; if (g.seen) alertNow(g); else if (g.t <= 0) g.state = 'patrol'; break;
+        case 'alert': face = toP; raise = 0.35; g.t -= statusDt; if (g.t <= 0) g.state = 'track'; break; // acquired: it turns to him first
         case 'chase': // disarmed: it closes in on him
           face = toP;
           if (rizer.hp <= 0 || dist > P.maxRange + 14) { g.state = 'return'; g.wp = nearestWp(g); break; }
           want = dist > 1.2 ? P.melee.run : 0;
           if (dist < 1.4) { g.state = 'windup'; g.t = rand(P.melee.windup); g.combo = Math.round(rand(P.melee.combo)); }
           break;
-        case 'windup': face = toP; g.t -= dt; if (g.t <= 0) strike(g); break; // squares up: the tell
+        case 'windup': face = toP; g.t -= statusDt; if (g.t <= 0) strike(g); break; // squares up: the tell
         case 'strike': {
-          g.t += dt; face = toP; const a = g.atk;
+          g.t += statusDt; face = toP; const a = g.atk;
           if (!a.landed && g.t >= a.active) { a.landed = true; // the blow: in reach and in front of it
             if (rizer.hp > 0 && dist < a.range && Math.abs(wrap(toP - g.heading)) < P.melee.arc && Math.abs(rp.y - g.pos.y) < 1.6 && rizer.hurt(a.damage, g.pos, g)) hooks.onPlayerHit?.(a.kind, g, tC.set(rp.x, rp.y + 1.3, rp.z).clone(), a.damage); }
           if (g.t >= a.recover) { if (--g.combo > 0 && dist < 2.3 && rizer.hp > 0) strike(g); else { g.state = 'cool'; g.t = rand(P.melee.cooldown); } }
           break;
         }
-        case 'cool': face = toP; g.t -= dt; if (g.t <= 0) g.state = 'chase'; break;
+        case 'cool': face = toP; g.t -= statusDt; if (g.t <= 0) g.state = 'chase'; break;
         case 'track': { // choose the next action by range and by whether it has a shot
           face = toP; raise = 0.35;
           if (!g.rifle) { g.state = 'chase'; break; }
@@ -304,63 +306,63 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
           break;
         }
         case 'move':
-          g.t -= dt; face = toP; raise = 0.35;
+          g.t -= statusDt; face = toP; raise = 0.35;
           if (g.move === 'advance') { want = P.combat; if (dist < nearR + 2) g.t = 0; }
           else if (g.move === 'retreat') { want = P.combat * 0.85; dir = Math.PI; if (dist > nearR) g.t = 0; }
           else { want = P.combat * 0.8; dir = g.side * Math.PI / 2; }
           if (g.t <= 0) { g.state = 'track'; g.move = null; }
           break;
         case 'aim': // the tell: the rifle comes up onto him and the chamber charges
-          g.t += dt; face = toP; raise = 1; if (g.carry !== 'ready') g.t = 0; // it cannot aim until the rifle is in its hands
+          g.t += statusDt; face = toP; raise = 1; if (g.carry !== 'ready') g.t = 0; // it cannot aim until the rifle is in its hands
           g.charge = clamp(g.t / P.aimTime, 0, 1);
           if (!g.seen && g.t > 0.25) { g.state = 'track'; g.charge = 0; break; } // he broke line of sight: no shot
           if (g.t >= P.aimTime) { g.state = 'fire'; g.shotT = 0; }
           break;
         case 'fire':
-          face = toP; raise = 1; g.shotT -= dt;
+          face = toP; raise = 1; g.shotT -= statusDt;
           if (g.shotT <= 0) {
             if (g.shots > 0 && g.seen && rizer.hp > 0) { fire(g, rizer); g.shots--; g.shotT = P.burstGap; g.charge = 1; g.kick = 0.12; const s = rifleSlot(g.actor, 'rifleFire'); if (s && g.actor.has(s)) g.actor.play(s, 1.4, { overlay: true }); }
             else { g.state = 'recover'; g.t = P.recover; }
           }
-          g.charge = Math.max(0.25, g.charge - dt * 3);
+          g.charge = Math.max(0.25, g.charge - statusDt * 3);
           break;
-        case 'recover': face = toP; raise = 0.8; g.t -= dt; g.charge = Math.max(0, g.charge - dt * 2); if (g.t <= 0) g.state = 'track'; break;
-        case 'flinch': g.t -= dt; raise = 0.2; if (g.t <= 0) g.state = 'track'; break;
+        case 'recover': face = toP; raise = 0.8; g.t -= statusDt; g.charge = Math.max(0, g.charge - statusDt * 2); if (g.t <= 0) g.state = 'track'; break;
+        case 'flinch': g.t -= statusDt; raise = 0.2; if (g.t <= 0) g.state = 'track'; break;
         case 'down': {
-          g.t += dt; if (g.salvaged && g.t < P.corpse) g.t = P.corpse; // stripped for scrap: the body goes
-          if (!g.fallClip) { g.fallT = Math.min(1, g.fallT + dt * 2.2); g.actor.pivot.rotation.x = -g.fallT * g.fallT * 1.5; g.actor.pivot.position.y = g.fallT * 0.12; } // no death clip assigned: it topples
-          if (g.t > P.corpse) { g.root.position.y -= dt * 0.5; if (g.t > P.corpse + 3) { g.state = 'gone'; g.root.visible = false; g.respawnAt = clock + P.respawn; } }
+          g.t += statusDt; if (g.salvaged && g.t < P.corpse) g.t = P.corpse; // stripped for scrap: the body goes
+          if (!g.fallClip) { g.fallT = Math.min(1, g.fallT + statusDt * 2.2); g.actor.pivot.rotation.x = -g.fallT * g.fallT * 1.5; g.actor.pivot.position.y = g.fallT * 0.12; } // no death clip assigned: it topples
+          if (g.t > P.corpse) { g.root.position.y -= statusDt * 0.5; if (g.t > P.corpse + 3) { g.state = 'gone'; g.root.visible = false; g.respawnAt = clock + P.respawn; } }
           break;
         }
       }
       if (g.state === 'gone') continue;
       const show = !hidden && dist < P.visible && (dist < 14 || !hooks.inView || hooks.inView(g.pos));
-      if (g.state === 'down') { g.root.visible = show; if (show) { g.actor.update(dt, 0, true); g.head?.scale.setScalar(0.001); for (const m of g.glow) m.emissiveIntensity = damp(m.emissiveIntensity, 0.05, 2, dt); } continue; }
-      if (face !== null) { const a = wrap(face - g.heading), step = P.turn * dt; g.heading += clamp(a, -step, step); }
+      if (g.state === 'down') { g.root.visible = show; if (show) { g.actor.update(statusDt, 0, true); g.head?.scale.setScalar(0.001); for (const m of g.glow) m.emissiveIntensity = damp(m.emissiveIntensity, 0.05, 2, statusDt); } continue; }
+      if (face !== null) { const a = wrap(face - g.heading), step = P.turn * statusDt; g.heading += clamp(a, -step, step); }
       carryUpdate(g, hostile(g));
       if (g.carry === 'draw' || g.carry === 'sheath') want = 0; // it stands still to draw or stow
       g.actor.strafe = g.state === 'move' && want > 0 && Math.abs(dir) > 0.3 && Math.abs(dir) < 2.6 ? Math.sign(dir) : 0; g.actor.backing = g.state === 'move' && want > 0 && Math.abs(dir) >= 2.6 ? 1 : 0; // side-step and back-pedal use their own clips
-      g.speed = damp(g.speed, g.state === 'flinch' ? 0 : want, 6, dt);
-      const ma = g.heading + dir, nx = g.pos.x + (Math.sin(ma) * g.speed + g.knock.x) * dt, nz = g.pos.z + (Math.cos(ma) * g.speed + g.knock.z) * dt; g.knock.multiplyScalar(Math.exp(-6 * dt));
+      g.speed = damp(g.speed, g.state === 'flinch' ? 0 : want, 6, statusDt);
+      const ma = g.heading + dir, nx = g.pos.x + (Math.sin(ma) * g.speed + g.knock.x) * statusDt, nz = g.pos.z + (Math.cos(ma) * g.speed + g.knock.z) * statusDt; g.knock.multiplyScalar(Math.exp(-6 * statusDt));
       const nd = Math.hypot(rp.x - nx, rp.z - nz), crowd = nd < 1.15 && nd < dist && rizer.hp > 0; // it stops at arm's length instead of shoving him along
       if (crowd) g.speed = 0; else if (onLand(nx, nz) && Math.abs(nx) < B + 10 && Math.abs(nz) < B + 10) { g.pos.x = nx; g.pos.z = nz; } else if (g.state === 'move') g.t = 0;
-      probe.copy(g.pos); if (world.resolve(probe, P.radius)) { g.pos.x = probe.x; g.pos.z = probe.z; if (g.state === 'patrol' || g.state === 'return') { if ((g.stuck = (g.stuck || 0) + dt) > 1.5) { g.wp = (g.wp + 1) % g.pts.length; g.stuck = 0; } } else if (g.state === 'move' && g.move !== 'advance') g.side *= -1; }
-      g.pos.y = damp(g.pos.y, world.groundAt(g.pos.x, g.pos.z, g.pos.y + 1), 12, dt);
+      probe.copy(g.pos); if (world.resolve(probe, P.radius)) { g.pos.x = probe.x; g.pos.z = probe.z; if (g.state === 'patrol' || g.state === 'return') { if ((g.stuck = (g.stuck || 0) + statusDt) > 1.5) { g.wp = (g.wp + 1) % g.pts.length; g.stuck = 0; } } else if (g.state === 'move' && g.move !== 'advance') g.side *= -1; }
+      g.pos.y = damp(g.pos.y, world.groundAt(g.pos.x, g.pos.z, g.pos.y + 1), 12, statusDt);
       if (dist < P.radius + 0.45 && rizer.hp > 0 && Math.abs(rp.y - g.pos.y) < 2) { const k = (P.radius + 0.45) / (dist || 1); rp.x = g.pos.x + dx * k; rp.z = g.pos.z + dz * k; } // it is solid
       place(g);
       g.root.visible = show; g.bar.visible = show && (g.barT > 0 || hostile(g));
       if (!show) continue;
       // body: the shared locomotion clips by speed; then the rifle hold and the aim laid over them
       const hands = inHands(g), clips = hasRifleClips(g.actor) && hands; g.actor.rifle = clips; g.actor.aiming = raise > 0.5; // the rifle set: carry, walk, run, shoulder
-      g.actor.fighting = false; g.actor.update(dt, g.speed + Math.hypot(g.knock.x, g.knock.z) * 0.2, true);
+      g.actor.fighting = false; g.actor.update(statusDt, g.speed + Math.hypot(g.knock.x, g.knock.z) * 0.2, true);
       g.head?.scale.setScalar(0.001); // (the clips write the head every frame)
-      g.raise = damp(g.raise, raise, raise > g.raise ? 9 : 5, dt); g.kick = Math.max(0, (g.kick || 0) - dt);
+      g.raise = damp(g.raise, raise, raise > g.raise ? 9 : 5, statusDt); g.kick = Math.max(0, (g.kick || 0) - statusDt);
       const pitch = clamp(Math.atan2(rp.y + 1.15 - (g.pos.y + 1.75), Math.max(1.5, dist)), -0.5, 0.5);
       if (clips) { gripRifle(g.actor, g.rifle, (g.kick || 0) * 0.5); g.rifle.userData.charge(g.charge); } // its hands lead, the rifle follows
       else if (hands) g.hold.pose(g.raise, hostile(g) ? pitch : 0, g.actor.shot?.kind === 'stunned' ? 0.3 : 1);
       if (g.rifle && hands && !clips) { g.rifle.userData.charge(g.charge); g.rifle.position.z = -(g.kick || 0) * 0.5; } // charge glow · recoil
-      const lit = hostile(g) ? 1.7 : 1.1; for (const m of g.glow) m.emissiveIntensity = damp(m.emissiveIntensity, lit + g.flash * 18, 6, dt);
-      if (dist < 9) g.rig.update(dt);
+      const lit = hostile(g) ? 1.7 : 1.1; for (const m of g.glow) m.emissiveIntensity = damp(m.emissiveIntensity, lit + g.flash * 18, 6, statusDt);
+      if (dist < 9) g.rig.update(statusDt);
     }
     playerBlows(dt, rizer, hooks);
   }

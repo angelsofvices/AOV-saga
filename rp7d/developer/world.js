@@ -258,7 +258,7 @@ export function createWorld(W, scene, shared) {
   }
   const camFloor = (x, z, y) => Math.max(T.heightAt(x, z), surfaceAt(x, z, y, surfaces, true));
 
-  // Universal collision (massgrid.js): every visible solid mesh blocks, bushes only when not sneaking.
+  // Universal collision (massgrid.js): visible hard meshes block; bushes rustle and conceal without blocking movement.
   for (const s of surfaces) s.br = s.radius ?? Math.hypot(s.hw || 0, s.hd || 0) + (s.span || 0);
   const mass = createMassGrid({
     floorAt: (x, z, y, list) => Math.max(T.heightAt(x, z), surfaceAt(x, z, y, list)),

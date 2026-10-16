@@ -1,7 +1,8 @@
 // Vegetation, rocks, pasture — a few reusable masters instanced across the
 // district, each pass reading the wheel quarter for what belongs where.
 import * as THREE from 'three';
-import { ASTRALITE_FAMILIES } from './loot.js';
+import { ASTRALITE_FAMILIES, inventory, saveInv } from './loot.js';
+import { engineeringState } from './engineering-ledger.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, makeNoise, smooth } from './util.js';
 import { quarterAt } from './world-data.js';
@@ -177,15 +178,17 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     // RP7B's unchanged drop rule: family from the RP7B tile coordinate hash,
     // tier from the original seven-cut rarity ladder.
     const tx = Math.round(stone.x / 2 + 61), ty = Math.round(stone.z / 2 + 94);
-    const family = ASTRALITE_FAMILIES[Math.abs((tx * 31 + ty * 17)) % ASTRALITE_FAMILIES.length];
+    const forced = stone.forcedAstraliteId && ASTRALITE_FAMILIES.flatMap(f => f.items).find(a => a.key === stone.forcedAstraliteId);
+    const family = forced ? ASTRALITE_FAMILIES.find(f => f.id === forced.family) : ASTRALITE_FAMILIES[Math.abs((tx * 31 + ty * 17)) % ASTRALITE_FAMILIES.length];
     const roll = Math.random(), cuts = [0.40, 0.61, 0.76, 0.87, 0.94, 0.98, 1];
-    const energy = cuts.findIndex(cut => roll < cut) + 1, item = family.items[energy - 1];
+    const energy = forced?.energy || cuts.findIndex(cut => roll < cut) + 1, item = forced || family.items[energy - 1];
     const pickup = new THREE.Group(), color = new THREE.Color(family.color);
     const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.2 + energy * 0.012, 0), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.85, metalness: 0.42, roughness: 0.18 }));
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.018, 5, 20), new THREE.MeshStandardMaterial({ color: '#d7e9ff', emissive: color, emissiveIntensity: 0.55, metalness: 0.7, roughness: 0.25 }));
     ring.rotation.x = Math.PI / 2; pickup.add(core, ring); pickup.position.set(stone.x + 0.48, T.heightAt(stone.x + 0.48, stone.z) + 0.58, stone.z); pickup.userData.noCollide = true; group.add(pickup);
     const id = `astralite-${tx}-${ty}-${stone.index}`;
     const it = { id, kind: 'astraliteGem', name: `${item.symbol} · ${item.name}`, note: `${family.name} family · Matrix tier ${energy}. Material saved for future crafting.`, x: pickup.position.x, z: pickup.position.z, cx: pickup.position.x, cz: pickup.position.z, reach: 2.2, itemKey: item.key, astralite: item, mesh: pickup, baseY: pickup.position.y, collected: false, active: () => !it.collected };
+    if (stone.researchNode) it.researchNode = stone.researchNode;
     interactables.push(it); stone.drop = it;
     return it;
   }
@@ -327,6 +330,10 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   // from: where the blow came from (chips fly back toward it, the break is thrown away from it) · force: see crumbleStone.
   function damageStone(stone, damage, hitKey, from = null, force = 1) {
     if (stone.broken || !(damage > 0) || stone.hitKeys.has(hitKey)) return false;
+    if (stone.researchNode && damage >= stone.hp) {
+      const node = engineeringState(inventory).nodes[stone.researchNode]; node.harvested = true;
+      if (!saveInv()) { node.harvested = false; return false; }
+    }
     stone.hitKeys.add(hitKey); if (stone.hitKeys.size > 16) stone.hitKeys.clear();
     stone.hp = Math.max(0, stone.hp - damage);
     const ratio = stone.hp / stone.maxHP, stage = ratio <= 0 ? 3 : ratio <= 0.34 ? 2 : ratio < 1 ? 1 : 0;
@@ -701,7 +708,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   const inPlaza = (x, z, pad = 0) => Math.hypot(x - W.plaza.x, z - W.plaza.z) < W.plaza.r + pad;
   const clear = (x, z, { road = 2.5, river = 4.5, pad = 2 } = {}) => !(roadD(x, z) < road || riverD(x, z) < river || inWater(x, z) || onPad(x, z, pad) || inPlaza(x, z, 6));
 
-  function scatter(kind, count, seed, accept, { scale = [0.8, 1.3], collide = 0.45, tint = 0.12, color } = {}) {
+  function scatter(kind, count, seed, accept, { scale = [0.8, 1.3], collide = 0.45, tint = 0.12, color, positions = null } = {}) {
     const r = rng(seed), mats = [];
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, flatShading: true });
     if (kind !== 'rock' && kind !== 'bush') addWind(mat, shared.uTime, { from: kind === 'pine' ? 2 : 2.4, amp: kind === 'willow' ? 0.02 : 0.008 });
@@ -710,7 +717,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     const d = new THREE.Object3D(), c = new THREE.Color(); let n = 0;
     const rockEntries = kind === 'rock' ? [] : null;
     for (let t = 0; t < count * 60 && n < count; t++) {
-      const x = r.range(-E, E), z = r.range(-E, E);
+      const x = positions ? positions[n].x : r.range(-E, E), z = positions ? positions[n].z : r.range(-E, E);
       if (W.containsLand && !W.containsLand(x, z)) continue;
       if (!accept(x, z, r)) continue;
       const s = r.range(...scale), y = T.heightAt(x, z);
@@ -727,6 +734,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
       if (rock) {
         const hash = Math.abs(Math.sin(x * 127.1 + z * 311.7 + W.seed * 0.17) * 43758.5453) % 1;
         rock.isAstraliteStone = hash < 0.115;
+        if (positions) { rock.researchNode = positions[n].id; rock.forcedAstraliteId = positions[n].item; rock.isAstraliteStone = true; }
         rockEntries.push(rock); stones.push(rock);
       }
       if (collide && (kind !== 'rock' || s > 0.9)) {
@@ -751,7 +759,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
       // without recoloring the natural rock surface.
       const glintMat = new THREE.MeshStandardMaterial({ color: '#9bdcff', emissive: '#267db3', emissiveIntensity: 0.9, metalness: 0.32, roughness: 0.2 });
       const glintGeo = new THREE.OctahedronGeometry(0.095, 0);
-      for (const rock of rockEntries) if (rock.isAstraliteStone) {
+      for (const rock of rockEntries) if (rock.isAstraliteStone && !engineeringState(inventory).nodes[rock.researchNode]?.harvested) {
         const flecks = new THREE.Group(); flecks.userData.noCollide = true;
         const count = rock.scale > 1.2 ? 4 : 3;
         for (let k = 0; k < count; k++) {
@@ -765,6 +773,34 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     }
     return inst;
   }
+  function homeResearchStones() {
+    if (W.id !== 'malezor') return;
+    const e = engineeringState(inventory), start = W.playerStart, f = start.facing || 0;
+    const chosen = [], ids = ['home-ax3', 'home-ax6'];
+    for (let i=0;i<2;i++) {
+      const id=ids[i]; let at=e.nodes[id]?.at;
+      if (!at) {
+        search: for (const forward of [4,6,8,10,12,14,16,18]) for (const side of [3.5,5,7,9,11,13]) {
+          const s=(i ? 1 : -1)*side, x=start.x+Math.sin(f)*forward+Math.cos(f)*s, z=start.z+Math.cos(f)*forward-Math.sin(f)*s;
+          if (inWater(x,z)||roadD(x,z)<1.5||Math.abs(T.heightAt(x+1,z)-T.heightAt(x-1,z))>.8||Math.abs(T.heightAt(x,z+1)-T.heightAt(x,z-1))>.8) continue;
+          if (obstacles.some(o => o.active !== false && Math.abs(x-o.x)<(o.hw||o.r||1)+1.2 && Math.abs(z-o.z)<(o.hd||o.r||1)+1.2)) continue;
+          if (chosen.some(p => Math.hypot(x-p.x,z-p.z)<3)) continue;
+          at={x,z};break search;
+        }
+      }
+      if (!at) { console.warn('[RP7D] No clear home-front research stone placement',id);continue; }
+      e.nodes[id] ||= {at,harvested:false,collected:false}; chosen.push({...at,id,item:i?'astralite_6_1':'astralite_3_1'});
+    }
+    if (!chosen.length) return;
+    scatter('rock',chosen.length,W.seed+3636,()=>true,{positions:chosen,scale:[1.15,1.15],collide:.65});
+    for(const rock of stones.filter(s=>s.researchNode)) {
+      const node=e.nodes[rock.researchNode];if(!node.harvested)continue;
+      rock.broken=true;rock.hp=0;rock.stage=3;rock.mesh.setMatrixAt(rock.index,new THREE.Matrix4().makeScale(0,0,0));rock.mesh.instanceMatrix.needsUpdate=true;
+      for(const c of rock.colliders)c.active=false;
+      if(!node.collected)spawnAstralite(rock);
+    }
+    saveInv();
+  }
   const Q = (x, z) => quarterAt(x, z, W);
   const dens = (x, z, f = 0.035, o = 0) => noise.fbm(x * f + o, z * f - o, 3) * 0.5 + 0.5;
 
@@ -776,10 +812,11 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   // Scatter: lone shade trees in the pasture, the core edges, the wetland.
   scatter('broadleaf', W.detail.scatterTrees, 14, (x, z, r) => { const q = Q(x, z); return (q === 'open' ? r() < 0.35 : q === 'core' ? r() < 0.25 && Math.hypot(x, z - 6) > 22 : q === 'wetland' ? r() < 0.4 : false) && clear(x, z, { road: 3.5, pad: 4 }); }, { scale: [0.9, 1.45] });
   scatter('willow', W.detail.wetlandWillows, 15, (x, z) => { const rd = riverD(x, z); const nearPond = W.ponds.some(p => { const d = Math.hypot(x - p.x, z - p.z); return d > p.r * 1.45 && d < p.r * 2.1; }); return (Q(x, z) === 'wetland' || Q(x, z) === 'open') && ((rd > 5.5 && rd < 10) || nearPond) && clear(x, z, { river: 5 }); }, { scale: [0.9, 1.3], collide: 0.55 });
-  scatter('bush', 220, 16, (x, z, r) => Q(x, z) !== 'highland' && clear(x, z, { road: 1.5, pad: 1 }) && (dens(x, z, 0.05, 2) > 0.52 || r() < 0.08), { scale: [0.6, 1.3], collide: 0 }).userData.soft = true; // bushes: solid, but a crouched Rizer can slip in to hide
+  scatter('bush', 220, 16, (x, z, r) => Q(x, z) !== 'highland' && clear(x, z, { road: 1.5, pad: 1 }) && (dens(x, z, 0.05, 2) > 0.52 || r() < 0.08), { scale: [0.6, 1.3], collide: 0 }).userData.soft = true; // pass-through foliage still rustles and conceals Rizer
   // Rocks: boulders in the highland, pebbles everywhere, never on a road.
   scatter('rock', W.detail.rocks, 17, (x, z, r) => { const q = Q(x, z); return (q === 'highland' ? true : q === 'core' ? r() < 0.1 : r() < 0.4) && clear(x, z, { road: 1.2, river: 3, pad: 1.5 }); }, { scale: [0.4, 2.4], collide: 0.75, tint: 0.1 });
 
+  homeResearchStones();
   // ── Grass: blade tufts that sway and part around Rizer ──
   {
     const r = rng(W.seed + 7), pos = [], col = [], tip = [], nrm = [];

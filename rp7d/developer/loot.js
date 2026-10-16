@@ -7,12 +7,15 @@ import * as THREE from 'three';
 import { THARDIN_BLASTER_RIFLE, buildBlasterRifle } from './thardin-rifle.js';
 import { rollChestPiles } from './coin-piles.js';
 import { DVDS } from './dvd-registry.js';
+import { engineeringState, projectEngineering, mintStandardChips } from './engineering-ledger.js';
+import { buildPlasmabeam } from './plasmabeam.js';
 
 // ── inventory (kept per browser; fine to lose) ───────────────────────
 const KEY = 'rp7d.inventory.v1';
 // The four Gemlord weapons are Mythic rewards, each placed by its own Gemlord cave.
 export const WEAPONS = {
   fists: { name: 'Fists', blurb: 'Punches and kicks. Always with you.' },
+  plasmabeam: { name: 'Plasmabeam', tier: 'Rare', color: '#65f77c', multipleInstances: true, weaponType: 'PISTOL', banner: 'THARDIN TECH · RIZER CUSTOM', blurb: 'Orange armored energy pistol with a green chamber and Rizer emblem. Tap □ once for three independently traveling plasma beams. ○ selects firing mode after installing a compatible permanent chip.' },
   sword: { name: 'Sapphire Tearsword of Azurel', tier: 'Mythic', gemlord: 'Azurel', color: '#6fb4ff', blurb: 'A mythic blade tied to the Gemlord Azurel: tempered steel with an azure fuller, gold guard, a teardrop sapphire in the pommel. □ swings a four-cut combo.' },
   axe: { name: 'Jaded Axe of Emeralix', tier: 'Mythic', gemlord: 'Emeralix', color: '#3dff7a', blurb: 'A mythic double-bladed war axe tied to the Gemlord Emeralix: emerald crescent edges on a moss-green head, a caged emerald at its heart. Heavy — every blow lands hard. □ swings a four-stage combo.' },
   bow: { name: 'Pearlbow of Ivirium', tier: 'Mythic', gemlord: 'Ivirium', color: '#f4ddff', blurb: 'An ivory and pearl bow with gold fittings. Tap □ to loose a traveling arrow; hold □ to aim while walking. Lock on to choose a target.' },
@@ -63,7 +66,7 @@ export const PROPS = {
 // ── creature spawns: wild Zyrex and enemies ─────────────────────────────────
 // Elzebub's actual world placement (position, palette, AI, minimap blip, astral
 // lock-on/BOND targeting) is wired through the live wild-Zyrex system: world-data.js's
-// `wildZyrex` array places him by the treehouse, zyrex.js's WildZyrex class gives him
+// `wildZyrex` array places him in Kaizari's stable, zyrex.js's WildZyrex class gives him
 // a body and behavior, and game.js/astral.js surface his name and level when Rizer
 // locks onto him. This entry is the canonical record of his identity and progression,
 // not a separate spawner.
@@ -72,15 +75,16 @@ export const CREATURE_SPAWNS = {
     id: 'elzebub-wild-1', creature: 'elzebub', name: 'Elzebub', kind: 'zyrex', level: 10, tier: 1,
     color: '#3a5eff', rideable: true,
     // Stats beyond level/tier will be added once creature progression is in place
-    blurb: 'The first official wild Zyrex of Malezor: a blue dragon with golden spikes. Found near the treehouse.'
+    blurb: "The first official wild Zyrex of Malezor: a blue dragon with golden spikes. Resident at Kaizari's farm."
   }
 };
 
 function loadInv() { try { return { owned: ['fists'], equipped: 'fists', chestOpen: false, coins: 0, gems: 0, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) { return { owned: ['fists'], equipped: 'fists', chestOpen: false, coins: 0, gems: 0 }; } }
 export const inventory = loadInv();
+engineeringState(inventory); projectEngineering(inventory);
 { const m = inventory.items, old = { 'flower-red': 'fruit-red', 'flower-violet': 'fruit-violet', 'flower-gold': 'fruit-gold', 'flower-orange': 'fruit-gold', 'flower-white': 'fruit-white' }; // flowers became fruit
   if (m) for (const [a, b] of Object.entries(old)) if (m[a]) { m[b] = (m[b] || 0) + m[a]; delete m[a]; } }
-export function saveInv() { try { localStorage.setItem(KEY, JSON.stringify(inventory)); } catch (e) {} }
+export function saveInv() { try { localStorage.setItem(KEY, JSON.stringify(inventory)); return true; } catch (e) { return false; } }
 // A weapon is owned if it is in the Zycube OR left in the Home PC (ownership is not the same as carrying).
 export const hasWeapon = k => inventory.owned.includes(k) || !!inventory.home?.weapons?.includes(k);
 
@@ -98,6 +102,8 @@ export const ITEMS = {
   zyphere: { name: 'Zyphere', kind: 'key', color: '#5bb9ff', blurb: 'A blue-lit sphere used to attempt a bond with a wild Zyrex. One is committed per attempt.' },
   // Dropped by Scanobots (one each). A Portal Gatelock takes 10 to open (gatelocks.js).
   portalchip: { name: 'Portalchip', kind: 'key', color: '#3a8cff', blurb: 'A small blue circuit chip with gold contacts and a glowing portal display, dropped by Scanobots. A Portal Gatelock opens for 10.' },
+  decoded_portalchip: { name: 'Decoded Portal Chip', kind: 'key', color: '#aeb9c9', blurb: 'A physical chip decoded through CyberFall. Ready for reprogramming on the home computer.' },
+  custom_portalchip: { name: 'Custom Portal Chip · AX-36', kind: 'key', color: '#83cbff', blurb: 'A physical chip programmed with Frost of Destruction. Inspect its unique instance in Zyphone → Portal.' },
   // Wild fruit lying in the grass all over Malezor. Picked up, it's eaten on the spot for a small boost to its
   // RHUD meter; if that meter is already full it goes in the bag to eat later (Zyphone → Items).
   'fruit-gold': { name: 'Gold Fruit', kind: 'consumable', color: '#e2b64e', boost: { stamina: 10 }, blurb: 'A sweet golden fruit, the most common in Malezor. Restores a little stamina.' },
@@ -105,6 +111,7 @@ export const ITEMS = {
   'fruit-violet': { name: 'Purple Fruit', kind: 'consumable', color: '#8a63c4', boost: { astral: 8 }, blurb: 'A purple fruit that hums faintly with astral energy. Restores a little astral energy.' },
   'fruit-white': { name: 'White Fruit', kind: 'consumable', color: '#efe8dc', boost: { hp: 15, stamina: 15, astral: 15 }, blurb: 'A rare pale fruit. Restores health, stamina and astral energy.' },
   gemshard: { name: 'Gemshard', kind: 'material', color: '#9fe8ff', blurb: 'A crystalline shard fused from Astralites at the Astralite Station. Used in advanced crafting.' },
+  compound_ax36: { name: 'AX-36 Compound', kind: 'material', color: '#b8bec8', blurb: 'Physical compound synthesized from one AX-3 and one AX-6 after studying both. Kept separately from permanent Matrix research.' },
   broken_guitar: { name: 'Broken Red Guitar', kind: 'material', color: '#8d4141', blurb: 'Psychosyd’s guitar needs repair at Rizer’s Experiment Table or a Field Workstation.' },
   broken_astralboard: { name: 'Broken Astralboard', kind: 'material', color: '#6553a5', blurb: 'A damaged Astralite hoverboard. Repair it at Rizer’s Experiment Table or a Field Workstation.' },
   broken_telescope: { name: 'Broken Stargazer Telescope', kind: 'material', color: '#6c7d9a', blurb: 'A damaged telescope. Repair it at Rizer’s Experiment Table or a Field Workstation.' },
@@ -140,7 +147,7 @@ export function eatItem(key, rizer, { yieldMultiplier = 1 } = {}) {
     if (k === 'hp') rizer.hp += add; else if (k === 'stamina') rizer.stamina += add; else rizer.astralEnergy += add; }
   return got;
 }
-export function addItem(key, n = 1) { const m = inventory.items ||= {}; m[key] = (m[key] || 0) + n; saveInv(); return m[key]; }
+export function addItem(key, n = 1) { const m = inventory.items ||= {}; if (key === 'portalchip') mintStandardChips(inventory, n); else m[key] = (m[key] || 0) + n; saveInv(); return inventory.items[key]; }
 
 // ── the Tearsword of Azurel (blade along +Y, grip at the origin) ─────
 const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5, ...o });
@@ -387,7 +394,7 @@ export function buildTelescope() {
   return g;
 }
 
-export const WEAPON_MESH = { blaster: buildBlasterRifle, telescope: buildTelescope, sword: buildSword, axe: buildAxe, bow: buildPearlbow, guitar: buildGuitar, rubypaw: buildRubypaw, astralboard: buildAstralboard };
+export const WEAPON_MESH = { plasmabeam: buildPlasmabeam, blaster: buildBlasterRifle, telescope: buildTelescope, sword: buildSword, axe: buildAxe, bow: buildPearlbow, guitar: buildGuitar, rubypaw: buildRubypaw, astralboard: buildAstralboard };
 
 // ── chests ───────────────────────────────────────────────────────────
 // One shared chest controller, four official finishes: wood → silver → gold → mythic.
@@ -553,7 +560,7 @@ function gemlordCaveChestSpots(world) {
 }
 
 // ── the four Gemlord Mythic weapon chests ─────────────────────────────
-export function createLoot(scene, world, fx, W) {
+export function createLoot(scene, world, fx, W, { claimPlasma = null } = {}) {
   const gemlord = gemlordCaveChestSpots(world);
   // Utility item chests join the same saved, scattered overworld layout as tutorial treasure.
   const utilitySpots = scatteredChestSpots(W, world, 'utility-item-chests-v1', 2), atUtility = (i, o) => utilitySpots[i] ? { ...o, ...utilitySpots[i] } : o;
@@ -600,11 +607,26 @@ export function createLoot(scene, world, fx, W) {
   if (!clear(sx, sz, 1.6)) { sx = qx + (qx - gx); sz = qz + (qz - gz); }
   const telescope = itemChest(scene, world, fx, atUtility(1, { id: 'stargazer-chest', item: 'telescope', brokenId: 'broken_telescope', tier: 'wood', x: sx, z: sz, face: gFace, isOpen: () => !!inventory.chests?.['stargazer-chest'], setOpen: () => { (inventory.chests ||= {})['stargazer-chest'] = 1; } }));
   const all = [sword, axe, bow, rubypaw, astralboard, telescope];
+  const ufo = W.structures.find(s => s.id === 'auraxion-ufo');
+  if (ufo && claimPlasma) {
+    const e = engineeringState(inventory); let at = e.ufoChestAt;
+    if (!at) {
+      outer: for (const r of [12, 16, 20, 24]) for (let i=0;i<16;i++) {
+        const a=i*Math.PI/8, x=ufo.x+Math.sin(a)*r, z=ufo.z+Math.cos(a)*r;
+        if (clear(x,z,2.2)) { at={x,z,face:a+Math.PI}; break outer; }
+      }
+      if (at) { e.ufoChestAt=at; saveInv(); }
+    }
+    if (at) all.push(itemChest(scene,world,fx,{ id:'aetherstride-plasmabeam',item:'plasmabeam',tier:'gold',...at,
+      isOpen:()=>!!inventory.chests?.['aetherstride-plasmabeam'],setOpen:()=>{(inventory.chests ||= {})['aetherstride-plasmabeam']=1;},
+      isClaimed:()=>!!engineeringState(inventory).pickups['aetherstride-plasmabeam'],claim:()=>claimPlasma('aetherstride-plasmabeam') }));
+    else console.warn('[RP7D] No clear Gold chest placement found beside Aetherstride');
+  }
   return { all, sword, axe, bow, rubypaw, astralboard, telescope, update: (dt, t) => all.forEach(c => c.update(dt, t)), get spot() { return sword.spot; } };
 }
 
 // One tiered chest holding one item. States: closed → opening → launch → waiting → empty.
-function itemChest(scene, world, fx, { id, item, ride = false, brokenId = null, tier = 'silver', x, z, face, isOpen, setOpen }) {
+function itemChest(scene, world, fx, { id, item, ride = false, brokenId = null, tier = 'silver', x, z, face, isOpen, setOpen, isClaimed = null, claim = null }) {
   tier = canonicalChestTier(tier);
   const W8 = WEAPONS[item] || RIDES[item], tint = W8.color || '#bcd6ff';
   const y = world.groundAt(x, z);
@@ -613,7 +635,7 @@ function itemChest(scene, world, fx, { id, item, ride = false, brokenId = null, 
   const front = new THREE.Vector3(Math.sin(face), 0, Math.cos(face));
   const mesh = WEAPON_MESH[item](); mesh.visible = false; scene.add(mesh);
   const rest = new THREE.Vector3(x, y, z).addScaledVector(front, 1.25); rest.y = y + 0.36; // hovers where Rizer's hand closes in the pick-up clip (he reaches from the front, a step back from the lid)
-  const owns = () => brokenId ? (inventory.items?.[brokenId] || 0) > 0 : ride ? (inventory.rides || []).includes(item) : hasWeapon(item);
+  const owns = () => isClaimed ? isClaimed() : brokenId ? (inventory.items?.[brokenId] || 0) > 0 : ride ? (inventory.rides || []).includes(item) : hasWeapon(item);
   let state = isOpen() ? (owns() ? 'empty' : 'waiting') : 'closed', t = 0;
   if (state !== 'closed') C.hinge.rotation.x = -1.9;
   if (state === 'waiting') { mesh.visible = true; mesh.position.copy(rest); }
@@ -635,10 +657,11 @@ function itemChest(scene, world, fx, { id, item, ride = false, brokenId = null, 
   // Rizer grabs it (called at the grab frame of the pick-up clip).
   function take() {
     if (state !== 'waiting') return false;
+    if (claim && !claim()?.ok) return false;
     state = 'empty'; mesh.visible = false; reach = null;
     if (brokenId) addItem(brokenId, 1);
     else if (ride) { const rides = inventory.rides ||= []; if (!rides.includes(item)) rides.push(item); }
-    else if (!hasWeapon(item)) inventory.owned.push(item);
+    else if (!claim && !hasWeapon(item)) inventory.owned.push(item);
     saveInv();
     fx.emit(rest.x, rest.y, rest.z, 18, { color: tint, speed: 2.2, up: 1.2, size: 0.35, life: 0.5, g: 0 });
     return true;
@@ -756,6 +779,11 @@ const HEAVY_BACK = { // the Jaded Axe: haft across the back, head behind his rig
   blade: new THREE.Vector3(-0.43, 0.9, -0.22), edge: new THREE.Vector3(-0.9, -0.43, 0)
 };
 const MOUNTS = {
+  plasmabeam: {
+    // Lift the model so the pistol grip (below its origin) sits in the palm instead of the receiver crossing the fist.
+    hand: { bone:'mixamorigRightHand', off:new THREE.Vector3(0,.085,.04), blade:new THREE.Vector3(0,.55,.84), edge:new THREE.Vector3(1,0,0) },
+    stow: { bone:'mixamorigHips', off:new THREE.Vector3(-.24,-.04,.02), blade:new THREE.Vector3(0,0,-1), edge:new THREE.Vector3(-1,0,0) }
+  },
   sword: {
     hand: { bone: 'mixamorigRightHand', off: new THREE.Vector3(0.0, -0.08, 0.02), blade: new THREE.Vector3(0, 0.12, 1), edge: new THREE.Vector3(0, 1, -0.12) },
     stow: { bone: 'mixamorigHips', off: new THREE.Vector3(0.21, 0.02, 0.14), blade: new THREE.Vector3(0.14, -0.55, -0.83), edge: new THREE.Vector3(0, -0.83, 0.55) } // at the hip, point down and back
@@ -838,7 +866,7 @@ export function createHeldWeapons(scene) {
     }
     actor = act;
   }
-  const inHand = () => Object.keys(meshes).find(k => where[k] === 'hand' && meshes[k].parent && k !== 'guitar' && k !== 'telescope' && k !== 'blaster') || null; // (the guitar isn't a blade: no contact, no trail)
+  const inHand = () => Object.keys(meshes).find(k => where[k] === 'hand' && meshes[k].parent && k !== 'guitar' && k !== 'telescope' && k !== 'blaster' && k !== 'plasmabeam') || null; // ranged weapons/tools do not become melee blades
   function update(dt, visible, swinging) {
     for (const k in meshes) meshes[k].visible = visible && !!meshes[k].parent && !hidden.has(k);
     const k = inHand(), w = k && meshes[k], on = !!w && w.visible && swinging;

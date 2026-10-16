@@ -6,6 +6,7 @@
 // Clip ids: builtin:<actor>:<Clip> · lib:<file in assets/anims> · drop:<file dropped in the lab>
 const L = f => 'lib:rizer/' + f + '.fbx';
 const RF = f => 'lib:rifle/' + f + '.fbx';
+const PP = f => 'lib:rizer/Pistol_' + f + '.fbx';
 // The rifle set, shared by Rizer and the Nova Guardian (thardin-rifle.js RIFLE_PROFILE).
 const RIFLE = {
   rifleIdle: { clip: RF('Rifle_Idle'), inPlace: true },
@@ -35,6 +36,12 @@ const PLAYER = {
   ladderTop: { clip: L('Climbing To Top Of Ladder'), inPlace: true },
   walk: { clip: L('walk_1'), stride: 1.15 }, // same 1.17 s cadence, 15% longer steps (legs swing wider, covers more ground)
   tiredRun: { clip: L('Slow_Run'), inPlace: true }, // full looping run cycle while moving at zero stamina
+  strafeSprintL: { clip: L('Strafe_Left_Sprint'), inPlace: true },
+  strafeSprintR: { clip: L('Strafe_Right_Sprint'), inPlace: true },
+  strafeWalkL: { clip: L('Strafe_Left_Walk'), inPlace: true },
+  strafeWalkR: { clip: L('Strafe_Right_Walk'), inPlace: true },
+  strafeTiredL: { clip: L('Strafe_Left_TiredRun'), inPlace: true },
+  strafeTiredR: { clip: L('Strafe_Right_TiredRun'), inPlace: true },
   stairWalkUp: { clip: L('Ascending Stairs'), inPlace: true },
   stairRunUp: { clip: L('Running Up Stairs'), inPlace: true },
   stairWalkDown: { clip: L('Descending Stairs'), inPlace: true },
@@ -58,6 +65,8 @@ const PLAYER = {
   jump: { clip: L('Jumping_1') },
   doublejump: { clip: L('double_jump_flip') },
   wallflip: { clip: L('Run_To_Flip') },          // jump at a wall, ✕ again before reaching it
+  wallRun: { clip: L('Wall_Run'), inPlace: true }, // hold ✕ while sprinting into a full-height wall; release to resume sprint
+  wallRunRight: { clip: L('Wall_Run_Right'), mirror: true, inPlace: true }, // mirrored pose for a wall on Rizer's right
   bigland: { clip: L('Falling_To_Landing') },
   teleportLand: { clip: L('Teleport_Landing'), inPlace: true }, // map waypoint arrival: authored landing settles at the destination
   bail: { clip: L('Flight_Bail') },               // out of stamina mid-flight: flailing all the way down
@@ -68,8 +77,9 @@ const PLAYER = {
   dodge: { clip: L('Dodgeroll') },
   slide: { clip: L('Running_Slide') },            // hold L2
   blast: { clip: L('Astral_Blast') },
-  blast2: { clip: L('Astralstrike_2') },
-  blast3: { clip: L('Astralstrike_3') },
+  blast2: { clip: L('Astralstrike_3') }, // move the authored two-hand blast to combo stage 2
+  blast3: { clip: L('Astralstrike_2') }, // stage 3 now uses the former second strike
+  blast4: { clip: L('Astralstrike_4'), inPlace: true }, // Volstorm: electrify, then rain lightning across Rizer's view
   punch: { clip: L('Jab_1') },
   punch2: { clip: L('Hook_2') },
   punch3: { clip: L('Elbow_Uppercut_Combo_3') },
@@ -78,11 +88,15 @@ const PLAYER = {
   kick2: { clip: L('Kick_2') },
   kick3: { clip: L('Kick_3') },
   kick4: { clip: L('Kick_4') },
+  kick5: { clip: L('360_Ground_Kick'), inPlace: true },
   flykick: { clip: L('Flying_Kick') },            // running + △
+  runKickHold: { clip: L('Running_Kick_Hold'), inPlace: true }, // sprint + hold △: charged spinning lightning kick around Rizer
   kickup: { clip: L('Kick_Up_Combo') },
   vault: { clip: L('Running_Vault') },            // running + ✕ at a waist-high obstacle: vault over it           // running + △△: inverted kick, kip up, keep running
   ledgeGrab: { clip: L('Jumping_To_Hanging'), inPlace: true },
   ledgeClimb: { clip: L('Climbing'), inPlace: true },
+  ledgeShimmyL: { clip: L('Ledge_Shimmy_Left'), inPlace: true },
+  ledgeShimmyR: { clip: L('Ledge_Shimmy_Right'), inPlace: true },
   teeter: { clip: L('Teeter'), inPlace: true },
   prayKneel: { clip: L('Pray_Kneel'), inPlace: true },
   prayHold: { clip: L('Pray_Hold'), inPlace: true },
@@ -95,6 +109,7 @@ const PLAYER = {
   knockdown: DEATHS,
   interact: { clip: L('Picking_Up') },
   pickup: { clip: L('Picking_Up') },
+  pickupWaist: { clip: L('Grab_Item_Waist_Level'), inPlace: true },
   runpickup: { clip: L('Pick_Up_Item') },         // running + ○ near loot: scooped up without stopping
   // ○ near a fae / faery / astral fae leaps for it (50/50): the hands reach it at the top of each clip (rizer.js · faeCatch).
   faeCatch: { clip: L('catch_fae_success') },     // hit: jog-in, leap, two-handed catch
@@ -111,6 +126,17 @@ const PLAYER = {
   rubypaw3: { clip: L('Sword_3') },
   rubypaw4: { clip: L('Sword_4') },
   drawBow: { clip: L('Take_Out_Bow') },
+  drawPlasmabeam: { clip: PP('Draw'), inPlace: true },
+  sheathePlasmabeam: { clip: PP('Put_Away'), inPlace: true },
+  pistolFire: { clip: PP('Fire'), inPlace: true },
+  pistolWhip: { clip: PP('Whip'), inPlace: true },
+  pistolJump: { clip: PP('Jump'), inPlace: true },
+  pistolKneel: { clip: PP('Kneeling_Idle'), inPlace: true },
+  pistolIdle: { clip: L('fightform'), inPlace: true },
+  pistolWalk: { clip: PP('Walk'), inPlace: true },
+  pistolRun: { clip: PP('Run'), inPlace: true },
+  pistolStrafeL: { clip: PP('Strafe_Left'), inPlace: true },
+  pistolStrafeR: { clip: PP('Strafe_Right'), inPlace: true },
   bowDraw: { clip: L('Draw_Arrow') },
   bowAim: { clip: L('Aim_Bow') },
   bowAimWalk: { clip: L('Aim_Bow_Walking'), inPlace: true },
@@ -195,6 +221,7 @@ export default {
     kick2: { clip: L('Kick_2') },
     kick3: { clip: L('Kick_3') },
     kick4: { clip: L('Kick_4') },
+    kick5: { clip: L('360_Ground_Kick'), inPlace: true },
     hurt: { clip: L('Hit_1'), more: [L('Big_Stomach_Hit'), L('Head_Hit')] }, // one picked at random per hit
     knockdown: DEATHS
   },

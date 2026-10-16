@@ -47,7 +47,7 @@ const js = (await build({
 
 // 2 · assets: the three character models + every clip listed in the animation library
 const library = (await import(pathToFileURL(path.join(root, 'assets/anims/library.js')).href)).default;
-const assets = ['./assets/rizer/rizer.glb', './assets/rizer/rizer_psychosyd.glb', './assets/seer/seer.glb', './assets/mori/mori.glb', './assets/elzoran/elzoran.glb', './assets/npc/npc_base.glb', './assets/npc/npc_heads.glb',
+const assets = ['./assets/rizer/rizer.glb', './assets/rizer/rizer_psychosyd.glb', './assets/seer/seer.glb', './assets/mori/mori.glb', './assets/elzoran/elzoran.glb', './assets/npc/npc_base.glb', './assets/npc/npc_heads.glb', './assets/elzebub/elzebub_rp7d_v1.glb',
   './assets/anciuxor/anciuxor.png', './assets/anciuxor/anciuxor-fly.png', './assets/items/zysphere-drop.png',
   ...library.map(it => './assets/anims/' + it.file),
   ...fs.readdirSync(path.join(root, 'assets/zyrex2d')).filter(f => f.endsWith('.webp')).map(f => './assets/zyrex2d/' + f), // 2DHD Zyrex sheets (zyrex2d.js)
@@ -81,6 +81,14 @@ ${packed}
 if (process.argv.includes('--web')) await buildWeb();
 else {
   fs.mkdirSync(path.dirname(out), { recursive: true });
+// Copy Elzebub's drag-and-drop GLB and manifest beside the standalone playtest.
+const zyrexDir = path.join(root, 'ZYREX RIGS/assets/elzebub');
+const zyrexDist = path.join(root, 'dist/assets/elzebub');
+if (fs.existsSync(path.join(zyrexDir, 'elzebub_rp7d_v1.glb'))) {
+  fs.mkdirSync(zyrexDist, { recursive: true });
+  for (const name of ['elzebub_rp7d_v1.glb', 'elzebub_rp7d_v1.manifest.json'])
+    fs.copyFileSync(path.join(zyrexDir, name), path.join(zyrexDist, name));
+}
   if (!embedAudio) {
     const audioOut = path.join(path.dirname(out), audioRelative);
     fs.mkdirSync(path.dirname(audioOut), { recursive: true });

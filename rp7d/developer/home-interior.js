@@ -604,6 +604,18 @@ export function createHomeInterior(scene) {
       (root.userData.stations ||= []).push({ id, name, x, z, level: lv, r: 1.5, pickup: true, hidden: () => { const h = hidden(); mesh.visible = !h; return h; } });
       mesh.visible = !hidden();
     },
+    findBedroomPickupSpace() {
+      const anchor = floorGuitar.position;
+      for (const radius of [1.6,2.4,3.2,4]) for(let i=0;i<16;i++) {
+        const a=i*Math.PI/8,x=anchor.x+Math.cos(a)*radius,z=anchor.z+Math.sin(a)*radius;
+        if(Math.abs(x)>HALF_W-1||Math.abs(z)>HALF_D-1)continue;
+        if(x<-HALF_W+TILE*3&&z<0)continue; // stair/landing path
+        if(blockers[2].some(b=>Math.abs(x-b.x)<b.hw+1&&Math.abs(z-b.z)<b.hd+1))continue;
+        if((root.userData.stations||[]).some(s=>s.level===2&&Math.hypot(x-s.x,z-s.z)<1.8))continue;
+        return {x,z};
+      }
+      return null;
+    },
     stationAt(p) { p = p.position || p; let best = null; for (const s of root.userData.stations || []) { if (s.level !== level || s.hidden?.() || (s.id === 'floor-guitar' && !floorGuitar?.visible)) continue; const d = Math.hypot(p.x - s.x, p.z - s.z); if (d <= s.r && (!best || d < best.d)) best = { ...s, d }; } return best; },
     get entry() { return entryDoor.clone(); },
     get frontDoor() { return frontDoor; },

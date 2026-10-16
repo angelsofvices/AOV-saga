@@ -10,7 +10,7 @@ import { overworldEdge } from './overworld-land.js';
 import { smooth, lerp, rng, makeNoise, samplePath, SegmentIndex, clamp } from './util.js';
 import { quarterWeights } from './world-data.js';
 
-const PAD_R = { championStadium: 36, townHall: 22, academy: 20, shop: 12, gearShop: 13, hospital: 20, zysphereShop: 13, house: 13, research: 27, barn: 20, seerHQ: 20, seerGate: 12, districtGate: 17, sealedChest: 4, fountain: 0, fallenTitan: 20, rubyCave: 18, bridge: 0, fanghall: 20, bloodscentLodge: 20, firstDen: 19, radioTower: 8, treehouse: 12, novariusStatue: 5, ufo: 10 };
+const PAD_R = { championStadium: 36, townHall: 22, academy: 20, shop: 12, gearShop: 13, hospital: 20, zysphereShop: 13, house: 13, research: 23, barn: 20, seerHQ: 20, seerGate: 12, districtGate: 17, sealedChest: 4, fountain: 0, fallenTitan: 20, rubyCave: 18, bridge: 0, fanghall: 20, bloodscentLodge: 20, firstDen: 19, radioTower: 8, treehouse: 12, novariusStatue: 5, ufo: 10 };
 
 // ── Settlement doctrine: find neighbour plots in the forest + highland arc ──
 function planSettlement(W, roads) {

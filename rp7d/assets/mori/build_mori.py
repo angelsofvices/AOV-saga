@@ -32,7 +32,8 @@ for sx in (-1, 1):
     ico(Hc + Vector((sx * 0.036, -0.088, 0.012)), (0.024, 0.014, 0.02), 'socket', B('Head'))   # sunken sockets
     ico(Hc + Vector((sx * 0.036, -0.097, 0.012)), (0.009, 0.005, 0.009), 'eye', B('Head'))      # pale pupils
     box(Hc + Vector((sx * 0.065, -0.06, -0.035)), (0.018, 0.04, 0.05), 'shade', B('Head'), rz=sx * 0.35)  # hollow cheeks
-    box(Hc + Vector((sx * 0.09, 0.0, -0.005)), (0.014, 0.03, 0.045), 'skin', B('Head'))        # ears
+    # Set the ear root into the skull so it cannot read as a detached appendage.
+    box(Hc + Vector((sx * 0.085, 0.0, -0.005)), (0.03, 0.03, 0.045), 'skin', B('Head'))         # ears
     box(Hc + Vector((sx * 0.038, -0.092, 0.036)), (0.03, 0.012, 0.008), 'shade', B('Head'), ry=sx * 0.25)  # heavy brow
 box(Hc + Vector((0, -0.106, -0.02)), (0.014, 0.018, 0.03), 'skin', B('Head'), rx=0.3)    # nose
 # ── neck: long and corded ──
@@ -84,8 +85,8 @@ for side, sx in (('Left', 1), ('Right', -1)):
     box(lerp(k0, k1, 0.45) + Vector((sx * 0.06, -0.05, 0)), (0.02, 0.03, 0.09), 'skin', B(S('UpLeg')))  # rip showing skin
     prism(lerp(k1, an, 0.5), an, (0.034, 0.034), (0.03, 0.03), 6, 'skin', B(S('Leg')))              # bare shin
     fx = an.x + sx * 0.005
-    box((fx, an.y - 0.06, 0.045), (0.08, 0.17, 0.08), 'skin', B(S('Foot')))                          # bare foot
-    box((fx + sx * 0.005, toe.y + 0.02, 0.03), (0.08, 0.1, 0.05), 'skin', B(S('ToeBase')))
+    box((fx, an.y - 0.06, 0.045), (0.08, 0.24, 0.08), 'skin', B(S('Foot')))                           # bare foot with overlapping arch
+    box((fx + sx * 0.005, toe.y + 0.028, 0.03), (0.08, 0.12, 0.05), 'skin', B(S('ToeBase')))
     for t in range(4): box((fx + sx * 0.005 + (t - 1.5) * 0.018, toe.y - 0.03, 0.02), (0.012, 0.03, 0.02), 'shade', B(S('ToeBase')))
 
 me = bpy.data.meshes.new('MoriBody'); me.from_pydata([tuple(v) for v in V], [], F)

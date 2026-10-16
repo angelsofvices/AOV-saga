@@ -7,6 +7,9 @@ import { crafting } from './crafting.js';
 import { defOf, CATEGORY_ORDER, CATEGORY_LABEL, FIELD_EQUIPMENT } from './item-registry.js';
 import { nebulaAudio } from './nebula-audio.js';
 import { STORES, department, stockRows, sellable, buy, sell, gold, storeState } from './store.js';
+import { studyRows, studyAstralite } from './engineering-research.js';
+import { createCyberFallPanel } from './cyberfall.js';
+import { WEAPON_UPGRADE_NOTE } from './engineering.js';
 
 const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -20,6 +23,8 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
   const root = document.createElement('div'); root.id = 'station-ui'; root.hidden = true; document.body.appendChild(root);
   let kind = null, ctx = null, col = 0, focus = [0, 0], notice = '', bad = false, showAll = false;
   let tab = 0, sort = 0, qi = 0, custom = '';
+  let astMode = 'study';
+  const cyberfall = createCyberFallPanel({ root, toast, back: () => { kind = 'home'; render(); } });
   const isOpen = () => !root.hidden;
 
   // rows for one storage location, filtered by the open category and ordered by the chosen sort
@@ -45,7 +50,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     const used = storage.slotsUsed(LOC.ZYCUBE), cap = storage.capacity(), pct = Math.min(100, used / cap * 100), free = Math.max(0, cap - used);
     const online = zyOnline(), r = sel(), here = columns()[col];
     const deployed = storage.equipmentIn(LOC.DEPLOYED).filter(e => TABS[tab].id === 'ALL' || TABS[tab].id === 'FIELD_EQUIPMENT');
-    const tabs = TABS.map((t, i) => `<button class="nb-tab${i === tab ? ' on' : ''}" data-tab="${i}">${t.label}</button>`).join('') + `<span class="nb-tab soon" title="Not available yet">RESEARCH · SOON</span>`;
+    const tabs = TABS.map((t, i) => `<button class="nb-tab${i === tab ? ' on' : ''}" data-tab="${i}">${t.label}</button>`).join('') + `<button class="nb-tab" data-cyberfall>CYBERFALL · SOCIAL / CODE / LAB</button>`;
     const detail = r ? (() => {
       const unique = r.def.unique, can = r.def.transferable, n = amount(r);
       return `<div class="nb-dh"><i class="st-sw" style="background:${esc(r.def.color)}"></i><b>${esc(r.def.name)}</b></div>
@@ -66,12 +71,12 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
             return `<div class="st-row${col === ci && focus[ci] === n ? ' focus' : ''}${lock ? ' lock' : ''}" data-col="${ci}" data-i="${n}"><i class="st-sw" style="background:${esc(x.def.color)}"></i><b>${esc(x.def.name)}</b>${x.def.unique ? '<em></em>' : `<em>×${x.qty}</em>`}<small>${lock ? 'STAYS IN ZYCUBE' : '→ ' + C.toName}</small></div>`; }).join('')).join('') : '<div class="st-empty">Empty</div>'}</div></section>`; }).join('')}</div>
         <aside class="st-col nb-side"><header><b>DETAILS</b><small>${PLACE[here.loc]}</small></header>${detail}</aside></div>
       ${deployed.length ? `<div class="nb-dep"><small>DEPLOYED</small>${deployed.map(e => `<span>${esc(defOf(e.type)?.name || e.type)}</span>`).join('')}<em>in the field · not in Home Storage</em></div>` : ''}
-      <div class="st-foot"><span>Total owned never changes · items only move between Home Storage and the Zycube</span><em>↑↓ choose · ←→ side · Q/E category · F sort · Z/X or digits quantity · Enter move · Space all · Esc leave</em></div>`;
+      <div class="st-foot"><span>Total owned never changes · C / L2 opens CyberFall</span><em>↑↓ choose · ←→ side · Q/E category · F sort · Z/X or digits quantity · Enter move · Space all · Esc leave</em></div>`;
   }
   function expHTML() {
     const recipes = crafting.listRecipes('EXPERIMENT_TABLE'); focus[0] = Math.min(focus[0], Math.max(0, recipes.length - 1));
     const cur = recipes[focus[0]], a = cur && crafting.availability(cur);
-    return `<div class="st-head"><small>EXPERIMENT TABLE · ZYLINK</small><b>Build & repair</b><span>Build known equipment or repair damaged finds. Materials can come from Home Storage or the Zycube; finished work goes to Home Storage.</span></div>
+    return `<div class="st-head"><small>EXPERIMENT TABLE · ZYLINK</small><b>Build, repair & synthesize</b><span>Materials can come from Home Storage or the Zycube. AX-36 goes to your Zycube; other finished work goes to Home Storage.</span></div>
       <div class="st-cols one"><section class="st-col on"><header><b>KNOWN RECIPES</b></header><div class="st-list">${recipes.map((r, i) => { const av = crafting.availability(r); return `<div class="st-row${focus[0] === i ? ' focus' : ''}${av.ok ? '' : ' lock'}" data-i="${i}"><i class="st-sw" style="background:${esc(defOf(r.outputId)?.color || '#ccc')}"></i><b>${esc(r.name)}</b><small>${av.ok ? 'READY' : esc(av.message.toUpperCase())}</small></div>`; }).join('') || '<div class="st-empty">No recipes known</div>'}</div></section>
       <section class="st-col detail">${cur ? `<header><b>${esc(cur.name)}</b><small>${esc(defOf(cur.outputId)?.category === 'FIELD_EQUIPMENT' ? 'FIELD EQUIPMENT' : 'ITEM')}</small></header><p>${esc(defOf(cur.outputId)?.blurb || '')}</p>
         <div class="st-ings">${a.lines.map(l => `<div class="${l.have >= l.need ? 'ok' : 'bad'}"><span>${esc(l.name)}</span><b>${l.have} / ${l.need}</b></div>`).join('')}</div>
@@ -96,6 +101,13 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     return (showAll || !all.some(held)) ? all : all.filter(held);
   }
   function astHTML() {
+    const tabs = `<div class="nb-tabs"><button class="nb-tab${astMode === 'study' ? ' on' : ''}" data-ast-mode="study">STUDY</button><button class="nb-tab${astMode === 'synthesis' ? ' on' : ''}" data-ast-mode="synthesis">GEMSHARD SYNTHESIS</button></div>`;
+    if (astMode === 'study') {
+      const rows = studyRows(); focus[0] = Math.max(0, Math.min(focus[0], rows.length - 1));
+      return `<div class="st-head"><small>ASTRALITE STATION</small><b>Study the Matrix</b><span>Study each sample individually. Studying preserves the sample and permanently records your research. AX-36 synthesis is performed at the Experiment Table.</span></div>${tabs}
+        <section class="st-col on"><header><b>AX-36 RESEARCH</b></header><div class="st-list">${rows.map((r, i) => `<div class="st-row${focus[0] === i ? ' focus' : ''}" data-i="${i}"><b>${esc(r.name)}</b><em>Zycube ${r.carried} · Home ${r.home}</em><small>${r.studied ? 'STUDIED' : r.carried + r.home ? 'STUDY SAMPLE' : 'SAMPLE REQUIRED'}</small></div>`).join('')}</div></section>
+        <div class="st-foot"><span>${esc(notice)}</span><em>↑↓ choose · Enter / ✕ study · Q / L1 / R1 switch view · Esc leave</em></div>`;
+    }
     const list = astList(); focus[0] = Math.max(0, Math.min(focus[0], list.length - 1));
     const gem = storage.count(LOC.ZYCUBE, 'gemshard') + storage.count(LOC.HOME_PC, 'gemshard'), none = !crafting.listRecipes('ASTRALITE_STATION').some(r => crafting.availability(r).lines[0].have > 0);
     let last = null;
@@ -104,7 +116,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
       const L = a.lines[0], can = L.have >= L.need;
       return head + `<div class="st-row${focus[0] === i ? ' focus' : ''}${can ? '' : ' lock'}" data-i="${i}"><i class="st-sw" style="background:${esc(r.color)}"></i><b>${esc(r.name)}</b><em>×${L.have}</em><small>${can ? `${L.need} → 1 GEMSHARD` : `NEED ${L.need}`}</small></div>`;
     }).join('');
-    return `<div class="st-head"><small>ASTRALITE STATION · ZYLINK</small><b>Synthesize</b><span>Fuse Astralites from your Zycube and Home Storage into Gemshards. Gemshards are stored in your Home Storage.</span></div>
+    return `<div class="st-head"><small>ASTRALITE STATION · ZYLINK</small><b>Synthesize</b><span>Fuse Astralites from your Zycube and Home Storage into Gemshards. Gemshards are stored in your Home Storage.</span></div>${tabs}
       <div class="st-cols one"><section class="st-col on"><header><b>ASTRALITES</b><small>${showAll ? 'all 63' : 'held only'}</small></header><div class="st-list st-tall">${rows || '<div class="st-empty">Nothing to show</div>'}</div></section>
       <section class="st-col detail"><header><b>GEMSHARDS</b><small>owned</small></header><div class="st-big">${gem}</div>
         <p>${none ? 'You hold no Astralites yet. Astralite stones across Malezor give them up; they will appear here.' : 'Enter fuses one batch of the selected Astralite. Space fuses as many as you can.'}</p>
@@ -126,7 +138,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     }).join('');
     const cur = shopRows(col)[focus[col]];
     return `<div class="st-head"><small>${esc(S.name.toUpperCase())} · ${esc(D.sub)}</small><b>${esc(D.title)}</b><span>Gold <b class="st-gold">${gold()}</b> · Zycube ${used} / ${cap} slots · ${free} free</span></div>
-      <div class="st-cols">${cols}</div>
+      <p class="st-note">${esc(WEAPON_UPGRADE_NOTE)} Upgrades unavailable · introduction only.</p><div class="st-cols">${cols}</div>
       ${cur ? `<p class="st-note">${esc(cur.def.blurb || '')}</p>` : ''}
       <div class="st-foot"><span class="${bad ? 'bad' : ''}">${esc(notice)}</span><em>↑↓ choose · ←→ buy / sell · Enter one · Space five · Esc leave</em></div>`;
   }
@@ -139,6 +151,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     render();
   }
   function render() {
+    if (kind === 'cyberfall') return cyberfall.render();
     const keep = root.querySelector('.st-list')?.scrollTop || 0;
     root.innerHTML = `<div class="st-panel st-${kind}${kind === 'home' ? ' nb' : ''}">${kind === 'home' ? homeHTML() : kind === 'experiment' ? expHTML() : kind === 'astralite' ? astHTML() : kind === 'shop' ? shopHTML() : fwHTML()}</div>`;
     root.querySelector('.st-row.focus')?.scrollIntoView({ block: 'nearest' });
@@ -151,13 +164,13 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     if (k === 'home') { nebulaAudio.startup(); nebulaAudio.ambience(true); }
     if (k === 'shop') { const s = storeState(c.store); s.visits++; s.lastDept = c.dept; }
   }
-  function close() { if (!isOpen()) return; if (kind === 'home') nebulaAudio.ambience(false); root.hidden = true; kind = null; onClose(); }
+  function close() { if (!isOpen()) return; if (kind === 'home' || kind === 'cyberfall') nebulaAudio.ambience(false); root.hidden = true; kind = null; onClose(); }
 
   // Everything goes through storage.transfer: atomic, validated at both ends, and nothing changes on a refusal.
   function move(mode) {
     const C = columns()[col], r = flat(C.loc)[focus[col]]; if (!r) return;
     const want = r.def.unique ? 1 : mode === 'all' ? r.qty : amount(r), n = Math.min(want, r.qty);
-    const res = storage.transfer(C.loc, C.to, r.id, n, { via: 'homepc' });
+    const res = storage.transfer(C.loc, C.to, r.id, n, { via: 'homepc', uid: r.uid });
     bad = !res.ok;
     notice = res.ok ? `${r.def.name}${r.def.unique ? '' : ' ×' + res.qty} → ${C.toName}` : (res.message || 'Could not move it').toUpperCase();
     if (res.ok) nebulaAudio.transfer(); else { nebulaAudio.error(); toast(res.message || 'Could not move it'); }
@@ -168,6 +181,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     const res = crafting.craft(r.id); notice = res.message; toast(res.message); render();
   }
   function synth(all) {
+    if (astMode === 'study') { const r = studyRows()[focus[0]]; if (r) { const res = studyAstralite(r.id); notice = res.message; bad = !res.ok; toast(res.message); render(); } return; }
     const x = astList()[focus[0]]; if (!x) return;
     const res = all ? crafting.craftMax(x.r.id) : crafting.craft(x.r.id);
     notice = all ? res.message : res.ok ? `${x.r.name} → Gemshard` : res.message; if (!res.ok) toast(res.message); render();
@@ -175,13 +189,15 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
   function packNow() { const res = onPack(ctx.uid); if (res?.ok) close(); else { notice = res?.message || ''; render(); } }
   const act = (all = true) => { if (kind === 'shop') return trade(all ? 1 : 5); if (kind === 'home') move(all ? 'one' : 'all'); else if (kind === 'astralite') synth(!all); else if (kind === 'experiment' || kind === 'workstation') craftNow(); };
   function jump(d) { const L = astList(); let i = focus[0], g = L[i]?.r.group; while (i + d >= 0 && i + d < L.length && L[i + d].r.group === g) i += d; i = Math.max(0, Math.min(L.length - 1, i + d)); if (d < 0) { const gg = L[i]?.r.group; while (i > 0 && L[i - 1].r.group === gg) i--; } focus[0] = i; render(); }
-  const step = d => { const n = kind === 'shop' ? shopRows(col).length : kind === 'home' ? flat(columns()[col].loc).length : kind === 'experiment' ? crafting.listRecipes('EXPERIMENT_TABLE').length : kind === 'workstation' ? crafting.listRecipes('FIELD_WORKSTATION').length : kind === 'astralite' ? astList().length : 0; if (n) { focus[col] = (focus[col] + d + n) % n; if (kind === 'home') nebulaAudio.select(); render(); } };
+  const step = d => { const n = kind === 'shop' ? shopRows(col).length : kind === 'home' ? flat(columns()[col].loc).length : kind === 'experiment' ? crafting.listRecipes('EXPERIMENT_TABLE').length : kind === 'workstation' ? crafting.listRecipes('FIELD_WORKSTATION').length : kind === 'astralite' ? (astMode === 'study' ? studyRows().length : astList().length) : 0; if (n) { focus[col] = (focus[col] + d + n) % n; if (kind === 'home') nebulaAudio.select(); render(); } };
+  const switchAst = () => { astMode = astMode === 'study' ? 'synthesis' : 'study'; focus[0] = 0; render(); };
   const setTab = d => { tab = (tab + d + TABS.length) % TABS.length; focus = [0, 0]; notice = ''; bad = false; nebulaAudio.select(); render(); };
   const setQty = d => { custom = ''; qi = (qi + d + PRESETS.length) % PRESETS.length; nebulaAudio.select(); render(); };
   const sideTo = c => { if (col !== c) { col = c; nebulaAudio.select(); render(); } };
 
   function key(code) {
     if (!isOpen()) return false;
+    if (kind === 'cyberfall') { cyberfall.key(code); return true; }
     const dig = /^(?:Digit|Numpad)(\d)$/.exec(code);
     if (kind === 'home' && dig) { custom = (custom + dig[1]).replace(/^0+/, '').slice(0, 3); nebulaAudio.select(); render(); }
     else if (kind === 'home' && code === 'Backspace' && custom) { custom = custom.slice(0, -1); render(); }
@@ -195,6 +211,8 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     else if (kind === 'home' && code === 'KeyZ') setQty(-1);
     else if (kind === 'home' && code === 'KeyX') setQty(1);
     else if (kind === 'home' && code === 'KeyF') { sort = (sort + 1) % SORTS.length; focus = [0, 0]; nebulaAudio.select(); render(); }
+    else if (kind === 'home' && code === 'KeyC') { kind = 'cyberfall'; render(); }
+    else if (kind === 'astralite' && code === 'KeyQ') switchAst();
     else if (code === 'Enter') act(true);
     else if (kind === 'astralite' && (code === 'ArrowLeft' || code === 'KeyA')) jump(-1);
     else if (kind === 'astralite' && (code === 'ArrowRight' || code === 'KeyD')) jump(1);
@@ -204,15 +222,20 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
   }
   function pad(p) {
     if (!isOpen()) return;
+    if (kind === 'cyberfall') return cyberfall.pad(p);
+    if (kind === 'home' && p.edge(6)) { kind = 'cyberfall'; render(); return; }
     if (p.edge(1) || p.edge(17)) return close();
     if (p.edge(12)) step(-1); if (p.edge(13)) step(1);
     if (kind === 'home') { if (p.edge(14)) sideTo(0); if (p.edge(15)) sideTo(1); if (p.edge(4)) setTab(-1); if (p.edge(5)) setTab(1); if (p.edge(3)) setQty(1); if (p.edge(2)) act(false); }
     if (kind === 'shop') { if (p.edge(14)) sideTo(0); if (p.edge(15)) sideTo(1); if (p.edge(2)) act(false); }
-    if (kind === 'astralite') { if (p.edge(14)) jump(-1); if (p.edge(15)) jump(1); if (p.edge(2)) act(false); if (p.edge(3)) { showAll = !showAll; focus[0] = 0; render(); } }
+    if (kind === 'astralite') { if (p.edge(4) || p.edge(5)) switchAst(); if (astMode === 'synthesis') { if (p.edge(14)) jump(-1); if (p.edge(15)) jump(1); } if (p.edge(2)) act(false); if (p.edge(3)) { showAll = !showAll; focus[0] = 0; render(); } }
     if (p.edge(0)) act(true);
   }
   root.addEventListener('mousedown', e => e.stopPropagation());
   root.addEventListener('click', e => {
+    if (kind === 'cyberfall') return cyberfall.click(e.target);
+    if (e.target.closest('[data-cyberfall]')) { kind = 'cyberfall'; return render(); }
+    const astTab = e.target.closest('[data-ast-mode]'); if (astTab) { astMode = astTab.dataset.astMode; focus[0] = 0; return render(); }
     if (e.target.closest('[data-craft]') || e.target.closest('[data-repair]')) return craftNow();
     if (e.target.closest('[data-pack]')) return packNow();
     if (e.target.closest('[data-close]')) return close();

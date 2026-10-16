@@ -11,8 +11,8 @@
 // floor is terrain or any walkable surface like a roof or stair) marks its cell solid.
 // Each cell also keeps the top of the mass there, so jumping or flying over it is free.
 //
-// Two layers: hard mass (1) and bushes (2). resolve(..., { stealth: true }) lets a
-// crouched Rizer push into bushes to hide; everything else is always solid.
+// Two layers: hard mass (1) and foliage (2). Bushes rustle and conceal Rizer, but
+// never block locomotion; hard meshes remain solid even where foliage overlaps them.
 //
 // Meshes opt out with userData.noCollide (grass, flowers, reeds, water, moving vehicles)
 // and opt into the bush layer with userData.soft. userData.massHi caps the band at that height above the
@@ -71,7 +71,8 @@ export function createMassGrid({ floorAt, surfacesIn }) {
       const ix = Math.floor((x - x0) / C), iz = Math.floor((z - z0) / C);
       if (ix < 0 || iz < 0 || ix >= N || iz >= N) return;
       const rel = h - floor(x, z, h); if (rel < MASS.lo) return;
-      const c = iz * N + ix; if (yTop > top[c]) top[c] = yTop;
+      const c = iz * N + ix;
+      if (bit & 1) { if (yTop > top[c]) top[c] = yTop; }
       if (rel <= MASS.hi && h <= cap) flag[c] |= bit;
     };
     for (const id of bins.get(key(cx, cz)) || []) {
@@ -87,7 +88,7 @@ export function createMassGrid({ floorAt, surfacesIn }) {
         // Keep a separate height field for real upward-facing mesh surfaces.
         // Vertical wall faces still block bodies, but can never pretend to be
         // the top of a roof while edge detection is looking for a ledge.
-        if (Math.abs(nrm.y / len) > 0.35) {
+        if (!en.soft && Math.abs(nrm.y / len) > 0.35) {
           const bx0 = Math.max(x0, Math.min(a.x, b.x, d.x)), bx1 = Math.min(x1, Math.max(a.x, b.x, d.x));
           const bz0 = Math.max(z0, Math.min(a.z, b.z, d.z)), bz1 = Math.min(z1, Math.max(a.z, b.z, d.z));
           for (let x = Math.floor(bx0 / C) * C + C / 2; x <= bx1; x += C) for (let z = Math.floor(bz0 / C) * C + C / 2; z <= bz1; z += C) {
@@ -97,7 +98,7 @@ export function createMassGrid({ floorAt, surfacesIn }) {
             if (y > walkTop[ci]) walkTop[ci] = y;
           }
         }
-        if (Math.abs(nrm.y / len) > 0.75) { // flat face (table top, low overhang): fill its footprint at its height
+        if (!en.soft && Math.abs(nrm.y / len) > 0.75) { // flat hard face: fill its footprint at its height
           const h = (a.y + b.y + d.y) / 3;
           const bx0 = Math.max(x0, Math.min(a.x, b.x, d.x)), bx1 = Math.min(x1, Math.max(a.x, b.x, d.x)), bz0 = Math.max(z0, Math.min(a.z, b.z, d.z)), bz1 = Math.min(z1, Math.max(a.z, b.z, d.z));
           for (let x = Math.floor(bx0 / C) * C + C / 2; x <= bx1; x += C) for (let z = Math.floor(bz0 / C) * C + C / 2; z <= bz1; z += C)
@@ -190,14 +191,14 @@ export function createMassGrid({ floorAt, surfacesIn }) {
   }
 
   // Push a body circle (feet at p.y, radius rad) out of the mass. Returns true on contact.
-  function resolve(p, rad, { stealth = false } = {}) {
+  function resolve(p, rad, _opts = {}) {
     let hit = false;
     for (let it = 0; it < 2; it++) {
       let moved = false;
       const ix0 = Math.floor((p.x - rad) / C), ix1 = Math.floor((p.x + rad) / C), iz0 = Math.floor((p.z - rad) / C), iz1 = Math.floor((p.z + rad) / C);
       for (let iz = iz0; iz <= iz1; iz++) for (let ix = ix0; ix <= ix1; ix++) {
         const cx0 = ix * C, cz0 = iz * C, c = cellAt(cx0 + C / 2, cz0 + C / 2);
-        if (!c || (stealth && c.f === 2) || p.y >= c.top - 0.05 || (Number.isFinite(c.walkTop) && p.y >= c.walkTop - 0.32)) continue;
+        if (!c || !(c.f & 1) || p.y >= c.top - 0.05 || (Number.isFinite(c.walkTop) && p.y >= c.walkTop - 0.32)) continue;
         const qx = Math.min(Math.max(p.x, cx0), cx0 + C), qz = Math.min(Math.max(p.z, cz0), cz0 + C);
         let dx = p.x - qx, dz = p.z - qz, d = Math.hypot(dx, dz);
         if (d >= rad) continue;
@@ -214,7 +215,7 @@ export function createMassGrid({ floorAt, surfacesIn }) {
   // Is anything solid under this circle? (placement checks)
   function blocked(x, z, rad, y = -Infinity) {
     for (let iz = Math.floor((z - rad) / C); iz <= Math.floor((z + rad) / C); iz++) for (let ix = Math.floor((x - rad) / C); ix <= Math.floor((x + rad) / C); ix++) {
-      const c = cellAt(ix * C + C / 2, iz * C + C / 2); if (c && y < c.top) return true;
+      const c = cellAt(ix * C + C / 2, iz * C + C / 2); if (c && (c.f & 1) && y < c.top) return true;
     }
     return false;
   }

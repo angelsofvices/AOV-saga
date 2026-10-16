@@ -229,17 +229,28 @@ export const RECIPES = {
   barn(p) {
     const w = 13, d = 9, wh = 5.4, red = M('#983a2f'), white = M('#ede4d2');
     box(p, w + 0.6, 1, d + 0.6, M('#7e776a'), 0, 0, 0);
-    box(p, w, wh, d, red, 0, 0.5 + wh / 2, 0);
+    // Keep the barn's footprint and silhouette, with the existing front doorway
+    // open so its stable interior and resident Zyrex are visible from the farmyard.
+    const wallY = 0.5 + wh / 2, sideW = 0.2, frontGap = 4;
+    box(p, sideW, wh, d, red, -w / 2 + sideW / 2, wallY, 0);
+    box(p, sideW, wh, d, red, w / 2 - sideW / 2, wallY, 0);
+    box(p, w, wh, sideW, red, 0, wallY, -d / 2 + sideW / 2);
+    for (const x of [-(w + frontGap) / 4, (w + frontGap) / 4]) box(p, (w - frontGap) / 2, wh, sideW, red, x, wallY, d / 2 - sideW / 2);
+    box(p, frontGap, wh - 4, sideW, red, 0, 0.5 + 4 + (wh - 4) / 2, d / 2 - sideW / 2);
+    for (const x of [-frontGap / 2 - 0.12, frontGap / 2 + 0.12]) box(p, 0.24, 4.1, 0.28, white, x, 2.55, d / 2 + 0.03);
+    box(p, frontGap + 0.48, 0.24, 0.28, white, 0, 4.62, d / 2 + 0.03);
     gable(p, w, d, 3.8, M('#4a4642'), 0.5 + wh);
-    box(p, 4, 4, 0.12, M('#6e2a22'), 0, 2.5, d / 2 + 0.05);
-    for (const r of [0.78, -0.78]) { const b = box(p, 5.4, 0.28, 0.14, white, 0, 2.5, d / 2 + 0.12); b.rotation.z = r; }
-    box(p, 4.4, 0.3, 0.16, white, 0, 4.6, d / 2 + 0.1);
     const sx = -w / 2 - 2.6;
     cyl(p, 2.3, 2.3, 10, M('#b9b3a6', 0.5, { metalness: 0.3 }), sx, 5, -1, 16);
     mesh(p, new THREE.SphereGeometry(2.35, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), M('#7f8a8c', 0.4, { metalness: 0.4 }), sx, 10, -1);
     const eaves = 0.5 + wh;
     return { colliderTop: eaves, colliders: [
-      { type: 'box', x: 0, z: 0, hw: w / 2 + 0.4, hd: d / 2 + 0.4, top: eaves },
+      // Match the actual stable walls so the open 4 m doorway stays traversable.
+      { type: 'box', x: -w / 2 + sideW / 2, z: 0, hw: sideW / 2, hd: d / 2, top: eaves },
+      { type: 'box', x: w / 2 - sideW / 2, z: 0, hw: sideW / 2, hd: d / 2, top: eaves },
+      { type: 'box', x: 0, z: -d / 2 + sideW / 2, hw: w / 2, hd: sideW / 2, top: eaves },
+      { type: 'box', x: -(w + frontGap) / 4, z: d / 2 - sideW / 2, hw: (w - frontGap) / 4, hd: sideW / 2, top: eaves },
+      { type: 'box', x: (w + frontGap) / 4, z: d / 2 - sideW / 2, hw: (w - frontGap) / 4, hd: sideW / 2, top: eaves },
       { type: 'circle', x: sx, z: -1, r: 2.6, top: 12.35 }
     ], surfaces: [gableSurface(w, d, 3.8, eaves), { shape: 'sphereCap', x: sx, z: -1, radius: 2.35, y: 10, localY: true }], door: V(0, 0, d / 2 + 2.2) };
   },

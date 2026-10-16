@@ -68,7 +68,8 @@ ico(Hc + Vector((0, -0.04, -0.075)), (0.075, 0.07, 0.05), 'skin', B('Head'))    
 for sx in (-1, 1):
     box(Hc + Vector((sx * 0.041, -0.112, 0.004)), (0.03, 0.01, 0.013), 'eye', B('Head'))       # eyes
     box(Hc + Vector((sx * 0.043, -0.113, 0.027)), (0.042, 0.012, 0.009), 'hair', B('Head'), ry=sx * -0.18)  # brows
-    box(Hc + Vector((sx * 0.1, 0.0, 0.0)), (0.018, 0.04, 0.05), 'skin', B('Head'))            # ears
+    # Embed the inner edge into the skull so the ears stay visibly attached in every head pose.
+    box(Hc + Vector((sx * 0.095, 0.0, 0.0)), (0.034, 0.04, 0.05), 'skin', B('Head'))          # ears
 box(Hc + Vector((0, -0.125, -0.018)), (0.018, 0.02, 0.035), 'skin', B('Head'), rx=0.3)        # nose
 box(Hc + Vector((0, -0.112, -0.058)), (0.036, 0.008, 0.007), 'lip', B('Head'))               # mouth
 # hair: a cap plus spikes swept up/back, bangs forward over the brow
@@ -154,10 +155,10 @@ for side, sx in (('Left', 1), ('Right', -1)):
     octa(kg, (0.045, 0.02, 0.07), 'gold', B(S('Leg'))); octa(kg + Vector((0, -0.016, 0)), (0.016, 0.01, 0.026), 'gem', B(S('Leg')))
     # boot foot: heel block on Foot, toe block on ToeBase, gold sole
     fx = an.x + sx * 0.01
-    box((fx, an.y - 0.06, 0.065), (0.12, 0.2, 0.13), 'boot', B(S('Foot')))
-    box((fx + sx * 0.01, toe.y + 0.03, 0.045), (0.115, 0.12, 0.09), 'boot', B(S('ToeBase')))
-    box((fx, an.y - 0.05, 0.012), (0.13, 0.23, 0.024), 'gold', B(S('Foot')))
-    box((fx + sx * 0.01, toe.y + 0.03, 0.012), (0.125, 0.13, 0.024), 'gold', B(S('ToeBase')))
+    box((fx, an.y - 0.06, 0.065), (0.12, 0.24, 0.13), 'boot', B(S('Foot')))
+    box((fx + sx * 0.01, toe.y + 0.045, 0.045), (0.115, 0.15, 0.09), 'boot', B(S('ToeBase')))
+    box((fx, an.y - 0.05, 0.012), (0.13, 0.26, 0.024), 'gold', B(S('Foot')))
+    box((fx + sx * 0.01, toe.y + 0.045, 0.012), (0.125, 0.16, 0.024), 'gold', B(S('ToeBase')))
 
 # ── assemble ── (head reads better a touch oversized at game distance)
 P = Vector((0, -0.34, 1.585))

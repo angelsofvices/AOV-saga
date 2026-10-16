@@ -430,7 +430,8 @@ export function createHUD(W, world) {
   }
 
   const KIND = { civic: 'MALEZOR', shop: 'SHOP', home: 'HOME', farm: 'FARM', landmark: 'DISTRICT LANDMARK', gemlord: 'GEMLORD SANCTUM · RAKORON', stadium: 'GEMLORD CHAMPION STADIUM · RAKORON', seer: 'SEER TERRITORY', crossing: 'CROSSING', npc: 'MALEZOR · CHARACTER' };
-  function update(dt, { rizer, cam, hour, zyrex, seers, mapOpen, busy, journal, devMap }) {
+  function update(dt, { rizer, cam, hour, zyrex, seers, mapOpen, busy, journal, devMap, resourceCounts }) {
+    setResources(resourceCounts);
     tutorialState = journal || tutorialState;
     const p = rizer.position; lastMapPlayer = { x: p.x, z: p.z };
     // location
@@ -452,7 +453,8 @@ export function createHUD(W, world) {
     let best = null, bd = Infinity;
     for (const it of world.interactables) {
       if (it.active && !it.active()) continue;
-      if (busy && it.id !== 'auraxion-ufo' && it.id !== 'west-lake-bus' && it.kind !== 'enemyLoot' && it.kind !== 'astraliteGem') continue; // world pickups stay usable mid-fight
+      const pickupContext = it.kind === 'enemyLoot' || it.kind === 'astraliteGem' || it.kind === 'journal' || it.kind === 'chest' || it.kind === 'goldchest';
+      if (busy && it.id !== 'auraxion-ufo' && it.id !== 'west-lake-bus' && !pickupContext) continue; // contextual pickups and chest rewards remain usable mid-fight
       if (it.kind === 'enemyLoot' && !it.enemy?.lootBag.visible) continue;
       const d = Math.hypot(p.x - it.x, p.z - it.z) - (it.kind === 'chest' ? 1.5 : 0); // loot right in front wins over the house behind it, but only by a step
       if (d + (it.kind === 'chest' ? 1.5 : 0) > it.reach || d >= bd) continue;
@@ -504,7 +506,14 @@ export function createHUD(W, world) {
     if (mapPingPoi) {
       const it = world.interactables.find(q => q.id === mapPingPoi);
       if (!it) { mapPingPoi = mapPingChest = null; }
-      else { const d = Math.round(Math.hypot(it.cx - p.x, it.cz - p.z)); pingHud.hidden = false; pingHud.innerHTML = `<small>MAP PING · ${it.tutorialCategory === 'focusMove' ? 'FOCUS MOVE · SILVER' : it.tutorialCategory === 'gemlordWeapon' ? 'GEMLORD WEAPON · MYTHIC' : KIND[it.kind] || 'POINT OF INTEREST'}</small><b>${d} m</b><span>${it.name}</span>`; }
+      else {
+        const dx = it.cx - p.x, dz = it.cz - p.z, d = Math.round(Math.hypot(dx, dz));
+        const bearing = Math.atan2(dx, dz), sectors = ['N','NE','E','SE','S','SW','W','NW'];
+        const cardinal = sectors[(Math.round((((bearing * 180 / Math.PI) + 360) % 360) / 45)) % 8];
+        const relative = (bearing - (cam?.yaw || 0)) * 180 / Math.PI;
+        pingHud.hidden = false;
+        pingHud.innerHTML = `<small>MAP PING · ${it.tutorialCategory === 'focusMove' ? 'FOCUS MOVE · SILVER' : it.tutorialCategory === 'gemlordWeapon' ? 'GEMLORD WEAPON · MYTHIC' : KIND[it.kind] || 'POINT OF INTEREST'}</small><div class="ping-nav"><span class="ping-compass" aria-hidden="true"><i style="transform:rotate(${relative.toFixed(1)}deg)">▲</i><em>N</em></span><b>${cardinal} · ${d} m</b></div><span>${it.name}</span>`;
+      }
     }
     if (!mapPingPoi) pingHud.hidden = true;
   }
@@ -537,6 +546,10 @@ export function createHUD(W, world) {
     if (gained > 0 && gain) { gain.textContent = `+${countFormat.format(gained)} RXP`; again(gain, 'show'); }
   }
   function setWallet(inv) { text('coins-num', countFormat.format(inv.coins || 0)); text('gems-num', countFormat.format(inv.gems || 0)); }
+  function setResources(items = {}) {
+    for (const [key, id] of [['fresh_wood', 'res-wood'], ['everstone', 'res-stone'], ['scrap_metal', 'res-scrap'], ['portalchip', 'res-chip']])
+      text(id, countFormat.format(items[key] || 0));
+  }
   const api = { onEvent: null, mapToWorld, selectChestAt, chooseMapPoint, toggleMapPing, get mapFocusMode() { return mapFocusMode; }, setMapFocus, moveMapFocus, zoomMapFocus, get mapSelectedChest() { return mapSelectedChest; }, get mapPingChest() { return mapPingChest; }, get mapSelectedPoi() { return mapSelectedPoi; }, get mapPingPoi() { return mapPingPoi; }, get viewedDistrict() { return viewedDistrict; }, get mapView() { return mapView; }, selectDistrict: setViewedDistrict, districtAt: districtFor, selectPoi(id) { const it=mapPois().find(q=>q.id===id); if(!it) return false; const d=districtFor(it.cx,it.cz); if(mapView==='world'&&d) setViewedDistrict(d.id); mapSelectedPoi=id; mapSelectedChest=mapChestCandidates().some(q=>q.id===id)?id:null; return true; }, setMapCategory(v) { mapCategory=v; }, get mapCategory() { return mapCategory; }, mapPois, districts: DISTRICTS, get mapCursor() { return mapCursor; }, set mapCursor(v) { mapCursor = v; }, extent: E, isLand, setMapView, toggleMapView: () => setMapView(mapView === 'world' ? 'district' : 'world'), mapBounds: () => mapView === 'world' ? ZB : (() => { const d=DISTRICTS.find(q=>q.id===viewedDistrict)||DISTRICTS[0], e=d.extent||E; return {x0:d.x-e,x1:d.x+e,z0:d.z-e,z1:d.z+e}; })(), setScanSource: f => { getScan = f; }, setLootHint: n => { lootHint = n || null; }, setMissionNote(note) { missionNote = note ? { ...note } : null; refreshNote(); }, setPartner, setWallet, setProgress, update, interact, say, resize, banner, places, found, regionOf: regionName, kindLabel: k => KIND[k] || 'MALEZOR', get hasPrompt() { return !!promptTarget; }, get doorPrompt() { return !!promptTarget?.door; }, get promptTarget() { return promptTarget; } };
   return api;
 }

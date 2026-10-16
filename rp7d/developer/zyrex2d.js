@@ -148,7 +148,7 @@ export class WildZyrex2D {
 // RP7B's populations, sampled into Malezor: every species with art, a few individuals each, their temperaments taken
 // in order from the species' RP7B placements. Low tiers live nearer home; the higher the tier, the further out.
 export function populate(scene, world, W, { skip = new Set(), pinned = [], make = null } = {}) {
-  const born = d => make ? make(d) : new WildZyrex2D(scene, d, world, W.wildPatchHalf); // make: build each individual some other way (the dev 3D-mesh view)
+  const born = d => make?.(d) || new WildZyrex2D(scene, d, world, W.wildPatchHalf); // custom asset-backed residents and optional dev meshes share the population roster
   const out = [], taken = [], r = rng((W.seed || 7) + 20260), B = (world.bound || 300) - 14, home = W.playerStart;
   const free = (x, z, pad) => {
     if ((W.containsLand && !W.containsLand(x, z)) || world.waterAt(x, z) > world.heightAt(x, z) - 0.15 || quarterAt(x, z, W) === 'core') return false;

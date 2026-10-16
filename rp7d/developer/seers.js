@@ -511,12 +511,14 @@ export async function createSeers(scene, world, W) {
     if (feedScan <= 0) { feedScan = 0.4; seekBodies(rizer, battleActive); }
     if (rizer.actor && (!rizerRig || rizerRig.actor !== rizer.actor)) rizerRig = new HitRig(rizer.actor);
     for (const g of grunts) {
+      if (g.frost?.frozen && alive(g)) { g.knock.set(0, 0, 0); continue; }
+      const statusDt = dt * (g.frost?.slow ?? 1);
       const p = g.pos, dx = rp.x - p.x, dz = rp.z - p.z, dist = Math.hypot(dx, dz), toP = Math.atan2(dx, dz);
-      if (dist > WILD.active && (calm(g) || g.state === 'down' || g.state === 'sinking')) { farStep(g, dt, t, dist); continue; }
+      if (dist > WILD.active && (calm(g) || g.state === 'down' || g.state === 'sinking')) { farStep(g, statusDt, t, dist); continue; }
       if (g.state !== 'down' && g.state !== 'sinking') g.root.visible = dist < 12 || !inView || inView(p);
       castShadows(g, dist < WILD.shadows);
       let want = 0, face = null;
-      g.cool = Math.max(0, g.cool - dt); g.evadeCool = Math.max(0, (g.evadeCool || 0) - dt); g.feedRetry = Math.max(0, (g.feedRetry || 0) - dt); g.barT = Math.max(0, g.barT - dt); g.sinceHit = (g.sinceHit ?? 9) + dt;
+      g.cool = Math.max(0, g.cool - statusDt); g.evadeCool = Math.max(0, (g.evadeCool || 0) - statusDt); g.feedRetry = Math.max(0, (g.feedRetry || 0) - statusDt); g.barT = Math.max(0, g.barT - statusDt); g.sinceHit = (g.sinceHit ?? 9) + statusDt;
       if (g.feedTarget && !bodyAvailable(g.feedTarget, rizer)) {
         releaseFeed(g); g.state = 'return'; g.wp = nearestWp(g);
       }
@@ -559,24 +561,24 @@ export async function createSeers(scene, world, W) {
           face = Math.atan2(tx, tz); want = g.state === 'return' ? g.walk * 1.2 : g.walk; break;
         }
         case 'wait':
-          g.timer -= dt; face = g.heading + Math.sin(t * 0.9 + p.x) * dt * 0.8; // scanning
+          g.timer -= statusDt; face = g.heading + Math.sin(t * 0.9 + p.x) * statusDt * 0.8; // scanning
           if (g.T.key === 'seer' && seen && dist < 12) { g.state = 'observe'; g.observeLost = 0; }
           else if (seen && g.T.key !== 'seer' && !g.leader) spot(g); else if (g.timer <= 0) g.state = 'patrol';
           break;
         case 'observe':
           // Neutral PvP read: stop, face Rizer and wait for his decision.
-          face = toP; want = 0; g.observeLost = seen && dist < 15 ? 0 : g.observeLost + dt;
+          face = toP; want = 0; g.observeLost = seen && dist < 15 ? 0 : g.observeLost + statusDt;
           if (g.observeLost > 1.5 || dist > 18) { g.state = 'return'; g.wp = nearestWp(g); g.observeLost = 0; }
           break;
         case 'alert':
-          face = toP; g.timer -= dt;
+          face = toP; g.timer -= statusDt;
           if (g.timer <= 0) {
             g.state = 'chase'; g.bang.visible = false;
             for (const o of grunts) if (o !== g && allied(o, g) && Math.hypot(o.pos.x - p.x, o.pos.z - p.z) < (o.squad && o.squad === g.squad ? 30 : g.T.callRadius)) spot(o, 0.35 + Math.random() * 0.3);
           }
           break;
         case 'chase': {
-          g.lost = seen ? 0 : g.lost + dt; face = toP;
+          g.lost = seen ? 0 : g.lost + statusDt; face = toP;
           if (!hunted(g)) { g.state = 'return'; g.wp = nearestWp(g); break; }
           const canAttack = g.cool <= 0 && attackers < g.T.maxAttackers;
           const bite = canFeed(g) && g.actor.has('bite') && Math.random() < 0.14;
@@ -590,7 +592,7 @@ export async function createSeers(scene, world, W) {
           break;
         }
         case 'windup': // square up, then go
-          face = toP; g.timer -= dt;
+          face = toP; g.timer -= statusDt;
           if (rizer.hp <= 0) { g.state = 'chase'; break; }
           if (dist > g.T[g.next || 'punch'].range + 0.9) { g.state = 'chase'; break; } // you backed off: follow
           if (g.timer <= 0) { const kind = g.next || 'punch'; g.next = null; startStage(g, kind, 1, kind === 'bite' ? 1 : pickCombo(g.T)); if (g.T.key === 'daemon-red') hooks.onDaemonAttack?.(g); }
@@ -611,20 +613,20 @@ export async function createSeers(scene, world, W) {
         case 'feeding':
           want = 0; g.speed = 0; g.actor.crawling = false;
           if (g.feedTarget) { const target = g.feedTarget === rizer ? rizer.position : g.feedTarget.pos; face = Math.atan2(target.x - p.x, target.z - p.z); }
-          g.timer -= dt;
+          g.timer -= statusDt;
           if (g.timer <= 0) {
             if (g.feedTarget && g.feedTarget !== rizer) fedBodies.add(g.feedTarget);
             releaseFeed(g); g.state = 'return'; g.wp = nearestWp(g); g.feedRetry = 3;
           }
           break;
         case 'evade':
-          face = toP; want = 0; g.timer -= dt;
+          face = toP; want = 0; g.timer -= statusDt;
           if (g.timer <= 0) { g.state = 'chase'; g.cool = Math.max(g.cool, 0.2); }
           break;
         case 'attack': {
-          const a = g.atk; a.t += dt;
+          const a = g.atk; a.t += statusDt;
           // slow to re-aim mid-swing; a little forward drive in the first part of each blow
-          g.heading = dampAngle(g.heading, toP, 1, dt * g.T.turnRate);
+          g.heading = dampAngle(g.heading, toP, 1, statusDt * g.T.turnRate);
           if (a.t < a.drive && dist > g.T[a.kind].range * 0.7) want = 1.6;
           const last = a.hits[a.hits.length - 1] / g.T.clipSpeed;
           if (a.stage < a.plan && a.t >= last + COMBAT.comboCancel + 0.04) {
@@ -636,7 +638,7 @@ export async function createSeers(scene, world, W) {
           break;
         }
         case 'stagger':
-          g.stag -= dt;
+          g.stag -= statusDt;
           if (g.stag <= 0) {
             // shaken off a long string of hits with you right there: swing back straight away
             if (g.flurry >= 5 && dist < g.T.punch.range + 0.3 && rizer.hp > 0 && attackers < g.T.maxAttackers && Math.random() < 0.6) { g.next = 'punch'; g.state = 'windup'; g.timer = 0.1; g.flurry = 0; }
@@ -645,11 +647,11 @@ export async function createSeers(scene, world, W) {
           break;
         case 'surprised':
           // Full-body surprise reaction: stationary, unable to wind up or attack.
-          g.timer -= dt; want = 0;
+          g.timer -= statusDt; want = 0;
           if (g.timer <= 0) { g.state = 'chase'; g.lost = 0; g.cool = Math.max(g.cool, 0.45); }
           break;
         case 'dazed': {
-          g.dazed -= dt;
+          g.dazed -= statusDt;
           if (g.dazed <= 0) {
             g.actor.dazed = false;
             g.state = g.dazedMode === 'return' ? 'return' : g.dazedMode === 'patrol' || g.dazedMode === 'wait' ? g.dazedMode : 'chase';
@@ -657,7 +659,7 @@ export async function createSeers(scene, world, W) {
             break;
           }
           if (g.dazedMode === 'chase') {
-            g.lost = seen ? 0 : g.lost + dt; face = toP;
+            g.lost = seen ? 0 : g.lost + statusDt; face = toP;
             if (!hunted(g)) g.dazedMode = 'return';
             else {
               const close = g.T[g.next || 'punch'].range + 0.15;
@@ -668,7 +670,7 @@ export async function createSeers(scene, world, W) {
             formation(g, _f); const tx = _f.x - p.x, tz = _f.z - p.z, d = Math.hypot(tx, tz);
             if (d > 0.7) { face = Math.atan2(tx, tz); want = Math.min(g.T.run * 0.6, g.walk * (d > 3 ? 1.6 : 1.05)); } else face = g.leader.heading;
           } else if (g.dazedMode === 'wait') {
-            face = g.heading + Math.sin(t * 0.9 + p.x) * dt * 0.8;
+            face = g.heading + Math.sin(t * 0.9 + p.x) * statusDt * 0.8;
           } else {
             const tgt = g.pts[g.wp], tx = tgt.x - p.x, tz = tgt.y - p.z;
             if (Math.hypot(tx, tz) < 0.9) { g.wp = (g.wp + 1) % g.pts.length; }
@@ -681,8 +683,8 @@ export async function createSeers(scene, world, W) {
           if (!/^(dance|emote)$/.test(g.actor.shot?.kind || '')) g.actor.play(g.actor.has('dance') ? 'dance' : 'emote', 1, { loop: true });
           break;
         case 'astraliftDown':
-          if (g.launch) flyLaunch(g, dt);
-          g.timer -= dt;
+          if (g.launch) flyLaunch(g, statusDt);
+          g.timer -= statusDt;
           if (g.timer <= 0) {
             // Keep Blastback's fallen pose until the real Standing Up clip is
             // ready; never let locomotion supply a generic recovery pose.
@@ -694,16 +696,16 @@ export async function createSeers(scene, world, W) {
           }
           break;
         case 'gettingUp':
-          g.timer -= dt;
+          g.timer -= statusDt;
           if (g.timer <= 0) { g.state = 'chase'; g.cool = Math.max(g.cool, 0.45); }
           break;
         case 'down':
-          if (g.launch) { flyLaunch(g, dt); world.resolve(p, g.T.radius); p.y = world.groundAt(p.x, p.z, p.y + 0.5) + (g.launch?.y || 0); } // thrown by the blast that finished them
+          if (g.launch) { flyLaunch(g, statusDt); world.resolve(p, g.T.radius); p.y = world.groundAt(p.x, p.z, p.y + 0.5) + (g.launch?.y || 0); } // thrown by the blast that finished them
           // Hold the final death pose indefinitely until the player takes the bag.
-          g.fall += dt;
+          g.fall += statusDt;
           break;
         case 'sinking':
-          g.sink += dt; g.timer -= dt;
+          g.sink += statusDt; g.timer -= statusDt;
           if (g.sink >= 1.5 && g.timer <= 0 && dist > 25) reset(g);
           break;
       }
@@ -714,7 +716,7 @@ export async function createSeers(scene, world, W) {
         const dx=baseGoal.pos.x-p.x,dz=baseGoal.pos.z-p.z,d=Math.hypot(dx,dz);
         face=Math.atan2(dx,dz);want=d>baseGoal.reach?g.T.run:0;
         if (g.baseStrike) {
-          g.baseStrike.t += dt;
+          g.baseStrike.t += statusDt;
           if(!g.baseStrike.hit && g.baseStrike.t>=g.baseStrike.contact) {
             g.baseStrike.hit=true;
             if(d<baseGoal.reach+.15 && Math.abs(p.y-baseGoal.pos.y)<1.5) baseGoal.hit();
@@ -728,24 +730,24 @@ export async function createSeers(scene, world, W) {
       } else if (g.baseStrike) { g.baseStrike=null; }
       // movement
       g.actor.fighting = (g.T.key === 'seer' || g.T.family === 'daemon') && (g.state === 'observe' || g.state === 'alert' || g.state === 'chase' || g.state === 'windup');
-      if (g.avoidT > 0 && face !== null) { face += g.avoidTurn || g.side * 0.9; g.avoidT = Math.max(0, g.avoidT - dt); }
-      if (face !== null && g.state !== 'down' && g.state !== 'sinking') g.heading = dampAngle(g.heading, face, g.state === 'chase' ? 7 : 3.5, dt);
+      if (g.avoidT > 0 && face !== null) { face += g.avoidTurn || g.side * 0.9; g.avoidT = Math.max(0, g.avoidT - statusDt); }
+      if (face !== null && g.state !== 'down' && g.state !== 'sinking') g.heading = dampAngle(g.heading, face, g.state === 'chase' ? 7 : 3.5, statusDt);
       const recovering = g.state === 'astraliftDown' || g.state === 'gettingUp';
       if (recovering) { g.speed = 0; g.knock.set(0, 0, 0); }
-      else g.speed = damp(g.speed, want, want > g.speed ? 6 : 9, dt);
+      else g.speed = damp(g.speed, want, want > g.speed ? 6 : 9, statusDt);
       if (g.state !== 'down' && g.state !== 'sinking') {
         const oldX = p.x, oldZ = p.z;
         const evadeV = g.state === 'evade' ? g.T.dodge.distance / g.T.dodge.duration * g.evadeSide : 0;
-        const nx = p.x + Math.sin(g.heading) * g.speed * dt + Math.cos(g.heading) * evadeV * dt + g.knock.x * dt,
-          nz = p.z + Math.cos(g.heading) * g.speed * dt - Math.sin(g.heading) * evadeV * dt + g.knock.z * dt;
-        g.knock.multiplyScalar(Math.exp(-7 * dt));
+        const nx = p.x + Math.sin(g.heading) * g.speed * statusDt + Math.cos(g.heading) * evadeV * statusDt + g.knock.x * statusDt,
+          nz = p.z + Math.cos(g.heading) * g.speed * statusDt - Math.sin(g.heading) * evadeV * statusDt + g.knock.z * statusDt;
+        g.knock.multiplyScalar(Math.exp(-7 * statusDt));
         if (world.waterAt(nx, nz) < world.heightAt(nx, nz) - 0.1) { p.x = nx; p.z = nz; } else if (g.state === 'patrol') g.wp = nearestWp(g);
         world.resolve(p, g.T.radius);
         world.keepOnLand?.(p, oldX, oldZ);
         if (!world.interiorOwns?.(p.x, p.z)) { const B = world.bound; p.x = clamp(p.x, -B, B); p.z = clamp(p.z, -B, B); } // (a cave's own region is not Malezor's)
         p.y = world.groundAt(p.x, p.z, p.y + 0.5) + (g.launch?.y || 0);
         const moved = Math.hypot(p.x - oldX, p.z - oldZ), trying = Math.abs(want) > 0.35 && !recovering;
-        g.stuck = trying && moved < Math.abs(want) * dt * 0.14 ? g.stuck + dt : Math.max(0, g.stuck - dt * 3);
+        g.stuck = trying && moved < Math.abs(want) * statusDt * 0.14 ? g.stuck + statusDt : Math.max(0, g.stuck - statusDt * 3);
         if (g.stuck > 0.55) {
           // Do not animate forever into a tree/building. Turn around the solid
           // surface; pack Mori also rotate their formation slot to an open side.
@@ -758,7 +760,7 @@ export async function createSeers(scene, world, W) {
       // body
       g.root.position.copy(p); g.root.rotation.y = g.heading;
       g.actor.undeadHostile = (g.T.family === 'daemon' || ['mori', 'crept', 'skellor'].includes(g.T.key)) && !!g.hitByRizer && g.state === 'chase';
-      g.actor.update(dt, g.state === 'down' || g.state === 'sinking' ? 0 : Math.abs(g.speed) + Math.hypot(g.knock.x, g.knock.z) * 0.2, true);
+      g.actor.update(statusDt, g.state === 'down' || g.state === 'sinking' ? 0 : Math.abs(g.speed) + Math.hypot(g.knock.x, g.knock.z) * 0.2, true);
       const pv = g.actor.pivot;
       g.lootBag.position.set(g.pos.x, g.pos.y + 0.18 + Math.sin(t * 2.2 + g.pos.x) * 0.04, g.pos.z);
       g.lootBag.rotation.y = t * 0.35;
@@ -770,15 +772,15 @@ export async function createSeers(scene, world, W) {
         const tx = Math.atan2(h(p.x + fx * 0.9, p.z + fz * 0.9) - h(p.x - fx * 0.9, p.z - fz * 0.9), 1.8);
         const tz = Math.atan2(h(p.x + lx * 0.42, p.z + lz * 0.42) - h(p.x - lx * 0.42, p.z - lz * 0.42), 0.84);
         g.lieTilt ||= { x: 0, z: 0 };
-        g.lieTilt.x = damp(g.lieTilt.x, clamp(tx, -0.62, 0.62), 9, dt);
-        g.lieTilt.z = damp(g.lieTilt.z, clamp(tz, -0.52, 0.52), 9, dt);
+        g.lieTilt.x = damp(g.lieTilt.x, clamp(tx, -0.62, 0.62), 9, statusDt);
+        g.lieTilt.z = damp(g.lieTilt.z, clamp(tz, -0.52, 0.52), 9, statusDt);
         pv.rotation.x = (g.actor.has('knockdown') ? 0 : -Math.min(1, g.fall / 0.45) * 1.45) - g.lieTilt.x;
         pv.rotation.z = g.lieTilt.z;
         pv.position.y = g.state === 'sinking' ? 0.08 - Math.min(1.5, g.sink) : 0.08;
         g.root.visible = g.state !== 'sinking' || g.sink < 1.5; g.bar.visible = false; g.bang.visible = false;
       } else {
-        pv.rotation.x = damp(pv.rotation.x, g.state === 'stagger' && !g.actor.has('hurt') ? -0.35 : 0, 12, dt);
-        pv.rotation.z = damp(pv.rotation.z, 0, 12, dt);
+        pv.rotation.x = damp(pv.rotation.x, g.state === 'stagger' && !g.actor.has('hurt') ? -0.35 : 0, 12, statusDt);
+        pv.rotation.z = damp(pv.rotation.z, 0, 12, statusDt);
         g.bar.visible = g.barT > 0 || g.state === 'chase' || g.state === 'attack' || g.state === 'windup' || g.state === 'dazed' || g.state === 'surprised';
         if (g.bar.visible && !g.bar.drawn) { g.bar.redraw(g.hp / g.T.hp); g.bar.drawn = true; }
         g.bang.position.y = 3.25 + Math.sin(t * 8) * 0.05;

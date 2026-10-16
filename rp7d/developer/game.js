@@ -2889,16 +2889,9 @@ function update(dt, t, realDt = dt) {
     A.strafe = (A.rifle || A.pistol ? A.aiming || A.pistol : true) && sp > 0.6 ? Math.sin(rel) * Math.min(1, Math.abs(Math.sin(rel)) * 1.6) : 0; A.backing = A.rifle && A.aiming && sp > 0.6 ? Math.max(0, -Math.cos(rel) * 1.6 - 0.6) : 0;
   }
   held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, !inventory.owned.includes(k) || !inventory.wheel?.includes(k) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null])));
-  if(drawn==='plasmabeam'&&!swim&&!rizer.flying&&held.meshes.plasmabeam.parent){
-    const pistol=held.meshes.plasmabeam,forward=new THREE.Vector3(Math.sin(rizer.facing),0,Math.cos(rizer.facing));
-    const moving=Math.hypot(rizer.vel?.x||0,rizer.vel?.z||0)>.25,shooting=!!plasmaPending||rizer.actor?.shot?.kind==='pistolFire';
-    let aim=forward;
-    if(shooting&&['enemy','scanobot'].includes(astral.lock?.kind)&&foes.alive(astral.lock.ref)){
-      pistol.updateMatrixWorld(true);const muzzle=pistol.userData.muzzle.clone().applyMatrix4(pistol.matrixWorld),target=astral.lock.ref.center||astral.lock.ref.pos;
-      if(target){const point=target.clone();if(!astral.lock.ref.center)point.y+=1.2;aim=point.sub(muzzle).normalize();}
-    }else if(!moving&&!shooting)aim=forward.clone().multiplyScalar(.42).add(new THREE.Vector3(0,-.907,0)).normalize();
-    held.posePlasmabeam(aim,dt);
-  }
+  // The pistol stays rigidly attached to the animated right hand. The authored
+  // idle/fire clips aim it; independently steering the mesh each frame twists
+  // it around the grip and makes the gun visibly spin in the palm.
   if (rifleClips && rifleOut && held.meshes.blaster.parent) gripRifle(rizer.actor, held.meshes.blaster, rifleKick * 0.4); // both hands on it, wherever the clip carries it
   else if (rifleK > 0.02 && rizer.weapon === 'blaster' && rizer.actor && held.meshes.blaster.parent) { held.meshes.blaster.position.z -= rifleKick * 0.4; holdRifle(rizer.actor, held.meshes.blaster, rifleK); }
   held.update(dt, !lab.previewing, !!BLADES[rizer.attack?.kind]);

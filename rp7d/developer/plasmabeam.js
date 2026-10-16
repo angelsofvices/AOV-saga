@@ -51,8 +51,10 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
     cooldown = PLASMABEAM.cooldown; round++;
     const material = new THREE.MeshBasicMaterial({ color:mode==='frost'?'#76d8ff':'#55ff72' });
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(.018,.034,.55,6),material); scene.add(mesh);
-    const dir = primary ? aim(primary).sub(from).normalize() : forward.clone().normalize();
-    const shot={mesh,dir,pos:from.clone(),target:null,mode,round,age:0}; shots.push(shot); mesh.position.copy(from);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    // Lock-on selects one point at trigger time. The projectile keeps this
+    // normalized direction for its whole flight: no homing or in-flight curve.
+    const dir = (primary ? aim(primary).sub(from) : forward.clone()).normalize();
+    const shot={mesh,dir,pos:from.clone(),mode,round,age:0}; shots.push(shot); mesh.position.copy(from);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
     return true;
   }
   function disposeShot(s) { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); }

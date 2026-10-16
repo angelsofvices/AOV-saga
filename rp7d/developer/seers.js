@@ -294,7 +294,7 @@ export async function createSeers(scene, world, W) {
     g.pos.set(s.x, world.groundAt(s.x, s.y, g.spawnY), s.y); g.wp = Math.min(1, g.pts.length - 1); g.dir = 1;
     g.heading = g.pts.length > 1 ? Math.atan2(g.pts[1].x - s.x, g.pts[1].y - s.y) : 0;
     g.rxpPaid = false; g.tech = null; g.hitByRizer = false; g.actor.undeadHostile = false; g.state = 'patrol'; g.timer = 0; g.hp = g.T.hp; g.lost = 0; g.cool = 0; g.evadeCool = 0; g.evadeThreat = null; g.atk = null; g.next = null; g.feedRetry = 0; g.barT = 0; g.fall = 0; g.sink = 0; g.looted = false; g.stag = 0; g.dazed = 0; g.dazedMode = null; g.observeLost = 0; g.stuck = 0; g.avoidT = 0; g.actor.dazed = false; g.actor.fighting = false; g.actor.crawling = false;
-    g.root.visible = true; g.root.position.copy(g.pos); g.actor.release(); g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.bang.visible = false;
+    g.root.visible = true; g.actor.model.visible = true; g.root.position.copy(g.pos); g.actor.release(); g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.bang.visible = false;
     g.lootBag.visible = false;
     if (g.drop && !world.interactables.includes(g.drop)) world.interactables.push(g.drop);
   }

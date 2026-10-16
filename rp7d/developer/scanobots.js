@@ -277,7 +277,7 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
     const s = b.pts[0]; b.pos.set(s.x, world.groundAt(s.x, s.y), s.y); b.wp = 1 % b.pts.length;
     b.heading = Math.atan2(b.pts[b.wp].x - s.x, b.pts[b.wp].y - s.y); b.vel.set(0, 0, 0); b.knock.set(0, 0, 0);
     b.rxpPaid = false; b.state = 'patrol'; b.t = 0; b.hp = S.hp; b.damageStage = 0; b.breakFrame = 0; b.cool = 0; b.lost = 0; b.flash = 0; b.barT = 0; b.dropped = false; b.vy = 0; b.spin = 0; b.alt = S.hover; b.seen = false;
-    b.root.visible = !hidden; b.root.rotation.set(0, b.heading, 0); b.root.scale.setScalar(S.scale); b.body.rotation.set(0, 0, 0);
+    b.root.visible = !hidden; b.body.visible = true; b.root.rotation.set(0, b.heading, 0); b.root.scale.setScalar(S.scale); b.body.rotation.set(0, 0, 0);
     b.hullMat.emissive.setRGB(0, 0, 0); b.bar.visible = false; b.bar.redraw(1); b.bar.drawn = true;
     placeBody(b);
   }

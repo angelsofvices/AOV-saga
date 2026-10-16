@@ -37,8 +37,10 @@ export function buildPlasmabeam() {
 }
 export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = () => {} }) {
   const shots = [], frosted = new Map(), iceDebris = [], ray = new THREE.Raycaster(), direction = new THREE.Vector3(), endpoint = new THREE.Vector3();
+  const iceSpikeGeo=new THREE.ConeGeometry(.055,.5,6), iceVeinGeo=new THREE.CylinderGeometry(.009,.006,1,5), iceCrystalMat=new THREE.MeshStandardMaterial({color:'#c9f0ff',emissive:'#58bdeb',emissiveIntensity:.42,roughness:.2,metalness:.08,transparent:true,opacity:.92}), iceVeinMat=new THREE.MeshStandardMaterial({color:'#a9e8ff',emissive:'#4daee8',emissiveIntensity:.28,roughness:.28,metalness:.04,transparent:true,opacity:.84});
   let round = 0, cooldown = 0;
   function alive(g) { return foes.alive(g); }
+  function frostSource(g) { return g.actor?.model || g.body || g.root; }
   function aim(g) { return (g.center || g.pos).clone().add(new THREE.Vector3(0,g.center ? 0 : 1.2,0)); }
   function fire(from, forward, primary, mode) {
     if (cooldown > 0) return false;
@@ -55,7 +57,7 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
   }
   function disposeShot(s) { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); }
   function shells(g) {
-    const source=g.actor?.model || g.root, list=[]; source?.updateMatrixWorld(true);
+    const source=frostSource(g), list=[]; source?.updateMatrixWorld(true);
     const meshes=[]; source?.traverse(o => { if (o.isMesh && !o.userData.frostShell && !o.userData.noCollide && !(Array.isArray(o.material)?o.material:[o.material]).every(m=>m.transparent)) meshes.push(o); });
     for (const o of meshes) {
       const shell=o.clone(false); shell.material=new THREE.MeshStandardMaterial({color:'#a2ddff',emissive:'#2271ae',emissiveIntensity:.25,transparent:true,opacity:.08,depthWrite:false,roughness:.13,metalness:.15});
@@ -63,9 +65,41 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
     }
     return list;
   }
+  function iceFormation(g) {
+    const source=frostSource(g);if(!source)return null;
+    source.updateWorldMatrix(true,true);
+    const worldBox=new THREE.Box3().setFromObject(source),inv=source.matrixWorld.clone().invert(),box=new THREE.Box3().makeEmpty(),corner=new THREE.Vector3();
+    if(!worldBox.isEmpty())for(let i=0;i<8;i++)box.expandByPoint(corner.set(i&1?worldBox.max.x:worldBox.min.x,i&2?worldBox.max.y:worldBox.min.y,i&4?worldBox.max.z:worldBox.min.z).applyMatrix4(inv));
+    if(box.isEmpty())box.set(new THREE.Vector3(-.4,0,-.25),new THREE.Vector3(.4,1.8,.25));
+    const size=box.getSize(new THREE.Vector3()),mid=box.getCenter(new THREE.Vector3()),w=Math.max(.3,size.x),h=Math.max(.35,size.y),depth=Math.max(.16,size.z),front=box.max.z+depth*.055;
+    const group=new THREE.Group();group.name='Frost Crystal Growth';source.add(group);
+    const spike=(x,y,z,len,dir=new THREE.Vector3(0,-1,0),width=.8)=>{const d=dir.clone().normalize(),m=new THREE.Mesh(iceSpikeGeo,iceCrystalMat);m.position.set(x,y,z).addScaledVector(d,len*.5);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d);m.scale.set(width*len*.8,len/.5,width*len*.8);m.castShadow=true;group.add(m);};
+    // Icicles hang from the frozen silhouette; smaller angled spurs and crown
+    // crystals make it read as natural growth instead of a smooth blue shell.
+    for(const sx of [-1,1]){
+      for(const f of [.72,.61,.49])spike(mid.x+sx*w*.31,box.min.y+h*f,front,.16+h*(.12+Math.random()*.09),new THREE.Vector3(sx*.12,-1,.06),.66);
+      spike(mid.x+sx*w*.48,box.min.y+h*.58,mid.z+depth*.28,.2+h*.15,new THREE.Vector3(sx*.65,-.72,.18),.72);
+      spike(mid.x+sx*w*.25,box.max.y-h*.07,front,.12+h*.13,new THREE.Vector3(sx*.18,1,.05),.68);
+    }
+    for(const fx of [-.15,0,.15])spike(mid.x+w*fx,box.max.y-h*.02,front,.13+h*(.08+Math.random()*.08),new THREE.Vector3(fx*.6,1,.16),.72);
+    const vein=(a,b)=>{const d=b.clone().sub(a),m=new THREE.Mesh(iceVeinGeo,iceVeinMat);m.position.copy(a).add(b).multiplyScalar(.5);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());m.scale.y=d.length();group.add(m);};
+    const y0=box.min.y+h*.39,y1=box.min.y+h*.69,z=front+depth*.035,cx=mid.x;
+    // Branching frost veins spread across the front of the frozen block.
+    vein(new THREE.Vector3(cx,y0,z),new THREE.Vector3(cx-w*.025,y0+h*.14,z));
+    vein(new THREE.Vector3(cx-w*.025,y0+h*.14,z),new THREE.Vector3(cx+w*.025,y0+h*.3,z));
+    vein(new THREE.Vector3(cx-w*.025,y0+h*.14,z),new THREE.Vector3(cx-w*.2,y0+h*.22,z));
+    vein(new THREE.Vector3(cx-w*.2,y0+h*.22,z),new THREE.Vector3(cx-w*.28,y0+h*.34,z));
+    vein(new THREE.Vector3(cx-w*.2,y0+h*.22,z),new THREE.Vector3(cx-w*.32,y0+h*.17,z));
+    vein(new THREE.Vector3(cx+w*.025,y0+h*.3,z),new THREE.Vector3(cx+w*.18,y0+h*.38,z));
+    vein(new THREE.Vector3(cx+w*.18,y0+h*.38,z),new THREE.Vector3(cx+w*.29,y0+h*.5,z));
+    vein(new THREE.Vector3(cx+w*.18,y0+h*.38,z),new THREE.Vector3(cx+w*.34,y0+h*.34,z));
+    vein(new THREE.Vector3(cx+w*.025,y0+h*.3,z),new THREE.Vector3(cx+w*.04,y1,z));
+    return group;
+  }
   function removeFrost(g, shatter=false) {
     const status=frosted.get(g); if(!status)return;
     for(const s of status.shells){s.removeFromParent();s.material.dispose();}
+    status.formation?.removeFromParent();
     if(shatter) {const p=aim(g);fx?.emit(p.x,p.y,p.z,28,{color:'#a9e7ff',speed:4,up:2,size:.18,life:.7,g:6});}
     if (g.frost===status) delete g.frost; frosted.delete(g);
   }
@@ -88,8 +122,9 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
   function update(dt) {
     cooldown=Math.max(0,cooldown-dt);
     for(const [g,s] of frosted){
-      if(!alive(g)){if(s.frozen)shatterFrozen(g);removeFrost(g,false);continue;}
+      if(!alive(g)){if(s.frozen){const body=frostSource(g);if(body)body.visible=false;shatterFrozen(g);}removeFrost(g,false);continue;}
       const state=frostStep(s,dt); for(const shell of s.shells)shell.material.opacity=.1+s.progress*.55;
+      if(state==='freeze')s.formation=iceFormation(g);
       if(state==='thaw') removeFrost(g,true);
     }
     const valid=foes.grunts.filter(alive);

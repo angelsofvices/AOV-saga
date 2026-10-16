@@ -138,7 +138,7 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
   function reset(g) {
     const s = g.pts[0]; g.pos.set(s.x, world.groundAt(s.x, s.y), s.y); g.wp = 1 % g.pts.length; g.heading = Math.atan2(g.pts[g.wp].x - s.x, g.pts[g.wp].y - s.y);
     g.state = 'patrol'; g.t = 0; g.hp = P.health; g.seen = false; g.raise = 0; g.charge = 0; g.hurt = 0; g.flash = 0; g.barT = 0; g.speed = 0; g.move = null; g.fallT = 0; g.knock.set(0, 0, 0);
-    g.actor.shot = null; g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.root.visible = !hidden; g.bar.redraw(1);
+    g.actor.shot = null; g.actor.model.visible = true; g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.root.visible = !hidden; g.bar.redraw(1);
     if (!g.rifle) { g.rifle = buildBlasterRifle(); g.rifle.userData.owner = g.id; g.hold.attach(g.rifle); } // a Guardian always carries one: the same weapon Rizer can end up with
     g.carry = 'stowed'; g.grabbed = false; stowRifle(g); // calm: the rifle is on its back
     place(g);

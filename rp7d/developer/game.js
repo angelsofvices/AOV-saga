@@ -1438,7 +1438,7 @@ const ICONS = {
   blaster: '<svg viewBox="0 0 48 48"><path d="M4 27h9l3-4h14v6H16l-3 4H6z" fill="#2a2f38" stroke="#59616e" stroke-width="1"/><rect x="22" y="22.5" width="13" height="5" rx="2" fill="#ffab45"/><path d="M35 25h9" stroke="#59616e" stroke-width="2.6" stroke-linecap="round"/><rect x="15" y="17" width="13" height="3.6" rx="1.6" fill="#23272e" stroke="#39d8ff" stroke-width="0.9"/><path d="M17 29l-2 8h4l2-7" fill="#23272e"/><path d="M20 30q3 4 6 0" fill="none" stroke="#39d8ff" stroke-width="1.3"/></svg>'
 };
 // The WHUD has separate six-slot weapon and utility pages. Existing inventory.wheel saves remain the weapon page.
-const UTILITY_WHEEL_ITEMS = new Set(['life_seed', 'telescope', 'workstation']);
+const UTILITY_WHEEL_ITEMS = new Set(['life_seed', 'telescope', 'workstation', 'guitar']);
 let whudPage = inventory.whudPage === 'utilities' ? 'utilities' : 'weapons';
 function syncWheel() {
   const carried = inventory.owned.filter(k => !UTILITY_WHEEL_ITEMS.has(k));
@@ -2888,7 +2888,7 @@ function update(dt, t, realDt = dt) {
     A.rifle = rifleClips && rifleOut && !rizer.flying && !jam; A.pistol = drawn === 'plasmabeam' && !swim && !rizer.flying && !jam; A.aiming = rifleUp > 0;
     A.strafe = (A.rifle || A.pistol ? A.aiming || A.pistol : true) && sp > 0.6 ? Math.sin(rel) * Math.min(1, Math.abs(Math.sin(rel)) * 1.6) : 0; A.backing = A.rifle && A.aiming && sp > 0.6 ? Math.max(0, -Math.cos(rel) * 1.6 - 0.6) : 0;
   }
-  held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, !inventory.owned.includes(k) || !inventory.wheel?.includes(k) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null])));
+  held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, !inventory.owned.includes(k) || !(inventory.wheel?.includes(k) || inventory.utilityWheel?.includes(k)) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null])));
   // The pistol stays rigidly attached to the animated right hand. The authored
   // idle/fire clips aim it; independently steering the mesh each frame twists
   // it around the grip and makes the gun visibly spin in the palm.

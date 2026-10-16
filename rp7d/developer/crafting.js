@@ -32,7 +32,11 @@ export const RECIPES = [
   ].flatMap(x => ['EXPERIMENT_TABLE','FIELD_WORKSTATION'].map(stationType => ({
     id: `repair_${x.id}_${stationType.toLowerCase()}`, name: `Repair · ${x.name}`, outputId: x.outputId, outputQuantity: 1,
     ingredients: [{ itemId: x.broken, quantity: 1 }, ...x.materials.map(([itemId, quantity]) => ({ itemId, quantity }))],
-    known: true, prerequisites: [], stationType, testRecipe: true, note: `${TEST} · returns the repaired item to ${stationType === 'EXPERIMENT_TABLE' ? 'Home Storage' : 'the Zycube'}`
+    known: true, prerequisites: [], stationType, testRecipe: true,
+    outputLoc: x.id === 'guitar' ? LOC.ZYCUBE : undefined,
+    note: x.id === 'guitar'
+      ? `${TEST} · the repaired guitar goes directly to the Utility WHUD`
+      : `${TEST} · returns the repaired item to ${stationType === 'EXPERIMENT_TABLE' ? 'Home Storage' : 'the Zycube'}`
   }))),
   // Astralite Station: every one of the 63 Astralites can be synthesised into Gemshards (placeholder rate: 3 of one → 1 Gemshard).
   ...ASTRALITE_FAMILIES.flatMap(f => f.items.map(a => ({
@@ -76,7 +80,7 @@ export function availability(recipeOrId) {
     return { ...out, ...c };
   }
   // Output lands in the Home PC (reserve storage has no limit). A unique weapon already owned is the only refusal.
-  const outputLoc = r.stationType === 'FIELD_WORKSTATION' ? LOC.ZYCUBE : LOC.HOME_PC;
+  const outputLoc = r.outputLoc || (r.stationType === 'FIELD_WORKSTATION' ? LOC.ZYCUBE : LOC.HOME_PC);
   const c = storage.canStore(outputLoc, r.outputId, r.outputQuantity);
   if (!c.ok) return { ...out, ok: false, reason: c.reason, message: c.message };
   return { ...out, ok: true };
@@ -116,7 +120,7 @@ export function craft(recipeId) {
     }
     if (need > 0) { refund(); return { ok: false, reason: 'MISSING_RESOURCES', message: 'Missing resources' }; }
   }
-  const outputLoc = r.stationType === 'FIELD_WORKSTATION' ? LOC.ZYCUBE : LOC.HOME_PC;
+  const outputLoc = r.outputLoc || (r.stationType === 'FIELD_WORKSTATION' ? LOC.ZYCUBE : LOC.HOME_PC);
   const out = storage.add(outputLoc, r.outputId, r.outputQuantity);
   if (!out.ok) { refund(); return { ok: false, reason: out.reason, message: out.message }; }
   return { ok: true, recipe: r, outputId: r.outputId, quantity: r.outputQuantity, message: `${defOf(r.outputId).name} repaired · stored in ${outputLoc === LOC.HOME_PC ? 'Home Storage' : 'your Zycube'}` };

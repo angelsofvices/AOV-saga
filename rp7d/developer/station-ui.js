@@ -13,10 +13,10 @@ import { WEAPON_UPGRADE_NOTE } from './engineering.js';
 
 const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-const TABS = [{ id: 'ALL', label: 'STORAGE' }, { id: 'WEAPON', label: 'WEAPONS' }, { id: 'ITEM', label: 'ITEMS' }, { id: 'RESOURCE', label: 'RESOURCES' }, { id: 'FIELD_EQUIPMENT', label: 'FIELD EQUIPMENT' }];
+const TABS = [{ id: 'ALL', label: 'STORAGE' }, { id: 'WEAPON', label: 'WEAPONS' }, { id: 'UTILITY', label: 'UTILITIES' }, { id: 'ITEM', label: 'ITEMS' }, { id: 'RESOURCE', label: 'RESOURCES' }, { id: 'FIELD_EQUIPMENT', label: 'FIELD EQUIPMENT' }];
 const SORTS = ['CATEGORY', 'NAME', 'QUANTITY'];
 const PRESETS = [1, 5, 10, 'ALL'];
-const TYPE = { WEAPON: 'Weapon', FIELD_EQUIPMENT: 'Field Equipment', RESOURCE: 'Resource', ITEM: 'Item', SPECIAL: 'Key Item' };
+const TYPE = { WEAPON: 'Weapon', UTILITY: 'Utility', FIELD_EQUIPMENT: 'Field Equipment', RESOURCE: 'Resource', ITEM: 'Item', SPECIAL: 'Key Item' };
 const PLACE = { ZYCUBE: 'WITH RIZER', HOME_PC: 'HOME STORAGE', DEPLOYED: 'DEPLOYED' };
 
 export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = () => {}, onClose = () => {} } = {}) {

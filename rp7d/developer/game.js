@@ -35,7 +35,7 @@ import { createCaveInteriors } from './cave-interior.js';
 import { createStoreInterior } from './store-interior.js';
 import { createAstralStorm, STORM, STORM_TIMING } from './astral-storm.js';
 import { createAstralvision } from './astralvision.js';
-import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, porchChestSpots, PLAYTEST_PORCH_CHESTS, ASTRALITE_FAMILIES, inventory, saveInv, WEAPONS, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
+import { createLoot, createCommonChests, createChestLight, createHeldWeapons, buildTelescope, buildAstralboard, buildChest, chestFront, porchChestSpots, PLAYTEST_PORCH_CHESTS, ASTRALITE_FAMILIES, inventory, saveInv, WEAPONS, UTILITIES, RIDES, ITEMS, ENTITIES, addItem, eatItem, hasWeapon } from './loot.js';
 import { storage } from './storage.js';
 import { createTVSystem, buildDvdPickup } from './tv-system.js';
 import { DVDS } from './dvd-registry.js';
@@ -444,9 +444,12 @@ function placementOccupants() {
   try { for (const n of npcs?.npcs || []) { const q = n.position || n.pos; if (q) o.push({ x: q.x, z: q.z }); } for (const g of seers?.grunts || []) if (g.pos && g.state !== 'down') o.push({ x: g.pos.x, z: g.pos.z }); } catch (e) {}
   return o;
 }
-function onStorageChange() { // a weapon that left the Zycube also leaves the hand, the wheel and the hip
+function onStorageChange(type, data) { // storage changes keep carried gear and both WHUDs in sync
+  if ((type === 'add' && data?.id === 'guitar' && data.loc === 'ZYCUBE') || (type === 'exchange' && data?.outputs?.some(o => o.id === 'guitar' && o.loc === 'ZYCUBE'))) {
+    const u = inventory.utilityWheel ||= Array(6).fill(null); if (!u.includes('guitar')) { const i = u.indexOf(null); if (i >= 0) u[i] = 'guitar'; }
+  }
   syncWorkstationKit();
-  if (!inventory.owned.includes(inventory.equipped)) equip('fists');
+  if (!inventory.owned.includes(inventory.equipped) && !(inventory.equipped === 'guitar' && storage.count('ZYCUBE', 'guitar') > 0)) equip('fists');
   syncWheel(); wheel.render(); dep?.sync();
 }
 function initStorage() {
@@ -1218,7 +1221,8 @@ function build() {
     world.interactables.push({ id: 'rizer-journal-fountain', name: 'Rizer’s Journal', kind: 'journal', note: 'Rizer’s playtest journal.', cx: jx, cz: jz, x: jx, z: jz, reach: 1.9, active: () => !!journalProgress().started && !journalProgress().found && !homeMode, mesh: journalMesh });
   }
   storeInterior = createStoreInterior(scene); // the Malezor Town Store (the Gear Shop's door)
-  homeInterior.setGuitarTaken(hasWeapon('guitar') || storage.total('broken_guitar') > 0);
+  homeInterior.setGuitarPartTaken('body', storage.total('guitar') > 0 || storage.total('guitar_body') > 0);
+  homeInterior.setGuitarPartTaken('neck', storage.total('guitar') > 0 || storage.total('guitar_neck') > 0);
   initTV(); initBedroomPlasmabeam();
   const s = W.playerStart;
   rizer = new Rizer(scene, { x: s.x, y: world.groundAt(s.x, s.z), z: s.z, facing: s.facing });
@@ -1377,7 +1381,8 @@ function build() {
     onSkinLab: () => { zy.close(); lab.close(); buildLab?.close(); skinLab.open(); },
     onBuildLab: () => { zy.close(); lab.close(); skinLab?.close(); buildLab.open(); },
     weapons: WEAPONS, inventory, storage, crafting, onDeploy: uid => deployFromZyphone(uid), onPackDeployed: uid => packDeployedFromZyphone(uid),
-    onWeapon: k => { if (inventory.wheel?.includes(k) || inventory.utilityWheel?.includes(k)) equip(k); else showToast('In the Zycube · put it on the WHUD wheel in the Armory to use it'); }, icons: ICONS,
+    onWeapon: k => { if (inventory.wheel?.includes(k) || inventory.utilityWheel?.includes(k)) equip(k); else showToast('In the Zycube · put it on the matching WHUD in Zyphone → Gear'); },
+    onUtilityWheel: (k, mode) => { const u = inventory.utilityWheel ||= Array(6).fill(null); if (mode === 'remove') { const i = u.indexOf(k); if (i >= 0) u[i] = null; if (inventory.equipped === k) equip('fists'); } else if (!u.includes(k)) { const i = u.indexOf(null); if (i >= 0) u[i] = k; else { showToast('Utility WHUD is full'); return; } } saveInv(); syncWheel(); wheel.render(); }, icons: ICONS,
     onWheel: w => { // off the weapon wheel = back in the Zycube: it leaves Rizer's hand and body
       if (!w.includes(inventory.equipped) && !inventory.utilityWheel?.includes(inventory.equipped)) equip('fists');
       if (inventory.hip && !w.includes(inventory.hip)) inventory.hip = null;
@@ -1442,13 +1447,14 @@ const UTILITY_WHEEL_ITEMS = new Set(['life_seed', 'telescope', 'workstation', 'g
 let whudPage = inventory.whudPage === 'utilities' ? 'utilities' : 'weapons';
 function syncWheel() {
   const carried = inventory.owned.filter(k => !UTILITY_WHEEL_ITEMS.has(k));
-  const utilityOwned = inventory.owned.filter(k => UTILITY_WHEEL_ITEMS.has(k) && (k !== 'life_seed' || (inventory.items?.life_seed || 0) > 0));
+  const utilityOwned = [...new Set([...inventory.owned.filter(k => UTILITY_WHEEL_ITEMS.has(k) && (k !== 'life_seed' || (inventory.items?.life_seed || 0) > 0)), ...(storage.count('ZYCUBE', 'guitar') > 0 ? ['guitar'] : [])])];
   // Migrate utilities previously auto-inserted in the old shared wheel into the new utility page.
   const old = Array.isArray(inventory.wheel) ? inventory.wheel.slice(0, 6) : null;
   let u = Array.isArray(inventory.utilityWheel) ? inventory.utilityWheel.slice(0, 6) : [];
   for (const k of old || []) if (k && UTILITY_WHEEL_ITEMS.has(k) && !u.includes(k) && utilityOwned.includes(k)) u.push(k);
   u = u.filter(k => utilityOwned.includes(k)).slice(0, 6);
-  for (const k of utilityOwned) if (!u.includes(k) && u.length < 6) u.push(k);
+  if (!inventory.utilityWheelConfigured) for (const k of utilityOwned) if (!u.includes(k) && u.length < 6) u.push(k);
+  inventory.utilityWheelConfigured = true;
   while (u.length < 6) u.push(null);
 
   let w = old ? old.filter(k => !k || !UTILITY_WHEEL_ITEMS.has(k)) : ['fists'];
@@ -1484,16 +1490,16 @@ const wheel = (() => { // WHUD: L1 / R1 cycle items; L1 + R1 changes page
     el.dataset.page = whudPage; el.setAttribute('aria-label', `${whudPage === 'utilities' ? 'Utility' : 'Weapon'} wheel`);
     $('#wh-page').textContent = whudPage.toUpperCase();
     el.classList.toggle('solo', list.length < 2);
-    $('#wh-icon').innerHTML = ICONS[eq] || ''; $('#wh-name').textContent = WEAPONS[eq]?.name || 'Fists';
-    el.querySelectorAll('.whud-slot').forEach((s, k) => { const w = slots[k]; s.innerHTML = w ? ICONS[w] || '' : ''; s.classList.toggle('on', w === eq && !!w); s.classList.toggle('filled', !!w); s.title = w ? WEAPONS[w]?.name || w : 'Empty slot'; });
+    $('#wh-icon').innerHTML = ICONS[eq] || ''; $('#wh-name').textContent = (WEAPONS[eq] || UTILITIES[eq])?.name || 'Fists';
+    el.querySelectorAll('.whud-slot').forEach((s, k) => { const w = slots[k]; s.innerHTML = w ? ICONS[w] || '' : ''; s.classList.toggle('on', w === eq && !!w); s.classList.toggle('filled', !!w); s.title = w ? (WEAPONS[w] || UTILITIES[w])?.name || w : 'Empty slot'; });
     el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
   } };
 })();
 function equip(k) {
-  if (!inventory.owned.includes(k) || k === inventory.equipped) return;
+  if ((!inventory.owned.includes(k) && !(UTILITY_WHEEL_ITEMS.has(k) && storage.count('ZYCUBE', k) > 0)) || k === inventory.equipped) return;
   if (scopeBuild) cancelScope(); inventory.equipped = k; whudPage = UTILITY_WHEEL_ITEMS.has(k) ? 'utilities' : 'weapons'; inventory.whudPage = whudPage; saveInv(); rizer.setWeapon(k); wheel.render();
   if (k === 'telescope') showToast(scopeSet ? 'Stargazer Telescope · set up nearby · □ beside it packs it away' : 'Stargazer Telescope · □ to set it up here');
-  if (BLADES[k]) fx.emit(rizer.position.x, rizer.position.y + 1.4, rizer.position.z, 10, { color: WEAPONS[k].color || '#9cc0ff', speed: 1.4, up: 1, size: 0.3, life: 0.5, g: 0 });
+  if (BLADES[k]) fx.emit(rizer.position.x, rizer.position.y + 1.4, rizer.position.z, 10, { color: (WEAPONS[k] || UTILITIES[k])?.color || '#9cc0ff', speed: 1.4, up: 1, size: 0.3, life: 0.5, g: 0 });
 }
 function cycleWeapon(dir) { const list = wheelList(); if (!list.length) return; const i = list.indexOf(inventory.equipped); equip(list[i < 0 ? 0 : (i + dir + list.length) % list.length]); }
 function toggleWhudPage() {
@@ -1664,13 +1670,16 @@ function tvFrame(realDt) { // camera glide to the screen, then the room renders 
   renderer.info.reset(); composer.render(); pressed.clear();
 }
 // A new game starts with Psychosyd's guitar on the floor of Rizer's room (home-interior.js); ○ / E there takes it.
-function takeFloorGuitar() {
-  if (hasWeapon('guitar') || storage.total('broken_guitar') > 0) return homeInterior.setGuitarTaken(true);
-  addItem('broken_guitar', 1);
-  const g = homeInterior.floorGuitar, p = g.getWorldPosition(new THREE.Vector3());
-  homeInterior.setGuitarTaken(true);
-  fx.emit(p.x, p.y + 0.3, p.z, 18, { color: '#ff3b3b', speed: 2.2, up: 1.2, size: 0.35, life: 0.5, g: 0 });
-  showToast('BROKEN GUITAR ACQUIRED · repair it at the Experiment Table or a Field Workstation', 4200);
+function takeFloorGuitar(part) {
+  if (storage.total('guitar') > 0 || storage.total('broken_guitar') > 0) return;
+  part ||= storage.total('guitar_body') > 0 ? 'neck' : 'body';
+  const id = part === 'body' ? 'guitar_body' : 'guitar_neck';
+  if (storage.total(id) > 0) { homeInterior.setGuitarPartTaken(part, true); return; }
+  const taken = storage.add('ZYCUBE', id, 1); if (!taken.ok) { showToast(taken.message); return; }
+  const g = part === 'body' ? homeInterior.floorGuitarBody : homeInterior.floorGuitarNeck, p = g.getWorldPosition(new THREE.Vector3());
+  homeInterior.setGuitarPartTaken(part, true);
+  fx.emit(p.x, p.y + 0.3, p.z, 12, { color: part === 'body' ? '#ff3b3b' : '#8b6241', speed: 1.8, up: 1, size: 0.28, life: 0.45, g: 0 });
+  showToast(`${part === 'body' ? 'GUITAR BODY' : 'GUITAR NECK'} ACQUIRED · find the other piece, then rebuild at the Experiment Table`, 4200);
 }
 function toggleGuitar() { if (jam) stopJam(); else startJam(); }
 function startJam() {
@@ -2123,7 +2132,7 @@ function devMenu() {
     { act: 'nova', label: 'Spawn a Nova Guardian ahead', note: 'Places one 16 units in front of Rizer for testing.', value: 'SPAWN' },
     { act: 'daemon-black', label: 'Spawn a Black Daemon ahead', note: 'Evasive Daemon · tests its dodge and close combat.', value: 'SPAWN' },
     { act: 'daemon-red', label: 'Spawn a Red Daemon ahead', note: 'Larger Daemon · tests its aggressive combo and red fissure glow.', value: 'SPAWN' },
-    { act: 'guitar', label: "Give Psychosyd's Signed Red Guitar", value: hasWeapon('guitar') ? 'OWNED' : 'GIVE' },
+    { act: 'guitar', label: "Give Psychosyd's Signed Red Guitar Utility", value: storage.total('guitar') ? 'OWNED' : 'GIVE' },
     { head: 'PROGRESSION' },
     ...[25, 250, 5000, 50000, 1000000].map(n => ({ act: 'rxp:' + n, label: `Award +${n.toLocaleString('en-US')} RXP`, note: n === 25 ? `LVL. ${progression.info.level.toLocaleString('en-US')} · ${progression.xp.toLocaleString('en-US')} lifetime RXP` : undefined, value: 'GIVE' })),
     { act: 'rxpreset', label: 'Reset RXP to 0', value: 'RESET' },
@@ -2246,7 +2255,7 @@ function menuAction(act) {
     const g = seers.spawnAt(act, x, z);
     showToast(g ? `${g.T.name} spawned ahead` : 'Move to open ground to spawn a Daemon');
   }
-  if (act === 'guitar' && !hasWeapon('guitar')) { inventory.owned.push('guitar'); saveInv(); syncWheel(); wheel.render(); homeInterior?.setGuitarTaken(true); showToast("Psychosyd's Signed Red Guitar added · R1 to equip, □ to play"); }
+  if (act === 'guitar' && !storage.total('guitar')) { const res = storage.add('ZYCUBE','guitar',1); if (res.ok) { syncWheel(); wheel.render(); homeInterior?.setGuitarTaken(true); showToast("Psychosyd's Signed Red Guitar utility added · Utility WHUD · □ to play"); } }
   if (act === 'chest') { inventory.owned = inventory.owned.filter(k => !BLADES[k]); if (inventory.home?.weapons) inventory.home.weapons = inventory.home.weapons.filter(k => !BLADES[k]); inventory.equipped = 'fists'; inventory.chestOpen = false; if (inventory.chests) { delete inventory.chests['emeralix-chest']; delete inventory.chests['ivirium-chest']; delete inventory.chests['psychosyd-chest']; } saveInv(); location.reload(); return; }
   if (act === 'seers') { seers?.respawnAll(); showToast('Seers respawned'); }
   if (act === 'gatesopen') { gatelocks?.openAll(); showToast('Portal Gatelocks open'); }
@@ -2525,7 +2534,7 @@ function update(dt, t, realDt = dt) {
   dep?.showPrompt(null); // re-shown below when something usable is in reach
   if (!menu && homeMode && indoor.treehouse) dep?.showPrompt('RIZER’S TREEHOUSE','○ / E manage · R lock / □ move furniture');
   else if (!menu && homeMode && indoor !== homeInterior) { const st = indoor.stationAt(rizer); if (st) dep?.showPrompt(st.name, 'SHOP · ○ / E'); }
-  else if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'tv' ? 'WATCH TV · ○ / E' : st.id === 'floor-guitar' || st.pickup ? 'PICK UP · ○ / E' : undefined); } } }
+  else if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'tv' ? 'WATCH TV · ○ / E' : st.id.startsWith('floor-guitar-') || st.pickup ? 'PICK UP · ○ / E' : undefined); } } }
   if (!menu) dep?.update(); // the placement ghost
   const kx = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
   const kz = (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0);
@@ -2631,7 +2640,7 @@ function update(dt, t, realDt = dt) {
     } else if (homeMode) {
       if ((pressed.has('KeyE') || padAct?.interact) && !furnMover?.busy && !pcUse && !seating?.active) {
         const st = homeInterior.stationAt(rizer), line = st ? null : homeInterior.interact(rizer);
-        if (st) { if (st.id === 'homepc') seating.begin(); else if (st.id === 'bedroom-plasmabeam') takeBedroomPlasmabeam(); else if (st.id === 'floor-guitar') takeFloorGuitar(); else if (st.id === 'tv') tv.open(); else if (st.id.startsWith('dvd:')) tv.collect(st.id.slice(4)); else openStation(st.id); }
+        if (st) { if (st.id === 'homepc') seating.begin(); else if (st.id === 'bedroom-plasmabeam') takeBedroomPlasmabeam(); else if (st.id === 'floor-guitar-body' || st.id === 'floor-guitar-neck') takeFloorGuitar(st.id.endsWith('body') ? 'body' : 'neck'); else if (st.id === 'tv') tv.open(); else if (st.id.startsWith('dvd:')) tv.collect(st.id.slice(4)); else openStation(st.id); }
         else if (line) showToast(line, 3600);
         else showToast(homeInterior.level === 1 ? 'Front door · ✕ / Space to leave' : 'Use the stairs in the northwest corner to go downstairs');
       }
@@ -2888,7 +2897,7 @@ function update(dt, t, realDt = dt) {
     A.rifle = rifleClips && rifleOut && !rizer.flying && !jam; A.pistol = drawn === 'plasmabeam' && !swim && !rizer.flying && !jam; A.aiming = rifleUp > 0;
     A.strafe = (A.rifle || A.pistol ? A.aiming || A.pistol : true) && sp > 0.6 ? Math.sin(rel) * Math.min(1, Math.abs(Math.sin(rel)) * 1.6) : 0; A.backing = A.rifle && A.aiming && sp > 0.6 ? Math.max(0, -Math.cos(rel) * 1.6 - 0.6) : 0;
   }
-  held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, !inventory.owned.includes(k) || !(inventory.wheel?.includes(k) || inventory.utilityWheel?.includes(k)) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null])));
+  held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, (!(inventory.owned.includes(k) || (k === 'guitar' && storage.count('ZYCUBE','guitar') > 0)) || !(inventory.wheel?.includes(k) || inventory.utilityWheel?.includes(k))) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null])));
   // The pistol stays rigidly attached to the animated right hand. The authored
   // idle/fire clips aim it; independently steering the mesh each frame twists
   // it around the grip and makes the gun visibly spin in the palm.

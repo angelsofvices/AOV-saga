@@ -15,7 +15,7 @@
 // Nothing outside this file should add to or remove from those directly. Every mutation is atomic: it is checked
 // first, applied once, and rolled back whole if anything fails. UI never owns any of this; it reads and asks.
 import { inventory, saveInv } from './loot.js';
-import { defOf, FIELD_EQUIPMENT, isWeaponId, isEquipmentId } from './item-registry.js';
+import { defOf, FIELD_EQUIPMENT, isWeaponId, isUtilityId, isEquipmentId } from './item-registry.js';
 import { link } from './zylink.js';
 import { engineeringState, projectEngineering, mintStandardChips, spendStandardChips, mintPlasmabeam } from './engineering-ledger.js';
 
@@ -40,6 +40,14 @@ function ensure() {
   inventory.owned ||= ['fists'];
   const h = inventory.home ||= {}; h.items ||= {}; h.weapons ||= [];
   inventory.equipment ||= [];
+  // Save migration: the guitar used to be stored as a weapon; preserve it as a carried utility.
+  if (inventory.owned.includes('guitar') || h.weapons.includes('guitar')) {
+    const loc = inventory.owned.includes('guitar') ? 'ZYCUBE' : 'HOME_PC';
+    if (!inventory.equipment.some(e => e.type === 'guitar')) inventory.equipment.push({ uid: 'guitar-legacy', type: 'guitar', loc });
+    inventory.owned = inventory.owned.filter(k => k !== 'guitar'); h.weapons = h.weapons.filter(k => k !== 'guitar');
+  }
+  const legacy = inventory.items.broken_guitar || 0;
+  if (legacy) { inventory.items.guitar_body = (inventory.items.guitar_body || 0) + legacy; inventory.items.guitar_neck = (inventory.items.guitar_neck || 0) + legacy; delete inventory.items.broken_guitar; }
   inventory.zycubeTier = Math.max(1, Math.min(ZYCUBE_TIERS.length, inventory.zycubeTier | 0 || 1));
   inventory.recipes ||= [];
 }
@@ -101,7 +109,7 @@ const OK = { ok: true };
 export function canStore(loc, id, qty = 1, { moving = false } = {}) {
   ensure();
   const d = defOf(id); if (!d) return fail('UNKNOWN_ITEM', 'Unknown item');
-  if (!moving && isEquipmentId(id) && FIELD_EQUIPMENT[id].single && (total(id) > 0 || (id === 'astralboard' && inventory.rides?.includes('astralboard')))) return fail('DUPLICATE', `${d.name} is already owned`);
+  if (!moving && isEquipmentId(id) && ((FIELD_EQUIPMENT[id]?.single && (total(id) > 0 || (id === 'astralboard' && inventory.rides?.includes('astralboard')))) || (isUtilityId(id) && total(id) > 0))) return fail('DUPLICATE', `${d.name} is already owned`);
   if (loc === LOC.HOME_PC) return !moving && d.unique && !d.multipleInstances && isWeaponId(id) && ownsWeapon(id) ? fail('DUPLICATE', `${d.name} is already owned`) : OK; // reserve storage has no limit
   if (loc !== LOC.ZYCUBE) return fail('BAD_LOCATION', 'Not a storage location');
   if (inventory.zycube) return fail('ZYCUBE_LOST', 'No Zycube · it dropped where you were knocked out');

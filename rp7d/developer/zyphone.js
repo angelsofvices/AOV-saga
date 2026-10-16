@@ -8,7 +8,7 @@ import { SLOTS } from './anim-lib.js';
 const $ = s => document.querySelector(s);
 import { createPortalChipsUI } from './portal-chips-ui.js';
 import { engineering, selectWeaponInstance } from './engineering.js';
-const TABS = ['home', 'map', 'time', 'notes', 'rizer', 'skilltree', 'zyrex', 'weapons', 'items', 'missions', 'contacts', 'zydex', 'astral', 'portal', 'experiment', 'camera', 'controls', 'options', 'dev'];
+const TABS = ['home', 'map', 'time', 'notes', 'rizer', 'skilltree', 'zyrex', 'weapons', 'utilities', 'items', 'missions', 'contacts', 'zydex', 'astral', 'portal', 'experiment', 'camera', 'controls', 'options', 'dev'];
 const HOME_KEY = 'rp7d.zyphone.home.v1';
 const SKIN_LIBRARY_KEY = 'rp7d.skinLibrary.v1';
 const COMBO_LOADOUT_KEY = 'rp7d.skillTree.combos.v1';
@@ -22,15 +22,15 @@ const GROUPS = [
   { id: 'home', name: 'Home', pages: ['home'] },
   { id: 'world', name: 'World', pages: ['map', 'portal', 'notes', 'time'] },        // where things are, how to get there, what's been found, when
   { id: 'rizer', name: 'Labs', pages: ['rizer', 'skilltree', 'astral', 'zyrex'] }, // Rizer, Skill Tree, Focus and Zyrex
-  { id: 'gear', name: 'Gear', pages: ['weapons', 'items', 'experiment'] },          // what he carries and what he makes from it
+  { id: 'gear', name: 'Gear', pages: ['weapons', 'utilities', 'items', 'experiment'] },          // what he carries and what he makes from it
   { id: 'journal', name: 'Journal', pages: ['missions', 'contacts', 'zydex', 'camera'] }, // what to do, who he knows, what he's recorded
   { id: 'system', name: 'System', pages: ['controls', 'options', 'dev'] }
 ];
 const ORDER = GROUPS.flatMap(g => g.pages), groupOf = key => GROUPS.findIndex(g => g.pages.includes(key));
-const PAGE_NAME = { home: 'Home', map: 'Map', portal: 'Portal', notes: 'Field Notes', time: 'Time', rizer: 'Rizer', skilltree: 'Skill Tree', astral: 'Focus', zyrex: 'Zyrex', weapons: 'Armory', items: 'Items', experiment: 'Experiment', missions: 'Missions', contacts: 'Contacts', zydex: 'Zydex', camera: 'Camera', controls: 'Controls', options: 'Options', dev: 'Dev' };
+const PAGE_NAME = { home: 'Home', map: 'Map', portal: 'Portal', notes: 'Field Notes', time: 'Time', rizer: 'Rizer', skilltree: 'Skill Tree', astral: 'Focus', zyrex: 'Zyrex', weapons: 'Weapons', utilities: 'Utilities', items: 'Items', experiment: 'Experiment', missions: 'Missions', contacts: 'Contacts', zydex: 'Zydex', camera: 'Camera', controls: 'Controls', options: 'Options', dev: 'Dev' };
 const APPS = Object.freeze([
   ['map','✦','Map','Locations & Navigation'], ['time','☀','Time','Day / Night & Weather'], ['notes','▤','Field Notes','Discoveries & Progress'],
-  ['rizer','♟','Labs','Rizer · Builds, Skins & Animations'], ['zyrex','❧','Zyrex','Partners & Bonding'], ['weapons','⚔','Armory','Weapons & Equipment'],
+  ['rizer','♟','Labs','Rizer · Builds, Skins & Animations'], ['zyrex','❧','Zyrex','Partners & Bonding'], ['weapons','⚔','Weapons','Weapon loadout'], ['utilities','◆','Utilities','Utility loadout'],
   ['items','◆','Items','Inventory & Materials'], ['missions','!','Missions','Main Story & Side Quests'], ['contacts','●','Contacts','People & Messages'],
   ['zydex','▱','Zydex','Creatures, Places & Lore'], ['astral','✧','Focus','Attributes & Focus Moves'], ['portal','◉','Portal','Gatelocks & Fast Travel'],
   ['experiment','⚗','Experiment','Compounds & Research'], ['camera','▣','Camera','Photos, Scans & Evidence'], ['controls','⚙','Controls','Game & HUD Settings'], ['options','⌁','Options','Audio, Display & More']
@@ -67,7 +67,7 @@ const CONTROL_GUIDE = {
   ]}
 };
 
-export function createZyphone({ W, hud, characters, getState, onTime, onCharacter, onAnimLab, onSkinLab, onBuildLab, weapons, inventory, storage = null, crafting = null, onDeploy, onPackDeployed, itemCatalog = {}, onUseItem, onPartner, onWeapon, onWheel, icons = {}, menus, onAction, onOpen, onClose, labsHub = null, astralHub = null, onLabsView }) {
+export function createZyphone({ W, hud, characters, getState, onTime, onCharacter, onAnimLab, onSkinLab, onBuildLab, weapons, inventory, storage = null, crafting = null, onDeploy, onPackDeployed, itemCatalog = {}, onUseItem, onPartner, onWeapon, onWheel, onUtilityWheel, icons = {}, menus, onAction, onOpen, onClose, labsHub = null, astralHub = null, onLabsView }) {
   const root = $('#zyphone');
   let isOpen = false, tab = 0, focus = 0;
   let fpick = null, axMode = 'attr'; // Focus: the move being placed on a D-pad direction · which side of the page (attributes | moves)
@@ -202,6 +202,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
       if (page) page.innerHTML = `<h2>ZYREX</h2><p>Bonded partners and Zypheres held for the next bond trial.</p><div class="zy-system-cards"><article><small>ACTIVE PARTNER</small><b>${active ? esc(active.name) : 'No partner bonded'}</b><span>${active ? `Lv ${active.level} · ${esc(active.species)} · bond difficulty ${active.difficulty}/10` : 'Lock on to a wild Zyrex and press D-pad ↓ / T nearby, then spin the stick.'}</span></article><article><small>ZYPHERE BAG</small><b>${inventory.items?.zyphere || 0} available</b><span>One Zyphere is used for each bond attempt.</span></article></div><div class="zy-system-cards">${bonded.map(z => `<article class="zy-item" data-item data-partner="${esc(z.id)}" style="cursor:pointer"><small>${z.id === inventory.activeZyrex ? 'WALKING WITH YOU' : 'BOND RECORD · SELECT TO CALL'}</small><b>${esc(z.name)}</b><span>Lv ${z.level} · ${esc(z.species)} · difficulty ${z.difficulty}/10</span></article>`).join('')}</div>`;
     }
     if (key === 'weapons') renderArmory();
+    if (key === 'utilities') renderUtilities();
     if (key === 'items') renderItems();
     if (key === 'portal') { portalChips ||= createPortalChipsUI(root.querySelector('[data-page="portal"]')); portalChips.render(); }
     if (key === 'experiment') renderExperiment();
@@ -402,6 +403,16 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     }).join('') + (owned.length < Object.keys(weapons).length ? `<div class="zy-item zy-weapon locked"><span><b>? ? ?</b><em>More weapons wait out in the world.</em></span><small>LOCKED</small></div>` : '');
     $('#zy-weapons').insertAdjacentHTML('beforeend', engineering().weapons.filter(w => w.loc === 'ZYCUBE').map(w => `<button class="zy-item" data-item data-plasma-instance="${w.uid}"><b>Plasmabeam · ${w.uid}</b><small>LEVEL ${w.level} · MODS ${w.mods.length}/${w.level} · ${esc(w.mode.toUpperCase())} · ${inventory.equippedUid === w.uid ? 'SELECTED' : inventory.wheel?.includes('plasmabeam') ? 'SELECT & EQUIP' : 'SELECT INSTANCE · ASSIGN PLASMABEAM TO WHEEL TO EQUIP'}</small></button>`).join(''));
   }
+  function renderUtilities() {
+    const wheel = inventory.utilityWheel ||= Array(6).fill(null);
+    const owned = [...new Set([...(inventory.owned || []).filter(k => ['life_seed','telescope','workstation'].includes(k)), ...(storage?.count('ZYCUBE','guitar') ? ['guitar'] : [])])];
+    const defs = { guitar: { name: "Psychosyd's Signed Red Guitar", blurb: 'Instrument utility · rebuilt from its body and neck at the Experiment Table. □ plays; movement or a hit stops the solo.' }, life_seed: { name: 'Life Seed', blurb: 'Plant a treehouse on grass.' }, telescope: { name: 'Stargazer Telescope', blurb: 'Set it up to look into the Aethryx Expanse.' }, workstation: { name: 'Field Workstation', blurb: 'Deploy a portable field crafting station.' } };
+    const esc = v => String(v).replace(/[&<>\"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const slots = wheel.map((k,i) => `<button class="zy-slot${k ? ' filled' : ''}${k === inventory.equipped ? ' current' : ''}" data-item data-utility-slot="${i}" style="--x:${Math.cos(-Math.PI / 2 + i * Math.PI / 3).toFixed(3)};--y:${Math.sin(-Math.PI / 2 + i * Math.PI / 3).toFixed(3)}"><i>${k ? icons[k] || '' : ''}</i><small>${i+1}</small></button>`).join('');
+    const rows = owned.map(k => `<button class="zy-item zy-weapon${wheel.includes(k) ? ' current' : ''}" data-item data-utility="${k}"><i class="zy-wicon">${icons[k] || ''}</i><span><b>${esc(defs[k]?.name || k)}</b><em>${esc(defs[k]?.blurb || '')}</em></span><small>${wheel.includes(k) ? 'UTILITY WHUD' : 'IN ZYCUBE'}</small></button>`).join('');
+    $('#zy-utility-wheel').innerHTML = `<div class="zy-ring">${slots}<div class="zy-ring-core"><b>UTILITIES</b><span>Tap a carried utility to add or remove it from the wheel.</span></div></div>`;
+    $('#zy-utilities').innerHTML = rows || '<div class="zy-note locked"><small>NO UTILITIES</small><p>Rebuild the guitar at the Experiment Table or find utility items in the world.</p></div>';
+  }
   // ── Items: everything that isn't a weapon, by kind (consumables · materials · key items) ──
   const ITEM_KINDS = [['consumable', 'CONSUMABLES'], ['material', 'MATERIALS'], ['key', 'KEY ITEMS']];
   function renderItems() {
@@ -427,7 +438,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (!storage) return;
     const e2 = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const used = storage.slotsUsed('ZYCUBE'), cap = storage.capacity(), T = storage.tier();
-    const carried = storage.contents('ZYCUBE').equipment, out = storage.equipmentIn('DEPLOYED');
+    const carried = storage.contents('ZYCUBE').equipment.filter(e => e.def.category === 'FIELD_EQUIPMENT'), out = storage.equipmentIn('DEPLOYED').filter(e => e.def.category === 'FIELD_EQUIPMENT');
     const rows = ['<div class="zy-note zy-itemrow" data-item><small>OVERWORLD BASE · LIFE SEED</small><b>Rizer’s Treehouse</b><p>Fallen trees have a 10% chance to release a Life Seed. Equip it from the Armory, then press □ on grass. The treehouse grows magically for 8 seconds; climb its ladder when it is ready.</p></div>'].concat(carried.map(e => `<div class="zy-note zy-itemrow" data-item data-deploy="${e2(e.uid)}"><small><i class="zy-swatch" style="background:${e2(e.def.color)}"></i>FIELD EQUIPMENT · ○ DEPLOY</small><b>${e2(e.def.name)}</b><p>${e2(e.def.blurb)}</p></div>`)
       ).concat(out.map(e => `<div class="zy-note zy-itemrow" data-item data-packdep="${e2(e.uid)}"><small>FIELD EQUIPMENT · DEPLOYED · ○ PACK UP</small><b>${e2(defName(e.type))}</b><p>Standing out in the field. Walk back to it, then pack it up here.</p></div>`));
     $('#zy-items').insertAdjacentHTML('afterbegin', `<div class="zy-capline"><b>ZYCUBE</b><i><span style="width:${Math.min(100, used / cap * 100)}%"></span></i><span>${used} / ${cap} slots · ${e2(T.name)}</span></div><small class="zy-head-row">FIELD EQUIPMENT</small>${rows.join('') || '<div class="zy-note locked"><small>NONE CARRIED</small><p>Craft Field Equipment at your Experiment Table, then carry it here.</p></div>'}`);
@@ -551,6 +562,8 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (el.dataset.packdep) { onPackDeployed?.(el.dataset.packdep); return; }
     if (el.dataset.deploy) { onDeploy?.(el.dataset.deploy); return; }
     if (el.dataset.use) { const keep = focus; onUseItem?.(el.dataset.use); render(); focus = keep; paintFocus(); return; }
+    if (el.dataset.utility) { onUtilityWheel?.(el.dataset.utility, inventory.utilityWheel?.includes(el.dataset.utility) ? 'remove' : 'add'); render(); return; }
+    if (el.dataset.utilitySlot != null) { const i = +el.dataset.utilitySlot, k = inventory.utilityWheel?.[i]; if (k) { onUtilityWheel?.(k, 'remove'); render(); } return; }
     if (el.dataset.slot != null || el.dataset.bag) { armoryPick(el); return; }
     if (el.dataset.act) { const keep = focus; onAction?.(el.dataset.act); if (isOpen) { render(); focus = keep; paintFocus(); } }
   }

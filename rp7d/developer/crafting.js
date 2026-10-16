@@ -26,16 +26,16 @@ export const RECIPES = [
   { id: 'field_workstation', name: 'Field Workstation', outputId: 'field_workstation', outputQuantity: 1,
     ingredients: [{ itemId: 'scrap_metal', quantity: 12 }, { itemId: 'fresh_wood', quantity: 8 }, { itemId: 'everstone', quantity: 4 }], known: true, prerequisites: [], stationType: 'EXPERIMENT_TABLE', testRecipe: true, note: TEST },
   ...[
-    { id: 'guitar', name: "Psychosyd's Signed Red Guitar", outputId: 'guitar', broken: 'broken_guitar', materials: [['fresh_wood',14],['scrap_metal',8]] },
+    { id: 'guitar', name: "Rebuild Psychosyd's Signed Red Guitar", outputId: 'guitar', materials: [['guitar_body',1],['guitar_neck',1],['fresh_wood',14],['scrap_metal',8]] },
     { id: 'telescope', name: 'Stargazer Telescope', outputId: 'telescope', broken: 'broken_telescope', materials: [['scrap_metal',20],['everstone',8],['fresh_wood',6]] },
     { id: 'astralboard', name: 'Astralboard', outputId: 'astralboard', broken: 'broken_astralboard', materials: [['scrap_metal',30],['everstone',14],['fresh_wood',10],['gemshard',3]] }
-  ].flatMap(x => ['EXPERIMENT_TABLE','FIELD_WORKSTATION'].map(stationType => ({
-    id: `repair_${x.id}_${stationType.toLowerCase()}`, name: `Repair · ${x.name}`, outputId: x.outputId, outputQuantity: 1,
-    ingredients: [{ itemId: x.broken, quantity: 1 }, ...x.materials.map(([itemId, quantity]) => ({ itemId, quantity }))],
+  ].flatMap(x => (x.id === 'guitar' ? ['EXPERIMENT_TABLE'] : ['EXPERIMENT_TABLE','FIELD_WORKSTATION']).map(stationType => ({
+    id: `${x.id === 'guitar' ? 'rebuild' : 'repair'}_${x.id}_${stationType.toLowerCase()}`, name: `${x.id === 'guitar' ? 'Rebuild' : 'Repair'} · ${x.name}`, outputId: x.outputId, outputQuantity: 1,
+    ingredients: [...(x.broken ? [{ itemId: x.broken, quantity: 1 }] : []), ...x.materials.map(([itemId, quantity]) => ({ itemId, quantity }))],
     known: true, prerequisites: [], stationType, testRecipe: true,
     outputLoc: x.id === 'guitar' ? LOC.ZYCUBE : undefined,
     note: x.id === 'guitar'
-      ? `${TEST} · the repaired guitar goes directly to the Utility WHUD`
+      ? `${TEST} · combines the guitar body and neck; rebuilt guitar goes to Utilities in the Zycube`
       : `${TEST} · returns the repaired item to ${stationType === 'EXPERIMENT_TABLE' ? 'Home Storage' : 'the Zycube'}`
   }))),
   // Astralite Station: every one of the 63 Astralites can be synthesised into Gemshards (placeholder rate: 3 of one → 1 Gemshard).

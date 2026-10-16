@@ -19,8 +19,6 @@ export const WEAPONS = {
   sword: { name: 'Sapphire Tearsword of Azurel', tier: 'Mythic', gemlord: 'Azurel', color: '#6fb4ff', blurb: 'A mythic blade tied to the Gemlord Azurel: tempered steel with an azure fuller, gold guard, a teardrop sapphire in the pommel. □ swings a four-cut combo.' },
   axe: { name: 'Jaded Axe of Emeralix', tier: 'Mythic', gemlord: 'Emeralix', color: '#3dff7a', blurb: 'A mythic double-bladed war axe tied to the Gemlord Emeralix: emerald crescent edges on a moss-green head, a caged emerald at its heart. Heavy — every blow lands hard. □ swings a four-stage combo.' },
   bow: { name: 'Pearlbow of Ivirium', tier: 'Mythic', gemlord: 'Ivirium', color: '#f4ddff', blurb: 'An ivory and pearl bow with gold fittings. Tap □ to loose a traveling arrow; hold □ to aim while walking. Lock on to choose a target.' },
-  // Psychosyd — Baelgor rockstar, electric-guitar apex of the Zyraxis Humanoidlands — signed this cherry-red guitar.
-  guitar: { name: "Psychosyd's Signed Red Guitar", tier: 'Legendary', color: '#ff3b3b', banner: 'LEGENDARY · PSYCHOSYD', blurb: 'Cherry-red electric guitar with a gold signature: "Keep it loud. — PSYCHOSYD." □ plays the solo; every Seer and Mori in earshot drops everything and dances until it ends. □ again, moving or taking a hit stops it.' },
   rubypaw: { name: 'Rubypaw Longsword of Rakoron', tier: 'Mythic', gemlord: 'Rakoron', color: '#ff2a2a', banner: 'MYTHIC WEAPON · RAKORON', blurb: 'Rakoron’s heavy crimson longsword: obsidian inset, ruby edge and clawed guard. Stows across Rizer’s back. □ swings the Jaded Axe’s four-stage combo.' },
   telescope: { name: 'Stargazer Telescope', tier: 'Uncommon', color: '#6fb4ff', banner: 'EXPLORATION · STARGAZER', blurb: 'A brass-and-glass refractor on a wooden tripod. Draw it, then □ to set it up: Rizer crafts it piece by piece and plants it in the overworld. ○ / E beside it looks through it into the Aethryx Expanse; □ beside it packs it away.' },
   // The crafted Field Workstation, as an Armory tool (game.js · syncWorkstationKit): on the wheel while one is owned; □ builds it.
@@ -28,6 +26,11 @@ export const WEAPONS = {
   life_seed: { name: 'Life Seed', tier: 'Rare', color: '#7ee36b', banner: 'TREEHOUSE · PLANT', blurb: 'A rare seed from a fallen tree. Equip it, then press □ on grassy ground to plant. The treehouse grows in 8 seconds.' },
   // One definition for every owner: a Nova Guardian carries it, drops it when it falls, and Rizer fires the same weapon (thardin-rifle.js).
   blaster: { name: THARDIN_BLASTER_RIFLE.name, tier: 'Rare', color: '#ffb347', banner: 'THARDIN TECH · BLASTER RIFLE', weaponType: THARDIN_BLASTER_RIFLE.weaponType, blurb: 'A high-precision Thardin energy rifle, standard issue for Nova Guardians. Dark alloy, a long scope, and an amber energy chamber. □ shoulders it and fires; hold □ to keep firing. Lock on to choose a target.' }
+};
+
+// Instruments and traversal tools are utilities, never weapons.
+export const UTILITIES = {
+  guitar: { name: "Psychosyd's Signed Red Guitar", tier: 'Legendary', color: '#ff3b3b', banner: 'UTILITY · PSYCHOSYD', blurb: 'Rebuilt from its body and neck at the Experiment Table. □ plays the solo; nearby Seers and Mori dance until it ends. □ again, moving or taking a hit stops it.' }
 };
 
 // ── rides ──────────────────────────────────────────────────────────────
@@ -112,7 +115,9 @@ export const ITEMS = {
   'fruit-white': { name: 'White Fruit', kind: 'consumable', color: '#efe8dc', boost: { hp: 15, stamina: 15, astral: 15 }, blurb: 'A rare pale fruit. Restores health, stamina and astral energy.' },
   gemshard: { name: 'Gemshard', kind: 'material', color: '#9fe8ff', blurb: 'A crystalline shard fused from Astralites at the Astralite Station. Used in advanced crafting.' },
   compound_ax36: { name: 'AX-36 Compound', kind: 'material', color: '#b8bec8', blurb: 'Physical compound synthesized from one AX-3 and one AX-6 after studying both. Kept separately from permanent Matrix research.' },
-  broken_guitar: { name: 'Broken Red Guitar', kind: 'material', color: '#8d4141', blurb: 'Psychosyd’s guitar needs repair at Rizer’s Experiment Table or a Field Workstation.' },
+  guitar_body: { name: 'Psychosyd Guitar Body', kind: 'material', color: '#b3121c', blurb: 'The cherry-red guitar body. Rebuild it with the matching neck and materials at Rizer’s Experiment Table.' },
+  guitar_neck: { name: 'Psychosyd Guitar Neck', kind: 'material', color: '#4a2a17', blurb: 'The guitar neck and headstock. Rebuild it with the matching body and materials at Rizer’s Experiment Table.' },
+  broken_guitar: { name: 'Broken Red Guitar', kind: 'material', color: '#8d4141', blurb: 'Legacy guitar part. Rebuild at Rizer’s Experiment Table.' },
   broken_astralboard: { name: 'Broken Astralboard', kind: 'material', color: '#6553a5', blurb: 'A damaged Astralite hoverboard. Repair it at Rizer’s Experiment Table or a Field Workstation.' },
   broken_telescope: { name: 'Broken Stargazer Telescope', kind: 'material', color: '#6c7d9a', blurb: 'A damaged telescope. Repair it at Rizer’s Experiment Table or a Field Workstation.' },
   // Gold Coins: currency and collectible, found in wooden chests throughout Malezor
@@ -315,11 +320,17 @@ export function buildGuitar() {
   for (const y of [0.3, 0.42, 0.52, 0.6, 0.66]) { const dot = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.003, 8), white); dot.rotation.x = Math.PI / 2; dot.position.set(0, y, 0.025); g.add(dot); }
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.17, 0.018), red); head.position.set(0.012, 0.83, -0.002); head.rotation.z = -0.08; g.add(head);
   for (let i = 0; i < 6; i++) { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.03, 6), chrome); t.position.set(0.045, 0.765 + i * 0.024, 0.01); t.rotation.z = Math.PI / 2; g.add(t); }
-  for (let i = 0; i < 6; i++) { const x = -0.017 + i * 0.0068, st = new THREE.Mesh(new THREE.BoxGeometry(0.0022, 0.9, 0.0022), chrome); st.position.set(x, 0.33, 0.029); g.add(st); }
+  for (let i = 0; i < 6; i++) { const x = -0.017 + i * 0.0068, st = new THREE.Mesh(new THREE.BoxGeometry(0.0022, 0.9, 0.0022), chrome); st.position.set(x, 0.33, 0.029); st.userData.guitarString = true; g.add(st); }
   const sig = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.004, 5, 18, Math.PI * 1.4), gold); sig.position.set(-0.09, -0.15, 0.024); sig.rotation.z = 0.5; g.add(sig); // the gold signature
   g.scale.setScalar(1.25);
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   g.userData.base = new THREE.Vector3(0, -0.2, 0); g.userData.tip = new THREE.Vector3(0, 0.9, 0); g.userData.hitR = 0.06; g.userData.trail = [1, 0.3, 0.3];
+  return g;
+}
+export function buildGuitarPart(part) {
+  const g = buildGuitar();
+  g.children = g.children.filter(o => !o.userData.guitarString && (part === 'body' ? o.position.y <= 0.2 : o.position.y > 0.2));
+  g.children.forEach(o => { o.parent = g; });
   return g;
 }
 // Astralboard: a low-poly astralite/technology deck.  The controller brightens

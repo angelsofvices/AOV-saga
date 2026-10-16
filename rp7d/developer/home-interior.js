@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createN3000Prop } from './n3000-prop.js';
-import { buildGuitar } from './loot.js';
+import { buildGuitarPart } from './loot.js';
 import { buildTVSet } from './tv-system.js';
 import { Actor, loadGLB } from './actor.js';
 
@@ -18,7 +18,7 @@ export function createHomeInterior(scene) {
   const cyl = (parent, rt, rb, h, material, x, y, z, seg = 8) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), material); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
   const orb = (parent, r, material, x, y, z) => { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), material); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
   const blockers = { 1: [], 2: [] };
-  let consoleRoot = null, n3000Screen = null, floorGuitar = null, tvSet = null;
+  let consoleRoot = null, n3000Screen = null, floorGuitar = null, floorGuitarNeck = null, floorGuitarBody = null, tvSet = null;
   let frontDoor = null; // the front door's hinge group (inside view)
   const residents = [];
   const NPCS_ON_HOLD = true;
@@ -311,9 +311,12 @@ export function createHomeInterior(scene) {
     const science = get(13, 1); box(second.room, 4.2, 0.3, 1.35, darkWood, science.x, second.floorY + 0.95, science.z);
     for (const dx of [-1.6, 1.6]) box(second.room, 0.2, 0.9, 0.2, trim, science.x + dx, second.floorY + 0.45, science.z);
     for (const x of [-0.95, 0, 0.95]) { const vial = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 0.68, 6), x ? glass : mat('#87aa66', 0.4, { emissive: '#3b7733', emissiveIntensity: 0.35 })); vial.position.set(science.x + x, second.floorY + 1.42, science.z); second.room.add(vial); }
-    // Psychosyd's guitar lies on the floor where a new game starts; ○ / E picks it up (game.js · takeFloorGuitar).
-    const guitarAt = get(10, 1); floorGuitar = buildGuitar(); floorGuitar.rotation.set(-Math.PI / 2, 0, 0.6); floorGuitar.position.set(guitarAt.x, second.floorY + 0.06, guitarAt.z + 0.6); floorGuitar.userData.structure = true; second.room.add(floorGuitar);
-    (root.userData.stations ||= []).push({ id: 'floor-guitar', name: "Psychosyd's Signed Red Guitar", x: guitarAt.x, z: guitarAt.z + 0.6, level: 2, r: 1.6 });
+    // Psychosyd's guitar is found in two separate pieces. Each piece has its own ground pickup.
+    const guitarAt = get(10, 1);
+    floorGuitarBody = buildGuitarPart('body'); floorGuitarBody.rotation.set(-Math.PI / 2, 0, 0.6); floorGuitarBody.position.set(guitarAt.x - 0.38, second.floorY + 0.06, guitarAt.z + 0.6); floorGuitarBody.userData.structure = true; second.room.add(floorGuitarBody);
+    floorGuitarNeck = buildGuitarPart('neck'); floorGuitarNeck.rotation.set(-Math.PI / 2, 0, -0.55); floorGuitarNeck.position.set(guitarAt.x + 0.4, second.floorY + 0.06, guitarAt.z + 0.6); floorGuitarNeck.userData.structure = true; second.room.add(floorGuitarNeck);
+    floorGuitar = floorGuitarBody;
+    (root.userData.stations ||= []).push({ id: 'floor-guitar-body', name: 'Guitar Body', x: guitarAt.x - 0.38, z: guitarAt.z + 0.6, level: 2, r: 1.25 }, { id: 'floor-guitar-neck', name: 'Guitar Neck', x: guitarAt.x + 0.4, z: guitarAt.z + 0.6, level: 2, r: 1.25 });
     const console = get(8, 3); consoleRoot = createN3000Prop(); consoleRoot.scale.setScalar(CONSOLE_SCALE); consoleRoot.position.set(console.x, second.floorY, console.z); second.room.add(consoleRoot); // console-sized: about 0.8 wide, a hand-sized pad
     (root.userData.stations ||= []).push({ id: 'n3000', name: 'N3000', x: console.x, z: console.z + 0.9, level: 2, r: 1.5 });
     const punching = get(1, 8); cyl(second.room, 0.48, 0.55, 2.1, mat('#7a292b'), punching.x, second.floorY + 1.2, punching.z); cyl(second.room, 0.75, 0.75, 0.24, darkWood, punching.x, second.floorY + 0.12, punching.z);
@@ -595,8 +598,11 @@ export function createHomeInterior(scene) {
     // Standing at the front door (ground floor): X / Space opens it and walks him out, the same way entering works.
     nearDoor(p) { p = p.position || p; return level === 1 && p.z > HALF_D - 2.6 && Math.abs(p.x - (frontDoor ? frontDoor.position.x + 0.8 : 0)) < 1.7; },
     // The floor guitar is there until Rizer owns the guitar (taken here, or carried over from an older save).
-    setGuitarTaken(taken) { if (floorGuitar) floorGuitar.visible = !taken; },
+    setGuitarPartTaken(part, taken) { const mesh = part === 'body' ? floorGuitarBody : floorGuitarNeck; if (mesh) mesh.visible = !taken; },
+    setGuitarTaken(taken) { if (floorGuitarBody) floorGuitarBody.visible = !taken; if (floorGuitarNeck) floorGuitarNeck.visible = !taken; },
     get floorGuitar() { return floorGuitar; },
+    get floorGuitarBody() { return floorGuitarBody; },
+    get floorGuitarNeck() { return floorGuitarNeck; },
     get tvSet() { return tvSet; },
     // A collectible lying in the house (a DVD, …): its mesh on that floor, and a station ○ / E answers while hidden() is false.
     addPickup({ id, name, level: lv, x, z, mesh, hidden }) {
@@ -616,7 +622,7 @@ export function createHomeInterior(scene) {
       }
       return null;
     },
-    stationAt(p) { p = p.position || p; let best = null; for (const s of root.userData.stations || []) { if (s.level !== level || s.hidden?.() || (s.id === 'floor-guitar' && !floorGuitar?.visible)) continue; const d = Math.hypot(p.x - s.x, p.z - s.z); if (d <= s.r && (!best || d < best.d)) best = { ...s, d }; } return best; },
+    stationAt(p) { p = p.position || p; let best = null; for (const s of root.userData.stations || []) { if (s.level !== level || s.hidden?.() || (s.id === 'floor-guitar-body' && !floorGuitarBody?.visible) || (s.id === 'floor-guitar-neck' && !floorGuitarNeck?.visible)) continue; const d = Math.hypot(p.x - s.x, p.z - s.z); if (d <= s.r && (!best || d < best.d)) best = { ...s, d }; } return best; },
     get entry() { return entryDoor.clone(); },
     get frontDoor() { return frontDoor; },
     interact(rizer) {

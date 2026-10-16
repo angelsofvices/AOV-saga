@@ -2,14 +2,14 @@
 // A definition says WHAT an item is. It never says how many there are or where they are: that is inventory state
 // (storage.js). Weapons come from loot.js · WEAPONS, resources / consumables / key items from loot.js · ITEMS, and
 // Field Equipment (deployables) from FIELD_EQUIPMENT below. Everything is looked up through defOf(id).
-import { ITEMS, WEAPONS, RIDES } from './loot.js';
+import { ITEMS, WEAPONS, UTILITIES, RIDES } from './loot.js';
 
 export const CATEGORY = Object.freeze({
-  WEAPON: 'WEAPON', RESOURCE: 'RESOURCE', ITEM: 'ITEM', FIELD_EQUIPMENT: 'FIELD_EQUIPMENT', SPECIAL: 'SPECIAL', MEDIA: 'MEDIA'
+  WEAPON: 'WEAPON', UTILITY: 'UTILITY', RESOURCE: 'RESOURCE', ITEM: 'ITEM', FIELD_EQUIPMENT: 'FIELD_EQUIPMENT', SPECIAL: 'SPECIAL', MEDIA: 'MEDIA'
 });
-export const CATEGORY_ORDER = [CATEGORY.WEAPON, CATEGORY.FIELD_EQUIPMENT, CATEGORY.RESOURCE, CATEGORY.ITEM, CATEGORY.MEDIA, CATEGORY.SPECIAL];
+export const CATEGORY_ORDER = [CATEGORY.WEAPON, CATEGORY.UTILITY, CATEGORY.FIELD_EQUIPMENT, CATEGORY.RESOURCE, CATEGORY.ITEM, CATEGORY.MEDIA, CATEGORY.SPECIAL];
 export const CATEGORY_LABEL = {
-  WEAPON: 'WEAPONS', FIELD_EQUIPMENT: 'FIELD EQUIPMENT', RESOURCE: 'RESOURCES', ITEM: 'ITEMS', MEDIA: 'DVDS', SPECIAL: 'KEY ITEMS'
+  WEAPON: 'WEAPONS', UTILITY: 'UTILITIES', FIELD_EQUIPMENT: 'FIELD EQUIPMENT', RESOURCE: 'RESOURCES', ITEM: 'ITEMS', MEDIA: 'DVDS', SPECIAL: 'KEY ITEMS'
 };
 
 // Field Equipment: physical utility assets Rizer crafts, stores, carries, deploys, uses and packs up again.
@@ -46,6 +46,9 @@ export function defOf(id) {
   if (FIELD_EQUIPMENT[id]) {
     const e = FIELD_EQUIPMENT[id];
     d = { id, name: e.name, category: CATEGORY.FIELD_EQUIPMENT, unique: true, stackable: false, slots: e.slots, transferable: true, deployable: true, color: e.color, blurb: e.blurb };
+  } else if (UTILITIES[id]) {
+    const u = UTILITIES[id];
+    d = { id, name: u.name, category: CATEGORY.UTILITY, unique: true, stackable: false, slots: 1, transferable: true, deployable: false, color: u.color, blurb: u.blurb };
   } else if (WEAPONS[id]) {
     const w = WEAPONS[id];
     d = { id, name: w.name, category: CATEGORY.WEAPON, unique: true, multipleInstances: !!w.multipleInstances, stackable: false, slots: id === 'fists' || id === 'workstation' ? 0 : 1, transferable: id !== 'fists' && id !== 'workstation', deployable: false, color: '#c9d6e6', blurb: w.blurb || '' };
@@ -64,4 +67,5 @@ export function defOf(id) {
 export const isUnique = id => !!defOf(id)?.unique;
 export const isStackable = id => !!defOf(id)?.stackable;
 export const isWeaponId = id => !!WEAPONS[id] && !FIELD_EQUIPMENT[id];
-export const isEquipmentId = id => !!FIELD_EQUIPMENT[id];
+export const isUtilityId = id => !!UTILITIES[id];
+export const isEquipmentId = id => !!FIELD_EQUIPMENT[id] || isUtilityId(id);

@@ -38,7 +38,7 @@ function rockMass(rand, rx, ry, rz, detail, palette) {
     v.multiplyScalar(n); if (v.y < 0) v.y *= 0.25; // the base spreads, the top stays craggy
     p.setXYZ(i, v.x * rx, v.y * ry, v.z * rz);
   }
-  const geo = g.toNonIndexed(); geo.computeVertexNormals();
+  const geo = g.index ? g.toNonIndexed() : g; geo.computeVertexNormals();
   const q = geo.attributes.position, c = new THREE.Color();
   for (let i = 0; i < q.count; i += 3) { const y = (q.getY(i) + q.getY(i + 1) + q.getY(i + 2)) / 3; c.copy(palette[(Math.floor(rand() * 3))]).lerp(palette[3], Math.max(0, Math.min(1, y / ry)) * 0.35); for (let k = 0; k < 3; k++) col.push(c.r, c.g, c.b); }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));

@@ -94,6 +94,10 @@ if (fs.existsSync(path.join(zyrexDir, 'elzebub_rp7d_v1.glb'))) {
     fs.mkdirSync(path.dirname(audioOut), { recursive: true });
     fs.copyFileSync(audioFile, audioOut);
   }
+  for (const rel of ['assets/video/story-selector.mp4', 'assets/ui/menus/andre-khronis.png', 'assets/ui/menus/rizer-azurel.png']) {
+    const source = path.join(root, rel), target = path.join(path.dirname(out), rel);
+    if (fs.existsSync(source)) { fs.mkdirSync(path.dirname(target), { recursive: true }); fs.copyFileSync(source, target); }
+  }
   fs.writeFileSync(out, page);
   console.log(`wrote ${path.relative(root, out)} · ${(page.length / 1e6).toFixed(1)} MB · ${assets.length} assets`);
   console.log(`soundtrack · ${(audioSize / 1e6).toFixed(1)} MB · ${embedAudio ? 'embedded in HTML' : `keep dist/${audioRelative} beside the HTML`}`);
@@ -106,7 +110,8 @@ if (fs.existsSync(path.join(zyrexDir, 'elzebub_rp7d_v1.glb'))) {
 async function buildWeb() {
   const webDir = path.resolve(root, '..', 'play-rp7d'), LIMIT = 20e6;
   const passHash = (await import('node:crypto')).createHash('sha256').update('aovdev').digest('hex');
-  fs.rmSync(webDir, { recursive: true, force: true, filter: undefined });
+  // Keep this output additive: the play-rp7d folder also holds hand-maintained assets
+  // (including the original story-selector video). Overwrite generated files in place.
   fs.mkdirSync(path.join(webDir, 'assets/video'), { recursive: true });
   fs.mkdirSync(path.join(webDir, 'assets/audio'), { recursive: true });
   // assets → chunk-N.js, each under LIMIT
@@ -119,9 +124,14 @@ async function buildWeb() {
   if (cur) chunks.push(cur);
   chunks.forEach((c, i) => fs.writeFileSync(path.join(webDir, `chunk-${i}.js`), c));
   fs.writeFileSync(path.join(webDir, 'game.js'), js);
+  for (const rel of ['assets/ui/menus/andre-khronis.png', 'assets/ui/menus/rizer-azurel.png']) {
+    const source = path.join(root, rel);
+    if (fs.existsSync(source)) { const target = path.join(webDir, rel); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.copyFileSync(source, target); }
+  }
   // media: re-encoded to fit the cap, and to stream (the movie's index sits at the front)
   const media = [
     [path.join(root, 'assets/video/intro.mp4'), 'assets/video/intro.mp4', ['-c:v', 'libx264', '-preset', 'slow', '-crf', '27', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart']],
+    [path.join(root, 'assets/video/story-selector.mp4'), 'assets/video/story-selector.mp4', ['-c:v', 'libx264', '-preset', 'slow', '-crf', '27', '-pix_fmt', 'yuv420p', '-an', '-movflags', '+faststart']],
     [audioFile, audioRelative, ['-map', '0:a', '-c:a', 'libmp3lame', '-b:a', '96k']] // 33 min of music: 96k keeps it under the cap
   ];
   const { execFileSync } = await import('node:child_process');
@@ -135,6 +145,9 @@ async function buildWeb() {
     }
     fs.copyFileSync(cached, path.join(webDir, rel));
   }
+  // Keep the old space-named selector URL working for any saved browser/bookmark,
+  // but serve the compressed derivative; the original is preserved under rp7d/assets.
+  fs.copyFileSync(path.join(cache, 'assets/video/story-selector.mp4'), path.join(webDir, 'assets/video/story selector.mp4'));
   // page: the gate, then the playtest body; the game's files load only once the password is in
   const gate = `<div class="dev-gate" id="dev-gate"><form class="dg-box" id="dg-form" autocomplete="off">
   <b>RIZING POWER 7 · DELUXE</b><small>DEV PLAYTEST · ENTER THE PASSWORD</small>

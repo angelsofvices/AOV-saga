@@ -782,7 +782,7 @@ const MOUNTS = {
   plasmabeam: {
     // Anchor the handle at the middle of the palm (wrist to index-finger base).
     // Mixamo exports vary between colon and non-colon bone names.
-    hand: { bone:'mixamorigRightHand', palm:'mixamorigRightHandIndex1', palmT:.48, blade:new THREE.Vector3(0,1,0), edge:new THREE.Vector3(1,0,0) },
+    hand: { bone:'mixamorigRightHand', palm:'mixamorigRightHandIndex1', palmT:.48, alignToPalm:true, blade:new THREE.Vector3(0,1,0), edge:new THREE.Vector3(1,0,0) },
     stow: { bone:'mixamorigHips', off:new THREE.Vector3(-.24,-.04,.02), blade:new THREE.Vector3(0,0,-1), edge:new THREE.Vector3(-1,0,0) }
   },
   sword: {
@@ -840,7 +840,20 @@ export function createHeldWeapons(scene) {
     const src = a.gltf.scene, bone = findRigBone(src, m.bone); src.updateMatrixWorld(true);
     const rel = src.matrixWorld.clone().invert().multiply(bone.matrixWorld), inv = rel.clone().invert();
     const bp = new THREE.Vector3().setFromMatrixPosition(rel);
-    const Y = m.blade.clone().normalize(), X = m.edge.clone().sub(Y.clone().multiplyScalar(m.edge.dot(Y))).normalize(), Z = new THREE.Vector3().crossVectors(X, Y);
+    let Y = m.blade.clone().normalize(), X = m.edge.clone().sub(Y.clone().multiplyScalar(m.edge.dot(Y))).normalize(), Z = new THREE.Vector3().crossVectors(X, Y);
+    if (m.alignToPalm && m.palm) {
+      const palmBase = findRigBone(src, m.palm);
+      if (palmBase) {
+        const palmRel = src.matrixWorld.clone().invert().multiply(palmBase.matrixWorld);
+        Z = new THREE.Vector3().setFromMatrixPosition(palmRel).sub(bp).normalize();
+        // The pistol barrel follows the direction from Rizer's wrist toward
+        // his fingers. This makes the held gun follow the pose authored in
+        // each pistol clip instead of forcing it to face the character axis.
+        X = new THREE.Vector3(1, 0, 0).addScaledVector(Z, -Z.x).normalize();
+        if (X.lengthSq() < 1e-6) X.set(0, 0, 1).addScaledVector(Z, -Z.z).normalize();
+        Y = new THREE.Vector3().crossVectors(Z, X).normalize();
+      }
+    }
     const charQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
     const boneQ = new THREE.Quaternion(); rel.decompose(new THREE.Vector3(), boneQ, new THREE.Vector3());
     let anchor = bp.clone().add(m.off || new THREE.Vector3());

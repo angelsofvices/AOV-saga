@@ -259,8 +259,8 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
       if (!h) continue;
       at.done.add(key);
       const kx = g.pos.x - rp.x, kz = g.pos.z - rp.z, kd = Math.hypot(kx, kz) || 1, fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1;
-      const hitDamage = base * stageMul, perfectKill = fin && !g.perfectKillBroken && hitDamage >= g.hp;
-      const res = hit(g, hitDamage, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, perfectKill, impactPart: h.part, impactPoint: h.at });
+      const hitDamage = base * stageMul, perfectKill = !g.perfectKillBroken && hitDamage >= g.hp;
+      const res = hit(g, hitDamage, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, comboCount: at.chainCount || at.stage || 1, perfectKill, impactPart: h.part, impactPoint: h.at });
       if (res) hooks.onLanded?.({ ...res, x: h.at.x, y: h.at.y, z: h.at.z, part: h.part }, at.kind, g);
     }
   }

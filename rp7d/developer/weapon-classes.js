@@ -25,7 +25,7 @@ export function weaponGroupOf(itemId) {
 
 export function qualifiesForCleanComboDismemberment(itemId, impact = {}) {
   return weaponGroupOf(itemId).cleanFinisher === 'combo-dismember'
-    && impact.perfectKill === true && impact.comboFinisher === true;
+    && impact.perfectKill === true && Number(impact.comboCount) >= 2;
 }
 
 export function qualifiesForCleanPrecisionHeadshot(itemId, target) {

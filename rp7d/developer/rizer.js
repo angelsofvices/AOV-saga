@@ -204,7 +204,7 @@ export class Rizer {
     this.speed = 0; this.mode = 'idle'; this.wading = false; this.events = [];
     this.scarfVel = [0, 0, 0]; this.scarfAng = [0, 0, 0];
     this.actor = null; this.cast = {}; this.charKey = null; this.C = null;
-    this.comboStage = 0; this.comboT = 0; this.strikeStage = 1; this.comboKind = null; this.chainStages = Object.create(null);
+    this.comboStage = 0; this.comboT = 0; this.strikeStage = 1; this.comboKind = null; this.chainCount = 0; this.chainStages = Object.create(null);
     this.weapon = 'fists'; this.swordAt = 'hip'; this.handWeapon = null; this.swap = null; this.prayerStyle = 'regular'; this.prayerPending = null; this.pick = null; this.crouched = false; this.autoLand = false; this.lockPos = null; this.flying = false; this.dodgeT = 0; this.dodgeCool = 0; this.dodgeDir = new THREE.Vector3(); this.usedDouble = false; this.swimW = 0; this.ledge = null; this.ledgeCooldown = 0; this.teeter = null; this.wallRun = null; this.wallRunHold = false; this.wallRunCool = 0; this.groundNormal = new THREE.Vector3(0, 1, 0); this.slopeSliding = false; this.prayer = null; this.prayerIntent = 0; this.prayerSpentHold = false;
     this.hp = this.maxHp; this.stamina = this.maxStamina; this.astralEnergy = this.maxAstralEnergy; this.hurtT = 0; this.sinceHurt = 99; this.attack = null; this.knock = new THREE.Vector3(); this.flinch = 0; this.guardT = 0; this.parryT = 0; this.lastParried = false;
     this.ready = this.setCharacter(DEFAULT_CHARACTER);
@@ -264,7 +264,8 @@ export class Rizer {
     const stage = activeChain && this.isSharedCombo(kind) && previousStage
       ? previousStage < this.comboMax(kind) ? previousStage + 1 : 1
       : activeChain && this.comboKind === kind && this.comboStage < this.comboMax(kind) ? this.comboStage + 1 : 1;
-    return this.startStrike(kind, stage);
+    const chainCount = (activeChain ? (this.chainCount || 1) : 0) + 1;
+    return this.startStrike(kind, stage, 0, null, chainCount);
   }
   stomp(target) {
     const A = this.actor, p = this.position;
@@ -336,7 +337,7 @@ export class Rizer {
     if (Array.isArray(custom) && custom.length) { let n = 0; for (const slot of custom) { if (!this.actor?.has(slot)) break; n++; } if (n) return n; }
     let n = 1; while (n < 5 && this.actor?.has(base + (n + 1))) n++; return n;
   }
-  startStrike(kind, stage, queued = 0, slotOverride = null) {
+  startStrike(kind, stage, queued = 0, slotOverride = null, chainCount = 1) {
     if (kind === 'blast' && !this.spendEnergy(8)) return false;
     const slot = slotOverride || this.slotFor(kind, stage), T = this.timing(slot);
     if (this.lockPos) this.facing = Math.atan2(this.lockPos.x - this.position.x, this.lockPos.z - this.position.z); // square up to the lock
@@ -346,11 +347,11 @@ export class Rizer {
     const from = Ck.from != null ? Ck.from : Ck.lead != null ? Math.max(0, T.hits[0] - Ck.lead) : 0; if (Ck.from != null) T.hits = T.hits.filter(h => h >= from);
     const recover = Ck.tail != null ? Math.min(full, T.hits[T.hits.length - 1] + Ck.tail) : full;
     const od = Ck.overdrive?.stage === stage ? Ck.overdrive : null;
-    this.attack = { kind, slot, stage, spd, od, t: from / spd, hits: T.hits, hi: 0, recover, queued,
+    this.attack = { kind, slot, stage, chainCount, spd, od, t: from / spd, hits: T.hits, hi: 0, recover, queued,
       chargeAt: kind === 'blast' ? Math.max(0.04, T.hits[0] / spd - (COMBAT.blast.chargeLead || 0.24)) : Infinity, chargeSent: false };
     if (kind === 'flykick' || kind === 'runpunch' || kind === 'runKickHold' || slotOverride) { this.attack.entry = this.speed; this.attack.run = !!slotOverride || kind === 'runKickHold'; }
     if (kind === 'kickup') this.attack.hits = [COMBAT.kickup.hit]; // one blow: the inverted kick
-    this.comboKind = kind; this.comboStage = stage; this.comboT = 0; this.comboFlash = stage;
+    this.comboKind = kind; this.comboStage = stage; this.chainCount = chainCount; this.comboT = 0; this.comboFlash = stage;
     if (this.isSharedCombo(kind)) this.chainStages[kind] = stage;
     else this.chainStages = Object.create(null);
     this.actor?.play(slot, spd, { from });
@@ -1579,7 +1580,7 @@ export class Rizer {
       while (at.hi < at.hits.length && at.t >= at.hits[at.hi] / spd) { at.hi++; this.strikeStage = at.stage; ev.push(at.kind === 'blast' ? `blast${at.stage > 1 ? at.stage : ''}` : at.kind); }
       const landed = at.hi >= at.hits.length, next = at.recover / spd - COMBAT.comboBlend;
       if (at.queued && landed && at.t >= next) {
-        this.startStrike(at.kind, at.stage < this.comboMax(at.kind) ? at.stage + 1 : 1, at.queued - 1);
+        this.startStrike(at.kind, at.stage < this.comboMax(at.kind) ? at.stage + 1 : 1, at.queued - 1, null, (at.chainCount || 1) + 1);
       } else if (at.t >= at.recover / spd) {
         this.attack = null; if (COMBAT[at.kind].tail != null) this.actor?.release(at.slot, 0.3); // heavy clips: blend out instead of playing their idle tail
         this.comboT = this.isSharedCombo(at.kind) || at.stage < this.comboMax(at.kind) ? COMBAT.comboWindow : 0;

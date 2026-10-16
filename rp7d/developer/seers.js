@@ -931,9 +931,9 @@ export async function createSeers(scene, world, W) {
           const kx = hit.at.x - ra.x, kz = hit.at.z - ra.z, kd = Math.hypot(kx, kz) || 1;
           const fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1; // mid-combo blows rock them; the finisher's last blow sends them
           const hitDamage = dealt(base * stageMul, g.T.def, fin); // Rizer's ATK against this foe's DEF
-          const perfectKill = fin && !g.perfectKillBroken && hitDamage * (1 - (g.T.armor || 0) * 0.2) >= g.hp;
+          const perfectKill = !g.perfectKillBroken && hitDamage * (1 - (g.T.armor || 0) * 0.2) >= g.hp;
           const r = hitGrunt(g, hitDamage, kx / kd, kz / kd, at.kind,
-            (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)), { comboFinisher: fin, perfectKill, impactPart: hit.part, impactPoint: hit.at });
+            (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)), { comboFinisher: fin, comboCount: at.chainCount || at.stage || 1, perfectKill, impactPart: hit.part, impactPoint: hit.at });
           hooks.onLanded?.({ ...r, x: hit.at.x, y: hit.at.y, z: hit.at.z, part: hit.part }, at.kind, g);
           if (r.down) ghost = { at, w, x: hit.at.x, y: hit.at.y, z: hit.at.z, name: r.name, t: clock };
         }

@@ -351,8 +351,8 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
       if (!h) continue;
       at.done.add(key);
       const kx = p.pos.x - rp.x, kz = p.pos.z - rp.z, kd = Math.hypot(kx, kz) || 1, fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1;
-      const hitDamage = base * stageMul, perfectKill = fin && !p.perfectKillBroken && hitDamage >= p.hp;
-      const res = hit(p, hitDamage, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, perfectKill, impactPart: h.part, impactPoint: h.at });
+      const hitDamage = base * stageMul, perfectKill = !p.perfectKillBroken && hitDamage >= p.hp;
+      const res = hit(p, hitDamage, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, comboCount: at.chainCount || at.stage || 1, perfectKill, impactPart: h.part, impactPoint: h.at });
       if (res) hooks.onLanded?.({ ...res, x: h.at.x, y: h.at.y, z: h.at.z, part: h.part }, at.kind, p);
       if (res?.down) ghost = { at, w, x: h.at.x, y: h.at.y, z: h.at.z, t: clock };
     }

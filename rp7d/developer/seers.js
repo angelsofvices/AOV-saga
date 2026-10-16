@@ -24,6 +24,7 @@ import { DAEMON_BLACK_SPEC } from './daemons-black.js';
 import { rollEnemyBag } from './coin-piles.js';
 import { dealt } from './astral-stats.js';
 import { DAEMON_RED_SPEC } from './daemons-red.js';
+import { createDismemberment } from './dismemberment.js';
 
 export const SEER = {
   name: 'Seer grunt', key: 'seer', patrols: 'seerPatrols',
@@ -132,6 +133,9 @@ const barTex = () => textSprite((g, f) => {
 
 export async function createSeers(scene, world, W) {
   const grunts = [];
+  const dismemberment = createDismemberment(scene, world);
+  let precisionSerial = 0; const precisionProgress = new Map();
+  const precisionShots = new Set();
   const feedClaims = new Map(), fedBodies = new WeakSet();
   let feedScan = 0;
   const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
@@ -288,6 +292,9 @@ export async function createSeers(scene, world, W) {
   }
 
   function reset(g) {
+    dismemberment.clean(g.fragments); g.fragments = [];
+    for (const [bone, scale] of g.actor.dismemberScales || []) bone.scale.copy(scale);
+    g.actor.dismemberScales?.clear();
     releaseFeed(g); fedBodies.delete(g);
     const s = g.pts[0];
     // spawnY: a patrol on one floor of a cave (cave-interior.js) picks that floor; undefined everywhere else
@@ -341,8 +348,9 @@ export async function createSeers(scene, world, W) {
     return hits;
   }
   // Damage one grunt from direction (dx, dz). Shared by strikes and the astral blast.
-  function hitGrunt(g, damage, dx, dz, kind, power = 1) {
+  function hitGrunt(g, damage, dx, dz, kind, power = 1, impact = {}) {
     releaseFeed(g);
+    if (impact.headshot) { damage = Math.max(damage, g.hp + 1); g.fragments ||= []; g.fragments.push(...dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz))); }
     const beforeHit = g.state, priorDazedMode = g.dazedMode;
     g.hitByRizer = true;
     g.hp -= damage * (1 - (g.T.armor || 0) * 0.2); g.barT = 4; g.bar.redraw(Math.max(0, g.hp) / g.T.hp);
@@ -354,7 +362,13 @@ export async function createSeers(scene, world, W) {
     g.knock.set(dx, 0, dz).multiplyScalar((kind === 'astralift' ? 0 : (kind === 'kick' ? 9 : kind === 'flykick' ? 12 : kind === 'kickup' ? 13 : kind === 'thunder' ? 3 : kind === 'runpunch' ? 8 : kind === 'blast' ? 11 : kind === 'sword' ? 6 : kind === 'axe' ? 9 : 5) * power) * (1 - (g.T.armor || 0) * 0.45));
     if (g.state === 'dance') g.noDance = true; // struck mid-dance: out of the trance until the song ends
     g.atk = null; g.actor.shot = null; g.bang.visible = false;
-    if (g.hp <= 0) { g.actor.dazed = false; g.dazed = 0; g.dazedMode = null; g.state = 'down'; g.fall = 0; g.sink = 0; g.looted = false; g.timer = 0; defeated++; onDefeated?.(g, g.tech || kind); g.actor.play(kind === 'thunder' && g.actor.has('shocked') ? 'shocked' : 'knockdown', 1, { hold: true }); g.lootBag.visible = true; } // struck down by thunder: the electrocution plays out and they stay down
+    if (g.hp <= 0) {
+      if (!impact.headshot && impact.comboFinisher && (kind === 'sword' || kind === 'axe') && !g.isScanobot) {
+        const extra = Math.random() < 0.22, hitPart = impact.impactPart || (Math.random() < 0.5 ? 'LeftArm' : 'LeftLeg');
+        g.fragments ||= []; g.fragments.push(...dismemberment.split(g.actor, hitPart, new THREE.Vector3(dx, 0, dz), extra));
+      }
+      g.actor.dazed = false; g.dazed = 0; g.dazedMode = null; g.state = 'down'; g.fall = 0; g.sink = 0; g.looted = false; g.timer = 0; defeated++; onDefeated?.(g, g.tech || kind); g.actor.play(kind === 'thunder' && g.actor.has('shocked') ? 'shocked' : 'knockdown', 1, { hold: true }); g.lootBag.visible = true;
+    } // struck down by thunder: the electrocution plays out and they stay down
     else {
       // the more blows in a row, the quicker they shake it off (so an endless mash gets answered)
       g.flurry = (g.sinceHit < 1.2 ? (g.flurry || 0) : 0) + 1; g.sinceHit = 0;
@@ -497,6 +511,7 @@ export async function createSeers(scene, world, W) {
   let inView = null;
   function castShadows(g, on) { if (g.shadow === on) return; g.shadow = on; g.actor.model.traverse(o => { if (o.isMesh) o.castShadow = on; }); }
   function update(dt, t, rizer, night, hooks = {}) {
+    dismemberment.update(dt, (x, z, y) => world.groundAt(x, z, y));
     inView = hooks.inView || null;
     const onPlayerHit = typeof hooks === 'function' ? hooks : hooks.onPlayerHit;
     const rp = rizer.position;
@@ -765,6 +780,7 @@ export async function createSeers(scene, world, W) {
       g.lootBag.position.set(g.pos.x, g.pos.y + 0.18 + Math.sin(t * 2.2 + g.pos.x) * 0.04, g.pos.z);
       g.lootBag.rotation.y = t * 0.35;
       if (g.state === 'down' || g.state === 'sinking') {
+        if (g.state === 'sinking' && g.fragments?.length) dismemberment.sink(g.fragments, statusDt * 1.5);
         // Sample along the fallen body's length and width. Head, torso and feet
         // share the same ground plane on hills instead of clipping through it.
         const f = g.heading, fx = Math.sin(f), fz = Math.cos(f), lx = Math.cos(f), lz = -Math.sin(f);
@@ -914,7 +930,7 @@ export async function createSeers(scene, world, W) {
           const kx = hit.at.x - ra.x, kz = hit.at.z - ra.z, kd = Math.hypot(kx, kz) || 1;
           const fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1; // mid-combo blows rock them; the finisher's last blow sends them
           const r = hitGrunt(g, dealt(base * stageMul, g.T.def, fin), // Rizer's ATK against this foe's DEF
-            kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)));
+            kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)), { comboFinisher: fin, impactPart: hit.part, impactPoint: hit.at });
           hooks.onLanded?.({ ...r, x: hit.at.x, y: hit.at.y, z: hit.at.z, part: hit.part }, at.kind, g);
           if (r.down) ghost = { at, w, x: hit.at.x, y: hit.at.y, z: hit.at.z, name: r.name, t: clock };
         }
@@ -938,6 +954,16 @@ export async function createSeers(scene, world, W) {
 
   return {
     grunts, update, playerStrike, hitGrunt, stun, setMusic, get dancing() { return grunts.filter(g => g.state === 'dance').length; }, astralift, blastBack, shock, standDown, alive,
+    beginPrecisionShot(weapon = 'projectile') { const shot = { id: ++precisionSerial, weapon }; precisionShots.add(shot); return shot; },
+    resolvePrecisionShot(shot, hit) {
+      if (!shot || !precisionShots.delete(shot)) return {};
+      const weapon=shot.weapon, state=precisionProgress.get(weapon)||{streak:0,target:3+Math.floor(Math.random()*3)};
+      if (!hit) { state.streak=0; state.target=3+Math.floor(Math.random()*3); precisionProgress.set(weapon,state); return {}; }
+      state.streak++;
+      if (state.streak >= state.target) { state.streak=0; state.target=3+Math.floor(Math.random()*3); precisionProgress.set(weapon,state); return { headshot: true }; }
+      precisionProgress.set(weapon,state);
+      return {};
+    },
     // A patrol on an authored route that is not on the overworld (a cave floor): no coast check; y picks the floor.
     spawnRoute(key, pts, { id, y } = {}) {
       const kind = byKey[key]; if (!kind?.gltf || pts.length < 1) return null;

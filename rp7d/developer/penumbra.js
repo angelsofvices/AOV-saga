@@ -171,14 +171,17 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
       id: `penumbra-${n}`, isScanobot: true, isPenumbra: true, T: P, name: P.name, home: homePt, pts, wp: 1, ...m, bar, // isScanobot: the shared "tech body" interface (alive · aimY · hit) the lock-on, bolts and arrows use
       pos: new THREE.Vector3(), center: new THREE.Vector3(), knock: new THREE.Vector3(), heading: 0, speed: 0, walkT: 0, r: 0.95,
       state: 'patrol', t: 0, hp: P.hp, damageStage: 0, breakFrame: 0, seen: false, seenT: 0, lit: 0, hurt: 0, flash: 0, barT: 0, sink: 0, dropped: false, respawnAt: 0, nextPod: 0, move: null, side: n % 2 ? 1 : -1,
+      detached: [],
       get alive() { return alive(p); }, get aimY() { return 2.1; },
-      hit: (damage, dx, dz, kind, power) => hit(p, damage, dx, dz, kind, power)
+      hit: (damage, dx, dz, kind, power, impact) => hit(p, damage, dx, dz, kind, power, impact)
     };
     const part = (rr, name) => ({ part: name, a: new THREE.Vector3(), b: new THREE.Vector3(), r: rr });
     p.rig = { parts: { Body: part(0.85, 'Body'), LegL: part(0.32, 'LegL'), LegR: part(0.32, 'LegR'), PodL: part(0.4, 'PodL'), PodR: part(0.4, 'PodR') } }; // hurt regions (hitbox.js touch): all take normal damage for now
     reset(p); return p;
   }
   function reset(p) {
+    for (const d of p.detached || []) { d.group.removeFromParent(); d.parent.add(d.group); d.group.position.copy(d.homePos); d.group.quaternion.copy(d.homeQuat); d.group.scale.copy(d.homeScale); }
+    p.detached = [];
     const s = p.pts[0]; p.pos.set(s.x, world.groundAt(s.x, s.y), s.y); p.wp = 1 % p.pts.length; p.heading = Math.atan2(p.pts[p.wp].x - s.x, p.pts[p.wp].y - s.y);
     p.rxpPaid = false; p.state = 'patrol'; p.t = 0; p.hp = P.hp; p.damageStage = 0; p.breakFrame = 0; p.seen = false; p.lit = 0; p.hurt = 0; p.flash = 0; p.barT = 0; p.sink = 0; p.sinkT = 0; p.salvaged = false; p.wreckMotion = null; p.root.scale.setScalar(1); p.dropped = false; p.speed = 0; p.knock.set(0, 0, 0); p.move = null;
     for (const pod of p.pods) { pod.cool = 0; pod.g.rotation.x = 0; }
@@ -213,7 +216,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
   const alertNow = (p, t = P.alert) => { p.state = 'alert'; p.t = t; p.move = null; opts.onEvent?.('alert', p); };
 
   // Damage from direction (dx, dz). Heavier machine: it sparks, and buckles only after enough has landed.
-  function hit(p, damage, dx, dz, kind = 'punch', power = 1) {
+  function hit(p, damage, dx, dz, kind = 'punch', power = 1, impact = {}) {
     if (!alive(p)) return null;
     p.hp -= damage; p.hurt += damage; p.flash = 0.12; p.barT = 5; p.bar.redraw(Math.max(0, p.hp) / P.hp);
     const stage = p.hp <= 0 ? 3 : p.hp <= P.hp * 0.34 ? 2 : p.hp <= P.hp * 0.67 ? 1 : 0;
@@ -221,7 +224,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
     p.knock.set(dx, 0, dz).multiplyScalar(Math.min(1.6, 0.5 * power));
     const at = { x: p.center.x, y: p.center.y, z: p.center.z, name: P.name, scanobot: true, down: false, chips: P.chips };
     fx?.emit(at.x, at.y, at.z, 6, { color: '#ffc27a', speed: 3.2, up: 1, size: 0.14, life: 0.3, g: 6 });
-    if (p.hp <= 0) { destroy(p, kind); at.down = true; return at; }
+    if (p.hp <= 0) { destroy(p, kind, dx, dz, impact); at.down = true; return at; }
     if (!hostile(p)) alertNow(p, 0.5);
     if (p.hurt >= P.stagger.every) { p.hurt = 0; p.state = 'stagger'; p.t = P.stagger.time; p.move = null; fx?.emit(at.x, at.y, at.z, 16, { color: '#ffd9a0', speed: 4.5, up: 1.6, size: 0.2, life: 0.4, g: 6 }); }
     return at;
@@ -232,7 +235,19 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
     return { x: p.center.x, y: p.center.y, z: p.center.z, name: P.name };
   }
   // Destroyed: AI and weapons off, it shuts down and collapses, and its reward is certain — 3 Portalchips, every time.
-  function destroy(p, kind = 'punch') {
+  function sever(p, key, dx, dz) {
+    const group = key === 'LegL' ? p.legs[0] : key === 'LegR' ? p.legs[1] : key === 'PodL' ? p.pods[0].g : p.pods[1].g;
+    if (!group || p.detached.some(d => d.group === group)) return;
+    group.updateWorldMatrix(true, true); const world = group.matrixWorld.clone(), parent = group.parent, homePos=group.position.clone(), homeQuat=group.quaternion.clone(), homeScale=group.scale.clone();
+    group.removeFromParent(); scene.add(group); world.decompose(group.position, group.quaternion, group.scale);
+    const s = key.endsWith('L') ? -1 : 1, vel = new THREE.Vector3(dx * 0.8 + s * 0.4, key.startsWith('Pod') ? 1.8 : 0.8, dz * 0.8 - s * 0.35);
+    p.detached.push({ group, parent, key, vel, spin: new THREE.Vector3(s * 3.2, s * 1.7, -s * 2.6), homePos, homeQuat, homeScale });
+  }
+  function destroy(p, kind = 'punch', dx = 0, dz = 1, impact = {}) {
+    if (impact.comboFinisher && (kind === 'sword' || kind === 'axe')) {
+      const part = impact.impactPart || 'LegL', key = part.includes('LegR') || part.includes('PodR') ? (part.includes('Pod') ? 'PodR' : 'LegR') : part.includes('Pod') ? 'PodL' : 'LegL';
+      sever(p, key, dx, dz); if (Math.random() < 0.2) sever(p, key.endsWith('L') ? key.replace('L','R') : key.replace('R','L'), dx, dz);
+    }
     p.state = 'down'; p.t = 0; p.sink = 0; p.sinkT = 0; p.salvaged = false; p.lastBreakFx = 0; p.wreckMotion = { bodyAngle: 0, bodyVel: 5.1 + Math.random() * 0.8, bodyRoll: 0, bodyRollVel: p.side * (0.7 + Math.random() * 0.6), legVel: p.legs.map((_, i) => ({ x: (i ? 1 : -1) * (0.5 + Math.random() * 0.35), y: 0.2 + Math.random() * 0.35, z: (i ? 1 : -1) * (0.3 + Math.random() * 0.45), rx: (i ? 1 : -1) * (2.4 + Math.random()), rz: (i ? 1 : -1) * (0.5 + Math.random() * 0.4) })) }; p.move = null; p.speed = 0; p.knock.set(0, 0, 0); p.bar.visible = false;
     fx?.emit(p.center.x, p.center.y, p.center.z, 34, { color: '#ffb060', speed: 5, up: 2, size: 0.4, life: 0.6, g: 4 });
     fx?.emit(p.center.x, p.center.y, p.center.z, 18, { color: '#8a8f99', speed: 2, up: 2.4, size: 0.7, life: 1.2, g: -1 });
@@ -335,7 +350,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
       if (!h) continue;
       at.done.add(key);
       const kx = p.pos.x - rp.x, kz = p.pos.z - rp.z, kd = Math.hypot(kx, kz) || 1, fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1;
-      const res = hit(p, base * stageMul, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1));
+      const res = hit(p, base * stageMul, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, impactPart: h.part, impactPoint: h.at });
       if (res) hooks.onLanded?.({ ...res, x: h.at.x, y: h.at.y, z: h.at.z, part: h.part }, at.kind, p);
       if (res?.down) ghost = { at, w, x: h.at.x, y: h.at.y, z: h.at.z, t: clock };
     }
@@ -346,6 +361,10 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
     clock += dt; live.length = 0;
     const rp = rizer.position, rizerDistrict = districtAt(rp.x, rp.z, W);
     for (const p of list) {
+      for (const d of p.detached || []) {
+        d.vel.y -= 9.8 * dt; d.group.position.addScaledVector(d.vel, dt); d.group.rotation.x += d.spin.x * dt; d.group.rotation.y += d.spin.y * dt; d.group.rotation.z += d.spin.z * dt;
+        const floor=world.groundAt(d.group.position.x,d.group.position.z,d.group.position.y+.7); if(d.group.position.y<floor+.08){d.group.position.y=floor+.08;d.vel.y=d.vel.y<-.5?-d.vel.y*.18:0;d.vel.x*=.72;d.vel.z*=.72;d.spin.multiplyScalar(.82);}
+      }
       const statusDt = dt * (p.frost?.slow ?? 1);
       const dx = rp.x - p.pos.x, dz = rp.z - p.pos.z, dist = Math.hypot(dx, dz), toP = Math.atan2(dx, dz);
       if (p.state === 'gone') { if (clock >= p.respawnAt && Math.hypot(rp.x - p.pts[0].x, rp.z - p.pts[0].y) > P.respawnDist) reset(p); continue; }
@@ -407,6 +426,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
             p.upper.position.set(0, 0.78 * Math.sin(M.bodyAngle), 0);
             p.upper.rotation.set(M.bodyAngle, 0, clamp(M.bodyRoll, -0.24, 0.24));
             for (const [i, L] of p.legs.entries()) {
+              if (p.detached?.some(d => d.group === L)) continue;
               const V = M.legVel[i], side = i ? 1 : -1;
               L.position.x += V.x * statusDt; L.position.z += V.z * statusDt;
               V.y -= 9.8 * statusDt; L.position.y += V.y * statusDt;
@@ -419,6 +439,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
           if (Math.random() < statusDt * 5 && !p.salvaged) fx?.emit(p.center.x + (Math.random() - 0.5), p.center.y, p.center.z + (Math.random() - 0.5), 1, { color: Math.random() < 0.3 ? '#ffc27a' : '#77757c', speed: 0.6, up: 1.8, size: 0.6, life: 1.2, g: -1 });
           if (p.salvaged) {
             p.sinkT += statusDt;
+            for (const d of p.detached || []) d.group.position.y -= statusDt * 1.5;
             const crush = clamp(p.sinkT / 0.72, 0, 1), squash = 1 - crush * 0.72;
             p.upper.scale.set(1 - crush * 0.58, squash, 1 - crush * 0.58);
             for (const L of p.legs) { L.position.x = damp(L.position.x, 0, 4, statusDt); L.position.z = damp(L.position.z, 0, 4, statusDt); L.scale.setScalar(Math.max(0.12, 1 - crush * 0.72)); }

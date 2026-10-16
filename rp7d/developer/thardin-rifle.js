@@ -177,16 +177,17 @@ export function createBolts(scene, world, fx, onEvent = () => {}) {
   const coreGeo = new THREE.CylinderGeometry(0.022, 0.022, 2.3, 5); coreGeo.rotateX(Math.PI / 2); coreGeo.translate(0, 0, -0.9);
   const coreMat = new THREE.MeshBasicMaterial({ color: C.core });
   let hidden = false;
-  function fire(from, dir, { owner = null, hostile = false, damage = hostile ? W.damage : W.playerDamage } = {}) {
+  function fire(from, dir, { owner = null, hostile = false, damage = hostile ? W.damage : W.playerDamage, precision = null, resolvePrecision = null } = {}) {
     let k = pool.find(q => !q.live);
     if (!k) { k = { mesh: new THREE.Mesh(geo, mat), pos: new THREE.Vector3(), start: new THREE.Vector3(), dir: new THREE.Vector3() }; k.mesh.add(new THREE.Mesh(coreGeo, coreMat)); k.mesh.frustumCulled = false; scene.add(k.mesh); pool.push(k); }
-    k.pos.copy(from); k.start.copy(from); k.dir.copy(dir).normalize(); k.age = 0; k.live = true; k.owner = owner; k.hostile = hostile; k.damage = damage;
+    k.pos.copy(from); k.start.copy(from); k.dir.copy(dir).normalize(); k.age = 0; k.live = true; k.owner = owner; k.hostile = hostile; k.damage = damage; k.precision = precision; k.resolvePrecision = resolvePrecision; k.precisionResolved = false;
     k.mesh.position.copy(from); k.mesh.quaternion.setFromUnitVectors(UPZ, k.dir); k.mesh.visible = !hidden;
     fx?.emit(from.x, from.y, from.z, 9, { color: C.muzzle, speed: 2.6, up: 0.3, size: 0.28, life: 0.16, g: 0 });
     onEvent('fire', { from, owner, hostile });
     return k;
   }
   function end(k, at, struck) {
+    if (k.precision && !k.precisionResolved) { k.resolvePrecision?.(k.precision, false); k.precisionResolved = true; }
     k.live = false; k.mesh.visible = false;
     fx?.emit(at.x, at.y, at.z, struck ? 14 : 9, { color: C.impact, speed: struck ? 3.6 : 2.6, up: 1, size: 0.22, life: 0.3, g: 5 });
     fx?.emit(at.x, at.y, at.z, 4, { color: C.core, speed: 1.2, up: 0.4, size: 0.34, life: 0.14, g: 0 });
@@ -212,8 +213,8 @@ export function createBolts(scene, world, fx, onEvent = () => {}) {
         let best = Infinity, grunt = null, body = null;
         for (const g of ctx.seers?.grunts || []) { if (!ctx.seers.alive(g)) continue; const q = near(k, { x: g.pos.x, y: g.pos.y + 1.25, z: g.pos.z }, sx, sy, sz, len2); if (q.d2 < 0.8 * 0.8 && q.t < best) { best = q.t; grunt = g; body = null; } }
         for (const o of ctx.bodies?.() || []) { if (!o.alive || o === k.owner) continue; const q = near(k, o.center, sx, sy, sz, len2); if (q.d2 < (o.r + W.radius) ** 2 && q.t < best) { best = q.t; body = o; grunt = null; } }
-        if (grunt) { const res = ctx.seers.hitGrunt(grunt, k.damage, k.dir.x, k.dir.z, 'blaster', W.knock); end(k, res || next, true); ctx.onLanded?.(res, grunt); continue; }
-        if (body) { const res = body.hit(k.damage, k.dir.x, k.dir.z, 'blaster', W.knock); end(k, res || next, true); ctx.onLanded?.(res, body); continue; }
+        if (grunt) { const precision = k.resolvePrecision?.(k.precision, true) || {}; k.precisionResolved = true; const res = ctx.seers.hitGrunt(grunt, k.damage, k.dir.x, k.dir.z, 'blaster', W.knock, precision); end(k, res || next, true); ctx.onLanded?.(res, grunt); continue; }
+        if (body) { const precision = body.isNova ? (k.resolvePrecision?.(k.precision, true) || {}) : {}; if(body.isNova)k.precisionResolved=true; const res = body.hit(k.damage, k.dir.x, k.dir.z, 'blaster', W.knock, precision); end(k, res || next, true); ctx.onLanded?.(res, body); continue; }
         if (world.nature?.userData?.breakables?.strike({ a: k.pos, b: next, r: 0.12 }, k.damage, `bolt-${k.age.toFixed(3)}-${k.start.x.toFixed(2)}`, { first: true })) { end(k, next, false); continue; }
       }
       if (k.age > W.life || far > W.effectiveRange * 1.4 || next.y < world.groundAt(next.x, next.z, next.y + 1) + 0.04) { end(k, next, false); continue; }

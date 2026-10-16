@@ -1293,7 +1293,7 @@ function build() {
   av = createAstralvision(scene, camera, fx);
   loot = createLoot(scene, world, fx, W, { claimPlasma: source => { const res=claimPlasmabeam(source);if(!res.ok)showToast(res.message);return res;} }); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   plasmaSystem = createPlasmabeamSystem({ scene,world,foes,fx,
-    hit:(g,damage,dir)=>g.isScanobot?g.hit(damage,dir.x,dir.z,'plasmabeam',.4):seers.hitGrunt(g,damage,dir.x,dir.z,'plasmabeam',.4),
+    hit:(g,damage,dir,impact={})=>g.isNova?g.hit(damage,dir.x,dir.z,'plasmabeam',.4,impact):g.isScanobot?g.hit(damage,dir.x,dir.z,'plasmabeam',.4):seers.hitGrunt(g,damage,dir.x,dir.z,'plasmabeam',.4,impact),
     onHit:(res,g)=>{if(res)seerHooks.onLanded(res,'plasmabeam');} });
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
   lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, porch: null, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('SILVER FOCUS CHEST · a Lightbulb rises · ✕ to collect'); } }); // the six silver chests teach Focus Moves; Gemlord weapon chests are gold and scattered
@@ -1642,7 +1642,8 @@ function firePendingPlasma(dt) {
   if(!weapon||!mesh?.parent||!mesh.visible||rizer.weapon!=='plasmabeam'||rizer.swordAt!=='hand'||rizer.handWeapon!=='plasmabeam'||homeMode)return;
   mesh.updateMatrixWorld(true);const from=mesh.userData.muzzle.clone().applyMatrix4(mesh.matrixWorld),forward=new THREE.Vector3(0,0,1).transformDirection(mesh.matrixWorld);
   const primary=['enemy','scanobot'].includes(astral.lock?.kind)&&foes.alive(astral.lock.ref)?astral.lock.ref:null;
-  if(plasmaSystem.fire(from,forward,primary,weapon.mode)){
+  const precision=weapon.mode==='frost'?null:seers.beginPrecisionShot('pistol');
+  if(plasmaSystem.fire(from,forward,primary,weapon.mode,precision,(shot,hit)=>seers.resolvePrecisionShot(shot,hit))){
     sfx.play('thardin',.6,1.35);cam.kick(.08);
   }
 }
@@ -1902,7 +1903,7 @@ function updateBlaster(dt, held) {
   if (!held || rifleK < 0.85 || rifleCool > 0 || !mesh.parent || rizer.swap || (lp && aimErr > 0.28)) return;
   const from = muzzleOf(mesh, _rf[0]), f = rizer.facing;
   if (tg) _rf[1].set(tg.pos.x, tg.pos.y + (tg.aimY ?? 1.25), tg.pos.z).sub(from).normalize(); else _rf[1].set(Math.sin(f), 0, Math.cos(f));
-  bolts.fire(from, _rf[1], { owner: rizer, hostile: false });
+  bolts.fire(from, _rf[1], { owner: rizer, hostile: false, precision: seers.beginPrecisionShot('blaster'), resolvePrecision: (shot, hit) => seers.resolvePrecisionShot(shot, hit) });
   rifleCool = R.fireInterval; rifleKick = 0.1; cam.kick(0.12);
   if (rizer.actor?.has('rifleFire') && !rizer.attack && rizer.speed <= 1.4) rizer.actor.play('rifleFire', 1); // Stationary shot clip; moving fire preserves the rifle locomotion pose and uses authored weapon recoil.
 }

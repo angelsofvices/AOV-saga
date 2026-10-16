@@ -13,6 +13,7 @@ import { HitRig, touch, STRIKERS, HITBOX } from './hitbox.js';
 import { COMBAT, BLADES } from './rizer.js';
 import { quarterAt } from './world-data.js';
 import { THARDIN_BLASTER_RIFLE, RIFLE_PROFILE, rifleSlot, buildBlasterRifle, createRifleRig, boneMount, muzzleOf, hasRifleClips, gripRifle } from './thardin-rifle.js';
+import { createDismemberment } from './dismemberment.js';
 
 export const NOVA_GUARDIAN = {
   id: 'nova', key: 'nova', name: 'Nova Guardian', faction: 'Thardin', enemyType: 'RANGED_TECH',
@@ -82,6 +83,7 @@ function barSprite() {
 // opts: { bolts (thardin-rifle.js createBolts) · onEvent(type, guardian, extra) }
 export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
   const P = NOVA_GUARDIAN, list = [], live = [], drops = [];
+  const dismemberment = createDismemberment(scene, world);
   const home = W.playerStart, B = (world.bound || 300) - 14;
   let hidden = false, clock = 0, serial = 0;
   const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3(), probe = new THREE.Vector3(), _hit = {};
@@ -108,8 +110,9 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
       pos: new THREE.Vector3(), center: new THREE.Vector3(), knock: new THREE.Vector3(), heading: 0, speed: 0, r: P.radius,
       rig: new HitRig(actor), hold: createRifleRig(actor), stow: makeStow(actor), carry: 'stowed', grabbed: false, rifle: null, head: dressed.head,
       state: 'patrol', t: 0, hp: P.health, seen: false, seenT: 0, raise: 0, charge: 0, shots: 0, shotT: 0, hurt: 0, flash: 0, barT: 0, move: null, side: serial % 2 ? 1 : -1, respawnAt: 0, fallT: 0,
+      fragments: [],
       get alive() { return alive(g); }, get aimY() { return 1.3; },
-      hit: (damage, dx, dz, kind, power) => hit(g, damage, dx, dz, kind, power)
+      hit: (damage, dx, dz, kind, power, impact) => hit(g, damage, dx, dz, kind, power, impact)
     };
     reset(g); list.push(g); return g;
   }
@@ -136,6 +139,9 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
   }
   const inHands = g => !!g.rifle && (g.carry === 'ready' || (g.carry === 'draw' && g.grabbed) || (g.carry === 'sheath' && !g.grabbed));
   function reset(g) {
+    dismemberment.clean(g.fragments); g.fragments = [];
+    for (const [bone, scale] of g.actor.dismemberScales || []) bone.scale.copy(scale);
+    g.actor.dismemberScales?.clear();
     const s = g.pts[0]; g.pos.set(s.x, world.groundAt(s.x, s.y), s.y); g.wp = 1 % g.pts.length; g.heading = Math.atan2(g.pts[g.wp].x - s.x, g.pts[g.wp].y - s.y);
     g.state = 'patrol'; g.t = 0; g.hp = P.health; g.seen = false; g.raise = 0; g.charge = 0; g.hurt = 0; g.flash = 0; g.barT = 0; g.speed = 0; g.move = null; g.fallT = 0; g.knock.set(0, 0, 0);
     g.actor.shot = null; g.actor.model.visible = true; g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.root.visible = !hidden; g.bar.redraw(1);
@@ -160,13 +166,14 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
   }
   const alertNow = (g, t = P.reactionTime) => { g.state = 'alert'; g.t = t; g.move = null; opts.onEvent?.('alert', g); };
 
-  function hit(g, damage, dx, dz, kind = 'punch', power = 1) {
+  function hit(g, damage, dx, dz, kind = 'punch', power = 1, impact = {}) {
     if (!alive(g)) return null;
+    if (impact.headshot) { damage = Math.max(damage, g.hp + 1); g.fragments.push(...dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz))); }
     g.hp -= damage; g.hurt += damage; g.flash = 0.12; g.barT = 5; g.bar.redraw(Math.max(0, g.hp) / P.health);
     g.knock.set(dx, 0, dz).multiplyScalar(Math.min(4, 1.6 * power));
     const at = { x: g.center.x, y: g.center.y, z: g.center.z, name: P.name, scanobot: true, nova: true, down: false };
     fx?.emit(at.x, at.y, at.z, 6, { color: '#8fe4ff', speed: 3, up: 1, size: 0.14, life: 0.3, g: 6 });
-    if (g.hp <= 0) { if (g.rifle) at.drop = THARDIN_BLASTER_RIFLE.name; defeat(g, kind, dx, dz); at.down = true; return at; }
+    if (g.hp <= 0) { if (!impact.headshot && impact.comboFinisher && (kind === 'sword' || kind === 'axe')) g.fragments.push(...dismemberment.split(g.actor, impact.impactPart || 'LeftArm', new THREE.Vector3(dx, 0, dz), Math.random() < 0.2)); if (g.rifle) at.drop = THARDIN_BLASTER_RIFLE.name; defeat(g, kind, dx, dz); at.down = true; return at; }
     if (g.rifle && g.hp <= P.health * P.disarmAt) { dropRifle(g, dx, dz); g.raise = 0; opts.onEvent?.('disarmed', g); } // the rifle is out of the fight; the Guardian is not
     const big = g.hurt >= P.stagger.every; if (big) g.hurt = 0;
     g.state = 'flinch'; g.t = big ? P.stagger.time : P.flinch; g.move = null; g.charge = 0; // a hit breaks its aim
@@ -251,13 +258,14 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
       if (!h) continue;
       at.done.add(key);
       const kx = g.pos.x - rp.x, kz = g.pos.z - rp.z, kd = Math.hypot(kx, kz) || 1, fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1;
-      const res = hit(g, base * stageMul, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1));
+      const res = hit(g, base * stageMul, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, impactPart: h.part, impactPoint: h.at });
       if (res) hooks.onLanded?.({ ...res, x: h.at.x, y: h.at.y, z: h.at.z, part: h.part }, at.kind, g);
     }
   }
 
   const nearestWp = g => { let best = 0, bd = Infinity; g.pts.forEach((v, i) => { const d = Math.hypot(v.x - g.pos.x, v.y - g.pos.z); if (d < bd) { bd = d; best = i; } }); return best; };
   function update(dt, t, rizer, hooks = {}) {
+    dismemberment.update(dt, (x, z, y) => world.groundAt(x, z, y));
     clock += dt; live.length = 0; updateDrops(dt);
     const rp = rizer.position, [nearR, farR] = P.preferredCombatRange;
     for (const g of list) {
@@ -331,7 +339,7 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
         case 'down': {
           g.t += statusDt; if (g.salvaged && g.t < P.corpse) g.t = P.corpse; // stripped for scrap: the body goes
           if (!g.fallClip) { g.fallT = Math.min(1, g.fallT + statusDt * 2.2); g.actor.pivot.rotation.x = -g.fallT * g.fallT * 1.5; g.actor.pivot.position.y = g.fallT * 0.12; } // no death clip assigned: it topples
-          if (g.t > P.corpse) { g.root.position.y -= statusDt * 0.5; if (g.t > P.corpse + 3) { g.state = 'gone'; g.root.visible = false; g.respawnAt = clock + P.respawn; } }
+          if (g.t > P.corpse) { if (g.fragments.length) dismemberment.sink(g.fragments, statusDt * 0.5); g.root.position.y -= statusDt * 0.5; if (g.t > P.corpse + 3) { g.state = 'gone'; g.root.visible = false; g.respawnAt = clock + P.respawn; } }
           break;
         }
       }

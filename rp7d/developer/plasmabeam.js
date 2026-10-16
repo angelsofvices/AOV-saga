@@ -45,7 +45,7 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
   function alive(g) { return foes.alive(g); }
   function frostSource(g) { return g.actor?.model || g.body || g.root; }
   function aim(g) { return (g.center || g.pos).clone().add(new THREE.Vector3(0,g.center ? 0 : 1.2,0)); }
-  function fire(from, forward, primary, mode) {
+  function fire(from, forward, primary, mode, precision = null, resolvePrecision = null) {
     if (cooldown > 0) return false;
     const valid = foes.grunts.filter(g => alive(g) && g.pos.distanceTo(from) <= PLASMABEAM.range);
     if (!valid.includes(primary)) primary = null;
@@ -57,7 +57,7 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
     // Lock-on selects one point at trigger time. The projectile keeps this
     // normalized direction for its whole flight: no homing or in-flight curve.
     const dir = (primary ? aim(primary).sub(from) : forward.clone()).normalize();
-    const shot={mesh,dir,pos:from.clone(),mode,round,age:0}; shots.push(shot); mesh.position.copy(from);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    const shot={mesh,dir,pos:from.clone(),mode,round,age:0,precision,resolvePrecision,precisionResolved:false}; shots.push(shot); mesh.position.copy(from);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
     return true;
   }
   function disposeShot(s) { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); }
@@ -163,10 +163,10 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
         const contact=contacts[0];if(contact&&contact.distance<=best){best=contact.distance;target=g;at=contact.point.clone();}
       }
       if(target){
-        if(s.mode==='frost')frostHit(target,s.round);else onHit(hit(target,PLASMABEAM.damage,s.dir),target);
+        if(s.mode==='frost')frostHit(target,s.round);else { const precision=target.isScanobot&&!target.isNova?{}:(s.resolvePrecision?.(s.precision,true)||{}); s.precisionResolved=true; onHit(hit(target,PLASMABEAM.damage,s.dir,precision),target); }
         fx?.emit(at.x,at.y,at.z,7,{color:s.mode==='frost'?'#8fdcff':'#6aff78',speed:1.6,up:.5,size:.12,life:.3,g:0});
       }
-      if(target||clear<distance-.01||s.age>PLASMABEAM.range/PLASMABEAM.speed){disposeShot(s);shots.splice(i,1);continue;}
+      if(target||clear<distance-.01||s.age>PLASMABEAM.range/PLASMABEAM.speed){if(!s.precisionResolved&&s.mode!=='frost')s.resolvePrecision?.(s.precision,false);disposeShot(s);shots.splice(i,1);continue;}
       s.pos.copy(endpoint);s.mesh.position.copy(s.pos);s.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),s.dir);
     }
   }

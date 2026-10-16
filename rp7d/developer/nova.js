@@ -143,7 +143,7 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
     for (const [bone, scale] of g.actor.dismemberScales || []) bone.scale.copy(scale);
     g.actor.dismemberScales?.clear();
     const s = g.pts[0]; g.pos.set(s.x, world.groundAt(s.x, s.y), s.y); g.wp = 1 % g.pts.length; g.heading = Math.atan2(g.pts[g.wp].x - s.x, g.pts[g.wp].y - s.y);
-    g.state = 'patrol'; g.t = 0; g.hp = P.health; g.seen = false; g.raise = 0; g.charge = 0; g.hurt = 0; g.flash = 0; g.barT = 0; g.speed = 0; g.move = null; g.fallT = 0; g.knock.set(0, 0, 0);
+    g.perfectKillBroken = false; g.state = 'patrol'; g.t = 0; g.hp = P.health; g.seen = false; g.raise = 0; g.charge = 0; g.hurt = 0; g.flash = 0; g.barT = 0; g.speed = 0; g.move = null; g.fallT = 0; g.knock.set(0, 0, 0);
     g.actor.shot = null; g.actor.model.visible = true; g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.root.visible = !hidden; g.bar.redraw(1);
     if (!g.rifle) { g.rifle = buildBlasterRifle(); g.rifle.userData.owner = g.id; g.hold.attach(g.rifle); } // a Guardian always carries one: the same weapon Rizer can end up with
     g.carry = 'stowed'; g.grabbed = false; stowRifle(g); // calm: the rifle is on its back
@@ -173,7 +173,7 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
     g.knock.set(dx, 0, dz).multiplyScalar(Math.min(4, 1.6 * power));
     const at = { x: g.center.x, y: g.center.y, z: g.center.z, name: P.name, scanobot: true, nova: true, down: false };
     fx?.emit(at.x, at.y, at.z, 6, { color: '#8fe4ff', speed: 3, up: 1, size: 0.14, life: 0.3, g: 6 });
-    if (g.hp <= 0) { if (!impact.headshot && impact.comboFinisher && (kind === 'sword' || kind === 'axe')) g.fragments.push(...dismemberment.split(g.actor, impact.impactPart || 'LeftArm', new THREE.Vector3(dx, 0, dz), Math.random() < 0.2)); if (g.rifle) at.drop = THARDIN_BLASTER_RIFLE.name; defeat(g, kind, dx, dz); at.down = true; return at; }
+    if (g.hp <= 0) { if (!impact.headshot && impact.perfectKill && impact.comboFinisher && !g.isScanobot && (kind === 'sword' || kind === 'axe')) g.fragments.push(...dismemberment.split(g.actor, impact.impactPart || 'LeftArm', new THREE.Vector3(dx, 0, dz), Math.random() < 0.2)); if (g.rifle) at.drop = THARDIN_BLASTER_RIFLE.name; defeat(g, kind, dx, dz); at.down = true; return at; }
     if (g.rifle && g.hp <= P.health * P.disarmAt) { dropRifle(g, dx, dz); g.raise = 0; opts.onEvent?.('disarmed', g); } // the rifle is out of the fight; the Guardian is not
     const big = g.hurt >= P.stagger.every; if (big) g.hurt = 0;
     g.state = 'flinch'; g.t = big ? P.stagger.time : P.flinch; g.move = null; g.charge = 0; // a hit breaks its aim
@@ -258,7 +258,8 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
       if (!h) continue;
       at.done.add(key);
       const kx = g.pos.x - rp.x, kz = g.pos.z - rp.z, kd = Math.hypot(kx, kz) || 1, fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1;
-      const res = hit(g, base * stageMul, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, impactPart: h.part, impactPoint: h.at });
+      const hitDamage = base * stageMul, perfectKill = fin && !g.perfectKillBroken && hitDamage >= g.hp;
+      const res = hit(g, hitDamage, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, perfectKill, impactPart: h.part, impactPoint: h.at });
       if (res) hooks.onLanded?.({ ...res, x: h.at.x, y: h.at.y, z: h.at.z, part: h.part }, at.kind, g);
     }
   }

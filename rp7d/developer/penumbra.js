@@ -183,7 +183,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
     for (const d of p.detached || []) { d.group.removeFromParent(); d.parent.add(d.group); d.group.position.copy(d.homePos); d.group.quaternion.copy(d.homeQuat); d.group.scale.copy(d.homeScale); }
     p.detached = [];
     const s = p.pts[0]; p.pos.set(s.x, world.groundAt(s.x, s.y), s.y); p.wp = 1 % p.pts.length; p.heading = Math.atan2(p.pts[p.wp].x - s.x, p.pts[p.wp].y - s.y);
-    p.rxpPaid = false; p.state = 'patrol'; p.t = 0; p.hp = P.hp; p.damageStage = 0; p.breakFrame = 0; p.seen = false; p.lit = 0; p.hurt = 0; p.flash = 0; p.barT = 0; p.sink = 0; p.sinkT = 0; p.salvaged = false; p.wreckMotion = null; p.root.scale.setScalar(1); p.dropped = false; p.speed = 0; p.knock.set(0, 0, 0); p.move = null;
+    p.rxpPaid = false; p.perfectKillBroken = false; p.state = 'patrol'; p.t = 0; p.hp = P.hp; p.damageStage = 0; p.breakFrame = 0; p.seen = false; p.lit = 0; p.hurt = 0; p.flash = 0; p.barT = 0; p.sink = 0; p.sinkT = 0; p.salvaged = false; p.wreckMotion = null; p.root.scale.setScalar(1); p.dropped = false; p.speed = 0; p.knock.set(0, 0, 0); p.move = null;
     for (const pod of p.pods) { pod.cool = 0; pod.g.rotation.x = 0; }
     p.upper.position.set(0, 0, 0); p.upper.rotation.set(0, 0, 0); p.upper.scale.setScalar(1);
     for (const [i, L] of p.legs.entries()) { L.position.set(i ? 0.5 : -0.5, 1.45, -0.05); L.rotation.set(0, 0, 0); L.scale.setScalar(1); }
@@ -244,7 +244,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
     p.detached.push({ group, parent, key, vel, spin: new THREE.Vector3(s * 3.2, s * 1.7, -s * 2.6), homePos, homeQuat, homeScale });
   }
   function destroy(p, kind = 'punch', dx = 0, dz = 1, impact = {}) {
-    if (impact.comboFinisher && (kind === 'sword' || kind === 'axe')) {
+    if (impact.perfectKill && impact.comboFinisher && (kind === 'sword' || kind === 'axe')) {
       const part = impact.impactPart || 'LegL', key = part.includes('LegR') || part.includes('PodR') ? (part.includes('Pod') ? 'PodR' : 'LegR') : part.includes('Pod') ? 'PodL' : 'LegL';
       sever(p, key, dx, dz); if (Math.random() < 0.2) sever(p, key.endsWith('L') ? key.replace('L','R') : key.replace('R','L'), dx, dz);
     }
@@ -350,7 +350,8 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
       if (!h) continue;
       at.done.add(key);
       const kx = p.pos.x - rp.x, kz = p.pos.z - rp.z, kd = Math.hypot(kx, kz) || 1, fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1;
-      const res = hit(p, base * stageMul, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, impactPart: h.part, impactPoint: h.at });
+      const hitDamage = base * stageMul, perfectKill = fin && !p.perfectKillBroken && hitDamage >= p.hp;
+      const res = hit(p, hitDamage, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboFinisher: fin, perfectKill, impactPart: h.part, impactPoint: h.at });
       if (res) hooks.onLanded?.({ ...res, x: h.at.x, y: h.at.y, z: h.at.z, part: h.part }, at.kind, p);
       if (res?.down) ghost = { at, w, x: h.at.x, y: h.at.y, z: h.at.z, t: clock };
     }

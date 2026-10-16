@@ -173,42 +173,48 @@ export function createHUD(W, world) {
   let mapCursor = null;
   function mapToWorld(cx, cy) {
     const r = big.getBoundingClientRect(); if (!r.width || cx < r.left || cy < r.top || cx > r.right || cy > r.bottom) return null;
-    const dpr = big.width / r.width;
-    let mx = ((cx - r.left) * dpr - big.width / 2 - mapPanX) / mapZoom + big.width / 2;
-    let my = ((cy - r.top) * dpr - big.width / 2 - mapPanY) / mapZoom + big.width / 2;
-    if (mapView === 'world') { const f = worldFit(big.width); return { x: (mx - f.ox) / f.s, z: (my - f.oz) / f.s }; }
-    if (viewedDistrict === 'malezor') { const s = big.width / (E * 2); return { x: mx / s - E, z: my / s - E }; }
-    const d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0], span = (d.extent || E) * 2.35, s = big.width / span;
-    return { x: d.x + (mx - big.width / 2) / s, z: d.z + (my - big.width / 2) / s };
+    const dprX = big.width / r.width, dprY = big.height / r.height, cw = big.width, ch = big.height;
+    const mx = ((cx - r.left) * dprX - cw / 2 - mapPanX) / mapZoom + cw / 2;
+    const my = ((cy - r.top) * dprY - ch / 2 - mapPanY) / mapZoom + ch / 2;
+    if (mapView === 'world') { const f = worldFit(cw, ch); return { x: (mx - f.ox) / f.s, z: (my - f.oz) / f.s }; }
+    if (viewedDistrict === 'malezor') { const s = Math.min(cw, ch) / (E * 2), ox = (cw - E * 2 * s) / 2, oy = (ch - E * 2 * s) / 2; return { x: (mx - ox) / s - E, z: (my - oy) / s - E }; }
+    const d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0], span = (d.extent || E) * 2.35, s = Math.min(cw, ch) / span;
+    return { x: d.x + (mx - cw / 2) / s, z: d.z + (my - ch / 2) / s };
   }
   // ── Zyphone world map: all ten districts of Zyraxis (World Expansion 2) ──
   // The map page has two views: the district Rizer knows (Malezor, drawn below) and the whole planet. It follows
   // Rizer: stepping off Malezor shows the world, coming home shows Malezor; the button on the page switches by hand.
   let mapView = 'world', wasAway = false;
   let mapFocusMode = false, mapZoom = 1, mapPanX = 0, mapPanY = 0, lastMapPlayer = { x: 0, z: 0 };
-  const ZB = ZYRAXIS.bounds, ZSPAN = Math.max(ZB.x1 - ZB.x0, ZB.z1 - ZB.z0) + 80;
-  const worldFit = w => { const s = w / ZSPAN; return { s, ox: (w - (ZB.x0 + ZB.x1) * s) / 2, oz: (w - (ZB.z0 + ZB.z1) * s) / 2 }; };
-  function mapBasePoint(x, z, w = big.width) {
-    if (mapView === 'world') { const f = worldFit(w); return { x: x * f.s + f.ox, y: z * f.s + f.oz }; }
-    if (viewedDistrict === 'malezor') { const s = w / (E * 2); return { x: (x + E) * s, y: (z + E) * s }; }
-    const d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0], s = w / ((d.extent || E) * 2.35);
-    return { x: (x - d.x) * s + w / 2, y: (z - d.z) * s + w / 2 };
+  const ZB = ZYRAXIS.bounds;
+  // Extra navigable sea margin leaves room for the planned northeast and southwest islands.
+  const worldFit = (cw = big.width, ch = big.height) => {
+    const padX = (ZB.x1 - ZB.x0) * .22, padZ = (ZB.z1 - ZB.z0) * .22;
+    const x0 = ZB.x0 - padX, x1 = ZB.x1 + padX, z0 = ZB.z0 - padZ, z1 = ZB.z1 + padZ;
+    const s = Math.min(cw / (x1 - x0), ch / (z1 - z0));
+    return { s, ox: (cw - (x0 + x1) * s) / 2, oz: (ch - (z0 + z1) * s) / 2 };
+  };
+  function mapBasePoint(x, z, cw = big.width, ch = big.height) {
+    if (mapView === 'world') { const f = worldFit(cw, ch); return { x: x * f.s + f.ox, y: z * f.s + f.oz }; }
+    if (viewedDistrict === 'malezor') { const s = Math.min(cw, ch) / (E * 2), ox = (cw - E * 2 * s) / 2, oy = (ch - E * 2 * s) / 2; return { x: (x + E) * s + ox, y: (z + E) * s + oy }; }
+    const d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0], span = (d.extent || E) * 2.35, s = Math.min(cw, ch) / span;
+    return { x: (x - d.x) * s + cw / 2, y: (z - d.z) * s + ch / 2 };
   }
   function clampMapPan() {
-    const limit = big.width * Math.max(0, mapZoom - 1) * 0.5;
-    mapPanX = Math.max(-limit, Math.min(limit, mapPanX)); mapPanY = Math.max(-limit, Math.min(limit, mapPanY));
+    const limitX = big.width * Math.max(0, mapZoom - 1) * 0.5, limitY = big.height * Math.max(0, mapZoom - 1) * 0.5;
+    mapPanX = Math.max(-limitX, Math.min(limitX, mapPanX)); mapPanY = Math.max(-limitY, Math.min(limitY, mapPanY));
   }
   function focusMapPoint() {
-    const selected = mapPois().find(it => it.id === mapSelectedPoi), point = selected || lastMapPlayer, w = big.width || 1;
-    const q = mapBasePoint(selected ? selected.cx : point.x, selected ? selected.cz : point.z, w);
-    mapPanX = -(q.x - w / 2) * mapZoom; mapPanY = -(q.y - w / 2) * mapZoom; clampMapPan();
+    const selected = mapPois().find(it => it.id === mapSelectedPoi), point = selected || lastMapPlayer, cw = big.width || 1, ch = big.height || 1;
+    const q = mapBasePoint(selected ? selected.cx : point.x, selected ? selected.cz : point.z, cw, ch);
+    mapPanX = -(q.x - cw / 2) * mapZoom; mapPanY = -(q.y - ch / 2) * mapZoom; clampMapPan();
   }
   function focusedPoiAtCenter() {
     if (!mapFocusMode) return;
-    const w = big.width, dpr = Math.max(1, w / (big.clientWidth || w)); let best = null, bd = Infinity;
+    const w = big.width, h = big.height, dpr = Math.max(1, w / (big.clientWidth || w)); let best = null, bd = Infinity;
     const candidates = mapPois().filter(it => mapView === 'world' || districtFor(it.cx, it.cz)?.id === viewedDistrict);
     for (const it of candidates) {
-      const q = mapBasePoint(it.cx, it.cz, w), x = (q.x - w / 2) * mapZoom + w / 2 + mapPanX, y = (q.y - w / 2) * mapZoom + w / 2 + mapPanY, dist = Math.hypot(x - w / 2, y - w / 2);
+      const q = mapBasePoint(it.cx, it.cz, w, h), x = (q.x - w / 2) * mapZoom + w / 2 + mapPanX, y = (q.y - h / 2) * mapZoom + h / 2 + mapPanY, dist = Math.hypot(x - w / 2, y - h / 2);
       if (dist < bd) { bd = dist; best = it; }
     }
     mapSelectedPoi = bd <= 24 * dpr ? best?.id || null : null;
@@ -298,14 +304,14 @@ export function createHUD(W, world) {
     return mapSelectedPoi ? { poi: mapSelectedPoi } : null;
   }
   function drawWorld(p, facing) {
-    const w = big.width, { s, ox, oz } = worldFit(w), X = x => x * s + ox, Z = z => z * s + oz;
-    bctx.clearRect(0, 0, w, w);
-    const sea = bctx.createLinearGradient(0, 0, w, w); sea.addColorStop(0, '#091427'); sea.addColorStop(.5, '#18243f'); sea.addColorStop(1, '#100e25');
-    bctx.fillStyle = sea; bctx.fillRect(0, 0, w, w);
+    const w = big.width, h = big.height, unit = Math.min(w, h), { s, ox, oz } = worldFit(w, h), X = x => x * s + ox, Z = z => z * s + oz;
+    bctx.clearRect(0, 0, w, h);
+    const sea = bctx.createLinearGradient(0, 0, w, h); sea.addColorStop(0, '#091427'); sea.addColorStop(.5, '#18243f'); sea.addColorStop(1, '#100e25');
+    bctx.fillStyle = sea; bctx.fillRect(0, 0, w, h);
     bctx.strokeStyle = 'rgba(102,153,196,.08)'; bctx.lineWidth = 1;
-    for (let y = w * .07; y < w; y += w * .035) {
+    for (let y = h * .07; y < h; y += unit * .035) {
       bctx.beginPath();
-      for (let x = 0; x <= w; x += w / 80) { const z = y + Math.sin(x / w * 18 + y / w * 12) * w * .004; if (x === 0) bctx.moveTo(x, z); else bctx.lineTo(x, z); }
+      for (let x = 0; x <= w; x += w / 80) { const z = y + Math.sin(x / w * 18 + y / h * 12) * unit * .004; if (x === 0) bctx.moveTo(x, z); else bctx.lineTo(x, z); }
       bctx.stroke();
     }
     bctx.save(); bctx.lineCap = 'round';
@@ -319,26 +325,26 @@ export function createHUD(W, world) {
     const trace = pts => { bctx.beginPath(); pts.forEach(([x, z], i) => i ? bctx.lineTo(X(x), Z(z)) : bctx.moveTo(X(x), Z(z))); bctx.closePath(); };
     for (let i = DISTRICTS.length - 1; i >= 1; i--) { // the empty districts: flat colour, nothing in them yet
       const d = DISTRICTS[i], g = bctx.createLinearGradient(0, Z(d.z - 300), 0, Z(d.z + 300)); g.addColorStop(0, d.tint[0]); g.addColorStop(1, d.tint[1]);
-      trace(coasts[i]); bctx.fillStyle = g; bctx.fill(); bctx.strokeStyle = 'rgba(231,216,174,.55)'; bctx.lineWidth = Math.max(1, w / 520); bctx.stroke();
+      trace(coasts[i]); bctx.fillStyle = g; bctx.fill(); bctx.strokeStyle = 'rgba(231,216,174,.55)'; bctx.lineWidth = Math.max(1, unit / 520); bctx.stroke();
     }
     bctx.save(); trace(coasts[0]); bctx.clip(); bctx.drawImage(base, X(-E), Z(-E), E * 2 * s, E * 2 * s); bctx.restore(); // Malezor: its own map, in miniature
-    trace(coasts[0]); bctx.strokeStyle = 'rgba(231,216,174,.9)'; bctx.lineWidth = Math.max(1.5, w / 380); bctx.stroke();
+    trace(coasts[0]); bctx.strokeStyle = 'rgba(231,216,174,.9)'; bctx.lineWidth = Math.max(1.5, unit / 380); bctx.stroke();
     bctx.textAlign = 'center';
     for (const d of DISTRICTS) {
       const x = X(d.x), y = Z(d.z), light = ['vorashil', 'xilnar', 'korathen', 'zarvane'].includes(d.id);
       if (viewedDistrict === d.id) { bctx.save(); bctx.strokeStyle = '#fff0b5'; bctx.lineWidth = Math.max(2.5,w/250); bctx.beginPath(); bctx.arc(x,y,w/24,0,Math.PI*2); bctx.stroke(); bctx.restore(); }
       bctx.fillStyle = light ? 'rgba(20,18,26,.9)' : 'rgba(250,244,226,.95)';
-      bctx.font = `600 ${Math.round(w / 34)}px Cinzel, serif`; bctx.fillText(d.numeral, x, y - w / 60);
-      bctx.font = `600 ${Math.round(w / 58)}px Cinzel, serif`; bctx.fillText(d.name.toUpperCase(), x, y + w / 190);
-      bctx.font = `${Math.round(w / 88)}px "DM Sans", sans-serif`; bctx.fillText(d.land.toUpperCase(), x, y + w / 44);
+      bctx.font = `600 ${Math.round(unit / 34)}px Cinzel, serif`; bctx.fillText(d.numeral, x, y - unit / 60);
+      bctx.font = `600 ${Math.round(unit / 58)}px Cinzel, serif`; bctx.fillText(d.name.toUpperCase(), x, y + unit / 190);
+      bctx.font = `${Math.round(unit / 88)}px "DM Sans", sans-serif`; bctx.fillText(d.land.toUpperCase(), x, y + unit / 44);
     }
-    bctx.font = `${Math.round(w / 50)}px Cinzel, serif`; bctx.fillStyle = 'rgba(233,201,130,.9)'; bctx.textAlign = 'left';
-    bctx.fillText('ZYRAXIS · THE TEN DISTRICTS', w * 0.035, w * 0.06);
-    bctx.font = `${Math.round(w / 65)}px Cinzel, serif`; bctx.fillStyle = 'rgba(148,184,217,.8)'; bctx.fillText('VOID SEA', w * .055, w * .94); bctx.textAlign = 'center';
+    bctx.font = `${Math.round(unit / 50)}px Cinzel, serif`; bctx.fillStyle = 'rgba(233,201,130,.9)'; bctx.textAlign = 'left';
+    bctx.fillText('ZYRAXIS · THE TEN DISTRICTS', w * 0.035, h * 0.06);
+    bctx.font = `${Math.round(unit / 65)}px Cinzel, serif`; bctx.fillStyle = 'rgba(148,184,217,.8)'; bctx.fillText('VOID SEA', w * .055, h * .94); bctx.textAlign = 'center';
     for (const it of mapPois()) {
       const x = X(it.cx), y = Z(it.cz), selected = mapSelectedPoi === it.id, pinged = mapPingPoi === it.id;
-      drawPoiMarker(x,y,it,selected,pinged,Math.max(5,Math.round(w/115)),found.has(it.id)||it.kind==='enemy');
-      if (selected || pinged) { bctx.font = `${Math.max(10, Math.round(w / 68))}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.textAlign='center'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 12); }
+      drawPoiMarker(x,y,it,selected,pinged,Math.max(5,Math.round(unit/115)),found.has(it.id)||it.kind==='enemy');
+      if (selected || pinged) { bctx.font = `${Math.max(10, Math.round(unit / 68))}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.textAlign='center'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 12); }
     }
     bctx.save(); bctx.translate(X(p.x), Z(p.z)); bctx.rotate(Math.PI - facing); bctx.strokeStyle = '#1a1f1a'; bctx.lineWidth = 2;
     bctx.fillStyle = '#fff3c4'; bctx.beginPath(); bctx.moveTo(0, -11); bctx.lineTo(8, 8); bctx.lineTo(0, 3); bctx.lineTo(-8, 8); bctx.closePath(); bctx.fill(); bctx.stroke(); bctx.restore();
@@ -346,14 +352,14 @@ export function createHUD(W, world) {
       const x = X(mapCursor.x), y = Z(mapCursor.z), ok = isLand(mapCursor.x, mapCursor.z);
       bctx.save(); bctx.strokeStyle = ok ? '#7fe3ff' : '#ff6a5a'; bctx.lineWidth = 2; bctx.shadowColor = bctx.strokeStyle; bctx.shadowBlur = 8;
       bctx.beginPath(); bctx.arc(x, y, 9, 0, 7); bctx.moveTo(x - 16, y); bctx.lineTo(x - 5, y); bctx.moveTo(x + 5, y); bctx.lineTo(x + 16, y); bctx.moveTo(x, y - 16); bctx.lineTo(x, y - 5); bctx.moveTo(x, y + 5); bctx.lineTo(x, y + 16); bctx.stroke();
-      bctx.shadowBlur = 0; bctx.font = `${Math.round(w / 60)}px "DM Sans", sans-serif`; bctx.fillStyle = bctx.strokeStyle; bctx.fillText(ok ? 'TELEPORT' : 'NO LAND', x, y + 30); bctx.restore();
+      bctx.shadowBlur = 0; bctx.font = `${Math.round(unit / 60)}px "DM Sans", sans-serif`; bctx.fillStyle = bctx.strokeStyle; bctx.fillText(ok ? 'TELEPORT' : 'NO LAND', x, y + 30); bctx.restore();
     }
   }
   function drawDistrict(p, facing) {
-    const w = big.width, d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0];
-    const span = (d.extent || E) * 2.35, s = w / span, X = x => (x - d.x) * s + w / 2, Z = z => (z - d.z) * s + w / 2;
-    bctx.clearRect(0, 0, w, w);
-    const sea = bctx.createLinearGradient(0, 0, w, w); sea.addColorStop(0, '#091427'); sea.addColorStop(1, '#100e25'); bctx.fillStyle = sea; bctx.fillRect(0, 0, w, w);
+    const w = big.width, h = big.height, unit = Math.min(w, h), d = DISTRICTS.find(q => q.id === viewedDistrict) || DISTRICTS[0];
+    const span = (d.extent || E) * 2.35, s = unit / span, X = x => (x - d.x) * s + w / 2, Z = z => (z - d.z) * s + h / 2;
+    bctx.clearRect(0, 0, w, h);
+    const sea = bctx.createLinearGradient(0, 0, w, h); sea.addColorStop(0, '#091427'); sea.addColorStop(1, '#100e25'); bctx.fillStyle = sea; bctx.fillRect(0, 0, w, h);
     const idx = DISTRICTS.indexOf(d), pts = coasts[idx];
     bctx.beginPath(); pts.forEach(([x,z],i) => i ? bctx.lineTo(X(x),Z(z)) : bctx.moveTo(X(x),Z(z))); bctx.closePath();
     const g = bctx.createLinearGradient(0, 0, w, w); g.addColorStop(0, d.tint[0]); g.addColorStop(1, d.tint[1]); bctx.fillStyle = g; bctx.fill(); bctx.strokeStyle = 'rgba(231,216,174,.9)'; bctx.lineWidth = 2; bctx.stroke();
@@ -361,12 +367,12 @@ export function createHUD(W, world) {
     if (d.id === 'malezor') bctx.drawImage(base, X(-E), Z(-E), E * 2 * s, E * 2 * s);
     else { bctx.globalAlpha = .22; bctx.strokeStyle = '#e7d8ae'; bctx.lineWidth = 1; for (let k=0;k<8;k++) { bctx.beginPath(); bctx.arc(X(d.x),Z(d.z),s*(d.extent||E)*(k+1)/9,0,Math.PI*2); bctx.stroke(); } bctx.globalAlpha = 1; }
     bctx.restore();
-    bctx.textAlign = 'center'; bctx.font = `600 ${Math.round(w/30)}px Cinzel, serif`; bctx.fillStyle = '#fff1c2'; bctx.fillText(`${d.name.toUpperCase()} · DISTRICT ${d.numeral}`, w/2, w*.075);
-    bctx.font = `${Math.round(w/58)}px "DM Sans",sans-serif`; bctx.fillStyle = '#98dfff'; bctx.fillText(`${d.land.toUpperCase()} · SELECT A MARKER TO PING`, w/2, w*.12);
+    bctx.textAlign = 'center'; bctx.font = `600 ${Math.round(unit/30)}px Cinzel, serif`; bctx.fillStyle = '#fff1c2'; bctx.fillText(`${d.name.toUpperCase()} · DISTRICT ${d.numeral}`, w/2, h*.075);
+    bctx.font = `${Math.round(unit/58)}px "DM Sans",sans-serif`; bctx.fillStyle = '#98dfff'; bctx.fillText(`${d.land.toUpperCase()} · SELECT A MARKER TO PING`, w/2, h*.12);
     for (const it of mapPois().filter(q => districtFor(q.cx,q.cz)?.id === d.id)) {
       const x=X(it.cx),y=Z(it.cz),selected=mapSelectedPoi===it.id,pinged=mapPingPoi===it.id;
-      drawPoiMarker(x,y,it,selected,pinged,Math.max(7,Math.round(w/75)),found.has(it.id)||it.kind==='enemy');
-      bctx.font=`${Math.max(10,Math.round(w/62))}px "DM Sans",sans-serif`; bctx.fillStyle='#fff2c1'; bctx.textAlign='center'; bctx.fillText(selected?'SELECTED':(found.has(it.id)?it.name:it.kind==='enemy'?'HOSTILE':'???'),x,y-12);
+      drawPoiMarker(x,y,it,selected,pinged,Math.max(7,Math.round(unit/75)),found.has(it.id)||it.kind==='enemy');
+      bctx.font=`${Math.max(10,Math.round(unit/62))}px "DM Sans",sans-serif`; bctx.fillStyle='#fff2c1'; bctx.textAlign='center'; bctx.fillText(selected?'SELECTED':(found.has(it.id)?it.name:it.kind==='enemy'?'HOSTILE':'???'),x,y-12);
     }
     bctx.save(); bctx.translate(X(p.x),Z(p.z)); bctx.rotate(Math.PI-facing); bctx.fillStyle='#fff3c4'; bctx.beginPath(); bctx.moveTo(0,-11);bctx.lineTo(8,8);bctx.lineTo(0,3);bctx.lineTo(-8,8);bctx.closePath();bctx.fill();bctx.restore();
   }
@@ -401,8 +407,8 @@ export function createHUD(W, world) {
   function drawBigBase(p, facing, devMap = false) {
     if (mapView === 'world') return drawWorld(p, facing);
     if (viewedDistrict !== 'malezor') return drawDistrict(p, facing);
-    const w = big.width, s = w / (E * 2);
-    bctx.clearRect(0, 0, w, w); bctx.drawImage(base, 0, 0, w, w);
+    const w = big.width, h = big.height, unit = Math.min(w, h), s = unit / (E * 2), ox = (w - unit) / 2, oy = (h - unit) / 2;
+    bctx.clearRect(0, 0, w, h); bctx.drawImage(base, ox, oy, unit, unit);
     // Trace the RP7B coast and label the measured regions instead of drawing
     // the retired square-center / equal-compass expansion.
     if (W.containsLand) {
@@ -412,7 +418,7 @@ export function createHUD(W, world) {
         const a = i / 192 * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
         let lo = 0, hi = E * 1.5;
         for (let n = 0; n < 18; n++) { const m = (lo + hi) * 0.5; if (W.containsLand(c.x + dx * m, c.z + dz * m)) lo = m; else hi = m; }
-        const x = c.x + dx * lo, z = c.z + dz * lo, px = (x + E) * s, py = (z + E) * s;
+        const x = c.x + dx * lo, z = c.z + dz * lo, px = (x + E) * s + ox, py = (z + E) * s + oy;
         if (i === 0) bctx.moveTo(px, py); else bctx.lineTo(px, py);
       }
       bctx.stroke(); bctx.restore();
@@ -420,29 +426,29 @@ export function createHUD(W, world) {
     bctx.textAlign = 'center';
     for (const it of mapPois()) {
       if (it.kind === 'chest' || it.kind === 'goldchest') {
-        const x = (it.cx + E) * s, y = (it.cz + E) * s, selected = mapSelectedPoi === it.id, pinged = mapPingPoi === it.id;
+        const x = (it.cx + E) * s + ox, y = (it.cz + E) * s + oy, selected = mapSelectedPoi === it.id, pinged = mapPingPoi === it.id;
         drawPoiMarker(x,y,it,selected,pinged,Math.max(6,Math.round(w/105)),found.has(it.id));
         if(selected||pinged){bctx.font = `${Math.max(9,Math.round(w / 76))}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.textAlign='center'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 12);}
         continue;
       }
-      const x = (it.cx + E) * s, y = (it.cz + E) * s, known = found.has(it.id);
+      const x = (it.cx + E) * s + ox, y = (it.cz + E) * s + oy, known = found.has(it.id);
       drawPoiMarker(x,y,it,mapSelectedPoi===it.id,mapPingPoi===it.id,known?7:6,known||it.kind==='enemy');
       bctx.font = `${Math.max(9,Math.round(w / 62))}px "DM Sans", sans-serif`; bctx.textAlign='center'; bctx.fillStyle = known ? '#f5eedf' : mapPoiStyle(it).color;
       bctx.fillText(known ? it.name : it.kind==='enemy' ? 'HOSTILE' : '???', x, y - 12);
     }
-    bctx.save(); bctx.translate((p.x + E) * s, (p.z + E) * s); bctx.rotate(Math.PI - facing);
+    bctx.save(); bctx.translate((p.x + E) * s + ox, (p.z + E) * s + oy); bctx.rotate(Math.PI - facing);
     bctx.fillStyle = '#fff3c4'; bctx.beginPath(); bctx.moveTo(0, -11); bctx.lineTo(8, 8); bctx.lineTo(0, 3); bctx.lineTo(-8, 8); bctx.closePath(); bctx.fill(); bctx.restore();
     bctx.font = `${Math.round(w / 54)}px Cinzel, serif`; bctx.fillStyle = 'rgba(245,238,223,.82)';
-    for (const [name, at] of Object.entries(W.wildZones || {})) bctx.fillText(W.subdistricts[name].toUpperCase(), (at.x + E) * s, (at.z + E) * s);
-    bctx.fillText(W.subdistricts.central.toUpperCase(), (W.hub.x + E) * s, (W.hub.z + E) * s);
-    bctx.fillText('↓ ZARVANE', (W.structures.find(q => q.id === 'malezor-zarvane-gate').x + E) * s, (W.structures.find(q => q.id === 'malezor-zarvane-gate').z + E) * s);
+    for (const [name, at] of Object.entries(W.wildZones || {})) bctx.fillText(W.subdistricts[name].toUpperCase(), (at.x + E) * s + ox, (at.z + E) * s + oy);
+    bctx.fillText(W.subdistricts.central.toUpperCase(), (W.hub.x + E) * s + ox, (W.hub.z + E) * s + oy);
+    bctx.fillText('↓ ZARVANE', (W.structures.find(q => q.id === 'malezor-zarvane-gate').x + E) * s + ox, (W.structures.find(q => q.id === 'malezor-zarvane-gate').z + E) * s + oy);
     if (mapCursor) {
-      const x = (mapCursor.x + E) * s, y = (mapCursor.z + E) * s, ok = !W.containsLand || W.containsLand(mapCursor.x, mapCursor.z);
+      const x = (mapCursor.x + E) * s + ox, y = (mapCursor.z + E) * s + oy, ok = !W.containsLand || W.containsLand(mapCursor.x, mapCursor.z);
       bctx.save(); bctx.strokeStyle = ok ? '#7fe3ff' : '#ff6a5a'; bctx.lineWidth = 2; bctx.shadowColor = bctx.strokeStyle; bctx.shadowBlur = 8;
       bctx.beginPath(); bctx.arc(x, y, 9, 0, 7); bctx.moveTo(x - 16, y); bctx.lineTo(x - 5, y); bctx.moveTo(x + 5, y); bctx.lineTo(x + 16, y); bctx.moveTo(x, y - 16); bctx.lineTo(x, y - 5); bctx.moveTo(x, y + 5); bctx.lineTo(x, y + 16); bctx.stroke();
-      bctx.shadowBlur = 0; if (devMap) { bctx.font = `${Math.round(w / 60)}px "DM Sans", sans-serif`; bctx.fillStyle = bctx.strokeStyle; bctx.fillText(ok ? 'TELEPORT' : 'NO LAND', x, y + 30); } bctx.restore();
+      bctx.shadowBlur = 0; if (devMap) { bctx.font = `${Math.round(unit / 60)}px "DM Sans", sans-serif`; bctx.fillStyle = bctx.strokeStyle; bctx.fillText(ok ? 'TELEPORT' : 'NO LAND', x, y + 30); } bctx.restore();
     }
-    if (mapSelectedPoi) { const it = mapPois().find(q => q.id === mapSelectedPoi); if (it) { const x = (it.cx + E) * s, y = (it.cz + E) * s; bctx.save(); bctx.strokeStyle = '#fff5cb'; bctx.lineWidth = 2; bctx.beginPath(); bctx.arc(x, y, 10, 0, Math.PI * 2); bctx.stroke(); bctx.restore(); } }
+    if (mapSelectedPoi) { const it = mapPois().find(q => q.id === mapSelectedPoi); if (it) { const x = (it.cx + E) * s + ox, y = (it.cz + E) * s + oy; bctx.save(); bctx.strokeStyle = '#fff5cb'; bctx.lineWidth = 2; bctx.beginPath(); bctx.arc(x, y, 10, 0, Math.PI * 2); bctx.stroke(); bctx.restore(); } }
   }
   function drawBig(p, facing, devMap = false) {
     if (!mapFocusMode) return drawBigBase(p, facing, devMap);
@@ -564,7 +570,7 @@ export function createHUD(W, world) {
   }
   function resize() {
     const dpr = devicePixelRatio; const mr = mini.getBoundingClientRect(); mini.width = Math.round(mr.width * dpr) || 300; mini.height = Math.round(mr.height * dpr) || 190;
-    const br = big.getBoundingClientRect(); if (br.width) big.width = big.height = Math.round(br.width * dpr);
+    const br = big.getBoundingClientRect(); if (br.width && br.height) { big.width = Math.round(br.width * dpr); big.height = Math.round(br.height * dpr); }
   }
   addEventListener('resize', resize); resize();
   let getScan = null;

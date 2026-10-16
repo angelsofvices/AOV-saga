@@ -987,12 +987,15 @@ export class Rizer {
         this.lastBlocked = false; this.lastParried = true; this.events.push('parried');
         return true;
       }
-      this.stamina = Math.max(0, this.stamina - B.stamina); this.hp = Math.max(0, this.hp - dmg * B.reduce);
+      this.stamina = Math.max(0, this.stamina - B.stamina); const hpBeforeGuard = this.hp; this.hp = Math.max(0, this.hp - dmg * B.reduce);
+      if (src && typeof src === 'object' && this.hp < hpBeforeGuard) src.perfectKillBroken = true;
       this.knock.set(this.position.x - from.x, 0, this.position.z - from.z).normalize().multiplyScalar(B.push); this.events.push('blocked'); this.lastBlocked = true;
       return true;
     }
     this.lastBlocked = false;
-    this.hp = Math.max(0, this.hp - dmg); this.hurtT = COMBAT.invuln; this.sinceHurt = 0; this.flinch = 1;
+    const hpBeforeHit = this.hp; this.hp = Math.max(0, this.hp - dmg);
+    if (src && typeof src === 'object' && this.hp < hpBeforeHit) src.perfectKillBroken = true;
+    this.hurtT = COMBAT.invuln; this.sinceHurt = 0; this.flinch = 1;
     const d = new THREE.Vector3(this.position.x - from.x, 0, this.position.z - from.z).normalize();
     this.knock.copy(d).multiplyScalar(7); this.attack = null; if (this.hp <= 0) this.flying = false;
     if (this.actor) { this.actor.shot = null; if (this.hp <= 0) this.actor.play('knockdown', 1, { hold: true }); else this.actor.play('hurt'); }

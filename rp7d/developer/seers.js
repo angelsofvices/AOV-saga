@@ -300,7 +300,7 @@ export async function createSeers(scene, world, W) {
     // spawnY: a patrol on one floor of a cave (cave-interior.js) picks that floor; undefined everywhere else
     g.pos.set(s.x, world.groundAt(s.x, s.y, g.spawnY), s.y); g.wp = Math.min(1, g.pts.length - 1); g.dir = 1;
     g.heading = g.pts.length > 1 ? Math.atan2(g.pts[1].x - s.x, g.pts[1].y - s.y) : 0;
-    g.rxpPaid = false; g.tech = null; g.hitByRizer = false; g.actor.undeadHostile = false; g.state = 'patrol'; g.timer = 0; g.hp = g.T.hp; g.lost = 0; g.cool = 0; g.evadeCool = 0; g.evadeThreat = null; g.atk = null; g.next = null; g.feedRetry = 0; g.barT = 0; g.fall = 0; g.sink = 0; g.looted = false; g.stag = 0; g.dazed = 0; g.dazedMode = null; g.observeLost = 0; g.stuck = 0; g.avoidT = 0; g.actor.dazed = false; g.actor.fighting = false; g.actor.crawling = false;
+    g.rxpPaid = false; g.tech = null; g.hitByRizer = false; g.perfectKillBroken = false; g.actor.undeadHostile = false; g.state = 'patrol'; g.timer = 0; g.hp = g.T.hp; g.lost = 0; g.cool = 0; g.evadeCool = 0; g.evadeThreat = null; g.atk = null; g.next = null; g.feedRetry = 0; g.barT = 0; g.fall = 0; g.sink = 0; g.looted = false; g.stag = 0; g.dazed = 0; g.dazedMode = null; g.observeLost = 0; g.stuck = 0; g.avoidT = 0; g.actor.dazed = false; g.actor.fighting = false; g.actor.crawling = false;
     g.root.visible = true; g.actor.model.visible = true; g.root.position.copy(g.pos); g.actor.release(); g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.bang.visible = false;
     g.lootBag.visible = false;
     if (g.drop && !world.interactables.includes(g.drop)) world.interactables.push(g.drop);
@@ -363,7 +363,7 @@ export async function createSeers(scene, world, W) {
     if (g.state === 'dance') g.noDance = true; // struck mid-dance: out of the trance until the song ends
     g.atk = null; g.actor.shot = null; g.bang.visible = false;
     if (g.hp <= 0) {
-      if (!impact.headshot && impact.comboFinisher && (kind === 'sword' || kind === 'axe') && !g.isScanobot) {
+      if (!impact.headshot && impact.perfectKill && impact.comboFinisher && (kind === 'sword' || kind === 'axe') && !g.isScanobot) {
         const extra = Math.random() < 0.22, hitPart = impact.impactPart || (Math.random() < 0.5 ? 'LeftArm' : 'LeftLeg');
         g.fragments ||= []; g.fragments.push(...dismemberment.split(g.actor, hitPart, new THREE.Vector3(dx, 0, dz), extra));
       }
@@ -929,8 +929,10 @@ export async function createSeers(scene, world, W) {
           at.done.add(key);
           const kx = hit.at.x - ra.x, kz = hit.at.z - ra.z, kd = Math.hypot(kx, kz) || 1;
           const fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1; // mid-combo blows rock them; the finisher's last blow sends them
-          const r = hitGrunt(g, dealt(base * stageMul, g.T.def, fin), // Rizer's ATK against this foe's DEF
-            kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)), { comboFinisher: fin, impactPart: hit.part, impactPoint: hit.at });
+          const hitDamage = dealt(base * stageMul, g.T.def, fin); // Rizer's ATK against this foe's DEF
+          const perfectKill = fin && !g.perfectKillBroken && hitDamage * (1 - (g.T.armor || 0) * 0.2) >= g.hp;
+          const r = hitGrunt(g, hitDamage, kx / kd, kz / kd, at.kind,
+            (fin ? 1.3 : 0.6) * (at.od?.power || 1) * (0.8 + 0.4 * Math.min(1, hit.s.vel / 8)), { comboFinisher: fin, perfectKill, impactPart: hit.part, impactPoint: hit.at });
           hooks.onLanded?.({ ...r, x: hit.at.x, y: hit.at.y, z: hit.at.z, part: hit.part }, at.kind, g);
           if (r.down) ghost = { at, w, x: hit.at.x, y: hit.at.y, z: hit.at.z, name: r.name, t: clock };
         }

@@ -66,7 +66,7 @@ const packed = assets.map(a => `<script>(window.__RP7D_ASSETS||(window.__RP7D_AS
 const html = fs.readFileSync(path.join(codeDir, 'index.html'), 'utf8');
 const body = html.slice(html.indexOf('<main'), html.indexOf('</main>') + 7)
   .replace('./assets/ui/rizer-hud.png', `data:image/png;base64,${fs.readFileSync(path.join(root, 'assets/ui/rizer-hud.png')).toString('base64')}`)
-  .replace('./assets/ui/title.jpg', `data:image/jpeg;base64,${fs.readFileSync(path.join(root, 'assets/ui/title.jpg')).toString('base64')}`); // title screen art
+  ; // campaign title art uses the selected Rizer / Andre splash assets
 const css = fs.readFileSync(cssFile, 'utf8');
 const page = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -114,6 +114,7 @@ async function buildWeb() {
   // (including the original story-selector video). Overwrite generated files in place.
   fs.mkdirSync(path.join(webDir, 'assets/video'), { recursive: true });
   fs.mkdirSync(path.join(webDir, 'assets/audio'), { recursive: true });
+  fs.copyFileSync(path.join(root, 'assets/audio/splash-music.mp3'), path.join(webDir, 'assets/audio/splash-music.mp3'));
   // assets → chunk-N.js, each under LIMIT
   const chunks = []; let cur = '';
   for (const a of assets) {
@@ -132,7 +133,7 @@ async function buildWeb() {
   const media = [
     [path.join(root, 'assets/video/intro.mp4'), 'assets/video/intro.mp4', ['-c:v', 'libx264', '-preset', 'slow', '-crf', '27', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart']],
     [path.join(root, 'assets/video/story-selector.mp4'), 'assets/video/story-selector.mp4', ['-c:v', 'libx264', '-preset', 'slow', '-crf', '27', '-pix_fmt', 'yuv420p', '-an', '-movflags', '+faststart']],
-    [audioFile, audioRelative, ['-map', '0:a', '-c:a', 'libmp3lame', '-b:a', '96k']] // 33 min of music: 96k keeps it under the cap
+    [audioFile, audioRelative, ['-map', '0:a', '-c:a', 'libmp3lame', '-b:a', '96k']], // overworld loop
   ];
   const { execFileSync } = await import('node:child_process');
   const cache = path.join(root, 'dist', 'web-media'); // re-encoded once, reused until the source changes

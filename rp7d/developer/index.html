@@ -33,7 +33,7 @@
 
     <section class="intro title-screen" id="intro" aria-label="Title screen">
       <div class="title-stage">
-        <img class="title-art" id="title-art" src="./assets/ui/title.jpg" alt="Rizing Power 7 Deluxe" draggable="false"/>
+        <img class="title-art" id="title-art" src="./assets/ui/menus/rizer-azurel.png" alt="Rizer and Azurel · Book of Zyraxis" draggable="false"/>
         <nav class="title-menu" id="title-menu" aria-label="Main menu">
           <button id="enter" class="title-btn" data-mode="new" disabled><span class="tb-gem"></span><b>NEW GAME</b><small id="new-sub">Loading Malezor…</small></button>
           <button id="load-game" class="title-btn" data-mode="load" disabled><span class="tb-gem"></span><b>LOAD GAME</b><small id="load-sub">Loading Malezor…</small></button>
@@ -58,7 +58,7 @@
       <div class="im-skip" id="im-skip"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="im-track" cx="18" cy="18" r="15"/><circle class="im-fill" id="im-fill" cx="18" cy="18" r="15"/></svg><span>HOLD <kbd class="k">X</kbd><kbd class="p">✕</kbd> TO SKIP</span></div>
     </section>
     <script>
-    // Startup order: black key gate → intro movie → animated story selector → character splash → game.
+    // Startup order: black key gate → intro movie → story selector → selected character splash → New / Load → game.
     (function () {
       const boot = document.getElementById('boot-gate'), bootButton = document.getElementById('boot-gate-button');
       const movieRoot = document.getElementById('intro-movie'), introVideo = document.getElementById('intro-video');
@@ -69,6 +69,9 @@
       if (fresh) { story.remove(); boot.remove(); movieRoot.remove(); return; }
       let phase = 'boot', selected = 1, holdFrom = 0, noSrcFrom = 0, keyX = false, padPrev = [], stickHeld = 0, transitioning = false;
       const assetPrefix = location.pathname.includes('/developer/') ? '../assets/' : './assets/';
+      const splashMusic = new Audio(`${assetPrefix}audio/splash-music.mp3`); splashMusic.loop = true; splashMusic.preload = 'auto'; splashMusic.volume = 0.42;
+      const playSplashMusic = () => { if (phase !== 'select' && phase !== 'transition' && phase !== 'menu') return; splashMusic.play().catch(() => {}); };
+      const stopSplashMusic = () => { splashMusic.pause(); splashMusic.currentTime = 0; };
       const CHARACTER = {
         andre: { image: `${assetPrefix}ui/menus/andre-khronis.png`, campaign: 'viridia' },
         rizer: { image: `${assetPrefix}ui/menus/rizer-azurel.png`, campaign: 'zyraxis' }
@@ -80,7 +83,7 @@
       };
       const showStory = () => {
         phase = 'select'; transitioning = false; movieRoot.hidden = true; movieRoot.classList.remove('playing', 'holding', 'out');
-        game.classList.remove('intro-on'); story.hidden = false; focusStory(selected); storyVideo.muted = true;
+        game.classList.remove('intro-on'); story.hidden = false; focusStory(selected); storyVideo.muted = true; playSplashMusic();
         storyVideo.play().catch(() => {}); choices[selected]?.focus({ preventScroll: true });
       };
       const showMovie = () => {
@@ -91,7 +94,7 @@
       const chooseStory = characterId => {
         if (phase !== 'select' || transitioning) return;
         const character = CHARACTER[characterId]; if (!character) return;
-        transitioning = true; phase = 'transition'; focusStory(characterId === 'andre' ? 0 : 1);
+        transitioning = true; phase = 'transition'; focusStory(characterId === 'andre' ? 0 : 1); playSplashMusic();
         story.classList.add('choosing'); story.classList.toggle('choice-andre', characterId === 'andre');
         try { sessionStorage.setItem('rp7d.selectedCharacter', characterId); sessionStorage.setItem('rp7d.activeCampaign', character.campaign); } catch (e) {}
         setTimeout(() => {
@@ -139,9 +142,11 @@
       }
       addEventListener('keydown', onKey, true); addEventListener('keyup', onKey, true);
       bootButton.addEventListener('click', showMovie);
+      for (const eventName of ['pointerdown', 'keydown', 'touchstart']) addEventListener(eventName, playSplashMusic, { capture: true });
+      window.addEventListener('rp7d:game-start', stopSplashMusic);
       movieRoot.addEventListener('pointerdown', () => introVideo.play().catch(() => {}));
       window.__rp7dIntro = { play: showMovie, showBooks: showStory, selectZyraxis: () => chooseStory('rizer') };
-      window.__rp7dCampaignMenu = { backToSelection: backToStory };
+      window.__rp7dCampaignMenu = { backToSelection: backToStory, stopSplashMusic };
       (function tick() {
         if (phase === 'done') return;
         const gp = [...(navigator.getGamepads?.() || [])].find(g => g && g.connected);

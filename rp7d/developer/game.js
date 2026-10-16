@@ -733,21 +733,20 @@ function leaveHomeInterior() {
   const at = homeReturn || { x: W.playerStart.x, z: W.playerStart.z, facing: W.playerStart.facing };
   rizer.position.set(at.x, world.groundAt(at.x, at.z, Number.isFinite(at.y) ? at.y + 0.5 : undefined), at.z); rizer.facing = at.facing; rizer.vel.set(0, 0, 0); rizer.vy = 0; rizer.speed = 0; rizer.onGround = true; rizer.flying = false; // the ground he went in from, never a roof above the doorway
   snapOutsideDoor(3.4); homeReturn = null;
-  music.setHostPaused(false); music.unlock(); // gameplay music begins only when Rizer reaches the overworld
   showToast('Outside · the door will still be here');
 }
-// Soundtrack: remain silent through boot, story selection, the intro, and Rizer's room. It starts
-// when he exits to the overworld; Zyphone → Options controls volume and mute, and M toggles it.
+// Overworld soundtrack remains host-paused through boot, story selection, the intro, and the title menu.
+// beginPlay() starts it only after New Game or Load Game; Zyphone → Options controls volume and mute.
 let musicState = null;
 const MUSIC_VOLS = [0.05, 0.1, 0.16, 0.25, 0.4, 0.6, 0.8, 1];
 const music = createSoundtrack({ onChange: s => {
   const was = musicState?.status; musicState = s;
   if (was && was !== s.status && zy?.isOpen && zy.tab === 'options') zy.open('options');
 } });
-music.setHostPaused(true); // New sessions begin in Rizer's room; remain quiet until the exterior loads.
+music.setHostPaused(true); // Stay silent through every launch page; beginPlay() starts gameplay music.
 const musicNote = () => {
   const s = musicState || music.getState();
-  return s.error ? s.error : s.status === 'waiting' ? 'Press any button or click to start it (the browser is holding it back).' : s.status === 'playing' ? 'Playing · the draft music pack, looping.' : s.status === 'muted' ? 'Muted.' : 'Starts when you wake up.';
+  return s.error ? s.error : s.status === 'waiting' ? 'Press any button or click to start it (the browser is holding it back).' : s.status === 'playing' ? 'Playing · the draft music pack, looping.' : s.status === 'muted' ? 'Muted.' : 'Starts after New Game or Load Game.';
 };
 const sfx = createSfx();
 function rumbleHit(kind = 'light') {
@@ -794,7 +793,11 @@ function refreshTitle() {
   if (sv && ready && !andre) { const d = new Date(sv.t); $('#load-sub').textContent = `${sv.home ? 'Rizer’s Home' : sv.region || 'Malezor'} · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`; }
   titleFocus(andre ? 0 : sv && ready ? 1 : 0); // Andre's save slot is isolated and stays unavailable until Viridia is playable.
 }
-function beginPlay() { $('#intro').classList.add('hidden'); $('#game').classList.add('playing'); tryLock(); started = true; canvas.focus?.(); sfx.unlock(); }
+function beginPlay() {
+  $('#intro').classList.add('hidden'); $('#game').classList.add('playing'); tryLock(); started = true;
+  window.dispatchEvent(new CustomEvent('rp7d:game-start'));
+  music.setHostPaused(false); music.unlock(); sfx.unlock(); canvas.focus?.();
+}
 function startNewGame() {
   if (selectedCharacter() !== 'rizer') return;
   if (readSave() && !newArmed) { newArmed = true; $('#title-confirm').hidden = false; $('#new-sub').textContent = 'Press again to start over'; return; }
@@ -3031,6 +3034,7 @@ function frame() {
   if (slowT > 0) { slowT -= realDt; dt *= PERFECT_SLOW.rate; } // perfect dodge / block / parry: a short slow motion
   if (settings.dev && settings.slow) dt *= 0.3; // dev: slow motion
   if (scopeView?.phase === 'open') { renderer.info.reset(); astro.frame(Math.min(realDt, 0.05), readPad()); requestAnimationFrame(frame); return; } // Astragraphy has the screen; the world waits
+  if (!started) { pressed.clear(); renderer.info.reset(); composer.render(); requestAnimationFrame(frame); return; } // render behind launch pages, but keep gameplay and world audio inert until New / Load
   elapsed += dt;
   try { update(dt, elapsed, realDt); frameErrors = 0; }
   catch (e) { // one bad frame must never stop the game: report it on screen and keep the loop alive

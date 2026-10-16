@@ -115,14 +115,26 @@ export function createResourcePiles(scene, world, fx, opts = {}) {
     p.taken = true; scene.remove(p.mesh); p.mesh.traverse(o => o.geometry?.dispose?.()); p.unreg?.();
     const i = piles.indexOf(p); if (i >= 0) piles.splice(i, 1);
     if (p.authored) { collected.add(p.id); ((inventory.picked ||= {}).resources ||= []).push(p.id); saveInv(); }
+    const wreck = p.salvageWreck;
+    if (wreck) { wreck.pendingPiles.delete(p); finishWreckIfLooted(wreck); }
     return { resourceId: p.resourceId, quantity: p.quantity };
   }
   // A destroyed tech body, lying where it fell. kind picks its SALVAGE entry.
+  function finishWreckIfLooted(w) {
+    if (!w || w.left > 0 || w.pendingPiles.size > 0) return false;
+    w.finished = true; w.ref.salvaged = true; return true;
+  }
   function wreck(ref, kind) {
     const S = SALVAGE[kind]; if (!S || !ref?.pos) return null;
-    ref.salvaged = false;
-    const w = { ref, kind, S, left: S.quantity, chunk: Math.ceil(S.quantity / S.hits), t: 0 };
+    ref.salvaged = false; ref.wreckLooted = false;
+    const w = { ref, kind, S, left: S.quantity, chunk: Math.ceil(S.quantity / S.hits), t: 0, finished: false, pendingPiles: new Set() };
     wrecks.push(w); return w;
+  }
+  function wreckBonus(ref, quantity = 1) {
+    const w = wrecks.find(q => q.ref === ref && !q.finished); if (!w) return null;
+    const p = drop(w.S.resourceId, quantity, ref.pos.x + (Math.random() - 0.5) * 0.65, ref.pos.y + 0.45, ref.pos.z + (Math.random() - 0.5) * 0.65);
+    if (p) { p.salvageWreck = w; w.pendingPiles.add(p); }
+    return p;
   }
   const windowAt = (hits, t, spd) => { for (let i = 0; i < hits.length; i++) { const h = hits[i] / spd; if (t >= h - HITBOX.windowBefore && t <= h + HITBOX.windowAfter) return i; } return -1; };
   function update(dt, rizer) {
@@ -158,7 +170,7 @@ export function createResourcePiles(scene, world, fx, opts = {}) {
       p.x = p.mesh.position.x; p.y = p.mesh.position.y; p.z = p.mesh.position.z;
     }
     // wrecks: a blow that reaches one knocks a share of its scrap loose
-    for (let i = wrecks.length - 1; i >= 0; i--) { const w = wrecks[i]; w.t += dt; if (w.left <= 0 || w.ref.alive || w.ref.state === 'gone' || w.t > 120) wrecks.splice(i, 1); }
+    for (let i = wrecks.length - 1; i >= 0; i--) { const w = wrecks[i]; w.t += dt; if (w.finished || w.ref.alive || w.ref.state === 'gone') wrecks.splice(i, 1); }
     const at = rizer?.attack;
     if (!at || !at.hits || !wrecks.length || rizer.hp <= 0 || hidden) return;
     const spd = at.spd || 1, wi = at.kind === 'kickup' ? (at.t * spd >= 0.46 && at.t * spd <= 1.0 ? 0 : -1) : windowAt(at.hits, at.t, spd);
@@ -171,12 +183,13 @@ export function createResourcePiles(scene, world, fx, opts = {}) {
       const key = 'sv' + wi + ':' + (w.ref.id || wrecks.indexOf(w)); if ((at.done ||= new Set()).has(key)) continue;
       at.done.add(key);
       const n = Math.min(w.left, w.chunk); w.left -= n;
-      const k = d || 1; drop(w.S.resourceId, n, q.x - dx / k * 0.3, q.y + 0.5, q.z - dz / k * 0.3, { x: -dx / k + (Math.random() - 0.5), z: -dz / k + (Math.random() - 0.5) }); // it lands on Rizer's side of the wreck
+      const k = d || 1, pile = drop(w.S.resourceId, n, q.x - dx / k * 0.3, q.y + 0.5, q.z - dz / k * 0.3, { x: -dx / k + (Math.random() - 0.5), z: -dz / k + (Math.random() - 0.5) }); // it lands on Rizer's side of the wreck
+      if (pile) { pile.salvageWreck = w; w.pendingPiles.add(pile); }
       fx?.emit(q.x, q.y + 0.5, q.z, 14, { color: '#ffc27a', speed: 3.6, up: 1.4, size: 0.16, life: 0.35, g: 7 });
-      if (w.left <= 0) w.ref.salvaged = true; // stripped: the wreck can go
+      finishWreckIfLooted(w); // the wreck only clears after every salvage pile has also been collected
       opts.onEvent?.('salvage', w, n);
     }
   }
   function setVisible(v) { hidden = !v; for (const p of piles) p.mesh.visible = v; }
-  return { piles, wrecks, authored, drop, take, wreck, update, setVisible };
+  return { piles, wrecks, authored, drop, take, wreck, wreckBonus, update, setVisible };
 }

@@ -293,6 +293,7 @@ export async function createSeers(scene, world, W) {
   }
 
   function reset(g) {
+    dismemberment.restore(g.actor);
     dismemberment.clean(g.fragments); g.fragments = [];
     for (const [bone, scale] of g.actor.dismemberScales || []) bone.scale.copy(scale);
     g.actor.dismemberScales?.clear();
@@ -301,7 +302,7 @@ export async function createSeers(scene, world, W) {
     // spawnY: a patrol on one floor of a cave (cave-interior.js) picks that floor; undefined everywhere else
     g.pos.set(s.x, world.groundAt(s.x, s.y, g.spawnY), s.y); g.wp = Math.min(1, g.pts.length - 1); g.dir = 1;
     g.heading = g.pts.length > 1 ? Math.atan2(g.pts[1].x - s.x, g.pts[1].y - s.y) : 0;
-    g.rxpPaid = false; g.tech = null; g.hitByRizer = false; g.perfectKillBroken = false; g.actor.undeadHostile = false; g.state = 'patrol'; g.timer = 0; g.hp = g.T.hp; g.lost = 0; g.cool = 0; g.evadeCool = 0; g.evadeThreat = null; g.atk = null; g.next = null; g.feedRetry = 0; g.barT = 0; g.fall = 0; g.sink = 0; g.looted = false; g.stag = 0; g.dazed = 0; g.dazedMode = null; g.observeLost = 0; g.stuck = 0; g.avoidT = 0; g.actor.dazed = false; g.actor.fighting = false; g.actor.crawling = false;
+    g.rxpPaid = false; g.tech = null; g.hitByRizer = false; g.perfectKillBroken = false; g.actor.undeadHostile = false; g.state = 'patrol'; g.timer = 0; g.fragmentSink = 0; g.hp = g.T.hp; g.lost = 0; g.cool = 0; g.evadeCool = 0; g.evadeThreat = null; g.atk = null; g.next = null; g.feedRetry = 0; g.barT = 0; g.fall = 0; g.sink = 0; g.looted = false; g.stag = 0; g.dazed = 0; g.dazedMode = null; g.observeLost = 0; g.stuck = 0; g.avoidT = 0; g.actor.dazed = false; g.actor.fighting = false; g.actor.crawling = false;
     g.root.visible = true; g.actor.model.visible = true; g.root.position.copy(g.pos); g.actor.release(); g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.bang.visible = false;
     g.lootBag.visible = false;
     if (g.drop && !world.interactables.includes(g.drop)) world.interactables.push(g.drop);
@@ -351,7 +352,15 @@ export async function createSeers(scene, world, W) {
   // Damage one grunt from direction (dx, dz). Shared by strikes and the astral blast.
   function hitGrunt(g, damage, dx, dz, kind, power = 1, impact = {}) {
     releaseFeed(g);
-    if (impact.headshot) { damage = Math.max(damage, g.hp + 1); if (qualifiesForCleanPrecisionHeadshot(impact.weapon || kind, g)) { g.fragments ||= []; g.fragments.push(...dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz))); } }
+    let dismembered = false;
+    if (impact.headshot) {
+      damage = Math.max(damage, g.hp / (1 - (g.T.armor || 0) * 0.2) + 1);
+      if (qualifiesForCleanPrecisionHeadshot(impact.weapon || kind, g)) {
+        g.fragments ||= [];
+        const cut = dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz));
+        g.fragments.push(...cut); dismembered = cut.length > 0;
+      }
+    }
     const beforeHit = g.state, priorDazedMode = g.dazedMode;
     g.hitByRizer = true;
     g.hp -= damage * (1 - (g.T.armor || 0) * 0.2); g.barT = 4; g.bar.redraw(Math.max(0, g.hp) / g.T.hp);
@@ -364,9 +373,13 @@ export async function createSeers(scene, world, W) {
     if (g.state === 'dance') g.noDance = true; // struck mid-dance: out of the trance until the song ends
     g.atk = null; g.actor.shot = null; g.bang.visible = false;
     if (g.hp <= 0) {
-      if (!impact.headshot && qualifiesForCleanComboDismemberment(kind, impact) && !g.isScanobot) {
+      if (!impact.headshot && qualifiesForCleanComboDismemberment(kind, impact)) {
         const extra = Math.random() < 0.22, hitPart = impact.impactPart || (Math.random() < 0.5 ? 'LeftArm' : 'LeftLeg');
-        g.fragments ||= []; g.fragments.push(...dismemberment.split(g.actor, hitPart, new THREE.Vector3(dx, 0, dz), extra));
+        g.fragments ||= [];
+        let cut = dismemberment.split(g.actor, hitPart, new THREE.Vector3(dx, 0, dz), extra);
+        // Some enemy rigs omit a named limb influence; finish with a real head cut instead of playing a false cinematic.
+        if (!cut.length) cut = dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz));
+        g.fragments.push(...cut); dismembered = cut.length > 0;
       }
       g.actor.dazed = false; g.dazed = 0; g.dazedMode = null; g.state = 'down'; g.fall = 0; g.sink = 0; g.looted = false; g.timer = 0; defeated++; onDefeated?.(g, g.tech || kind); g.actor.play(kind === 'thunder' && g.actor.has('shocked') ? 'shocked' : 'knockdown', 1, { hold: true }); g.lootBag.visible = true;
     } // struck down by thunder: the electrocution plays out and they stay down
@@ -397,7 +410,7 @@ export async function createSeers(scene, world, W) {
       else g.actor.play('hurt');
     }
     for (const o of grunts) if (o !== g && allied(o, g) && alive(o) && Math.hypot(o.pos.x - g.pos.x, o.pos.z - g.pos.z) < (o.squad && o.squad === g.squad ? 30 : g.T.callRadius)) spot(o, 0.3);
-    return { x: g.pos.x, y: g.pos.y + 1.6, z: g.pos.z, down: g.hp <= 0, name: g.T.name };
+    return { x: g.pos.x, y: g.pos.y + 1.6, z: g.pos.z, down: g.hp <= 0, dismembered: g.hp <= 0 && dismembered, name: g.T.name };
   }
 
   // Base-level Astralift: a jolt of ground lightning through the legs throws the enemy up and back like light
@@ -781,7 +794,7 @@ export async function createSeers(scene, world, W) {
       g.lootBag.position.set(g.pos.x, g.pos.y + 0.18 + Math.sin(t * 2.2 + g.pos.x) * 0.04, g.pos.z);
       g.lootBag.rotation.y = t * 0.35;
       if (g.state === 'down' || g.state === 'sinking') {
-        if (g.state === 'sinking' && g.fragments?.length) dismemberment.sink(g.fragments, statusDt * 1.5);
+        if (g.state === 'sinking' && g.fragments?.length && g.fragmentSink < 1.5) { const step = Math.min(statusDt * 1.5, 1.5 - g.fragmentSink); dismemberment.sink(g.fragments, step); g.fragmentSink += step; if (g.fragmentSink >= 1.5) for (const f of g.fragments) f.mesh.visible = false; }
         // Sample along the fallen body's length and width. Head, torso and feet
         // share the same ground plane on hills instead of clipping through it.
         const f = g.heading, fx = Math.sin(f), fz = Math.cos(f), lx = Math.cos(f), lz = -Math.sin(f);
@@ -817,7 +830,7 @@ export async function createSeers(scene, world, W) {
   // frame while in view and hidden beyond it. Anything that has noticed him stays on full AI.
   function farStep(g, dt, t, dist) {
     const p = g.pos; g.bang.visible = false; g.bar.visible = false; g.knock.set(0, 0, 0);
-    if (g.state === 'sinking') { g.sink += dt; g.timer -= dt; if (g.sink >= 1.5 && g.timer <= 0) reset(g); }
+    if (g.state === 'sinking') { g.sink += dt; g.timer -= dt; if (g.fragments?.length && g.fragmentSink < 1.5) { const step = Math.min(dt * 1.5, 1.5 - g.fragmentSink); dismemberment.sink(g.fragments, step); g.fragmentSink += step; if (g.fragmentSink >= 1.5) for (const f of g.fragments) f.mesh.visible = false; } if (g.sink >= 1.5 && g.timer <= 0) reset(g); }
     else if (g.state !== 'down') {
       let tx = p.x, tz = p.z, spd = 0;
       if (herded(g)) { formation(g, _f); tx = _f.x; tz = _f.z; if (Math.hypot(tx - p.x, tz - p.z) > 0.7) spd = g.walk * 1.3; }
@@ -983,7 +996,7 @@ export async function createSeers(scene, world, W) {
       const g = target?.enemy;
       if (!g || g.state !== 'down' || g.looted) return null;
       const eater = feedClaims.get(g); if (eater) { releaseFeed(eater); eater.state = 'return'; eater.wp = nearestWp(eater); }
-      g.looted = true; g.lootBag.visible = false; g.state = 'sinking'; g.sink = 0; g.timer = g.T.respawn;
+      g.looted = true; g.lootBag.visible = false; g.state = 'sinking'; g.sink = 0; g.fragmentSink = 0; g.timer = g.T.respawn;
       const index = world.interactables.indexOf(g.drop); if (index >= 0) world.interactables.splice(index, 1);
       return { currency: 'coins', amount: rollEnemyBag(g.T), enemy: g.T.name };
     },

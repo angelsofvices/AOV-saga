@@ -13,6 +13,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clamp, damp, dampAngle, rng } from './util.js';
 import { touch, STRIKERS, HITBOX } from './hitbox.js';
 import { COMBAT, BLADES } from './rizer.js';
+import { weaponGroupOf } from './weapon-classes.js';
 import { quarterAt, districtAt } from './world-data.js';
 
 export const SCANOBOT = {
@@ -265,10 +266,10 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
       id: `scanobot-${n}`, isScanobot: true, T: S, name: S.name, home: homePt, pts, wp: 1, ...d, bar,
       pos: new THREE.Vector3(), center: new THREE.Vector3(), vel: new THREE.Vector3(), knock: new THREE.Vector3(), heading: 0,
       alt: S.hover, phase: Math.random() * 10, side: n % 2 ? 1 : -1, r: S.radius,
-      state: 'patrol', t: 0, hp: S.hp, damageStage: 0, breakFrame: 0, cool: 0, lost: 0, flash: 0, barT: 0, dropped: false, respawnAt: 0, vy: 0, spin: 0, seenT: 0, seen: false,
+      state: 'patrol', t: 0, hp: S.hp, damageStage: 0, breakFrame: 0, cool: 0, lost: 0, flash: 0, barT: 0, dropped: false, respawnAt: 0, vy: 0, spin: 0, seenT: 0, seen: false, boutHits: 0, perfectKillBroken: false, salvaged: false, splitParts: null,
       get alive() { return alive(bot); },
       get aimY() { return bot.alt; },
-      hit: (damage, dx, dz, kind, power) => hitBot(bot, damage, dx, dz, kind, power)
+      hit: (damage, dx, dz, kind, power, impact) => hitBot(bot, damage, dx, dz, kind, power, impact)
     };
     bot.hurtRig = { parts: { Body: { a: bot.center, b: bot.center, r: S.radius } } }; // a sphere for hitbox.js touch()
     reset(bot); return bot;
@@ -276,7 +277,8 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
   function reset(b) {
     const s = b.pts[0]; b.pos.set(s.x, world.groundAt(s.x, s.y), s.y); b.wp = 1 % b.pts.length;
     b.heading = Math.atan2(b.pts[b.wp].x - s.x, b.pts[b.wp].y - s.y); b.vel.set(0, 0, 0); b.knock.set(0, 0, 0);
-    b.rxpPaid = false; b.state = 'patrol'; b.t = 0; b.hp = S.hp; b.damageStage = 0; b.breakFrame = 0; b.cool = 0; b.lost = 0; b.flash = 0; b.barT = 0; b.dropped = false; b.vy = 0; b.spin = 0; b.alt = S.hover; b.seen = false;
+    if (b.splitParts) { for (const p of b.splitParts) b.root.remove(p); b.splitParts = null; }
+    b.rxpPaid = false; b.perfectKillBroken = false; b.boutHits = 0; b.salvaged = false; b.chipLooted = false; b.chip = null; b.state = 'patrol'; b.t = 0; b.hp = S.hp; b.damageStage = 0; b.breakFrame = 0; b.cool = 0; b.lost = 0; b.flash = 0; b.barT = 0; b.dropped = false; b.vy = 0; b.spin = 0; b.alt = S.hover; b.seen = false;
     b.root.visible = !hidden; b.body.visible = true; b.root.rotation.set(0, b.heading, 0); b.root.scale.setScalar(S.scale); b.body.rotation.set(0, 0, 0);
     b.hullMat.emissive.setRGB(0, 0, 0); b.bar.visible = false; b.bar.redraw(1); b.bar.drawn = true;
     placeBody(b);
@@ -308,17 +310,32 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
   }
 
   // Damage one drone from direction (dx, dz). Returns a hit report like seers.hitGrunt's.
-  function hitBot(b, damage, dx, dz, kind = 'punch', power = 1) {
+  function hitBot(b, damage, dx, dz, kind = 'punch', power = 1, impact = {}) {
     if (!alive(b)) return null;
+    b.boutHits++;
     b.hp -= damage; b.barT = 4; b.bar.redraw(Math.max(0, b.hp) / S.hp); b.flash = 0.14;
     const stage = b.hp <= 0 ? 3 : b.hp <= S.hp * 0.34 ? 2 : b.hp <= S.hp * 0.67 ? 1 : 0;
     if (stage > b.damageStage) { b.damageStage = stage; fx?.emit(b.center.x, b.center.y, b.center.z, stage === 3 ? 24 : 8 + stage * 4, { color: stage >= 2 ? '#ffae68' : '#8fd7ff', speed: 2.8 + stage * 0.4, up: 1.2, size: 0.19 + stage * 0.04, life: 0.38, g: 4 }); }
     const push = (kind === 'kick' ? 7 : kind === 'flykick' || kind === 'kickup' ? 9 : kind === 'blast' ? 6 : kind === 'axe' ? 7 : kind === 'bow' ? 3 : 4.5) * power;
     b.knock.set(dx, 0, dz).multiplyScalar(push);
     const at = { x: b.center.x, y: b.center.y, z: b.center.z, name: S.name, scanobot: true, down: false };
-    if (b.hp <= 0) { defeat(b, dx, dz, power, kind); at.down = true; }
+    if (b.hp <= 0) {
+      const group = weaponGroupOf(impact.weapon || kind).id;
+      const eligible = group === 'MELEE_BLADE' || group === 'BOW' || group === 'ENERGY_PISTOL' || group === 'ENERGY_RIFLE';
+      if (!b.perfectKillBroken && b.boutHits >= 2 && eligible && (group !== 'MELEE_BLADE' || Number(impact.comboCount) >= 2)) { splitScanobot(b); at.dismembered = true; }
+      defeat(b, dx, dz, power, kind); at.down = true;
+    }
     else { b.state = 'stagger'; b.t = 0.32; b.lost = 0; b.cool = Math.max(b.cool, 0.4); alertAround(b); }
     return at;
+  }
+  // A clean two-hit-or-longer bout cuts a Scanobot's hull into two persistent halves.
+  function splitScanobot(b) {
+    if (b.splitParts) return;
+    b.body.visible = false; b.splitParts = [];
+    for (const side of [-1, 1]) {
+      const half = b.body.clone(true); half.visible = true; half.scale.set(0.5, 1, 1); half.position.x = side * 0.12; half.rotation.z = side * -0.12;
+      b.root.add(half); b.splitParts.push(half);
+    }
   }
   // Parried: its claws (or bolt) are turned aside and it reels, lens dark, for a moment.
   function stun(b, from) {
@@ -334,13 +351,13 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
     b.knock.set(dx, 0, dz).multiplyScalar(3 * power); b.bar.visible = false;
     fx?.emit(b.center.x, b.center.y, b.center.z, 22, { color: '#8fd0ff', speed: 3.6, up: 1.6, size: 0.3, life: 0.5 });
     fx?.emit(b.center.x, b.center.y, b.center.z, 10, { color: '#ffd38a', speed: 4.5, up: 1.2, size: 0.16, life: 0.35, g: 6 });
-    if (!b.dropped) { b.dropped = true; dropChip(b.center.x, b.center.z, b.pos.y); }
+    if (!b.dropped) { b.dropped = true; b.chip = dropChip(b.center.x, b.center.z, b.pos.y, 1, b); }
   }
 
   // ── Portalchips lying in the world ──
   // value: how many Portalchips this pickup is worth (1, or 3 for the large purple chip a Penumbra drops).
-  function dropChip(x, z, y0 = world.heightAt(x, z), value = 1) {
-    const c = { id: `portalchip-${++chipSeq}`, kind: 'portalchip', x, z, y: baseY(x, z, y0), value, taken: false, age: 0, ...buildChip(value) };
+  function dropChip(x, z, y0 = world.heightAt(x, z), value = 1, owner = null) {
+    const c = { id: `portalchip-${++chipSeq}`, kind: 'portalchip', x, z, y: baseY(x, z, y0), value, taken: false, age: 0, owner, ...buildChip(value) };
     c.root.position.set(x, c.y, z); c.root.visible = !hidden; scene.add(c.root);
     chips.push(c); opts.onChip?.(c);
     return c;
@@ -348,7 +365,7 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
   // Take a chip off the ground. True once; a chip can't be collected twice.
   function collectChip(c) {
     if (!c || c.taken) return false;
-    c.taken = true; scene.remove(c.root);
+    c.taken = true; if (c.owner) c.owner.chipLooted = true; scene.remove(c.root);
     const i = chips.indexOf(c); if (i >= 0) chips.splice(i, 1);
     c.unreg?.(); c.unreg = null;
     return true;
@@ -432,7 +449,8 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
       at.done.add(key);
       const kx = b.pos.x - rp.x, kz = b.pos.z - rp.z, kd = Math.hypot(kx, kz) || 1;
       const fin = at.stage >= rizer.comboMax(at.kind) && w === at.hits.length - 1;
-      const res = hitBot(b, base * stageMul, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1));
+      const hitDamage = base * stageMul, perfectKill = !b.perfectKillBroken && hitDamage >= b.hp;
+      const res = hitBot(b, hitDamage, kx / kd, kz / kd, at.kind, (fin ? 1.3 : 0.6) * (at.od?.power || 1), { comboCount: at.chainCount || at.stage || 1, perfectKill, weapon: at.kind });
       if (res) hooks.onLanded?.({ ...res, x: hit.at.x, y: hit.at.y, z: hit.at.z, part: 'Body' }, at.kind, b);
       if (res?.down) ghost = { at, w, x: hit.at.x, y: hit.at.y, z: hit.at.z, t: clock };
     }
@@ -511,17 +529,16 @@ export function createScanobots(scene, world, W, fx, opts = {}) {
           break;
         case 'down': { // falling out of the air, tumbling
           b.t += statusDt; b.vy -= 14 * statusDt; b.alt += b.vy * statusDt;
-          b.breakFrame = Math.min(3, Math.floor((b.t += statusDt) / 0.2));
-          b.body.rotation.x += b.spin * statusDt; b.body.rotation.z += b.spin * 0.6 * statusDt;
+          b.breakFrame = Math.min(3, Math.floor(b.t / 0.2));
+          if (b.splitParts) for (const [i, half] of b.splitParts.entries()) { const side = i ? 1 : -1; half.position.x += side * statusDt * 0.22; half.rotation.x += b.spin * statusDt; half.rotation.z += b.spin * 0.6 * statusDt; }
+          else { b.body.rotation.x += b.spin * statusDt; b.body.rotation.z += b.spin * 0.6 * statusDt; }
           if (Math.random() < statusDt * 25) fx?.emit(b.center.x, b.center.y, b.center.z, 1, { color: Math.random() < 0.5 ? '#ffd38a' : '#8fd0ff', speed: 1.5, up: 0.8, size: 0.12, life: 0.3, g: 5 });
-          if (b.alt <= 0.24) { b.alt = 0.24; b.state = 'wreck'; b.t = 40; /* it lies there to be salvaged (resources.js); stripped, it goes at once */ b.knock.set(0, 0, 0); fx?.emit(b.center.x, b.pos.y + 0.2, b.center.z, 14, { speed: 2.4, up: 0.8, size: 0.4, life: 0.5 }); }
+          if (b.alt <= 0.24) { b.alt = 0.24; b.state = 'wreck'; b.t = 0; b.knock.set(0, 0, 0); fx?.emit(b.center.x, b.pos.y + 0.2, b.center.z, 14, { speed: 2.4, up: 0.8, size: 0.4, life: 0.5 }); }
           break;
         }
         case 'wreck': // staged collapsed shell remains solid and salvageable, then sinks away
-          b.t -= statusDt; b.breakFrame = Math.min(3, Math.floor((40 - b.t) / 0.18)); if (b.salvaged && b.t > 0.8) b.t = 0.8;
-          if (b.t < 0.8) b.root.scale.setScalar(S.scale * Math.max(0.01, b.t / 0.8));
-          else if (Math.random() < statusDt * 4) fx?.emit(b.center.x, b.center.y + 0.1, b.center.z, 2, { color: '#9fd4ff', speed: 1.2, up: 1, size: 0.1, life: 0.25 });
-          if (b.t <= 0) { b.state = 'gone'; b.root.visible = false; b.respawnAt = clock + S.respawn; }
+          if (b.salvaged && b.chipLooted) { b.t += statusDt; b.breakFrame = Math.min(3, Math.floor(b.t / 0.18)); b.alt -= statusDt * 0.55; if (b.t >= 3) { b.state = 'gone'; b.root.visible = false; b.respawnAt = clock + S.respawn; } }
+          else { b.t = 0; if (Math.random() < statusDt * 4) fx?.emit(b.center.x, b.center.y + 0.1, b.center.z, 2, { color: '#9fd4ff', speed: 1.2, up: 1, size: 0.1, life: 0.25 }); }
           break;
       }
       if (b.state === 'gone') continue;

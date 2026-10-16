@@ -337,7 +337,7 @@ function setOutdoorActorsVisible(value) {
   for (const z of zyrex || []) z.setVisible ? z.setVisible(visible) : z.b?.root && (z.b.root.visible = visible);
   partner?.setVisible(visible);
   for (const L of treehouses?.live.values() || []) for (const g of L.guards.values()) g.setVisible(visible);
-  if (seers) for (const g of seers.grunts) { const v = g.cave ? caveMode && g.cave === caveId : visible; g.root.visible = v; g.lootBag.visible = v && g.state === 'down' && !g.looted; }
+  if (seers) for (const g of seers.grunts) { const v = g.cave ? caveMode && g.cave === caveId : visible; g.root.visible = v && (g.state !== 'sinking' || g.sink < 1.5); g.lootBag.visible = v && g.state === 'down' && !g.looted; }
   commonChests?.setVisible(visible);
   if (loot) for (const c of loot.all) { c.chest.visible = visible; c.mesh.visible = visible && c.state === 'waiting'; }
   astralboard?.setVisible(visible);
@@ -570,8 +570,9 @@ function nearestGroundedStompTarget() {
   const p = rizer?.position; if (!p) return null;
   const candidates = [];
   for (const g of seers?.grunts || []) if (g.state === 'down' && g.pos && g.root?.visible !== false) candidates.push({ ref: g, pos: g.pos });
-  for (const b of scanobots?.bots || []) if (b.state === 'wreck' && b.pos && b.root?.visible !== false) candidates.push({ ref: b, pos: b.pos });
-  for (const g of novas?.list || []) if (g.state === 'down' && g.pos && g.root?.visible !== false) candidates.push({ ref: g, pos: g.pos });
+  for (const g of novas?.list || []) if (g.state === 'down' && g.pos && g.root?.visible !== false && !g.salvaged) candidates.push({ ref: g, pos: g.pos });
+  for (const p of penumbras?.list || []) if (p.state === 'down' && p.pos && p.root?.visible !== false && !p.salvaged) candidates.push({ ref: p, pos: p.pos });
+  for (const b of scanobots?.bots || []) if (b.state === 'wreck' && b.pos && b.root?.visible !== false && !b.salvaged) candidates.push({ ref: b, pos: b.pos });
   let best = null, bd = 2.7;
   for (const c of candidates) { const d = Math.hypot(c.pos.x - p.x, c.pos.z - p.z); if (d < bd) { best = c; bd = d; } }
   return best && { ...best.pos, ref: best.ref };
@@ -1293,7 +1294,7 @@ function build() {
   av = createAstralvision(scene, camera, fx);
   loot = createLoot(scene, world, fx, W, { claimPlasma: source => { const res=claimPlasmabeam(source);if(!res.ok)showToast(res.message);return res;} }); held = createHeldWeapons(scene); chestLight = createChestLight(scene); restoreScope(); initStorage();
   plasmaSystem = createPlasmabeamSystem({ scene,world,foes,fx,
-    hit:(g,damage,dir,impact={})=>g.isNova?g.hit(damage,dir.x,dir.z,'plasmabeam',.4,impact):g.isScanobot?g.hit(damage,dir.x,dir.z,'plasmabeam',.4):seers.hitGrunt(g,damage,dir.x,dir.z,'plasmabeam',.4,impact),
+    hit:(g,damage,dir,impact={})=>g.isNova?g.hit(damage,dir.x,dir.z,'plasmabeam',.4,impact):g.isScanobot?g.hit(damage,dir.x,dir.z,'plasmabeam',.4,impact):seers.hitGrunt(g,damage,dir.x,dir.z,'plasmabeam',.4,impact),
     onHit:(res,g)=>{if(res)seerHooks.onLanded(res,'plasmabeam');} });
   astralboard = createAstralboard(scene, world, fx, showToast, loot.astralboard.rest); dep?.sync(); // a deployed Astralboard comes back where it was set down
   lightbulbs = createLightbulbChests({ scene, world, W, fx, buildChest, chestFront, porch: null, onCollect: lightbulbLearned, onOpen: () => { sfx.play('lift', 0.7, 1.1); showToast('SILVER FOCUS CHEST · a Lightbulb rises · ✕ to collect'); } }); // the six silver chests teach Focus Moves; Gemlord weapon chests are gold and scattered
@@ -1336,7 +1337,7 @@ function build() {
   scanobots = createScanobots(scene, world, W, fx, { onDefeated: (b, kind) => { awardCombatRXP(b, 'scanobot', kind); resources?.wreck(b, 'scanobot'); }, onChip: c => { c.unreg = av.register({ id: c.id, kind: 'loot', label: chipName(c), tagHeight: 0.8, pos: () => c.root.position, object: () => c.chip, active: () => !c.taken && !homeMode }); } });
   gatelocks = createGatelocks(scene, world, W, fx, { toast: showToast, sfx, onEvent: (type, g) => { if (type === 'found') awardDiscovery('gatelock', g.id); else if (type === 'open') awardObjective('gatelock-open', g.id); else if (type === 'teleport') portalJump(g); } });
   for (const g of gatelocks.list) av.register({ id: g.id, kind: 'quest', far: true, tagHeight: 4.2, get label() { return gatelocks.label(g); }, pos: () => g.root.position, object: () => g.base, active: () => !homeMode });
-  penumbras = createPenumbras(scene, world, W, fx, { dropChip: (x, z, y, v) => scanobots.dropChip(x, z, y, v), onEvent: penumbraEvent });
+  penumbras = createPenumbras(scene, world, W, fx, { dropChip: (x, z, y, v, owner) => scanobots.dropChip(x, z, y, v, owner), onEvent: penumbraEvent });
   bolts = createBolts(scene, world, fx, boltEvent);
   resources = createResourcePiles(scene, world, fx, { onEvent: resourceEvent, onAutoCollect: p => inventory.zycube ? false : takeResource(p), onPile: s => { s.unreg = av.register({ id: s.id, kind: 'loot', label: `${s.name} ×${s.quantity}`, tagHeight: 0.7, pos: () => s.mesh.position, object: () => s.mesh, active: () => !s.taken && !homeMode }); } });
   gatelocks.list.forEach((g, i) => { // authored test piles: discarded parts beside each Portal Gatelock (one-time; they stay collected)
@@ -1376,7 +1377,7 @@ function build() {
   // Zoryn is paused for the art pass. Keep his NPC implementation and saved
   // progress intact so he can return without resetting the player's history.
   createSeers(scene, world, W).then(sq => { seers = sq; sq.onDefeated = (g, kind) => awardCombatRXP(g, g.T.key, kind); // RXP source · combat: one award per defeat, by RP7B's formula
-     bowProjectiles = createPearlbow(scene, world, sq, fx, techBodies, sfx); setOutdoorActorsVisible(!homeMode); console.log('[rp7d] seers on patrol:', sq.total); })
+     bowProjectiles = createPearlbow(scene, world, sq, fx, techBodies, sfx, res => { if (res?.dismembered) obliteration(); }); setOutdoorActorsVisible(!homeMode); console.log('[rp7d] seers on patrol:', sq.total); })
     .catch(e => console.warn('[rp7d] seers failed to load', e));
   zy = createZyphone({
     W, hud, characters: CHARACTERS, itemCatalog: ITEMS, onUseItem: k => useItem(k),
@@ -1915,7 +1916,7 @@ function boltEvent(type, d) {
 const boltCtx = {
   get rizer() { return rizer; }, rizerRig: () => seers?.rizerRig, touch, get seers() { return seers; }, bodies: () => techBodies() || [],
   onPlayerHit: (owner, at, dmg) => onPlayerHit('kick', owner, at, dmg),
-  onLanded: res => { if (res?.down) showToast(res.scanobot ? downToast(res) : `${res.name || 'Seer grunt'} falls`); }
+  onLanded: res => { if (res?.dismembered) obliteration(); else if (res?.down) showToast(res.scanobot ? downToast(res) : `${res.name || 'Seer grunt'} falls`); }
 };
 function novaEvent(type, g) {
   if (type === 'defeated') resources?.wreck(g, 'nova');
@@ -2337,6 +2338,7 @@ const seerHooks = {
     if (!handStrike || segment.part?.endsWith('Hand')) treehouses?.strike(segment, damage, hitKey);
   },
   onLanded: (h, kind) => {
+    if (h?.dismembered) obliteration();
     if (kind === 'runKickHold') return; // this move applies one close-range lightning burst to every foe at its authored impact frame
     lastLanded = elapsed;
     if (['punch','runpunch'].includes(kind)) tutorialMark('basics', 'punch');
@@ -2359,7 +2361,7 @@ const seerHooks = {
     fx.emit(h.x, h.y, h.z, h.down || od ? 22 : 9, { color: od ? '#9fd4ff' : h.down ? '#c9a0ff' : '#ffe2a8', speed: od ? 5.2 : 3.4, up: od ? 2.2 : 1.4, size: od ? 0.55 : 0.4, life: od ? 0.55 : 0.4 });
     if (od) fx.emit(h.x, h.y, h.z, 14, { color: '#ffffff', speed: 7, up: 1, size: 0.3, life: 0.25, g: 0 });
     cam.kick(od ? 1.1 : kind === 'kick' ? 0.6 : 0.4); hitStop = Math.max(hitStop, od ? 0.13 : kind === 'kick' ? 0.07 : 0.045);
-    if (h.down) showToast(h.scanobot ? downToast(h) : `${h.name || 'Seer grunt'} falls · ${seers.defeated} fewer holding Malezor`);
+    if (h.down && !h.dismembered) showToast(h.scanobot ? downToast(h) : `${h.name || 'Seer grunt'} falls · ${seers.defeated} fewer holding Malezor`);
   },
   blade: () => rizer.swordAt === 'hand' ? held?.contact() : null // the drawn weapon as a contact capsule { a, b, r }
 };
@@ -2426,6 +2428,9 @@ function runningKickHoldImpact() {
 // A perfect dodge, block or parry stretches the moment: a short slow motion (real seconds), then back to speed.
 const PERFECT_SLOW = { time: 0.45, rate: 0.3 };
 let slowT = 0;
+// Shared, non-stacking finisher beat for one or many simultaneous dismembers.
+function dismembermentSlow() { slowT = Math.max(slowT, 0.62); }
+function obliteration() { dismembermentSlow(); showToast('OBLITERATION!'); }
 function perfectDodge() {
   slowT = PERFECT_SLOW.time; const p = rizer.position, aerial = rizer.dodgeKind === 'aerial';
   fx.emit(p.x, p.y + 1.1, p.z, 16, { color: '#bfe6ff', speed: 3.2, up: 1.2, size: 0.26, life: 0.4, g: 0 });
@@ -2458,6 +2463,9 @@ function onPlayerHit(kind, g, at, dmg = 5) {
     const hp = at || { x: rizer.position.x, y: rizer.position.y + 1.5, z: rizer.position.z }; sfx.play('light', 0.8, 1.3);
     fx.emit(hp.x, hp.y, hp.z, 12, { color: '#fff1c2', speed: 4, up: 1.2, size: 0.25, life: 0.3, g: 3 }); cam.kick(0.25); return;
   }
+  // A flawless bout is tracked per attacker. Only an unblocked hit that reaches
+  // Rizer's damage handler breaks that enemy's OBLITERATION eligibility.
+  if (g) g.perfectKillBroken = true;
   sfx.play(dmg >= 10 ? 'heavy' : dmg >= 5.5 ? 'medium' : 'light');
   cam.kick(kind === 'kick' ? 0.75 : 0.55); hitStop = 0.05;
   const hp = at || { x: rizer.position.x, y: rizer.position.y + 1.5, z: rizer.position.z };
@@ -2943,7 +2951,7 @@ function update(dt, t, realDt = dt) {
     if (e === 'land' || e === 'landHard') sfx.play('land', e === 'landHard' ? 1.15 : 0.9);
     if (e === 'slide') sfx.play('slide');
     if (e === 'treeSpin') { sfx.play('whoosh', 0.6, 0.9); tutorialMark('basics', 'treeSpin'); }
-    if (e === 'stomp') { sfx.play('heavy', 0.9, 0.72); cam.kick(0.45); const q = rizer.position; fx.emit(q.x, q.y + 0.08, q.z, 10, { color: '#d8c49b', speed: 1.9, up: 0.6, size: 0.24, life: 0.32 }); }
+    if (e === 'stomp') { sfx.play('heavy', 0.9, 0.72); cam.kick(0.45); const q = rizer.position, target = rizer.stompTarget; rizer.stompTarget = null; fx.emit(q.x, q.y + 0.08, q.z, 10, { color: '#d8c49b', speed: 1.9, up: 0.6, size: 0.24, life: 0.32 }); if (target && !target.salvaged && (target.isPenumbra || scanobots?.bots?.includes(target) || novas?.list?.includes(target))) { const extra = target.isPenumbra ? 4 : novas?.list?.includes(target) ? 3 : 2; resources?.wreckBonus(target, extra); showToast(`STOMP SALVAGE · Scrap Metal ×${extra}`); } }
     if (e === 'runKickHold') runningKickHoldImpact();
     if (e === 'perfectDodge') perfectDodge();
     if (e === 'dodge' && rizer.isRunning && rizer.speed > 3.4) {

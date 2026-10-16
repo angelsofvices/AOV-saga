@@ -5,6 +5,13 @@ import * as THREE from 'three';
 export function createDismemberment(scene, world) {
   const live = new Set();
   const clean = list => { for (const f of list || []) { scene.remove(f.mesh); f.mesh.geometry.dispose(); live.delete(f); } };
+  function restore(actor) {
+    for (const [mesh, original] of actor?.dismemberGeometries || []) {
+      if (mesh.geometry !== original) mesh.geometry.dispose();
+      mesh.geometry = original;
+    }
+    actor?.dismemberGeometries?.clear();
+  }
   const strip = n => n.replace(/^mixamorig[:_]?/, '');
   function split(actor, part, direction = new THREE.Vector3(0, 0, 1), extra = false) {
     if (!actor?.model) return [];
@@ -24,39 +31,57 @@ export function createDismemberment(scene, world) {
     actor.model.traverse(o => { if (o.isSkinnedMesh) meshes.push(o); });
     const made = [];
     for (const source of meshes) {
-      const g = source.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+      const original = source.geometry, pos = original.attributes.position, si = original.attributes.skinIndex, sw = original.attributes.skinWeight;
       if (!pos || !si || !sw) continue;
-      const index = g.index, count = index ? index.count : pos.count, out = [], uvOut = [], uv = g.attributes.uv;
+      // Keep unindexed rigs supported by giving their vertices a sequential index.
+      const g = original.index ? original : original.clone().setIndex(Array.from({ length: pos.count }, (_, i) => i));
+      const index = g.index, count = index.count, uv = original.attributes.uv;
       const sourceBoneNames = source.skeleton.bones.map(b => strip(b.name));
-      const dominant = vi => { let bi = -1, bw = 0; for (let k = 0; k < 4; k++) { const w = sw.getComponent(vi, k); if (w > bw) { bw = w; bi = si.getComponent(vi, k); } } return sourceBoneNames[bi]; };
+      const affected = vi => { let sum = 0; for (let k = 0; k < 4; k++) if (wanted.has(sourceBoneNames[si.getComponent(vi, k)])) sum += sw.getComponent(vi, k); return sum; };
       const v = new THREE.Vector3();
-      for (let i = 0; i + 2 < count; i += 3) {
-        const ids = [0, 1, 2].map(j => index ? index.getX(i + j) : i + j);
-        const matches = ids.filter(id => wanted.has(dominant(id))).length;
-        if (matches < 2) continue;
-        for (const id of ids) {
-          source.getVertexPosition(id, v); v.applyMatrix4(source.matrixWorld); out.push(v.x, v.y, v.z);
-          if (uv) uvOut.push(uv.getX(id), uv.getY(id));
+      const materialGroups = g.groups.length ? g.groups : [{ start: 0, count, materialIndex: 0 }];
+      const kept = [], nextGroups = [], fragmentsByMaterial = new Map();
+      let removedTriangles = 0;
+      for (const group of materialGroups) {
+        const groupStart = kept.length, end = Math.min(count, group.start + group.count), materialIndex = group.materialIndex || 0;
+        let bucket = fragmentsByMaterial.get(materialIndex);
+        for (let i = group.start; i + 2 < end; i += 3) {
+          const ids = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+          // Blend weights matter more than a single dominant vertex: this also
+          // works on the stylized Seer/Mori meshes, whose cuts straddle joints.
+          const cut = affected(ids[0]) + affected(ids[1]) + affected(ids[2]) >= 0.82;
+          if (!cut) { kept.push(...ids); continue; }
+          removedTriangles++;
+          if (!bucket) { bucket = { positions: [], uvs: [] }; fragmentsByMaterial.set(materialIndex, bucket); }
+          for (const id of ids) {
+            source.getVertexPosition(id, v); v.applyMatrix4(source.matrixWorld); bucket.positions.push(v.x, v.y, v.z);
+            if (uv) bucket.uvs.push(uv.getX(id), uv.getY(id));
+          }
         }
+        if (kept.length > groupStart) nextGroups.push({ start: groupStart, count: kept.length - groupStart, materialIndex });
       }
-      if (out.length < 9) continue;
-      const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
-      if (uvOut.length) geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvOut, 2));
-      geom.computeVertexNormals();
-      const center = new THREE.Vector3(); for (let i = 0; i < out.length; i += 3) center.add(new THREE.Vector3(out[i], out[i + 1], out[i + 2])); center.multiplyScalar(3 / out.length);
-      geom.translate(-center.x, -center.y, -center.z);
-      const material = Array.isArray(source.material) ? source.material[0] : source.material;
-      const mesh = new THREE.Mesh(geom, material); mesh.position.copy(center); mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
-      const head = wanted.has('Head') || wanted.has('Neck'), torso = wanted.has('Hips') || wanted.has('Spine');
-      const lateral = direction.clone().setY(0).normalize(); if (lateral.lengthSq() < 1e-6) lateral.set(0, 0, 1);
-      const f = { mesh, kind: head ? 'head' : torso ? 'torso' : 'limb', vel: lateral.multiplyScalar(head ? 1.1 : torso ? 0.25 : 0.55).add(new THREE.Vector3(0, head ? 2.3 : torso ? 0.15 : 0.65, 0)), spin: new THREE.Vector3(head ? 5 : 2.2, head ? 7 : 1.4, head ? 3.5 : 2.4), bounce: 0, age: 0 };
-      made.push(f); live.add(f);
-    }
-    // Collapse the source joint to leave a visible separation at the hit.
-    for (const name of boneNames) {
-      if (name === 'Hips') continue; // preserve the pelvis and lower-body hierarchy on a waist/torso finish
-      const bone = actor.model.getObjectByName(`mixamorig${name}`) || actor.model.getObjectByName(name);
-      if (bone) { (actor.dismemberScales ||= new Map()).set(bone, bone.scale.clone()); bone.scale.multiplyScalar(0.001); }
+      if (!removedTriangles) { if (!original.index) g.dispose(); continue; }
+      for (const [materialIndex, bucket] of fragmentsByMaterial) {
+        if (bucket.positions.length < 9) continue;
+        const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.Float32BufferAttribute(bucket.positions, 3));
+        if (bucket.uvs.length) geom.setAttribute('uv', new THREE.Float32BufferAttribute(bucket.uvs, 2));
+        geom.computeVertexNormals();
+        const center = new THREE.Vector3(); for (let i = 0; i < bucket.positions.length; i += 3) center.add(new THREE.Vector3(bucket.positions[i], bucket.positions[i + 1], bucket.positions[i + 2])); center.multiplyScalar(3 / bucket.positions.length);
+        geom.translate(-center.x, -center.y, -center.z);
+        const material = Array.isArray(source.material) ? source.material[materialIndex] : source.material;
+        const mesh = new THREE.Mesh(geom, material); mesh.position.copy(center); mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+        const head = wanted.has('Head') || wanted.has('Neck'), torso = wanted.has('Hips') || wanted.has('Spine');
+        const lateral = direction.clone().setY(0).normalize(); if (lateral.lengthSq() < 1e-6) lateral.set(0, 0, 1);
+        const f = { mesh, kind: head ? 'head' : torso ? 'torso' : 'limb', vel: lateral.multiplyScalar(head ? 1.1 : torso ? 0.25 : 0.55).add(new THREE.Vector3(0, head ? 2.3 : torso ? 0.15 : 0.65, 0)), spin: new THREE.Vector3(head ? 5 : 2.2, head ? 7 : 1.4, head ? 3.5 : 2.4), bounce: 0, age: 0 };
+        made.push(f); live.add(f);
+      }
+      const replacement = g.clone(); replacement.setIndex(kept); replacement.clearGroups();
+      for (const group of nextGroups) replacement.addGroup(group.start, group.count, group.materialIndex);
+      if (!actor.dismemberGeometries) actor.dismemberGeometries = new Map();
+      if (!actor.dismemberGeometries.has(source)) actor.dismemberGeometries.set(source, original);
+      if (source.geometry !== original) source.geometry.dispose();
+      source.geometry = replacement;
+      if (!original.index) g.dispose();
     }
     return made;
   }
@@ -73,5 +98,5 @@ export function createDismemberment(scene, world) {
     }
   }
   function sink(list, amount) { for (const f of list || []) f.mesh.position.y -= amount; }
-  return { split, update, clean, sink };
+  return { split, update, clean, restore, sink };
 }

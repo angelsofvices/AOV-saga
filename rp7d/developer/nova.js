@@ -140,11 +140,12 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
   }
   const inHands = g => !!g.rifle && (g.carry === 'ready' || (g.carry === 'draw' && g.grabbed) || (g.carry === 'sheath' && !g.grabbed));
   function reset(g) {
+    dismemberment.restore(g.actor);
     dismemberment.clean(g.fragments); g.fragments = [];
     for (const [bone, scale] of g.actor.dismemberScales || []) bone.scale.copy(scale);
     g.actor.dismemberScales?.clear();
     const s = g.pts[0]; g.pos.set(s.x, world.groundAt(s.x, s.y), s.y); g.wp = 1 % g.pts.length; g.heading = Math.atan2(g.pts[g.wp].x - s.x, g.pts[g.wp].y - s.y);
-    g.perfectKillBroken = false; g.state = 'patrol'; g.t = 0; g.hp = P.health; g.seen = false; g.raise = 0; g.charge = 0; g.hurt = 0; g.flash = 0; g.barT = 0; g.speed = 0; g.move = null; g.fallT = 0; g.knock.set(0, 0, 0);
+    g.perfectKillBroken = false; g.rifleDrop = null; g.state = 'patrol'; g.t = 0; g.hp = P.health; g.seen = false; g.raise = 0; g.charge = 0; g.hurt = 0; g.flash = 0; g.barT = 0; g.speed = 0; g.move = null; g.fallT = 0; g.knock.set(0, 0, 0);
     g.actor.shot = null; g.actor.model.visible = true; g.actor.pivot.rotation.set(0, 0, 0); g.actor.pivot.position.y = 0; g.root.visible = !hidden; g.bar.redraw(1);
     if (!g.rifle) { g.rifle = buildBlasterRifle(); g.rifle.userData.owner = g.id; g.hold.attach(g.rifle); } // a Guardian always carries one: the same weapon Rizer can end up with
     g.carry = 'stowed'; g.grabbed = false; stowRifle(g); // calm: the rifle is on its back
@@ -169,12 +170,19 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
 
   function hit(g, damage, dx, dz, kind = 'punch', power = 1, impact = {}) {
     if (!alive(g)) return null;
-    if (impact.headshot) { damage = Math.max(damage, g.hp + 1); if (qualifiesForCleanPrecisionHeadshot(impact.weapon || kind, g)) g.fragments.push(...dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz))); }
+    let dismembered = false;
+    if (impact.headshot) {
+      damage = Math.max(damage, g.hp + 1);
+      if (qualifiesForCleanPrecisionHeadshot(impact.weapon || kind, g)) {
+        const cut = dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz));
+        g.fragments.push(...cut); dismembered = cut.length > 0;
+      }
+    }
     g.hp -= damage; g.hurt += damage; g.flash = 0.12; g.barT = 5; g.bar.redraw(Math.max(0, g.hp) / P.health);
     g.knock.set(dx, 0, dz).multiplyScalar(Math.min(4, 1.6 * power));
     const at = { x: g.center.x, y: g.center.y, z: g.center.z, name: P.name, scanobot: true, nova: true, down: false };
     fx?.emit(at.x, at.y, at.z, 6, { color: '#8fe4ff', speed: 3, up: 1, size: 0.14, life: 0.3, g: 6 });
-    if (g.hp <= 0) { if (!impact.headshot && qualifiesForCleanComboDismemberment(kind, impact) && !g.isScanobot) g.fragments.push(...dismemberment.split(g.actor, impact.impactPart || 'LeftArm', new THREE.Vector3(dx, 0, dz), Math.random() < 0.2)); if (g.rifle) at.drop = THARDIN_BLASTER_RIFLE.name; defeat(g, kind, dx, dz); at.down = true; return at; }
+    if (g.hp <= 0) { if (!impact.headshot && qualifiesForCleanComboDismemberment(kind, impact)) { let cut = dismemberment.split(g.actor, impact.impactPart || 'LeftArm', new THREE.Vector3(dx, 0, dz), Math.random() < 0.2); if (!cut.length) cut = dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz)); g.fragments.push(...cut); dismembered = cut.length > 0; } at.dismembered = dismembered; if (g.rifle) at.drop = THARDIN_BLASTER_RIFLE.name; defeat(g, kind, dx, dz); at.down = true; return at; }
     if (g.rifle && g.hp <= P.health * P.disarmAt) { dropRifle(g, dx, dz); g.raise = 0; opts.onEvent?.('disarmed', g); } // the rifle is out of the fight; the Guardian is not
     const big = g.hurt >= P.stagger.every; if (big) g.hurt = 0;
     g.state = 'flinch'; g.t = big ? P.stagger.time : P.flinch; g.move = null; g.charge = 0; // a hit breaks its aim
@@ -193,7 +201,7 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
     const slot = kind === 'thunder' && g.actor.has('shocked') ? 'shocked' : rifleSlot(g.actor, 'rifleDeath');
     g.fallClip = !!(slot && g.actor.has(slot)); if (g.fallClip) g.actor.play(slot, 1, { hold: true });
     fx?.emit(g.center.x, g.center.y, g.center.z, 20, { color: '#8fe4ff', speed: 4, up: 1.6, size: 0.3, life: 0.5, g: 4 });
-    if (g.rifle) dropRifle(g, dx, dz);
+    if (g.rifle) g.rifleDrop = dropRifle(g, dx, dz);
     opts.onEvent?.('defeated', g, kind);
   }
   function dropRifle(g, dx, dz) {
@@ -201,9 +209,9 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
     const r = g.hold.detach(); if (!r) return; g.rifle = null; g.carry = 'none';
     scene.add(r); r.userData.owner = null; r.userData.charge(0);
     const side = g.side, s = Math.cos(g.heading), c = -Math.sin(g.heading); // (s, c): its right-hand side
-    const d = { id: `rifle-${g.id}-${Math.round(clock * 10)}`, weapon: THARDIN_BLASTER_RIFLE.id, name: THARDIN_BLASTER_RIFLE.name, mesh: r, taken: false, settled: false, x: r.position.x, y: r.position.y, z: r.position.z,
+    const d = { id: `rifle-${g.id}-${Math.round(clock * 10)}`, owner: g, weapon: THARDIN_BLASTER_RIFLE.id, name: THARDIN_BLASTER_RIFLE.name, mesh: r, taken: false, settled: false, x: r.position.x, y: r.position.y, z: r.position.z,
       vel: new THREE.Vector3(dx * 1.4 + s * side * 1.2, 2.6, dz * 1.4 + c * side * 1.2), spin: new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 6), flat: new THREE.Quaternion() };
-    drops.push(d); opts.onEvent?.('drop', g, d);
+    drops.push(d); g.rifleDrop = d; opts.onEvent?.('drop', g, d); return d;
   }
   function updateDrops(dt) {
     for (const d of drops) {
@@ -223,7 +231,7 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
   // Rizer takes the dropped rifle: the world object goes, the weapon id comes back for his inventory.
   function take(d) {
     if (!d || d.taken) return null;
-    d.taken = true; scene.remove(d.mesh); d.mesh.traverse(o => { o.geometry?.dispose?.(); });
+    d.taken = true; if (d.owner) d.owner.rifleLooted = true; scene.remove(d.mesh); d.mesh.traverse(o => { o.geometry?.dispose?.(); });
     const i = drops.indexOf(d); if (i >= 0) drops.splice(i, 1);
     return d.weapon;
   }
@@ -339,9 +347,9 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
         case 'recover': face = toP; raise = 0.8; g.t -= statusDt; g.charge = Math.max(0, g.charge - statusDt * 2); if (g.t <= 0) g.state = 'track'; break;
         case 'flinch': g.t -= statusDt; raise = 0.2; if (g.t <= 0) g.state = 'track'; break;
         case 'down': {
-          g.t += statusDt; if (g.salvaged && g.t < P.corpse) g.t = P.corpse; // stripped for scrap: the body goes
+          if (g.salvaged) g.t += statusDt; // resources marks salvaged only after every associated scrap pile is collected
           if (!g.fallClip) { g.fallT = Math.min(1, g.fallT + statusDt * 2.2); g.actor.pivot.rotation.x = -g.fallT * g.fallT * 1.5; g.actor.pivot.position.y = g.fallT * 0.12; } // no death clip assigned: it topples
-          if (g.t > P.corpse) { if (g.fragments.length) dismemberment.sink(g.fragments, statusDt * 0.5); g.root.position.y -= statusDt * 0.5; if (g.t > P.corpse + 3) { g.state = 'gone'; g.root.visible = false; g.respawnAt = clock + P.respawn; } }
+          if (g.salvaged && (!g.rifleDrop || g.rifleDrop.taken)) { if (g.fragments.length) dismemberment.sink(g.fragments, statusDt * 0.5); g.root.position.y -= statusDt * 0.5; if (g.t > 3) { g.state = 'gone'; g.root.visible = false; g.respawnAt = clock + P.respawn; } }
           break;
         }
       }

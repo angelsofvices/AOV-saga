@@ -274,7 +274,7 @@ export class Rizer {
     if (d > COMBAT.stomp.reach) return false;
     this.finishSwap(0.1); this.crouched = false; this.auto = null; this.vel.set(0, 0, 0); this.speed = 0;
     const face = Math.atan2(dx, dz); this.facing = face; A.release('emote');
-    const started = this.startStrike('stomp', 1); if (started) this.facing = face;
+    const started = this.startStrike('stomp', 1); if (started) { this.facing = face; this.stompTarget = target.ref || null; }
     return started;
   }
   // Aerial slam: start the dive at `target` (a world point: the locked enemy). False when he can't (on the ground,

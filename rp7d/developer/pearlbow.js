@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { buildPearlArrow } from './loot.js';
 
 // others(): extra bodies an arrow can strike ({ center, r, alive, hit(damage, dx, dz, kind, power) } — the Scanobots)
-export function createPearlbow(scene, world, seers, fx, others = null, sfx = null) {
+export function createPearlbow(scene, world, seers, fx, others = null, sfx = null, onLanded = null) {
   const shots = [], UP = new THREE.Vector3(0, 0, 1), next = new THREE.Vector3(); let shotId = 0;
   const nocked = buildPearlArrow(); nocked.visible = false; scene.add(nocked); const _d = new THREE.Vector3();
   function nock(from, to) {
@@ -52,12 +52,14 @@ export function createPearlbow(scene, world, seers, fx, others = null, sfx = nul
       if (body && !blocked) {
         const precision = body.isNova ? seers.resolvePrecisionShot(s.precision, true) : (seers.resolvePrecisionShot(s.precision, false), {}); s.precisionResolved = true;
         const result = body.hit(Math.round(lerp(BOWSHOT.damage, s.power)), s.dir.x, s.dir.z, 'bow', lerp(BOWSHOT.knock, s.power), precision);
+        if (result) onLanded?.(result, body);
         if (result) sfx?.play('arrow_hit', 0.8 + s.power * 0.2);
         if (result) fx.emit(result.x, result.y, result.z, 10 + Math.round(s.power * 14), { color: '#fff0ff', speed: 2.4, up: 0.6, size: 0.22, life: 0.35, g: 1 });
       }
       if (hit && !blocked) {
         const precision = seers.resolvePrecisionShot(s.precision, true); s.precisionResolved = true;
         const result = seers.hitGrunt(hit, Math.round(lerp(BOWSHOT.damage, s.power)), s.dir.x, s.dir.z, 'bow', lerp(BOWSHOT.knock, s.power), precision);
+        if (result) onLanded?.(result, hit);
         sfx?.play('arrow_hit', 0.8 + s.power * 0.2); // the arrow striking an enemy
         fx.emit(result.x, result.y, result.z, 10 + Math.round(s.power * 14), { color: '#fff0ff', speed: 2.4, up: 0.6, size: 0.22, life: 0.35, g: 1 });
       }

@@ -30,6 +30,9 @@ export function buildPlasmabeam() {
     // Rizer's four-point chest emblem, built in metal over the side panel.
     const emblem = new THREE.Mesh(new THREE.OctahedronGeometry(.018),brass); emblem.scale.set(.16,1.2,.7); emblem.position.set(side*.045,.062,-.062); root.add(emblem);
   }
+  // Attachment landmarks keep the actual handle in the palm and the shot at
+  // the barrel, independent of the weapon's model origin.
+  root.userData.grip = new THREE.Vector3(0,-.073,-.035);
   root.userData.muzzle = new THREE.Vector3(0,.034,.25);
   root.userData.base = new THREE.Vector3(0,0,-.08); root.userData.tip = root.userData.muzzle.clone(); root.userData.hitR = .035; root.userData.trail = [.3,1,.4];
   root.userData.mode = mode => { green.color.set(mode === 'frost' ? '#79d6ff' : '#52ff65'); green.emissive.set(mode === 'frost' ? '#218de8' : '#22df45'); };

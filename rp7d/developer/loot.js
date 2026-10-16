@@ -780,10 +780,9 @@ const HEAVY_BACK = { // the Jaded Axe: haft across the back, head behind his rig
 };
 const MOUNTS = {
   plasmabeam: {
-    // Lift the model so the pistol grip (below its origin) sits in the palm instead of the receiver crossing the fist.
-    // Keep the barrel's local +Z axis pointed forward and the handle centered in the right palm.
-    // The weapon grip is below its origin; this offset moves that grip from the wrist joint into the palm.
-    hand: { bone:'mixamorigRightHand', off:new THREE.Vector3(0,.19,.04), blade:new THREE.Vector3(0,1,0), edge:new THREE.Vector3(1,0,0) },
+    // Anchor the handle at the middle of the palm (wrist to index-finger base).
+    // Mixamo exports vary between colon and non-colon bone names.
+    hand: { bone:'mixamorigRightHand', palm:'mixamorigRightHandIndex1', palmT:.48, blade:new THREE.Vector3(0,1,0), edge:new THREE.Vector3(1,0,0) },
     stow: { bone:'mixamorigHips', off:new THREE.Vector3(-.24,-.04,.02), blade:new THREE.Vector3(0,0,-1), edge:new THREE.Vector3(-1,0,0) }
   },
   sword: {
@@ -822,6 +821,14 @@ const MOUNTS = {
     aim: { bone: 'mixamorigSpine2', off: new THREE.Vector3(-0.13, 0.1, 0.17), blade: new THREE.Vector3(0, 1, 0), edge: new THREE.Vector3(1, 0, 0) }           // shouldered: the weaponSocket every rifle humanoid uses (thardin-rifle.js RIFLE_HOLD.aim)
   }
 };
+const rigBoneKey = name => String(name || '').replace(/^mixamorig\d*[:_]?/i, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+function findRigBone(root, name) {
+  if (!root || !name) return null;
+  const direct = root.getObjectByName(name); if (direct) return direct;
+  const key = rigBoneKey(name); let found = null;
+  root.traverse(o => { if (!found && o.isBone && rigBoneKey(o.name) === key) found = o; });
+  return found;
+}
 export function createHeldWeapons(scene) {
   const meshes = Object.fromEntries(Object.keys(MOUNTS).map(k => { const m = WEAPON_MESH[k](); m.visible = false; return [k, m]; }));
   const where = {}; let actor = null; const hidden = new Set(); // hidden: weapons that are out in the world instead (the deployed telescope)
@@ -830,13 +837,24 @@ export function createHeldWeapons(scene) {
     let per = restCache.get(a.gltf); if (!per) restCache.set(a.gltf, per = {});
     const ck = key + ':' + m.bone + ':' + (m === MOUNTS[key].hand ? 'h' : m === MOUNTS[key].play ? 'p' : m === MOUNTS[key].aim ? 'a' : 's');
     if (per[ck]) return per[ck];
-    const src = a.gltf.scene, bone = src.getObjectByName(m.bone); src.updateMatrixWorld(true);
+    const src = a.gltf.scene, bone = findRigBone(src, m.bone); src.updateMatrixWorld(true);
     const rel = src.matrixWorld.clone().invert().multiply(bone.matrixWorld), inv = rel.clone().invert();
     const bp = new THREE.Vector3().setFromMatrixPosition(rel);
     const Y = m.blade.clone().normalize(), X = m.edge.clone().sub(Y.clone().multiplyScalar(m.edge.dot(Y))).normalize(), Z = new THREE.Vector3().crossVectors(X, Y);
     const charQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
     const boneQ = new THREE.Quaternion(); rel.decompose(new THREE.Vector3(), boneQ, new THREE.Vector3());
-    const out = { pos: bp.clone().add(m.off).applyMatrix4(inv), rot: boneQ.clone().invert().multiply(charQ), scale: new THREE.Vector3().setFromMatrixScale(rel) };
+    let anchor = bp.clone().add(m.off || new THREE.Vector3());
+    if (m.palm) {
+      const palmBase = findRigBone(src, m.palm);
+      if (palmBase) {
+        const palmRel = src.matrixWorld.clone().invert().multiply(palmBase.matrixWorld);
+        const palmPoint = new THREE.Vector3().setFromMatrixPosition(palmRel);
+        anchor.lerp(palmPoint, m.palmT ?? 0.5);
+      }
+    }
+    const grip = key === 'plasmabeam' ? meshes[key].userData.grip : null;
+    if (grip) anchor.sub(grip.clone().applyQuaternion(charQ));
+    const out = { pos: anchor.applyMatrix4(inv), rot: boneQ.clone().invert().multiply(charQ), scale: new THREE.Vector3().setFromMatrixScale(rel) };
     return (per[ck] = out);
   }
   // swing trail: a ribbon through the last positions of the weapon in hand
@@ -858,7 +876,7 @@ export function createHeldWeapons(scene) {
       if (mesh.userData.stowedArrow) mesh.userData.stowedArrow.visible = at === 'stow';
       if (act === actor && where[k] === at) continue; where[k] = at;
       if (mesh.parent) mesh.parent.remove(mesh);
-      const m = at && MOUNTS[k][at], bone = m && act?.model.getObjectByName(m.bone);
+      const m = at && MOUNTS[k][at], bone = m && findRigBone(act?.model, m.bone);
       if (!bone) continue;
       bone.add(mesh);
       if (m.local) { mesh.position.fromArray(m.local.pos); mesh.quaternion.fromArray(m.local.quat).normalize(); mesh.scale.setScalar(m.local.scale); continue; }
@@ -899,7 +917,7 @@ export function createHeldWeapons(scene) {
   // World-space grip transform weapon `key` would have in `act`'s hand right now (for handing things over).
   const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3();
   function handGrip(act, key = 'sword') {
-    const m = MOUNTS[key]?.hand, bone = m && act?.model.getObjectByName(m.bone); if (!bone) return null;
+    const m = MOUNTS[key]?.hand, bone = m && findRigBone(act?.model, m.bone); if (!bone) return null;
     // Pearlbow uses a hand-local authored mount. Do not pass it through mountFor(),
     // which expects blade/edge vectors and would throw during the pickup frame.
     const mt = m.local ? { pos: new THREE.Vector3().fromArray(m.local.pos), rot: new THREE.Quaternion().fromArray(m.local.quat).normalize(), scale: new THREE.Vector3().setScalar(1 / m.local.scale) } : mountFor(act, key, m);

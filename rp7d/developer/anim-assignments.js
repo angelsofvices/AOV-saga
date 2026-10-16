@@ -132,7 +132,9 @@ const PLAYER = {
   pistolWhip: { clip: PP('Whip'), inPlace: true },
   pistolJump: { clip: PP('Jump'), inPlace: true },
   pistolKneel: { clip: PP('Kneeling_Idle'), inPlace: true },
-  pistolIdle: { clip: L('fightform'), inPlace: true },
+  // The supplied pistol set has no separate standing idle. Hold its authored walk
+  // clip at frame zero while still; use the complete cycle for pistolWalk in motion.
+  pistolIdle: { clip: PP('Walk'), inPlace: true },
   pistolWalk: { clip: PP('Walk'), inPlace: true },
   pistolRun: { clip: PP('Run'), inPlace: true },
   pistolStrafeL: { clip: PP('Strafe_Left'), inPlace: true },

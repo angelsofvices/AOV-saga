@@ -781,7 +781,8 @@ const HEAVY_BACK = { // the Jaded Axe: haft across the back, head behind his rig
 const MOUNTS = {
   plasmabeam: {
     // Lift the model so the pistol grip (below its origin) sits in the palm instead of the receiver crossing the fist.
-    hand: { bone:'mixamorigRightHand', off:new THREE.Vector3(0,.085,.04), blade:new THREE.Vector3(0,.55,.84), edge:new THREE.Vector3(1,0,0) },
+    // Keep the barrel's local +Z axis pointed forward and the handle centered in the right palm.
+    hand: { bone:'mixamorigRightHand', off:new THREE.Vector3(0,.085,.04), blade:new THREE.Vector3(0,1,0), edge:new THREE.Vector3(1,0,0) },
     stow: { bone:'mixamorigHips', off:new THREE.Vector3(-.24,-.04,.02), blade:new THREE.Vector3(0,0,-1), edge:new THREE.Vector3(-1,0,0) }
   },
   sword: {

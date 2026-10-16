@@ -1610,12 +1610,13 @@ function takeBedroomPlasmabeam() {
 }
 function queuePlasmabeam() {
   if(homeMode||rizer.flying||rizer.attack||rizer.pick||rizer.rpick||rizer.swap||rizer.hp<=0||!selectedPlasmabeam())return;
-  rizer.finishSwap(.08);rizer.swordAt='hand';rizer.handWeapon='plasmabeam';plasmaPending=true;
+  if (rizer.swordAt !== 'hand' || rizer.handWeapon !== 'plasmabeam') { rizer.drawBlade('plasmabeam'); return; }
+  plasmaPending=true;
 }
 function firePendingPlasma() {
   if(!plasmaPending)return;plasmaPending=false;
   const weapon=selectedPlasmabeam(),mesh=held?.meshes.plasmabeam;
-  if(!weapon||!mesh?.parent||rizer.weapon!=='plasmabeam'||homeMode)return;
+  if(!weapon||!mesh?.parent||!mesh.visible||rizer.weapon!=='plasmabeam'||rizer.swordAt!=='hand'||rizer.handWeapon!=='plasmabeam'||homeMode)return;
   mesh.updateMatrixWorld(true);const from=mesh.userData.muzzle.clone().applyMatrix4(mesh.matrixWorld),forward=new THREE.Vector3(0,0,1).transformDirection(mesh.matrixWorld);
   const primary=['enemy','scanobot'].includes(astral.lock?.kind)&&foes.alive(astral.lock.ref)?astral.lock.ref:null;
   if(plasmaSystem.fire(from,forward,primary,weapon.mode)){

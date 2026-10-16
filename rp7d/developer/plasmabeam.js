@@ -90,8 +90,19 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
       let target=null,at=null,best=ray.far;
       for(const g of valid){
         if(!alive(g))continue;
-        const root=g.actor?.model||g.root;if(!root)continue;root.updateMatrixWorld(true);
-        const contacts=ray.intersectObject(root,true).filter(c=>!c.object.userData.noCollide&&!c.object.userData.frostShell&&c.object.visible);
+        const root=g.actor?.model||g.root;if(!root?.matrixWorld)continue;root.updateMatrixWorld(true);
+        // Some streamed/rebuilt actors contain detached mesh nodes for one frame.
+        // Raycaster's recursive path still calls Mesh.raycast on those nodes, where
+        // matrixWorld can be null and crash the whole game update (KillDOM). Build
+        // a flat list of live, world-ready meshes and raycast it non-recursively.
+        const meshes=[];
+        root.traverse(o=>{
+          if(!o.isMesh||!o.geometry||!o.matrixWorld||!o.visible||o.userData.noCollide||o.userData.frostShell)return;
+          const materials=Array.isArray(o.material)?o.material:[o.material];
+          if(materials.length&&materials.every(m=>m?.transparent))return;
+          meshes.push(o);
+        });
+        const contacts=ray.intersectObjects(meshes,false);
         const contact=contacts[0];if(contact&&contact.distance<=best){best=contact.distance;target=g;at=contact.point.clone();}
       }
       if(target){

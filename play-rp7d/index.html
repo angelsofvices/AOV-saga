@@ -1251,6 +1251,10 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
 
 /* Campaign picker · supplied split-screen video is the interactive story selector. */
 .story-select{position:absolute;inset:0;z-index:70;overflow:hidden;display:block;background:#02040a;color:#f6f0df;isolation:isolate}
+.story-transition{position:absolute;inset:0;z-index:100;background:#020309;opacity:0;visibility:visible;pointer-events:auto;transition:opacity .42s ease;}
+.story-transition[hidden]{display:none!important}
+.story-transition.active{opacity:1}
+.story-transition:not(.active){pointer-events:none}
 .story-select[hidden]{display:none!important}
 .story-select-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#02040a}
 .story-select-vignette{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,#0005,transparent 18%,transparent 82%,#0005),linear-gradient(0deg,#0009,transparent 20%,transparent 85%,#0005)}
@@ -1303,6 +1307,7 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
       <button class="story-choice rizer selected" type="button" data-character="rizer" aria-label="Select Rizer, Book of Zyraxis"><span>BOOK OF ZYRAXIS</span><b>RIZER</b><small>SELECT STORY</small></button>
       <div class="story-select-help"><kbd>←</kbd><kbd>→</kbd> CHOOSE <span>·</span> <kbd>✕</kbd> SELECT</div>
     </section>
+    <div class="story-transition" id="story-transition" aria-hidden="true" hidden></div>
 
     <section class="intro title-screen" id="intro" aria-label="Title screen">
       <div class="title-stage">
@@ -1336,6 +1341,7 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
       const movieRoot = document.getElementById('intro-movie'), introVideo = document.getElementById('intro-video');
       const story = document.getElementById('select-book'), storyVideo = document.getElementById('story-select-video');
       const game = document.getElementById('game'), splash = document.getElementById('intro'), splashArt = document.getElementById('title-art');
+      const storyTransition = document.getElementById('story-transition');
       const choices = [...story.querySelectorAll('.story-choice')], fill = document.getElementById('im-fill'), HOLD = 1000;
       let fresh = false; try { fresh = sessionStorage.getItem('rp7d.boot') === 'new'; } catch (e) {}
       if (fresh) { story.remove(); boot.remove(); movieRoot.remove(); return; }
@@ -1353,9 +1359,23 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
         selected = (i + choices.length) % choices.length;
         choices.forEach((b, k) => { b.classList.toggle('selected', k === selected); b.setAttribute('aria-pressed', String(k === selected)); });
       };
+      const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const waitTransition = (element, fallback = 500) => new Promise(resolve => {
+        let done = false; const finish = () => { if (done) return; done = true; clearTimeout(timer); element.removeEventListener('transitionend', finish); resolve(); };
+        const timer = setTimeout(finish, fallback); element.addEventListener('transitionend', finish, { once: true });
+      });
+      const coveredSwap = async swap => {
+        storyTransition.hidden = false;
+        await nextFrame(); storyTransition.classList.add('active');
+        await waitTransition(storyTransition, 450);
+        await swap(); await nextFrame();
+        storyTransition.classList.remove('active');
+        await waitTransition(storyTransition, 450);
+        storyTransition.hidden = true;
+      };
       const showStory = () => {
         phase = 'select'; transitioning = false; movieRoot.hidden = true; movieRoot.classList.remove('playing', 'holding', 'out');
-        game.classList.remove('intro-on'); story.hidden = false; focusStory(selected); storyVideo.muted = true; playSplashMusic();
+        game.classList.add('intro-on'); story.hidden = false; focusStory(selected); storyVideo.muted = true; playSplashMusic();
         storyVideo.play().catch(() => {}); choices[selected]?.focus({ preventScroll: true });
       };
       const showMovie = () => {
@@ -1369,20 +1389,24 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
         transitioning = true; phase = 'transition'; focusStory(characterId === 'andre' ? 0 : 1); playSplashMusic();
         story.classList.add('choosing'); story.classList.toggle('choice-andre', characterId === 'andre');
         try { sessionStorage.setItem('rp7d.selectedCharacter', characterId); sessionStorage.setItem('rp7d.activeCampaign', character.campaign); } catch (e) {}
-        setTimeout(() => {
+        coveredSwap(async () => {
           if (phase !== 'transition') return;
           storyVideo.pause(); story.hidden = true; splashArt.src = character.image; splashArt.alt = `${characterId === 'andre' ? 'Andre Hart' : 'Rizer'} · campaign menu`;
+          try { await splashArt.decode(); } catch (e) {}
           splash.dataset.character = characterId; splash.classList.remove('hidden'); splash.classList.toggle('andre-menu', characterId === 'andre');
-          splash.classList.add('menu-ready'); game.classList.remove('intro-on'); phase = 'menu';
+          splash.classList.add('menu-ready'); game.classList.add('intro-on'); phase = 'menu';
           window.dispatchEvent(new CustomEvent('rp7d:character-menu', { detail: { characterId } }));
-        }, 500);
+        });
       };
       const backToStory = () => {
         if (phase !== 'menu') return;
-        phase = 'select'; transitioning = false; splash.classList.add('hidden'); splash.classList.remove('menu-ready');
-        story.classList.remove('choosing', 'choice-andre'); story.hidden = false; storyVideo.play().catch(() => {}); focusStory(selected);
-        try { sessionStorage.removeItem('rp7d.selectedCharacter'); sessionStorage.removeItem('rp7d.activeCampaign'); } catch (e) {}
-        choices[selected]?.focus({ preventScroll: true });
+        transitioning = true; phase = 'transition';
+        coveredSwap(() => {
+          splash.classList.add('hidden'); splash.classList.remove('menu-ready');
+          story.classList.remove('choosing', 'choice-andre'); story.hidden = false; storyVideo.play().catch(() => {}); focusStory(selected);
+          try { sessionStorage.removeItem('rp7d.selectedCharacter'); sessionStorage.removeItem('rp7d.activeCampaign'); } catch (e) {}
+          phase = 'select'; transitioning = false; choices[selected]?.focus({ preventScroll: true });
+        });
       };
       choices.forEach((button, i) => {
         button.setAttribute('aria-pressed', String(i === selected));
@@ -1415,7 +1439,7 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
       addEventListener('keydown', onKey, true); addEventListener('keyup', onKey, true);
       bootButton.addEventListener('click', showMovie);
       for (const eventName of ['pointerdown', 'keydown', 'touchstart']) addEventListener(eventName, playSplashMusic, { capture: true });
-      window.addEventListener('rp7d:game-start', stopSplashMusic);
+      window.addEventListener('rp7d:game-start', () => { stopSplashMusic(); game.classList.remove('intro-on'); });
       movieRoot.addEventListener('pointerdown', () => introVideo.play().catch(() => {}));
       window.__rp7dIntro = { play: showMovie, showBooks: showStory, selectZyraxis: () => chooseStory('rizer') };
       window.__rp7dCampaignMenu = { backToSelection: backToStory, stopSplashMusic };

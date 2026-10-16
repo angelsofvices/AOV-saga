@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { frostContact, frostStep } from './frost-state.js';
 
-export const PLASMABEAM = Object.freeze({ damage: 3, cooldown: 0.48, speed: 35, range: 45, radius: 0.045 });
+export const PLASMABEAM = Object.freeze({ damage: 3, cooldown: 0.82, speed: 35, range: 45, radius: 0.045 });
 export function distributePlasmaTargets(primary, candidates, origin) {
   if (!primary) return [null, null, null];
   const other = [...new Set(candidates)].filter(g => g !== primary).sort((a,b) => a.pos.distanceToSquared(origin) - b.pos.distanceToSquared(origin) || String(a.id).localeCompare(String(b.id)));
@@ -36,7 +36,7 @@ export function buildPlasmabeam() {
   root.traverse(o => { if(o.isMesh) o.castShadow=true; }); return root;
 }
 export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = () => {} }) {
-  const shots = [], frosted = new Map(), ray = new THREE.Raycaster(), direction = new THREE.Vector3(), endpoint = new THREE.Vector3();
+  const shots = [], frosted = new Map(), iceDebris = [], ray = new THREE.Raycaster(), direction = new THREE.Vector3(), endpoint = new THREE.Vector3();
   let round = 0, cooldown = 0;
   function alive(g) { return foes.alive(g); }
   function aim(g) { return (g.center || g.pos).clone().add(new THREE.Vector3(0,g.center ? 0 : 1.2,0)); }
@@ -44,14 +44,13 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
     if (cooldown > 0) return false;
     const valid = foes.grunts.filter(g => alive(g) && g.pos.distanceTo(from) <= PLASMABEAM.range);
     if (!valid.includes(primary)) primary = null;
-    const targets = distributePlasmaTargets(primary, valid, from); cooldown = PLASMABEAM.cooldown; round++;
-    for (let i=0;i<3;i++) {
-      const material = new THREE.MeshBasicMaterial({ color:mode==='frost'?'#76d8ff':'#55ff72' });
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(.018,.034,.55,6),material); scene.add(mesh);
-      const dir = targets[i] ? aim(targets[i]).sub(from).normalize() : forward.clone();
-      if (primary) dir.applyAxisAngle(new THREE.Vector3(0,1,0),(i-1)*.045);
-      const shot={mesh,dir,pos:from.clone(),target:targets[i],mode,round,age:0}; shots.push(shot); mesh.position.copy(from);
-    }
+    // Keep the trigger to one authored shot for this playtest; the multi-target
+    // burst can return when its timing and distribution are ready.
+    cooldown = PLASMABEAM.cooldown; round++;
+    const material = new THREE.MeshBasicMaterial({ color:mode==='frost'?'#76d8ff':'#55ff72' });
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(.018,.034,.55,6),material); scene.add(mesh);
+    const dir = primary ? aim(primary).sub(from).normalize() : forward.clone().normalize();
+    const shot={mesh,dir,pos:from.clone(),target:null,mode,round,age:0}; shots.push(shot); mesh.position.copy(from);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
     return true;
   }
   function disposeShot(s) { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); }
@@ -70,6 +69,18 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
     if(shatter) {const p=aim(g);fx?.emit(p.x,p.y,p.z,28,{color:'#a9e7ff',speed:4,up:2,size:.18,life:.7,g:6});}
     if (g.frost===status) delete g.frost; frosted.delete(g);
   }
+  function shatterFrozen(g) {
+    const p = g.center || g.pos;
+    if (!p) return;
+    fx?.emit(p.x,p.y,p.z,30,{color:'#a9e7ff',speed:4.5,up:2.2,size:.2,life:.75,g:7});
+    for(let i=0;i<12;i++){
+      const size=.09+Math.random()*.14, material=new THREE.MeshStandardMaterial({color:i%3?'#bfeaff':'#e8f8ff',emissive:'#64b9f2',emissiveIntensity:.32,roughness:.25,metalness:.08,transparent:true,opacity:1});
+      const mesh=new THREE.Mesh(new THREE.BoxGeometry(size,size*(.8+Math.random()*.8),size),material);
+      mesh.position.set(p.x+(Math.random()-.5)*.65,p.y+(Math.random()-.15)*.7,p.z+(Math.random()-.5)*.65);
+      mesh.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);mesh.castShadow=true;scene.add(mesh);
+      iceDebris.push({mesh,vel:new THREE.Vector3((Math.random()-.5)*4,1.2+Math.random()*4,(Math.random()-.5)*4),spin:new THREE.Vector3((Math.random()-.5)*12,(Math.random()-.5)*12,(Math.random()-.5)*12),age:0,life:1.45+Math.random()*.45});
+    }
+  }
   function frostHit(g, id) {
     let s=frosted.get(g); if(!s){s={progress:0,rate:0,remaining:0,frozen:false,slow:1,shells:shells(g)};frosted.set(g,s);g.frost=s;}
     frostContact(s,id);
@@ -77,14 +88,20 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
   function update(dt) {
     cooldown=Math.max(0,cooldown-dt);
     for(const [g,s] of frosted){
-      if(!alive(g)){removeFrost(g,s.frozen);continue;}
+      if(!alive(g)){if(s.frozen)shatterFrozen(g);removeFrost(g,false);continue;}
       const state=frostStep(s,dt); for(const shell of s.shells)shell.material.opacity=.1+s.progress*.55;
       if(state==='thaw') removeFrost(g,true);
     }
     const valid=foes.grunts.filter(alive);
+    for(let i=iceDebris.length-1;i>=0;i--){
+      const d=iceDebris[i],m=d.mesh;d.age+=dt;d.vel.y-=9.8*dt;m.position.addScaledVector(d.vel,dt);m.rotation.x+=d.spin.x*dt;m.rotation.y+=d.spin.y*dt;m.rotation.z+=d.spin.z*dt;
+      const floor=world.groundAt(m.position.x,m.position.z,m.position.y+.2);
+      if(Number.isFinite(floor)&&m.position.y<floor+.045){m.position.y=floor+.045;if(d.vel.y<0)d.vel.y=Math.abs(d.vel.y)*.22;d.vel.x*=.72;d.vel.z*=.72;d.spin.multiplyScalar(.78);}
+      m.material.opacity=Math.max(0,1-d.age/d.life);
+      if(d.age>=d.life){scene.remove(m);m.geometry.dispose();m.material.dispose();iceDebris.splice(i,1);}
+    }
     for(let i=shots.length-1;i>=0;i--){
       const s=shots[i];s.age+=dt;
-      if(s.target&&alive(s.target)){direction.copy(aim(s.target)).sub(s.pos).normalize();s.dir.lerp(direction,Math.min(1,dt*12)).normalize();}
       const distance=PLASMABEAM.speed*dt; endpoint.copy(s.pos).addScaledVector(s.dir,distance);
       const clear=world.rayClear(s.pos,endpoint,PLASMABEAM.radius); ray.set(s.pos,s.dir);ray.near=0;ray.far=Math.min(distance,clear);
       let target=null,at=null,best=ray.far;
@@ -113,6 +130,6 @@ export function createPlasmabeamSystem({ scene, world, foes, hit, fx, onHit = ()
       s.pos.copy(endpoint);s.mesh.position.copy(s.pos);s.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),s.dir);
     }
   }
-  function clear(){for(const s of shots)disposeShot(s);shots.length=0;for(const g of [...frosted.keys()])removeFrost(g);}
-  return { fire, update, clear, shots, frosted };
+  function clear(){for(const s of shots)disposeShot(s);shots.length=0;for(const g of [...frosted.keys()])removeFrost(g);for(const d of iceDebris){scene.remove(d.mesh);d.mesh.geometry.dispose();d.mesh.material.dispose();}iceDebris.length=0;}
+  return { fire, update, clear, shots, frosted, ready:()=>cooldown<=0 };
 }

@@ -867,6 +867,29 @@ export function createHeldWeapons(scene) {
     }
     actor = act;
   }
+  // Re-aim the Plasmabeam around its grip point, never around the receiver.
+  // This keeps the handle planted in Rizer's palm as the barrel lowers at rest
+  // and comes level for locomotion or a shot.
+  const plasmaGrip = new THREE.Vector3(0, -0.073, -0.035), _plasmaWorldQ = new THREE.Quaternion(), _plasmaLocalQ = new THREE.Quaternion(), _plasmaParentQ = new THREE.Quaternion(), _plasmaX = new THREE.Vector3(), _plasmaY = new THREE.Vector3(), _plasmaZ = new THREE.Vector3(), _plasmaAnchor = new THREE.Vector3();
+  function posePlasmabeam(direction, dt = 1 / 60) {
+    const mesh = meshes.plasmabeam, parent = mesh.parent;
+    if (!parent || where.plasmabeam !== 'hand') { mesh.userData.plasmaGripAnchor = null; mesh.userData.plasmaGripParent = null; return; }
+    parent.updateWorldMatrix(true, false);
+    if (mesh.userData.plasmaGripParent !== parent || !mesh.userData.plasmaGripAnchor) {
+      mesh.userData.plasmaGripParent = parent;
+      mesh.userData.plasmaGripAnchor = mesh.position.clone().add(_plasmaAnchor.copy(plasmaGrip).applyQuaternion(mesh.quaternion));
+    }
+    _plasmaZ.copy(direction).normalize();
+    _plasmaY.set(0, 1, 0).addScaledVector(_plasmaZ, -_plasmaZ.y).normalize();
+    if (_plasmaY.lengthSq() < 1e-5) _plasmaY.set(1, 0, 0).addScaledVector(_plasmaZ, -_plasmaZ.x).normalize();
+    _plasmaX.crossVectors(_plasmaY, _plasmaZ).normalize();
+    _plasmaY.crossVectors(_plasmaZ, _plasmaX).normalize();
+    _plasmaWorldQ.setFromRotationMatrix(new THREE.Matrix4().makeBasis(_plasmaX, _plasmaY, _plasmaZ));
+    parent.getWorldQuaternion(_plasmaParentQ);
+    _plasmaLocalQ.copy(_plasmaParentQ).invert().multiply(_plasmaWorldQ);
+    mesh.quaternion.slerp(_plasmaLocalQ, Math.min(1, Math.max(0, dt) * 12));
+    mesh.position.copy(mesh.userData.plasmaGripAnchor).sub(_plasmaAnchor.copy(plasmaGrip).applyQuaternion(mesh.quaternion));
+  }
   const inHand = () => Object.keys(meshes).find(k => where[k] === 'hand' && meshes[k].parent && k !== 'guitar' && k !== 'telescope' && k !== 'blaster' && k !== 'plasmabeam') || null; // ranged weapons/tools do not become melee blades
   function update(dt, visible, swinging) {
     for (const k in meshes) meshes[k].visible = visible && !!meshes[k].parent && !hidden.has(k);
@@ -906,5 +929,5 @@ export function createHeldWeapons(scene) {
     _m.compose(mt.pos, mt.rot, new THREE.Vector3(1 / mt.scale.x, 1 / mt.scale.y, 1 / mt.scale.z)).premultiply(bone.matrixWorld).decompose(_p, _q, _s);
     return { pos: _p.clone(), quat: _q.clone() };
   }
-  return { meshes, hidden, sword: meshes.sword, axe: meshes.axe, bow: meshes.bow, place, update, contact, handGrip, MOUNTS, get inHand() { return inHand(); } };
+  return { meshes, hidden, sword: meshes.sword, axe: meshes.axe, bow: meshes.bow, place, update, contact, handGrip, posePlasmabeam, MOUNTS, get inHand() { return inHand(); } };
 }

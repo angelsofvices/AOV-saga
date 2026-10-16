@@ -1599,7 +1599,7 @@ function setLabsView(on) {
 }
 // ── the TV & DVD system (tv-system.js · dvd-registry.js) ──
 // While the TV is up the world waits: frame() renders the room (the movie plays on the 3D screen) but skips update().
-let floorPlasma = null, plasmaSystem = null, plasmaPending = false;
+let floorPlasma = null, plasmaSystem = null, plasmaPending = null;
 function initBedroomPlasmabeam() {
   const at=homeInterior.findBedroomPickupSpace();if(!at){console.warn('[RP7D] No clear bedroom Plasmabeam space');return;}
   // Rest on its side with the detailed emblem side facing up, matching the same mesh shown in Rizer's hand.
@@ -1614,16 +1614,22 @@ function takeBedroomPlasmabeam() {
 function queuePlasmabeam() {
   if(homeMode||rizer.flying||rizer.attack||rizer.pick||rizer.rpick||rizer.swap||rizer.hp<=0||!selectedPlasmabeam())return;
   if (rizer.swordAt !== 'hand' || rizer.handWeapon !== 'plasmabeam') { rizer.drawBlade('plasmabeam'); return; }
-  plasmaPending=true;
+  if(plasmaPending||!plasmaSystem?.ready())return;
+  const actor=rizer.actor,clip=actor?.acts?.pistolFire?.getClip(),duration=clip?.duration||0.5;
+  actor?.play('pistolFire',1,{overlay:rizer.speed>.6});
+  // Let the authored hand point first; release the beam just before the clip's
+  // upward recoil rather than at the instant the trigger is pressed.
+  plasmaPending={delay:Math.max(.08,duration*.28)};
 }
-function firePendingPlasma() {
-  if(!plasmaPending)return;plasmaPending=false;
+function firePendingPlasma(dt) {
+  if(!plasmaPending)return;
+  plasmaPending.delay-=dt;if(plasmaPending.delay>0)return;plasmaPending=null;
   const weapon=selectedPlasmabeam(),mesh=held?.meshes.plasmabeam;
   if(!weapon||!mesh?.parent||!mesh.visible||rizer.weapon!=='plasmabeam'||rizer.swordAt!=='hand'||rizer.handWeapon!=='plasmabeam'||homeMode)return;
   mesh.updateMatrixWorld(true);const from=mesh.userData.muzzle.clone().applyMatrix4(mesh.matrixWorld),forward=new THREE.Vector3(0,0,1).transformDirection(mesh.matrixWorld);
   const primary=['enemy','scanobot'].includes(astral.lock?.kind)&&foes.alive(astral.lock.ref)?astral.lock.ref:null;
   if(plasmaSystem.fire(from,forward,primary,weapon.mode)){
-    rizer.actor?.play('pistolFire',1,{overlay:rizer.speed>.6});sfx.play('thardin',.6,1.35);cam.kick(.08);
+    sfx.play('thardin',.6,1.35);cam.kick(.08);
   }
 }
 function initTV() {
@@ -2883,6 +2889,16 @@ function update(dt, t, realDt = dt) {
     A.strafe = (A.rifle || A.pistol ? A.aiming || A.pistol : true) && sp > 0.6 ? Math.sin(rel) * Math.min(1, Math.abs(Math.sin(rel)) * 1.6) : 0; A.backing = A.rifle && A.aiming && sp > 0.6 ? Math.max(0, -Math.cos(rel) * 1.6 - 0.6) : 0;
   }
   held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, !inventory.owned.includes(k) || !inventory.wheel?.includes(k) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null])));
+  if(drawn==='plasmabeam'&&!swim&&!rizer.flying&&held.meshes.plasmabeam.parent){
+    const pistol=held.meshes.plasmabeam,forward=new THREE.Vector3(Math.sin(rizer.facing),0,Math.cos(rizer.facing));
+    const moving=Math.hypot(rizer.vel?.x||0,rizer.vel?.z||0)>.25,shooting=!!plasmaPending||rizer.actor?.shot?.kind==='pistolFire';
+    let aim=forward;
+    if(shooting&&['enemy','scanobot'].includes(astral.lock?.kind)&&foes.alive(astral.lock.ref)){
+      pistol.updateMatrixWorld(true);const muzzle=pistol.userData.muzzle.clone().applyMatrix4(pistol.matrixWorld),target=astral.lock.ref.center||astral.lock.ref.pos;
+      if(target){const point=target.clone();if(!astral.lock.ref.center)point.y+=1.2;aim=point.sub(muzzle).normalize();}
+    }else if(!moving&&!shooting)aim=forward.clone().multiplyScalar(.42).add(new THREE.Vector3(0,-.907,0)).normalize();
+    held.posePlasmabeam(aim,dt);
+  }
   if (rifleClips && rifleOut && held.meshes.blaster.parent) gripRifle(rizer.actor, held.meshes.blaster, rifleKick * 0.4); // both hands on it, wherever the clip carries it
   else if (rifleK > 0.02 && rizer.weapon === 'blaster' && rizer.actor && held.meshes.blaster.parent) { held.meshes.blaster.position.z -= rifleKick * 0.4; holdRifle(rizer.actor, held.meshes.blaster, rifleK); }
   held.update(dt, !lab.previewing, !!BLADES[rizer.attack?.kind]);
@@ -2891,7 +2907,7 @@ function update(dt, t, realDt = dt) {
   if (!menu && !homeMode) storm?.update(dt); // after the enemies' own update: a body held by Astralclap / Astralspin stays held
   if (!menu && !homeMode) bowProjectiles?.update(dt);
   if(homeMode)plasmaSystem?.clear();
-  if(!menu&&started){firePendingPlasma();held?.meshes.plasmabeam?.userData.mode(selectedPlasmabeam()?.mode||'plasma');cyberfallTick({district:!homeMode&&!caveMode?worldDistrictAt(rizer.position.x,rizer.position.z):null,quiet:!inp.inCombat&&!homeMode&&rizer.hp>0,notify:m=>showToast(m,4000)});}
+  if(!menu&&started){firePendingPlasma(dt);held?.meshes.plasmabeam?.userData.mode(selectedPlasmabeam()?.mode||'plasma');cyberfallTick({district:!homeMode&&!caveMode?worldDistrictAt(rizer.position.x,rizer.position.z):null,quiet:!inp.inCombat&&!homeMode&&rizer.hp>0,notify:m=>showToast(m,4000)});}
   ufoFireCooldown = Math.max(0, ufoFireCooldown - dt);
   if (ufoBeam) { ufoBeam.age += dt; ufoBeam.mesh.material.opacity = Math.max(0, 1 - ufoBeam.age / 0.18); if (ufoBeam.age >= 0.18) { scene.remove(ufoBeam.mesh); ufoBeam.mesh.geometry.dispose(); ufoBeam.mesh.material.dispose(); ufoBeam = null; } }
   if (timers.length) { const due = timers.filter(q => elapsed >= q.at); timers = timers.filter(q => elapsed < q.at); due.forEach(q => q.fn()); }

@@ -66,10 +66,13 @@ export function createHUD(W, world) {
   const countFormat = new Intl.NumberFormat('en-US'), compactFormat = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
 
   const places = world.interactables.filter(i => i.discover);
-  const found = new Set(), regionsSeen = new Set();
+  const MAP_MEMORY_KEY = 'rp7d.zyphone.mapMemory.v1';
+  const found = new Set((() => { try { const saved=JSON.parse(localStorage.getItem(MAP_MEMORY_KEY)||'[]'); return Array.isArray(saved)?saved:[]; } catch { return []; } })()), regionsSeen = new Set();
+  const saveMapMemory = () => { try { localStorage.setItem(MAP_MEMORY_KEY, JSON.stringify([...found])); } catch {} };
   let reachedSquare = false, promptTarget = null, cardTimer = 0, lastRegion = '', bannerTimer = null;
   let mapSelectedChest = null, mapPingChest = null, tutorialState = null;
-  let mapSelectedPoi = null, mapPingPoi = null, viewedDistrict = DISTRICTS[0].id, mapCategory = 'all';
+  let mapSelectedPoi = null, mapPingPoi = null, viewedDistrict = DISTRICTS[0].id, mapCategory = 'all', mapHostiles = [];
+  const ACTIVE_MAP_HOSTILE_STATES = new Set(['alert','chase','windup','attack','evade','stagger','dazed','surprised','astraliftDown','gettingUp','charge','clawWind','claw']);
   let pingHud = document.getElementById('map-ping-distance');
   if (!pingHud) { pingHud = document.createElement('div'); pingHud.id = 'map-ping-distance'; pingHud.className = 'map-ping-distance'; document.getElementById('game')?.appendChild(pingHud); }
   // Every HUD meter is ten segmented cells; the last lit cell fills partway (--f).
@@ -245,8 +248,45 @@ export function createHUD(W, world) {
     return true;
   }
   const districtFor = (x, z) => DISTRICTS.find(d => coastEdge(x, z, d) <= 0) || null;
-  const mapPois = () => [...places, ...world.interactables.filter(it => ['chest','goldchest'].includes(it.kind)), ...mapChestCandidates()].filter((it, i, a) => a.findIndex(q => q.id === it.id) === i)
-    .filter(it => mapCategory === 'all' || (mapCategory === 'chests' ? it.kind === 'chest' || it.kind === 'goldchest' : mapCategory === 'landmarks' ? ['landmark','gemlord','stadium','crossing'].includes(it.kind) : mapCategory === 'services' ? ['civic','shop','home','farm'].includes(it.kind) : it.kind === mapCategory));
+  const mapPois = () => [...places, ...world.interactables.filter(it => ['chest','goldchest'].includes(it.kind)), ...mapChestCandidates(), ...mapHostiles]
+    .filter((it, i, a) => a.findIndex(q => q.id === it.id) === i)
+    .filter(it => {
+      const kind = String(it.kind || '').toLowerCase(), tier = String(it.chestTier || '').toLowerCase();
+      if (kind === 'home' && !/rizer['’]s home/i.test(it.name || '')) return false;
+      if (kind === 'chest' || kind === 'goldchest') return ['silver','gold','mythic'].includes(tier) && (mapCategory === 'all' || mapCategory === 'chests');
+      if (['enemy','actor','npc-enemy','scanobot','mori','crept','skellor'].includes(kind)) return !!(it.hostile || it.ref?.hostile || it.ref?.combatThreat) && (mapCategory === 'all' || mapCategory === 'hostiles');
+      if (mapCategory === 'all') return true;
+      if (mapCategory === 'chests') return ['silver','gold','mythic'].includes(tier);
+      if (mapCategory === 'landmarks') return ['landmark','gemlord','stadium','crossing'].includes(kind);
+      if (mapCategory === 'services') return ['civic','shop','home','farm'].includes(kind);
+      if (mapCategory === 'caves') return kind === 'cave' || it.cave != null;
+      if (mapCategory === 'hostiles') return kind === 'enemy' && !!it.hostile;
+      return kind === mapCategory;
+    });
+  const mapPoiStyle = it => {
+    const kind = String(it?.kind || '').toLowerCase(), tier = String(it?.chestTier || '').toLowerCase();
+    if (kind === 'chest' || kind === 'goldchest') return ({ silver:{color:'#c6e8ff',mark:'S',label:'SILVER CHEST'}, gold:{color:'#ffd36f',mark:'G',label:'GOLD CHEST'}, mythic:{color:'#d18bff',mark:'M',label:'MYTHIC CHEST'} })[tier] || {color:'#c6e8ff',mark:'?',label:'CHEST'};
+    if (kind === 'cave' || it?.cave != null) return {color:'#75e4e8',mark:'C',label:'CAVE'};
+    if (kind === 'gemlord' || kind === 'stadium') return {color:'#ff647f',mark:'◆',label:'GEMLORD SITE'};
+    if (kind === 'landmark' || kind === 'crossing') return {color:'#f3d58b',mark:'★',label:'LANDMARK'};
+    if (kind === 'civic') return {color:'#85d6ff',mark:'+',label:'CIVIC SERVICE'};
+    if (kind === 'seer') return {color:'#bd91ff',mark:'◈',label:'SEER TERRITORY'};
+    if (kind === 'enemy') return {color:'#ff647f',mark:'!',label:'HOSTILE CONTACT'};
+    if (kind === 'shop' || kind === 'civic' || kind === 'home') return {color:'#85d6ff',mark:'S',label:kind === 'home' ? 'RIZER’S HOME' : 'CIVIC · SHOP'};
+    if (kind === 'farm') return {color:'#a8dc83',mark:'F',label:'FARM'};
+    return {color:ICON[kind] || '#a9c8e6',mark:'?',label:KIND[kind] || 'POINT OF INTEREST'};
+  };
+  function drawPoiMarker(x,y,it,selected,pinged,size,known) {
+    const st=mapPoiStyle(it), r=size;
+    bctx.save(); bctx.translate(x,y); bctx.fillStyle='#071323'; bctx.strokeStyle=st.color; bctx.lineWidth=selected||pinged?2.5:1.5;
+    if (pinged) { bctx.shadowColor='#67dcff'; bctx.shadowBlur=12; }
+    bctx.beginPath();
+    if (String(it.kind)==='chest'||String(it.kind)==='goldchest') { bctx.rect(-r,-r,r*2,r*2); }
+    else if (String(it.kind)==='gemlord'||String(it.kind)==='stadium') { bctx.moveTo(0,-r-1);bctx.lineTo(r+1,0);bctx.lineTo(0,r+1);bctx.lineTo(-r-1,0);bctx.closePath(); }
+    else { bctx.arc(0,0,r,0,Math.PI*2); }
+    bctx.fill(); bctx.stroke(); bctx.shadowBlur=0; bctx.fillStyle=st.color; bctx.textAlign='center';bctx.textBaseline='middle';bctx.font=`700 ${Math.max(7,r*1.1)}px "DM Sans",sans-serif`;bctx.fillText(known?st.mark:'?',0,.5);bctx.restore();
+    if(selected||pinged){bctx.save();bctx.strokeStyle=pinged?'#70e4ff':'#fff2c1';bctx.lineWidth=1.5;bctx.beginPath();bctx.arc(x,y,r+4,0,Math.PI*2);bctx.stroke();bctx.restore();}
+  }
   function chooseMapPoint(point) {
     if (!point) return null;
     if (mapView === 'world') { const d = districtFor(point.x, point.z); if (d) { setViewedDistrict(d.id); return { district: d.id }; } }
@@ -297,11 +337,8 @@ export function createHUD(W, world) {
     bctx.font = `${Math.round(w / 65)}px Cinzel, serif`; bctx.fillStyle = 'rgba(148,184,217,.8)'; bctx.fillText('VOID SEA', w * .055, w * .94); bctx.textAlign = 'center';
     for (const it of mapPois()) {
       const x = X(it.cx), y = Z(it.cz), selected = mapSelectedPoi === it.id, pinged = mapPingPoi === it.id;
-      bctx.save(); bctx.fillStyle = it.tutorialCategory === 'focusMove' ? '#85caff' : it.tutorialCategory === 'gemlordWeapon' ? '#bd86ff' : (ICON[it.kind] || '#fff'); bctx.strokeStyle = selected || pinged ? '#fff5cb' : '#142035'; bctx.lineWidth = selected || pinged ? 3 : 1.5;
-      if (pinged) { bctx.shadowColor = '#63cfff'; bctx.shadowBlur = 12; }
-      bctx.beginPath(); bctx.arc(x, y, selected || pinged ? 6 : 4, 0, Math.PI * 2); bctx.fill(); bctx.stroke(); bctx.shadowBlur = 0;
-      if (selected || pinged) { bctx.font = `${Math.max(9, Math.round(w / 76))}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 9); }
-      bctx.restore();
+      drawPoiMarker(x,y,it,selected,pinged,Math.max(5,Math.round(w/115)),found.has(it.id)||it.kind==='enemy');
+      if (selected || pinged) { bctx.font = `${Math.max(10, Math.round(w / 68))}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.textAlign='center'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 12); }
     }
     bctx.save(); bctx.translate(X(p.x), Z(p.z)); bctx.rotate(Math.PI - facing); bctx.strokeStyle = '#1a1f1a'; bctx.lineWidth = 2;
     bctx.fillStyle = '#fff3c4'; bctx.beginPath(); bctx.moveTo(0, -11); bctx.lineTo(8, 8); bctx.lineTo(0, 3); bctx.lineTo(-8, 8); bctx.closePath(); bctx.fill(); bctx.stroke(); bctx.restore();
@@ -328,9 +365,8 @@ export function createHUD(W, world) {
     bctx.font = `${Math.round(w/58)}px "DM Sans",sans-serif`; bctx.fillStyle = '#98dfff'; bctx.fillText(`${d.land.toUpperCase()} · SELECT A MARKER TO PING`, w/2, w*.12);
     for (const it of mapPois().filter(q => districtFor(q.cx,q.cz)?.id === d.id)) {
       const x=X(it.cx),y=Z(it.cz),selected=mapSelectedPoi===it.id,pinged=mapPingPoi===it.id;
-      bctx.save(); bctx.fillStyle=it.tutorialCategory==='focusMove'?'#85caff':it.tutorialCategory==='gemlordWeapon'?'#bd86ff':ICON[it.kind]||'#fff'; bctx.strokeStyle=selected||pinged?'#fff5cb':'#142035'; bctx.lineWidth=selected||pinged?3:1.5; if(pinged){bctx.shadowColor='#63cfff';bctx.shadowBlur=12;}
-      bctx.beginPath(); bctx.arc(x,y,selected||pinged?7:5,0,Math.PI*2); bctx.fill(); bctx.stroke(); bctx.shadowBlur=0;
-      bctx.font=`${Math.max(9,Math.round(w/72))}px "DM Sans",sans-serif`; bctx.fillStyle='#fff2c1'; bctx.fillText(selected?'SELECTED':(found.has(it.id)?it.name:'UNDISCOVERED'),x,y-10); bctx.restore();
+      drawPoiMarker(x,y,it,selected,pinged,Math.max(7,Math.round(w/75)),found.has(it.id)||it.kind==='enemy');
+      bctx.font=`${Math.max(10,Math.round(w/62))}px "DM Sans",sans-serif`; bctx.fillStyle='#fff2c1'; bctx.textAlign='center'; bctx.fillText(selected?'SELECTED':(found.has(it.id)?it.name:it.kind==='enemy'?'HOSTILE':'???'),x,y-12);
     }
     bctx.save(); bctx.translate(X(p.x),Z(p.z)); bctx.rotate(Math.PI-facing); bctx.fillStyle='#fff3c4'; bctx.beginPath(); bctx.moveTo(0,-11);bctx.lineTo(8,8);bctx.lineTo(0,3);bctx.lineTo(-8,8);bctx.closePath();bctx.fill();bctx.restore();
   }
@@ -385,17 +421,14 @@ export function createHUD(W, world) {
     for (const it of mapPois()) {
       if (it.kind === 'chest' || it.kind === 'goldchest') {
         const x = (it.cx + E) * s, y = (it.cz + E) * s, selected = mapSelectedPoi === it.id, pinged = mapPingPoi === it.id;
-        bctx.save(); bctx.fillStyle = it.tutorialCategory === 'focusMove' ? '#85caff' : it.tutorialCategory === 'gemlordWeapon' ? '#bd86ff' : '#6fa0ff'; bctx.strokeStyle = selected || pinged ? '#fff5cb' : '#142035'; bctx.lineWidth = selected || pinged ? 3 : 1.5;
-        if (pinged) { bctx.shadowColor = '#63cfff'; bctx.shadowBlur = 14; }
-        bctx.fillRect(x - 5, y - 5, 10, 10); bctx.strokeRect(x - 5, y - 5, 10, 10); bctx.shadowBlur = 0;
-        if(selected||pinged){bctx.font = `${Math.round(w / 76)}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 9);} bctx.restore();
+        drawPoiMarker(x,y,it,selected,pinged,Math.max(6,Math.round(w/105)),found.has(it.id));
+        if(selected||pinged){bctx.font = `${Math.max(9,Math.round(w / 76))}px "DM Sans", sans-serif`; bctx.fillStyle = '#fff2c1'; bctx.textAlign='center'; bctx.fillText(selected ? 'SELECTED' : 'PINGED', x, y - 12);}
         continue;
       }
       const x = (it.cx + E) * s, y = (it.cz + E) * s, known = found.has(it.id);
-      bctx.fillStyle = ICON[it.kind] || '#fff'; bctx.strokeStyle = '#1a1f1a'; bctx.lineWidth = 2;
-      bctx.beginPath(); bctx.arc(x, y, known ? 6 : 4, 0, 7); bctx.fill(); bctx.stroke();
-      bctx.font = `${Math.round(w / 62)}px "DM Sans", sans-serif`; bctx.fillStyle = known ? '#f5eedf' : 'rgba(245,238,223,.45)';
-      bctx.fillText(known ? it.name : '?', x, y - 10);
+      drawPoiMarker(x,y,it,mapSelectedPoi===it.id,mapPingPoi===it.id,known?7:6,known||it.kind==='enemy');
+      bctx.font = `${Math.max(9,Math.round(w / 62))}px "DM Sans", sans-serif`; bctx.textAlign='center'; bctx.fillStyle = known ? '#f5eedf' : mapPoiStyle(it).color;
+      bctx.fillText(known ? it.name : it.kind==='enemy' ? 'HOSTILE' : '???', x, y - 12);
     }
     bctx.save(); bctx.translate((p.x + E) * s, (p.z + E) * s); bctx.rotate(Math.PI - facing);
     bctx.fillStyle = '#fff3c4'; bctx.beginPath(); bctx.moveTo(0, -11); bctx.lineTo(8, 8); bctx.lineTo(0, 3); bctx.lineTo(-8, 8); bctx.closePath(); bctx.fill(); bctx.restore();
@@ -430,8 +463,9 @@ export function createHUD(W, world) {
   }
 
   const KIND = { civic: 'MALEZOR', shop: 'SHOP', home: 'HOME', farm: 'FARM', landmark: 'DISTRICT LANDMARK', gemlord: 'GEMLORD SANCTUM · RAKORON', stadium: 'GEMLORD CHAMPION STADIUM · RAKORON', seer: 'SEER TERRITORY', crossing: 'CROSSING', npc: 'MALEZOR · CHARACTER' };
-  function update(dt, { rizer, cam, hour, zyrex, seers, mapOpen, busy, journal, devMap, resourceCounts }) {
+  function update(dt, { rizer, cam, hour, zyrex, seers, enemyActors = [], mapOpen, busy, journal, devMap, resourceCounts }) {
     setResources(resourceCounts);
+    if (mapOpen) { const actors = Array.isArray(enemyActors?.[0]) ? enemyActors.flat() : enemyActors; mapHostiles = actors.flatMap((a,i) => { if(!a || a.state === 'down' || a.state === 'gone' || a.state === 'wreck' || a.state === 'sinking' || !(a.hostile === true || ACTIVE_MAP_HOSTILE_STATES.has(a.state))) return []; const pos=a.pos||a.center; return pos ? [{ id:`hostile:${a.id ?? a.T?.key ?? 'actor'}:${i}`, name:'Hostile Contact', kind:'enemy', hostile:true, ref:a, cx:pos.x, cz:pos.z, note:'Hostile contact · location updates while it remains aggressive.' }] : []; }); }
     tutorialState = journal || tutorialState;
     const p = rizer.position; lastMapPlayer = { x: p.x, z: p.z };
     // location
@@ -447,7 +481,7 @@ export function createHUD(W, world) {
     for (const it of places) {
       if (found.has(it.id)) continue;
       const d = Math.hypot(p.x - it.cx, p.z - it.cz);
-      if (d < Math.max(it.reach + 10, 16)) { found.add(it.id); banner('DISCOVERED', it.name); refreshNote(); api.onEvent?.('place', it); if (found.size >= places.length) api.onEvent?.('allPlaces'); }
+      if (d < Math.max(it.reach + 10, 16)) { found.add(it.id); saveMapMemory(); banner('DISCOVERED', it.name); refreshNote(); api.onEvent?.('place', it); if (found.size >= places.length) api.onEvent?.('allPlaces'); }
     }
     // interact prompt: only while standing at a place and facing it, and never mid-fight
     let best = null, bd = Infinity;
@@ -550,6 +584,6 @@ export function createHUD(W, world) {
     for (const [key, id] of [['fresh_wood', 'res-wood'], ['everstone', 'res-stone'], ['scrap_metal', 'res-scrap'], ['portalchip', 'res-chip']])
       text(id, countFormat.format(items[key] || 0));
   }
-  const api = { onEvent: null, mapToWorld, selectChestAt, chooseMapPoint, toggleMapPing, get mapFocusMode() { return mapFocusMode; }, setMapFocus, moveMapFocus, zoomMapFocus, get mapSelectedChest() { return mapSelectedChest; }, get mapPingChest() { return mapPingChest; }, get mapSelectedPoi() { return mapSelectedPoi; }, get mapPingPoi() { return mapPingPoi; }, get viewedDistrict() { return viewedDistrict; }, get mapView() { return mapView; }, selectDistrict: setViewedDistrict, districtAt: districtFor, selectPoi(id) { const it=mapPois().find(q=>q.id===id); if(!it) return false; const d=districtFor(it.cx,it.cz); if(mapView==='world'&&d) setViewedDistrict(d.id); mapSelectedPoi=id; mapSelectedChest=mapChestCandidates().some(q=>q.id===id)?id:null; return true; }, setMapCategory(v) { mapCategory=v; }, get mapCategory() { return mapCategory; }, mapPois, districts: DISTRICTS, get mapCursor() { return mapCursor; }, set mapCursor(v) { mapCursor = v; }, extent: E, isLand, setMapView, toggleMapView: () => setMapView(mapView === 'world' ? 'district' : 'world'), mapBounds: () => mapView === 'world' ? ZB : (() => { const d=DISTRICTS.find(q=>q.id===viewedDistrict)||DISTRICTS[0], e=d.extent||E; return {x0:d.x-e,x1:d.x+e,z0:d.z-e,z1:d.z+e}; })(), setScanSource: f => { getScan = f; }, setLootHint: n => { lootHint = n || null; }, setMissionNote(note) { missionNote = note ? { ...note } : null; refreshNote(); }, setPartner, setWallet, setProgress, update, interact, say, resize, banner, places, found, regionOf: regionName, kindLabel: k => KIND[k] || 'MALEZOR', get hasPrompt() { return !!promptTarget; }, get doorPrompt() { return !!promptTarget?.door; }, get promptTarget() { return promptTarget; } };
+  const api = { onEvent: null, mapToWorld, selectChestAt, chooseMapPoint, toggleMapPing, mapPoiStyle, poiAt(point) { if(!point)return null; let best=null,bd=Infinity; for(const it of mapPois()){const d=Math.hypot(it.cx-point.x,it.cz-point.z);if(d<bd){bd=d;best=it;}} const limit=Math.max(18,(DISTRICTS.find(d=>d.id===viewedDistrict)?.extent||E)*.075); return bd<=limit?best:null; }, get mapFocusMode() { return mapFocusMode; }, setMapFocus, moveMapFocus, zoomMapFocus, get mapSelectedChest() { return mapSelectedChest; }, get mapPingChest() { return mapPingChest; }, get mapSelectedPoi() { return mapSelectedPoi; }, get mapPingPoi() { return mapPingPoi; }, get viewedDistrict() { return viewedDistrict; }, get mapView() { return mapView; }, selectDistrict: setViewedDistrict, districtAt: districtFor, selectPoi(id) { const it=mapPois().find(q=>q.id===id); if(!it) return false; const d=districtFor(it.cx,it.cz); if(mapView==='world'&&d) setViewedDistrict(d.id); mapSelectedPoi=id; mapSelectedChest=mapChestCandidates().some(q=>q.id===id)?id:null; return true; }, setMapCategory(v) { mapCategory=v; if(mapSelectedPoi && !mapPois().some(q=>q.id===mapSelectedPoi)){mapSelectedPoi=null;mapSelectedChest=null;} }, get mapCategory() { return mapCategory; }, mapPois, districts: DISTRICTS, get mapCursor() { return mapCursor; }, set mapCursor(v) { mapCursor = v; }, extent: E, isLand, setMapView, toggleMapView: () => setMapView(mapView === 'world' ? 'district' : 'world'), mapBounds: () => mapView === 'world' ? ZB : (() => { const d=DISTRICTS.find(q=>q.id===viewedDistrict)||DISTRICTS[0], e=d.extent||E; return {x0:d.x-e,x1:d.x+e,z0:d.z-e,z1:d.z+e}; })(), setScanSource: f => { getScan = f; }, setLootHint: n => { lootHint = n || null; }, setMissionNote(note) { missionNote = note ? { ...note } : null; refreshNote(); }, setPartner, setWallet, setProgress, update, interact, say, resize, banner, places, found, regionOf: regionName, kindLabel: k => KIND[k] || 'MALEZOR', get hasPrompt() { return !!promptTarget; }, get doorPrompt() { return !!promptTarget?.door; }, get promptTarget() { return promptTarget; } };
   return api;
 }

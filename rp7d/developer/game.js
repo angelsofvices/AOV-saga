@@ -1415,7 +1415,7 @@ function build() {
   uiLayout = createUILayout($('#game'), $('#layout-toggle'));
   $('#layout-toggle').addEventListener('click', () => uiLayout.toggle());
   document.addEventListener('mousemove', e => { if ((locked || dragging) && !zy.isOpen && !n3000?.isOpen && !tv?.isOpen) { cam.look(e.movementX * 0.0022 * settings.sens, e.movementY * 0.0018 * settings.sens * (settings.invertY ? -1 : 1)); setPad(false); } });
-  $('#map-canvas').addEventListener('click', e => { const pt = hud.mapToWorld(e.clientX, e.clientY); if (devMapOn()) devMapJump(pt); else hud.chooseMapPoint(pt); });
+  $('#map-canvas').addEventListener('click', e => { if (devMapOn()) devMapJump(hud.mapToWorld(e.clientX, e.clientY)); });
   $('#map-canvas').addEventListener('mousemove', e => { const pt = hud.mapToWorld(e.clientX, e.clientY); if (devMapOn()) hud.mapCursor = pt; hud.selectChestAt(pt); });
   addEventListener('wheel', e => { if (!zy.isOpen && !n3000?.isOpen && !tv?.isOpen) cam.zoom(Math.sign(e.deltaY) * 0.12); }, { passive: true });
   $('#loading').classList.add('done');
@@ -3020,7 +3020,7 @@ function update(dt, t, realDt = dt) {
     hud.selectChestAt(c);
   } else if (hud.mapCursor) hud.mapCursor = null;
   { const mc = $('#map-canvas'), want = devMapOn() ? 'crosshair' : zy.isOpen && zy.tab === 'map' ? 'pointer' : ''; if (mc && mc.style.cursor !== want) mc.style.cursor = want; }
-  hud.update(dt, { rizer, cam, hour, zyrex, seers: seers?.grunts, mapOpen: menu && zy.tab === 'map', busy: homeMode || !!seers?.engagedNear(rizer.position, 20) || ko, journal: journalProgress(), devMap: devMapOn(), resourceCounts: inventory.items });
+  hud.update(dt, { rizer, cam, hour, zyrex, seers: seers?.grunts, enemyActors: [seers?.grunts || [], scanobots?.bots || [], penumbras?.list || [], novas?.list || []], mapOpen: menu && zy.tab === 'map', busy: homeMode || !!seers?.engagedNear(rizer.position, 20) || ko, journal: journalProgress(), devMap: devMapOn(), resourceCounts: inventory.items });
   if (menu) zy.status();
   devTick(dt);
   zyrexImporter?.update(dt,t);

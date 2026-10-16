@@ -572,19 +572,30 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     const area = $('#zy-map-area'), back = $('#zy-map-view'), districtList = $('#zy-map-districts'), cats = $('#zy-map-categories'), list = $('#zy-map-pois'), title = $('#zy-map-list-title');
     if (area) area.textContent = worldView ? 'ZYRAXIS · 10 DISTRICTS' : `${d.name.toUpperCase()} · DISTRICT ${d.numeral}`;
     if (back) { back.hidden = worldView; back.textContent = '← FULL ZYRAXIS MAP'; }
-    if (districtList) districtList.innerHTML = `<small>DISTRICTS · SELECT TO ZOOM</small>` + ds.map(q => `<button class="zy-map-row district${q.id === d.id && !worldView ? ' current' : ''}" data-item data-map-district="${q.id}"><span><b>${q.numeral} · ${esc(q.name)}</b><em>${esc(q.land)}</em></span><i>${q.built ? 'OPEN' : 'REGION'}</i></button>`).join('');
-    const categories = [['all','All POIs'],['landmarks','Landmarks'],['services','Civic & services'],['chests','Chests'],['seer','Seer territory'],['gemlord','Gemlord sites']];
+    if (districtList) districtList.innerHTML = `<small>DISTRICTS · SELECT TO ZOOM</small>` + ds.map(q => `<button class="zy-map-row district${q.id === d.id && !worldView ? ' current' : ''}" data-item data-map-district="${q.id}"><span><b>${q.numeral} · ${esc(q.name)}</b><em>${esc(q.land)}</em></span><i>${q.id === d.id && !worldView ? 'VIEWING' : 'OPEN'}</i></button>`).join('');
+    const categories = [['all','All'],['landmarks','Landmarks'],['services','Civic'],['caves','Caves'],['chests','Chests'],['gemlord','Gemlords'],['hostiles','Hostiles']];
     if (cats) cats.innerHTML = categories.map(([id,label]) => `<button class="zy-map-category${hud.mapCategory === id ? ' current' : ''}" data-item data-map-category="${id}">${label}</button>`).join('');
     const rows = hud.mapPois().filter(it => worldView || hud.districtAt(it.cx,it.cz)?.id === d.id);
-    if (title) title.textContent = worldView ? 'SELECT A DISTRICT TO BROWSE ITS POIS' : `${rows.length} LOCATIONS · ${d.name.toUpperCase()}`;
-    if (list) list.innerHTML = rows.length ? rows.map(it => `<li><button class="zy-map-row${hud.mapSelectedPoi === it.id ? ' current' : ''}${hud.mapPingPoi === it.id ? ' pinged' : ''}" data-item data-map-poi="${esc(it.id)}"><span><b>${esc(it.name)}</b><em>${esc(hud.kindLabel(it.kind))}${hud.found.has(it.id) ? ' · FOUND' : ''}</em></span><i>${hud.mapPingPoi === it.id ? 'PINGED' : 'VIEW'}</i></button></li>`).join('') : `<li class="zy-map-empty">${worldView ? 'Choose a district on the map or from the list above.' : 'No mapped points in this district yet. Its world region is ready for future location data.'}</li>`;
+    if (title) title.textContent = `${rows.length} MAP MARKERS · ${worldView ? 'ZYRAXIS' : d.name.toUpperCase()}`;
+    const displayName = it => it.kind === 'enemy' ? 'HOSTILE CONTACT' : hud.found.has(it.id) ? it.name : '???';
+    const displayType = it => hud.mapPoiStyle(it).label;
+    if (list) list.innerHTML = rows.length ? rows.map(it => `<li><button class="zy-map-row${hud.mapSelectedPoi === it.id ? ' current' : ''}${hud.mapPingPoi === it.id ? ' pinged' : ''}" data-item data-map-poi="${esc(it.id)}" style="--poi-color:${hud.mapPoiStyle(it).color}"><span><b>${esc(displayName(it))}</b><em>${esc(displayType(it))}${hud.found.has(it.id) ? ' · DISCOVERED' : ' · UNCHARTED'}</em></span><i>${hud.mapPingPoi === it.id ? 'PINGED' : 'VIEW'}</i></button></li>`).join('') : `<li class="zy-map-empty">No eligible points are mapped here yet.</li>`;
     const canvas = $('#map-canvas'), detail = $('#zy-map-detail'), poi = hud.mapPois().find(it => it.id === hud.mapSelectedPoi);
     if (detail && mapPoiDetailOpen && poi) {
       canvas.hidden = true; detail.hidden = false;
-      const placeDistrict = hud.districtAt(poi.cx, poi.cz) || d;
-      const description = poi.note || (poi.kind === 'goldchest' || poi.kind === 'chest' ? `${poi.chestTier ? `${poi.chestTier.toUpperCase()} ` : ''}Chest · open it in the world to claim its contents.` : `Mapped ${hud.kindLabel(poi.kind).toLowerCase()} point of interest in ${placeDistrict.name}.`);
-      detail.innerHTML = `<small>LOCATION RECORD · ${esc(placeDistrict.name.toUpperCase())}</small><h2>${esc(poi.name)}</h2><span>${esc(hud.kindLabel(poi.kind))}</span><p>${esc(description)}</p><div class="zy-map-detail-coords">X ${poi.cx.toFixed(1)} · Z ${poi.cz.toFixed(1)}</div><div class="zy-map-detail-actions"><button class="zy-layout-button" data-item data-map-action="teleport">□ TELEPORT · PLAYTEST</button><button class="zy-layout-button" data-item data-map-action="back">○ BACK TO MAP</button></div><small class="zy-map-detail-note">FAST TRAVEL IS UNLOCKED FOR THIS PLAYTEST</small>`;
-    } else { if (canvas) canvas.hidden = false; if (detail) detail.hidden = true; }
+      const placeDistrict = hud.districtAt(poi.cx, poi.cz) || d, known = hud.found.has(poi.id) || poi.kind === 'enemy', style = hud.mapPoiStyle(poi);
+      const description = known ? (poi.note || `${style.label} in ${placeDistrict.name}.`) : `Uncharted ${style.label.toLowerCase()} in ${placeDistrict.name}. Explore this area on foot to identify it.`;
+      detail.innerHTML = `<small>LOCATION RECORD · ${esc(placeDistrict.name.toUpperCase())}</small><h2>${known ? esc(poi.name) : '???'}</h2><span style="--poi-color:${style.color}">${esc(style.label)}${known ? ' · DISCOVERED' : ' · UNCHARTED'}</span><p>${esc(description)}</p><div class="zy-map-detail-coords">X ${poi.cx.toFixed(1)} · Z ${poi.cz.toFixed(1)}</div><div class="zy-map-detail-actions"><button class="zy-layout-button" data-item data-map-action="teleport">□ TELEPORT · PLAYTEST</button><button class="zy-layout-button" data-item data-map-action="ping">△ ${hud.mapPingPoi === poi.id ? 'UNMARK' : 'MARK WAYPOINT'}</button><button class="zy-layout-button" data-item data-map-action="back">○ BACK TO MAP</button></div><small class="zy-map-detail-note">FAST TRAVEL IS UNLOCKED FOR THIS PLAYTEST</small>`;
+    } else { if (canvas) canvas.hidden = false; if (detail) detail.hidden = true; paintMapHover(); }
+  }
+  function paintMapHover() {
+    const card = $('#zy-map-hover'); if (!card) return;
+    const poi = hud.mapPois().find(it => it.id === hud.mapSelectedPoi);
+    if (!poi) { card.innerHTML = '<small>MAP INTEL</small><b>Hover over a marker</b><p>Unknown locations stay classified until Rizer reaches them.</p>'; return; }
+    const known = hud.found.has(poi.id) || poi.kind === 'enemy', style = hud.mapPoiStyle(poi), d = hud.districtAt(poi.cx,poi.cz);
+    const desc = known ? (poi.note || `${style.label} · ${d?.name || 'Zyraxis'}.`) : `Uncharted ${style.label.toLowerCase()} · explore the area to reveal its identity.`;
+    card.innerHTML = `<small>MAP INTEL · ${esc(style.label)}</small><b>${known ? esc(poi.name) : '???'}</b><p>${esc(desc)}</p><div class="zy-map-hover-actions"><span>${known ? 'DISCOVERED' : 'UNCHARTED'}</span><span>□ TELEPORT · △ MARK</span></div>`;
+    card.style.setProperty('--poi-color',style.color);
   }
   function open(which) {
     if (isOpen) { if (which) setTab(TABS.indexOf(which)); return; }
@@ -620,6 +631,11 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     render();
     if (result.poi) root.querySelector(`[data-map-poi="${CSS.escape(result.poi)}"]`)?.scrollIntoView({ block: 'nearest' });
   });
+  $('#map-canvas').addEventListener('pointermove', e => {
+    if (!isOpen || TABS[tab] !== 'map' || mapPoiDetailOpen) return;
+    const point = hud.mapToWorld(e.clientX,e.clientY); hud.selectChestAt(point); paintMapHover();
+  });
+  $('#map-canvas').addEventListener('pointerleave', () => { if (!mapPoiDetailOpen) paintMapHover(); });
   root.addEventListener('mousedown', e => e.stopPropagation());
 
   // Keyboard while open. Returns true when the key was used.
@@ -655,6 +671,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
       if (p.btn(7)) hud.zoomMapFocus(1, dt); if (p.btn(6)) hud.zoomMapFocus(-1, dt);
       if (p.edge(0) && hud.mapSelectedPoi) { mapPoiDetailOpen = true; render(); return; }
       if (p.edge(2) && hud.mapSelectedPoi) { onAction?.('map-teleport'); return; }
+      if (p.edge(3) && hud.mapSelectedPoi) { hud.toggleMapPing(); render(); return; }
       return;
     }
     if (TABS[tab] === 'map' && p.edge(11)) { hud.setMapFocus(true); mapPoiDetailOpen = false; root.classList.add('map-focus-mode'); render(); return; }
@@ -662,6 +679,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (fpick && p.edge(1)) { fpick = null; render(); return; } // ○ drops what you're moving back where it was
     if (TABS[tab] === 'map' && mapPoiDetailOpen && p.edge(1)) { mapPoiDetailOpen = false; render(); return; }
     if (TABS[tab] === 'map' && p.edge(2)) { if (hud.mapSelectedPoi) onAction?.('map-teleport'); return; } // □ fast travel · temporarily open for playtesting
+    if (TABS[tab] === 'map' && p.edge(3)) { if (hud.mapSelectedPoi) { hud.toggleMapPing(); render(); } return; }
     if (p.edge(1) || p.edge(17)) return close();
     if (TABS[tab] === 'map' && p.edge(0)) { const focused = items()[focus]; if (focused?.dataset.mapPoi) hud.selectPoi(focused.dataset.mapPoi); if (hud.mapSelectedPoi) { mapPoiDetailOpen = true; render(); } return; } // ✕ interacts with the selected POI
     if (TABS[tab] === 'weapons' && p.edge(2)) equipFocused(); // □ equips

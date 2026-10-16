@@ -12,6 +12,7 @@ import { clamp, damp, dampAngle, rng } from './util.js';
 import { touch, STRIKERS, HITBOX } from './hitbox.js';
 import { COMBAT, BLADES } from './rizer.js';
 import { quarterAt, districtAt } from './world-data.js';
+import { qualifiesForCleanComboDismemberment } from './weapon-classes.js';
 
 // Collision footprint in the mech's local frame (metres): widest at the forearm cannons, deepest from back vent to front plate.
 export const BODY = { hw: 1.62, zmin: -0.8, zmax: 0.92, top: 3.35 };
@@ -244,7 +245,7 @@ export function createPenumbras(scene, world, W, fx, opts = {}) {
     p.detached.push({ group, parent, key, vel, spin: new THREE.Vector3(s * 3.2, s * 1.7, -s * 2.6), homePos, homeQuat, homeScale });
   }
   function destroy(p, kind = 'punch', dx = 0, dz = 1, impact = {}) {
-    if (impact.perfectKill && impact.comboFinisher && (kind === 'sword' || kind === 'axe')) {
+    if (qualifiesForCleanComboDismemberment(kind, impact)) {
       const part = impact.impactPart || 'LegL', key = part.includes('LegR') || part.includes('PodR') ? (part.includes('Pod') ? 'PodR' : 'LegR') : part.includes('Pod') ? 'PodL' : 'LegL';
       sever(p, key, dx, dz); if (Math.random() < 0.2) sever(p, key.endsWith('L') ? key.replace('L','R') : key.replace('R','L'), dx, dz);
     }

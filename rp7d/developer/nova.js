@@ -14,6 +14,7 @@ import { COMBAT, BLADES } from './rizer.js';
 import { quarterAt } from './world-data.js';
 import { THARDIN_BLASTER_RIFLE, RIFLE_PROFILE, rifleSlot, buildBlasterRifle, createRifleRig, boneMount, muzzleOf, hasRifleClips, gripRifle } from './thardin-rifle.js';
 import { createDismemberment } from './dismemberment.js';
+import { qualifiesForCleanComboDismemberment, qualifiesForCleanPrecisionHeadshot } from './weapon-classes.js';
 
 export const NOVA_GUARDIAN = {
   id: 'nova', key: 'nova', name: 'Nova Guardian', faction: 'Thardin', enemyType: 'RANGED_TECH',
@@ -168,12 +169,12 @@ export async function createNovaGuardians(scene, world, W, fx, opts = {}) {
 
   function hit(g, damage, dx, dz, kind = 'punch', power = 1, impact = {}) {
     if (!alive(g)) return null;
-    if (impact.headshot) { damage = Math.max(damage, g.hp + 1); g.fragments.push(...dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz))); }
+    if (impact.headshot) { damage = Math.max(damage, g.hp + 1); if (qualifiesForCleanPrecisionHeadshot(impact.weapon || kind, g)) g.fragments.push(...dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz))); }
     g.hp -= damage; g.hurt += damage; g.flash = 0.12; g.barT = 5; g.bar.redraw(Math.max(0, g.hp) / P.health);
     g.knock.set(dx, 0, dz).multiplyScalar(Math.min(4, 1.6 * power));
     const at = { x: g.center.x, y: g.center.y, z: g.center.z, name: P.name, scanobot: true, nova: true, down: false };
     fx?.emit(at.x, at.y, at.z, 6, { color: '#8fe4ff', speed: 3, up: 1, size: 0.14, life: 0.3, g: 6 });
-    if (g.hp <= 0) { if (!impact.headshot && impact.perfectKill && impact.comboFinisher && !g.isScanobot && (kind === 'sword' || kind === 'axe')) g.fragments.push(...dismemberment.split(g.actor, impact.impactPart || 'LeftArm', new THREE.Vector3(dx, 0, dz), Math.random() < 0.2)); if (g.rifle) at.drop = THARDIN_BLASTER_RIFLE.name; defeat(g, kind, dx, dz); at.down = true; return at; }
+    if (g.hp <= 0) { if (!impact.headshot && qualifiesForCleanComboDismemberment(kind, impact) && !g.isScanobot) g.fragments.push(...dismemberment.split(g.actor, impact.impactPart || 'LeftArm', new THREE.Vector3(dx, 0, dz), Math.random() < 0.2)); if (g.rifle) at.drop = THARDIN_BLASTER_RIFLE.name; defeat(g, kind, dx, dz); at.down = true; return at; }
     if (g.rifle && g.hp <= P.health * P.disarmAt) { dropRifle(g, dx, dz); g.raise = 0; opts.onEvent?.('disarmed', g); } // the rifle is out of the fight; the Guardian is not
     const big = g.hurt >= P.stagger.every; if (big) g.hurt = 0;
     g.state = 'flinch'; g.t = big ? P.stagger.time : P.flinch; g.move = null; g.charge = 0; // a hit breaks its aim

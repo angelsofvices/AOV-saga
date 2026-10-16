@@ -16,6 +16,7 @@ import { Actor, CLIPS, loadGLB } from './actor.js';
 import { clamp, damp, dampAngle } from './util.js';
 import { HitRig, touch, STRIKERS, HITBOX, segSeg } from './hitbox.js';
 import { COMBAT, BLADES } from './rizer.js';
+import { qualifiesForCleanComboDismemberment, qualifiesForCleanPrecisionHeadshot } from './weapon-classes.js';
 import { quarterAt, districtAt, fromRP7B } from './world-data.js';
 import { rng } from './util.js';
 import { dressCorrupted } from './enemy-skins.js';
@@ -350,7 +351,7 @@ export async function createSeers(scene, world, W) {
   // Damage one grunt from direction (dx, dz). Shared by strikes and the astral blast.
   function hitGrunt(g, damage, dx, dz, kind, power = 1, impact = {}) {
     releaseFeed(g);
-    if (impact.headshot) { damage = Math.max(damage, g.hp + 1); g.fragments ||= []; g.fragments.push(...dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz))); }
+    if (impact.headshot) { damage = Math.max(damage, g.hp + 1); if (qualifiesForCleanPrecisionHeadshot(impact.weapon || kind, g)) { g.fragments ||= []; g.fragments.push(...dismemberment.split(g.actor, 'Head', new THREE.Vector3(dx, 0, dz))); } }
     const beforeHit = g.state, priorDazedMode = g.dazedMode;
     g.hitByRizer = true;
     g.hp -= damage * (1 - (g.T.armor || 0) * 0.2); g.barT = 4; g.bar.redraw(Math.max(0, g.hp) / g.T.hp);
@@ -363,7 +364,7 @@ export async function createSeers(scene, world, W) {
     if (g.state === 'dance') g.noDance = true; // struck mid-dance: out of the trance until the song ends
     g.atk = null; g.actor.shot = null; g.bang.visible = false;
     if (g.hp <= 0) {
-      if (!impact.headshot && impact.perfectKill && impact.comboFinisher && (kind === 'sword' || kind === 'axe') && !g.isScanobot) {
+      if (!impact.headshot && qualifiesForCleanComboDismemberment(kind, impact) && !g.isScanobot) {
         const extra = Math.random() < 0.22, hitPart = impact.impactPart || (Math.random() < 0.5 ? 'LeftArm' : 'LeftLeg');
         g.fragments ||= []; g.fragments.push(...dismemberment.split(g.actor, hitPart, new THREE.Vector3(dx, 0, dz), extra));
       }

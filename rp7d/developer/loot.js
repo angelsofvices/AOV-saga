@@ -9,6 +9,7 @@ import { rollChestPiles } from './coin-piles.js';
 import { DVDS } from './dvd-registry.js';
 import { engineeringState, projectEngineering, mintStandardChips } from './engineering-ledger.js';
 import { buildPlasmabeam } from './plasmabeam.js';
+import { weaponGroupOf } from './weapon-classes.js';
 
 // ── inventory (kept per browser; fine to lose) ───────────────────────
 const KEY = 'rp7d.inventory.v1';
@@ -27,6 +28,9 @@ export const WEAPONS = {
   // One definition for every owner: a Nova Guardian carries it, drops it when it falls, and Rizer fires the same weapon (thardin-rifle.js).
   blaster: { name: THARDIN_BLASTER_RIFLE.name, tier: 'Rare', color: '#ffb347', banner: 'THARDIN TECH · BLASTER RIFLE', weaponType: THARDIN_BLASTER_RIFLE.weaponType, blurb: 'A high-precision Thardin energy rifle, standard issue for Nova Guardians. Dark alloy, a long scope, and an amber energy chamber. □ shoulders it and fires; hold □ to keep firing. Lock on to choose a target.' }
 };
+// Expose the combat taxonomy alongside each inventory definition so UI, saves,
+// and gameplay tools can inspect a weapon without inferring it from its name.
+for (const [id, definition] of Object.entries(WEAPONS)) definition.combatGroup = weaponGroupOf(id).id;
 
 // Instruments and traversal tools are utilities, never weapons.
 export const UTILITIES = {

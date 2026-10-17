@@ -1386,7 +1386,7 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
       const choices = [...story.querySelectorAll('.story-choice')], fill = document.getElementById('im-fill'), HOLD = 1000;
       let fresh = false; try { fresh = sessionStorage.getItem('rp7d.boot') === 'new'; } catch (e) {}
       if (fresh) { story.remove(); boot.remove(); movieRoot.remove(); return; }
-      let phase = 'boot', selected = null, holdFrom = 0, noSrcFrom = 0, keyX = false, padPrevByIndex = new Map(), stickHeld = 0, stickRepeatAt = 0, transitioning = false;
+      let phase = 'boot', selected = null, holdFrom = 0, noSrcFrom = 0, keyX = false, padPrevByIndex = new Map(), eventPads = new Map(), stickHeld = 0, stickRepeatAt = 0, transitioning = false;
       const assetPrefix = location.pathname.includes('/developer/') ? '../assets/' : './assets/';
       const splashMusic = new Audio(`${assetPrefix}audio/splash-music.mp3`); splashMusic.loop = true; splashMusic.preload = 'auto'; splashMusic.volume = 0.42;
       const playSplashMusic = () => { if (phase !== 'select' && phase !== 'transition' && phase !== 'menu') return; splashMusic.play().catch(() => {}); };
@@ -1485,13 +1485,16 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
         if (phase === 'movie') keyX = e.type === 'keydown' && ['KeyX','Space','Enter'].includes(e.code);
       }
       addEventListener('keydown', onKey, true); addEventListener('keyup', onKey, true);
-      addEventListener('gamepadconnected', () => {
+      addEventListener('gamepadconnected', event => {
         game.classList.add('pad');
-        for (const pad of [...(navigator.getGamepads?.() || [])]) if (pad?.connected) padPrevByIndex.set(pad.index, pad.buttons.map(b => b.pressed || b.value > .55));
+        const pad = event.gamepad;
+        if (pad) { eventPads.set(pad.index, pad); padPrevByIndex.set(pad.index, pad.buttons.map(b => b.pressed || b.value > .55)); }
+        for (const current of [...(navigator.getGamepads?.() || [])]) if (current?.connected) { eventPads.set(current.index, current); padPrevByIndex.set(current.index, current.buttons.map(b => b.pressed || b.value > .55)); }
       });
-      addEventListener('gamepaddisconnected', () => {
-        if (![...(navigator.getGamepads?.() || [])].some(g => g && g.connected)) game.classList.remove('pad');
-        padPrevByIndex.clear(); stickHeld = 0; stickRepeatAt = 0;
+      addEventListener('gamepaddisconnected', event => {
+        if (event.gamepad) { eventPads.delete(event.gamepad.index); padPrevByIndex.delete(event.gamepad.index); }
+        if (![...(navigator.getGamepads?.() || [])].some(g => g && g.connected) && !eventPads.size) game.classList.remove('pad');
+        stickHeld = 0; stickRepeatAt = 0;
       });
       bootButton.addEventListener('click', showMovie);
       for (const eventName of ['pointerdown', 'keydown', 'touchstart']) addEventListener(eventName, playSplashMusic, { capture: true });
@@ -1503,7 +1506,10 @@ body.skin-drop #game:after{content:'DROP A SAVED SKIN TO DRESS RIZER';position:a
         if (phase === 'done') return;
         // Some browser/controller bridges report a usable pad before `connected` flips true.
         // Keep polling every non-null slot so the story cards work in embedded playtest browsers too.
-        const connectedPads = [...(navigator.getGamepads?.() || [])].filter(Boolean);
+        // Some embedded Chrome surfaces dispatch gamepad events but do not expose
+        // navigator.getGamepads(). Keep the event's live Gamepad object as a fallback.
+        const padByIndex = new Map([...eventPads.values(), ...(navigator.getGamepads?.() || [])].filter(Boolean).map(g => [g.index, g]));
+        const connectedPads = [...padByIndex.values()];
         if (connectedPads.length) game.classList.add('pad');
         const padEdges = new Map();
         for (const g of connectedPads) {

@@ -3,6 +3,7 @@
 // through it; sky.js lights it; hud.js reports on it.
 import { applyLockIcon } from './lock-icon.js';
 import * as THREE from 'three';
+import { createViridiaDreamland } from './viridia-dreamland.js';
 import { createN3000 } from './n3000.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -101,6 +102,9 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.55, 0.9);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+// Viridia is a separate playable scene with its own player state and save key.
+// It shares the renderer only; Malezor's world simulation remains dormant during it.
+const viridia = createViridiaDreamland($('#game'));
 
 // ── input ────────────────────────────────────────────────────────────
 const keys = new Set(), pressed = new Set();
@@ -144,7 +148,7 @@ canvas.addEventListener('mousedown', e => {
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mouseup', () => { dragging = false; mousePunchHeld = false; });
 addEventListener('blur', () => { mousePunchHeld = false; });
-canvas.addEventListener('click', () => { if (document.pointerLockElement !== canvas && !zy?.isOpen && !scopeView) tryLock(); });
+canvas.addEventListener('click', () => { if (!viridia.active && document.pointerLockElement !== canvas && !zy?.isOpen && !scopeView) tryLock(); });
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
   $('.crosshair').style.opacity = locked ? '.45' : '0';
@@ -776,7 +780,7 @@ const saveKey = (character = selectedCharacter()) => SAVE_KEYS[character] || SAV
 const readSave = (character = selectedCharacter()) => { try { return JSON.parse(localStorage.getItem(saveKey(character)) || 'null'); } catch (e) { return null; } };
 let newArmed = false, titleIndex = 0, lastSaveAt = readSave('rizer')?.t || 0, saveFailed = false;
 function saveGame() {
-  if (!started || !rizer || koT > 0 || ufoPilot || astralboard?.active) return false;
+  if (!started || viridia.active || !rizer || koT > 0 || ufoPilot || astralboard?.active) return false;
   treehouses?.save();
   const hero = npcs?.npcs.find(n => n.role === 'hero');
   if (hero) { inventory.zorynMet = hero.met; inventory.zorynRecruited = hero.recruited || hero.wasRecruited; inventory.zorynDowned = hero.downed; inventory.zorynHealth = hero.health; saveInv(); }
@@ -788,14 +792,15 @@ function titleButtons() { return [...document.querySelectorAll('#title-menu .tit
 function titleFocus(i) { const list = titleButtons(); if (!list.length) return; titleIndex = (i + list.length) % list.length; list.forEach((b, k) => b.classList.toggle('focus', k === titleIndex)); }
 function refreshTitle() {
   const character = selectedCharacter(), andre = character === 'andre', sv = readSave(character), enter = $('#enter'), load = $('#load-game'), ready = !!world;
-  enter.disabled = !ready || andre;
-  load.disabled = !ready || !sv || andre;
-  $('#new-sub').textContent = andre ? 'Viridia campaign · Coming soon' : ready ? 'Wake up in Rizer’s room' : 'Loading Malezor…';
-  if (andre) $('#load-sub').textContent = 'Andre save files · Coming soon';
+  const viridiaReady = viridia.readyState === 'ready';
+  enter.disabled = andre ? !viridiaReady : !ready;
+  load.disabled = andre ? !viridiaReady || !viridia.hasSave() : !ready || !sv;
+  $('#new-sub').textContent = andre ? viridiaReady ? 'Begin in Andre’s Dreamland' : 'Preparing Dreamland…' : ready ? 'Wake up in Rizer’s room' : 'Loading Malezor…';
+  if (andre) $('#load-sub').textContent = !viridiaReady ? 'Preparing Dreamland…' : viridia.hasSave() ? 'Continue Andre’s story' : 'No save yet';
   else if (!ready) $('#load-sub').textContent = 'Loading Malezor…';
   else if (!sv) $('#load-sub').textContent = 'No save yet';
   if (sv && ready && !andre) { const d = new Date(sv.t); $('#load-sub').textContent = `${sv.home ? 'Rizer’s Home' : sv.region || 'Malezor'} · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`; }
-  titleFocus(andre ? 0 : sv && ready ? 1 : 0); // Andre's save slot is isolated and stays unavailable until Viridia is playable.
+  titleFocus(andre ? viridia.hasSave() && viridiaReady ? 1 : 0 : sv && ready ? 1 : 0);
 }
 function beginPlay() {
   $('#intro').classList.add('hidden'); $('#game').classList.add('playing'); tryLock(); started = true;
@@ -803,23 +808,46 @@ function beginPlay() {
   music.setHostPaused(false); music.unlock(); sfx.unlock(); canvas.focus?.();
 }
 function startNewGame() {
-  if (selectedCharacter() !== 'rizer') return;
+  if (selectedCharacter() === 'andre') { startAndreGame(false); return; }
   if (readSave() && !newArmed) { newArmed = true; $('#title-confirm').hidden = false; $('#new-sub').textContent = 'Press again to start over'; return; }
   // A new game resets progress (inventory, chest, save) and reloads into a fresh Malezor, straight past the title.
   try { localStorage.removeItem('rp7d.inventory.v1'); localStorage.removeItem('rp7d.homeLayout.v1'); localStorage.removeItem(saveKey('rizer')); sessionStorage.setItem('rp7d.boot', 'new'); } catch (e) {}
   location.reload();
 }
 function loadGame() {
-  if (selectedCharacter() !== 'rizer') return;
+  if (selectedCharacter() === 'andre') { startAndreGame(true); return; }
   const sv = readSave(); if (!sv || !world) return;
   if (typeof sv.hour === 'number') { hour = sv.hour; hourTarget = null; }
   if (!sv.home && sv.at) { homeReturn = { ...sv.at }; leaveHomeInterior(); }
   if (sv.treehouse) { const rec=inventory.treehouses?.find(q => q.id === sv.treehouse && q.cabin === 'built'); if (rec) showInterior(treehouses.interior(rec)); }
   beginPlay(); showToast(sv.home ? 'Home · it kept your place' : `${sv.region || 'Malezor'} · it kept your place`);
 }
-$('#enter').addEventListener('click', () => { if (world) startNewGame(); });
+async function startAndreGame(load) {
+  if (selectedCharacter() !== 'andre') return;
+  const enter = $('#enter'), loadButton = $('#load-game');
+  enter.disabled = loadButton.disabled = true;
+  $('#new-sub').textContent = 'Preparing Dreamland…';
+  try {
+    await viridia.ready;
+    if (load && !viridia.hasSave()) { refreshTitle(); return; }
+    const data = load ? viridia.getSave() : null;
+    if (!load) { try { localStorage.removeItem('rp7d.andre.save.v1'); } catch (_) {} }
+    keys.clear(); pressed.clear();
+    music.setHostPaused(true);
+    viridia.enter(data);
+    $('#intro').classList.add('hidden'); $('#game').classList.add('playing');
+    started = true; window.dispatchEvent(new CustomEvent('rp7d:game-start'));
+    canvas.focus?.();
+  } catch (error) {
+    console.error('[viridia] Dreamland could not start', error);
+    $('#new-sub').textContent = 'Dreamland failed to load · select to retry';
+    enter.disabled = false; loadButton.disabled = !viridia.hasSave();
+  }
+}
+$('#enter').addEventListener('click', () => { if (selectedCharacter() === 'andre' || world) startNewGame(); });
 $('#load-game').addEventListener('click', () => loadGame());
 window.addEventListener('rp7d:character-menu', () => { newArmed = false; $('#title-confirm').hidden = true; refreshTitle(); });
+window.addEventListener('rp7d:viridia-ready', refreshTitle);
 document.querySelectorAll('#title-menu .title-btn').forEach((b, i) => b.addEventListener('pointerenter', () => titleFocus(titleButtons().indexOf(b))));
 addEventListener('keydown', e => {
   if (started || $('#intro').classList.contains('hidden')) return;
@@ -3070,6 +3098,10 @@ function frame() {
   if (settings.dev && settings.slow) dt *= 0.3; // dev: slow motion
   if (scopeView?.phase === 'open') { renderer.info.reset(); astro.frame(Math.min(realDt, 0.05), readPad()); requestAnimationFrame(frame); return; } // Astragraphy has the screen; the world waits
   if (!started) { pressed.clear(); renderer.info.reset(); composer.render(); requestAnimationFrame(frame); return; } // render behind launch pages, but keep gameplay and world audio inert until New / Load
+  if (viridia.active) {
+    viridia.update(realDt, keys, pressed); renderer.info.reset(); renderer.render(viridia.scene, viridia.camera);
+    requestAnimationFrame(frame); return;
+  }
   elapsed += dt;
   try { update(dt, elapsed, realDt); frameErrors = 0; }
   catch (e) { // one bad frame must never stop the game: report it on screen and keep the loop alive
@@ -3083,6 +3115,7 @@ function frame() {
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  viridia.camera.aspect = innerWidth / innerHeight; viridia.camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
 });
 

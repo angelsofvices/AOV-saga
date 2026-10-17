@@ -69,7 +69,7 @@
       const choices = [...story.querySelectorAll('.story-choice')], fill = document.getElementById('im-fill'), HOLD = 1000;
       let fresh = false; try { fresh = sessionStorage.getItem('rp7d.boot') === 'new'; } catch (e) {}
       if (fresh) { story.remove(); boot.remove(); movieRoot.remove(); return; }
-      let phase = 'boot', selected = null, holdFrom = 0, noSrcFrom = 0, keyX = false, padPrev = [], stickHeld = 0, transitioning = false;
+      let phase = 'boot', selected = null, holdFrom = 0, noSrcFrom = 0, keyX = false, padPrevByIndex = new Map(), stickHeld = 0, stickRepeatAt = 0, transitioning = false;
       const assetPrefix = location.pathname.includes('/developer/') ? '../assets/' : './assets/';
       const splashMusic = new Audio(`${assetPrefix}audio/splash-music.mp3`); splashMusic.loop = true; splashMusic.preload = 'auto'; splashMusic.volume = 0.42;
       const playSplashMusic = () => { if (phase !== 'select' && phase !== 'transition' && phase !== 'menu') return; splashMusic.play().catch(() => {}); };
@@ -170,12 +170,11 @@
       addEventListener('keydown', onKey, true); addEventListener('keyup', onKey, true);
       addEventListener('gamepadconnected', () => {
         game.classList.add('pad');
-        const active = [...(navigator.getGamepads?.() || [])].find(g => g && g.connected);
-        padPrev = active ? active.buttons.map(b => b.pressed) : [];
+        for (const pad of [...(navigator.getGamepads?.() || [])]) if (pad?.connected) padPrevByIndex.set(pad.index, pad.buttons.map(b => b.pressed || b.value > .55));
       });
       addEventListener('gamepaddisconnected', () => {
         if (![...(navigator.getGamepads?.() || [])].some(g => g && g.connected)) game.classList.remove('pad');
-        padPrev = [];
+        padPrevByIndex.clear(); stickHeld = 0; stickRepeatAt = 0;
       });
       bootButton.addEventListener('click', showMovie);
       for (const eventName of ['pointerdown', 'keydown', 'touchstart']) addEventListener(eventName, playSplashMusic, { capture: true });
@@ -185,23 +184,35 @@
       window.__rp7dCampaignMenu = { backToSelection: backToStory, stopSplashMusic };
       (function tick() {
         if (phase === 'done') return;
-        const connectedPads = [...(navigator.getGamepads?.() || [])].filter(g => g && g.connected);
-        const gp = connectedPads.find(g => g.buttons?.some(b => b.pressed) || g.axes?.some(a => Math.abs(a) > 0.3)) || connectedPads[0];
-        if (gp) game.classList.add('pad');
-        const pad = gp ? gp.buttons.map(b => b.pressed) : [], edge = i => !!pad[i] && !padPrev[i];
+        // Some browser/controller bridges report a usable pad before `connected` flips true.
+        // Keep polling every non-null slot so the story cards work in embedded playtest browsers too.
+        const connectedPads = [...(navigator.getGamepads?.() || [])].filter(Boolean);
+        if (connectedPads.length) game.classList.add('pad');
+        const padEdges = new Map();
+        for (const g of connectedPads) {
+          const now = (g.buttons || []).map(b => !!(b?.pressed || (b?.value || 0) > .55));
+          const before = padPrevByIndex.get(g.index) || [];
+          padEdges.set(g.index, { g, now, edge: i => !!now[i] && !before[i] });
+          padPrevByIndex.set(g.index, now);
+        }
+        for (const index of [...padPrevByIndex.keys()]) if (!connectedPads.some(g => g.index === index)) padPrevByIndex.delete(index);
+        const pad = padEdges.values().next().value?.now || [], edge = i => [...padEdges.values()].some(p => p.edge(i));
         if (phase === 'boot') {
-          if (pad.some((pressed, i) => pressed && !padPrev[i])) showMovie();
-          padPrev = pad; requestAnimationFrame(tick); return;
+          if ([...padEdges.values()].some(p => p.now.some((_, i) => p.edge(i)))) showMovie();
+          requestAnimationFrame(tick); return;
         }
         if (phase === 'select') {
-          const stickAxis = gp?.axes?.[0] || 0;
-          const dpadAxis = gp?.axes?.[6] || 0; // also accept controllers that expose the D-pad as an axis
-          const axis = Math.abs(stickAxis) > .62 ? stickAxis : dpadAxis;
-          const stick = Math.abs(axis) > .5 ? Math.sign(axis) : 0;
-          if (edge(14) || (stick < 0 && stickHeld >= 0)) moveStory(-1);
-          else if (edge(15) || (stick > 0 && stickHeld <= 0)) moveStory(1);
-          else if (edge(0) && selected != null) chooseStory(choices[selected]?.dataset.character);
-          stickHeld = stick; padPrev = pad; requestAnimationFrame(tick); return;
+          const gp = [...padEdges.values()].map(p => p.g).find(g => Math.abs(g.axes?.[0] || 0) > .3) || [...padEdges.values()][0]?.g;
+          const axes = gp?.axes || [], horizontal = Math.abs(axes[0] || 0) > .3 ? axes[0] : (axes[2] || 0);
+          const stick = Math.abs(horizontal) > .62 ? Math.sign(horizontal) : 0, now = performance.now();
+          const left = edge(14);
+          const right = edge(15);
+          if (left) { moveStory(-1); stickRepeatAt = now + 260; }
+          else if (right) { moveStory(1); stickRepeatAt = now + 260; }
+          else if (stick && (stick !== stickHeld || now >= stickRepeatAt)) { moveStory(stick); stickRepeatAt = now + 260; }
+          else if ((edge(0) || edge(2) || (gp?.mapping !== 'standard' && edge(1))) && selected != null) chooseStory(choices[selected]?.dataset.character);
+          stickHeld = stick;
+          requestAnimationFrame(tick); return;
         }
         if (phase === 'movie') {
           if (introVideo.error) { finishMovie(); return; }
@@ -214,7 +225,7 @@
           if (fill) fill.style.strokeDashoffset = String(94.25 * (1 - k)); movieRoot.classList.toggle('holding', holding);
           if (k >= 1) { finishMovie(); return; }
         }
-        padPrev = pad; requestAnimationFrame(tick);
+        requestAnimationFrame(tick);
       })();
     })();
     </script>

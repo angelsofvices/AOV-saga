@@ -291,8 +291,10 @@ async function savePlayable(name, build) {
   return row;
 }
 // Jumped through an open Portal Gatelock (gatelocks.js): he is already at the far gate; the camera and the fight catch up.
+const portalPassFX = (() => { const e = document.createElement('div'); e.id = 'portal-pass-fx'; Object.assign(e.style, { position:'fixed', inset:'0', zIndex:'9997', pointerEvents:'none', opacity:'0', background:'radial-gradient(ellipse at center, rgba(77,221,255,.35), rgba(68,28,171,.78) 45%, rgba(4,8,27,.96))', filter:'blur(18px)', transition:'opacity 160ms ease, filter 420ms ease' }); document.body.appendChild(e); return e; })();
 function portalJump(to) {
-  astral.clearLock(); cam.snapBehind(rizer); cam.kick(0.5); rumbleHit('medium');
+  portalPassFX.style.opacity = '1'; portalPassFX.style.filter = 'blur(0px)'; setTimeout(() => { portalPassFX.style.opacity = '0'; portalPassFX.style.filter = 'blur(18px)'; }, 170);
+  astral.clearLock(); cam.snapBehind(rizer); cam.kick(0.9); rumbleHit('heavy');
   showToast('PORTAL · through to the other gate');
 }
 // The wild Zyrex population. Every RP7B Zyrex with 2DHD art, sampled into Malezor's wild (zyrex2d.js); Elzebub keeps
@@ -367,12 +369,14 @@ const showHomeInterior = () => showInterior(homeInterior);
 // picks it up (Picking Up). Works mid-fight. Picked fruit stays picked (inventory.picked.flowers — the key predates fruit).
 // Fruit is eaten on the spot for a small boost to its RHUD meter; if that meter is full it goes in the bag (Zyphone → Items).
 let fruitGrid = null;
+let fruitGridRevision = -1;
 function fruitReady() {
-  if (fruitGrid) return fruitGrid;
   const F = world.nature?.userData.fruits; if (!F) return null;
+  if (fruitGrid && fruitGridRevision === (F.revision || 0)) return fruitGrid;
   const done = new Set(inventory.picked?.flowers || []);
   fruitGrid = new Map();
   for (const f of F.list) { if (done.has(f.i)) F.pick(f); const k = Math.floor(f.x / 8) + ',' + Math.floor(f.z / 8); if (!fruitGrid.has(k)) fruitGrid.set(k, []); fruitGrid.get(k).push(f); }
+  fruitGridRevision = F.revision || 0;
   return fruitGrid;
 }
 // Fae, Faery, Astral Fae and Zyphere: pickups scattered by nature.js, gridded the same way as fruit
@@ -449,11 +453,16 @@ function placementOccupants() {
   return o;
 }
 function onStorageChange(type, data) { // storage changes keep carried gear and both WHUDs in sync
-  if ((type === 'add' && data?.id === 'guitar' && data.loc === 'ZYCUBE') || (type === 'exchange' && data?.outputs?.some(o => o.id === 'guitar' && o.loc === 'ZYCUBE'))) {
-    const u = inventory.utilityWheel ||= Array(6).fill(null); if (!u.includes('guitar')) { const i = u.indexOf(null); if (i >= 0) u[i] = 'guitar'; }
+  const receivedUtilities = [
+    ...(type === 'add' && data?.loc === 'ZYCUBE' && ['guitar', 'astralboard'].includes(data.id) ? [data.id] : []),
+    ...(type === 'exchange' ? (data?.outputs || []).filter(o => o.loc === 'ZYCUBE' && ['guitar', 'astralboard'].includes(o.id)).map(o => o.id) : [])
+  ];
+  for (const id of receivedUtilities) {
+    const u = inventory.utilityWheel ||= Array(6).fill(null);
+    if (!u.includes(id)) { const i = u.indexOf(null); if (i >= 0) u[i] = id; }
   }
   syncWorkstationKit();
-  if (!inventory.owned.includes(inventory.equipped) && !(inventory.equipped === 'guitar' && storage.count('ZYCUBE', 'guitar') > 0)) equip('fists');
+  if (!inventory.owned.includes(inventory.equipped) && !(['guitar','astralboard'].includes(inventory.equipped) && storage.count('ZYCUBE', inventory.equipped) > 0)) equip('fists');
   syncWheel(); wheel.render(); dep?.sync();
 }
 function initStorage() {
@@ -574,16 +583,14 @@ function solidPass() {
     for (const o of scanobots?.bodies || []) if (o.pos && o.alive !== false && o.state !== 'down') pushOut(o.pos, o.r ?? 0.4, B, 0.9);
   }
 }
-function nearestGroundedStompTarget() {
-  const p = rizer?.position; if (!p) return null;
-  const candidates = [];
-  for (const g of seers?.grunts || []) if (g.state === 'down' && g.pos && g.root?.visible !== false) candidates.push({ ref: g, pos: g.pos });
-  for (const g of novas?.list || []) if (g.state === 'down' && g.pos && g.root?.visible !== false && !g.salvaged) candidates.push({ ref: g, pos: g.pos });
-  for (const p of penumbras?.list || []) if (p.state === 'down' && p.pos && p.root?.visible !== false && !p.salvaged) candidates.push({ ref: p, pos: p.pos });
-  for (const b of scanobots?.bots || []) if (b.state === 'wreck' && b.pos && b.root?.visible !== false && !b.salvaged) candidates.push({ ref: b, pos: b.pos });
-  let best = null, bd = 2.7;
-  for (const c of candidates) { const d = Math.hypot(c.pos.x - p.x, c.pos.z - p.z); if (d < bd) { best = c; bd = d; } }
-  return best && { ...best.pos, ref: best.ref };
+function lockedStompTarget() {
+  const lk = astral?.lock, ref = lk?.ref, p = rizer?.position;
+  if (!lk || !ref || !p || (lk.alive?.() === false && !['down','wreck'].includes(ref.state))) return null;
+  const pos = lk.pos?.() || ref.pos || ref.position;
+  if (!pos || Math.hypot(pos.x - p.x, pos.z - p.z) > 2.7) return null;
+  const downEnemy = (lk.kind === 'enemy' && ref.state === 'down') || (lk.kind === 'scanobot' && ref.state === 'wreck') || (ref.state === 'down' && (novas?.list?.includes(ref) || penumbras?.list?.includes(ref)));
+  const smallProp = ['stone', 'bush'].includes(lk.kind) && world.nature?.userData?.breakables?.sizeClass(ref) === 'small';
+  return downEnemy || smallProp ? { x: pos.x, y: pos.y, z: pos.z, ref, kind: lk.kind } : null;
 }
 const RUNNING_FRUIT_YIELD = 1.5;
 function collectEnemyBag(target) {
@@ -1172,6 +1179,7 @@ const downToast = h => h.nova ? `${h.name.toUpperCase()} DOWN${h.drop ? ` · ${h
 let ufoPilot = false, ufoTransition = null, ufoVelocity = new THREE.Vector3(), ufoBeam = null, ufoFireCooldown = 0, ufoTurboT = 0, ufoTurboCooldown = 0;
 let hour = 16.5, hourTarget = null, hitStop = 0, koT = 0, hurtTimer;
 let last = performance.now(), elapsed = 0;
+const stompHeal = { active: false, gained: 0, stomps: 0, fx: 0 };
 let journalReminderElapsed = 0;
 const GEMLORD_TUTORIAL_IDS = ['rubypaw', 'sword', 'bow', 'axe'];
 
@@ -1380,7 +1388,7 @@ function build() {
   westLakeBus = createWestLakeBus(scene, world, fx, showToast, { x:-87.36, y:13.32, z:60.44, facing:-0.27 }); // Malezor Central · beside the school
   commonChests = createCommonChests(scene, world, fx, W, (x, z) => quarterAt(x, z, W) === 'core', [...loot.all.filter(c => !['psychosyd-chest', 'astralboard-chest'].includes(c.id)).map(c => ({ x: c.chest.position.x, z: c.chest.position.z })), ...(lightbulbs?.list || []).map(c => ({ x: c.x, z: c.z })), { x: W.playerStart.x, z: W.playerStart.z }],
     (ch, n) => showToast(`✦ ASTRALIFT · ${n} coin pile${n === 1 ? '' : 's'} shaken loose`), // the astral-pop payoff
-    (ch, rolls, at) => coinPiles?.spawn(at, ch.face, rolls)); // every wooden chest: its 1–3 rolled piles fly out of the reward point, fanned toward its front
+    (ch, rolls, at) => coinPiles?.spawn(at, ch.face, rolls), (ch, amount) => resources?.drop('fresh_wood', amount, ch.x, ch.y + 0.35, ch.z)); // wooden chest damage yields timber; unopened chest still pays its one-time coin rolls
   // Coin piles: one pickup each, carrying its rolled value. Walking near a settled pile pulls it in and adds exactly that
   // much Gold. Piles still on the ground are remembered (inventory.coinPiles), so a reload neither loses nor repeats them.
   coinPiles = createCoinPiles(scene, world, fx, {
@@ -1526,17 +1534,18 @@ const ICONS = {
   rubypaw: '<svg viewBox="0 0 48 48"><path d="M24 2 31 13 29 30 19 30 17 13Z" fill="#e72732" stroke="#ff6566" stroke-width="1.2"/><path d="M24 8 27 15 26 27 22 27 21 15Z" fill="#180c16"/><path d="M24 13v12" stroke="#d71a2c" stroke-width="1.5"/><path d="M19 29q-7-1-10-8 1 8 8 12l7 2 7-2q7-4 8-12-3 7-10 8" fill="#a20e1f" stroke="#fa3a47" stroke-width="1.4"/><path d="M22 34v9h4v-9" fill="#17151b" stroke="#c18b30" stroke-width="1.4"/><path d="M20 43h8l-4 4z" fill="#df2331"/><path d="M24 28l4 4-4 4-4-4z" fill="#ff4b60"/></svg>',
   bow: '<svg viewBox="0 0 48 48"><path d="M34 5Q8 14 20 24Q8 34 34 43" fill="none" stroke="#f6e9f5" stroke-width="5" stroke-linecap="round"/><path d="M34 5V43" stroke="#d6a746" stroke-width="1.8"/><path d="M9 24h32m-6-5 6 5-6 5" fill="none" stroke="#d6a746" stroke-width="2.2"/><circle cx="19" cy="24" r="3" fill="#fff2ff" stroke="#d6a746"/></svg>',
   guitar: '<svg viewBox="0 0 48 48"><path d="M29 17l12-12" stroke="#4a2a17" stroke-width="4" stroke-linecap="round"/><path d="M38 4l5 5-3 2-4-4z" fill="#d11c26"/><path d="M26 16c-4-2-8 0-9 4-1 2-3 2-5 3-5 2-6 9-2 13s11 3 13-2c1-2 1-4 3-5 4-1 6-5 4-9l-2 2-4-4z" fill="#d11c26" stroke="#ffb3b3" stroke-width="1.2"/><path d="M14 26l5 5" stroke="#f1ece2" stroke-width="3"/><path d="M18 34l12-12" stroke="#d9dde2" stroke-width="0.9"/><circle cx="14" cy="34" r="2" fill="#d7a745"/></svg>',
+  astralboard: '<svg viewBox="0 0 48 48"><path d="M5 29Q10 18 24 18t19 11q-8 7-19 7T5 29Z" fill="#24223e" stroke="#a99aff" stroke-width="2"/><path d="M12 28q12-7 24 0" fill="none" stroke="#55e7ff" stroke-width="2"/><circle cx="14" cy="34" r="2.5" fill="#e9c982"/><circle cx="34" cy="34" r="2.5" fill="#e9c982"/><path d="m24 21 3 5-3 5-3-5z" fill="#9b8cff"/></svg>',
   workstation: '<svg viewBox="0 0 48 48"><rect x="7" y="18" width="34" height="5" rx="1" fill="#7fd6ff" stroke="#d7f4ff" stroke-width="1"/><path d="M11 23v15M37 23v15M11 31h26" stroke="#9aa7b8" stroke-width="3" stroke-linecap="round"/><path d="M17 18l4-8h6l4 8" fill="none" stroke="#d7a745" stroke-width="2"/><circle cx="24" cy="13" r="2.4" fill="#5ef2ff"/></svg>',
   life_seed: '<svg viewBox="0 0 48 48"><path d="M24 40C12 35 10 25 20 18c1-7 8-11 17-10 0 10-4 17-13 19" fill="#347c39" stroke="#9bea72" stroke-width="2"/><path d="M12 39c7-9 14-14 22-20" fill="none" stroke="#d4aa58" stroke-width="2.5" stroke-linecap="round"/><circle cx="34" cy="12" r="2" fill="#e7f7a0"/></svg>',
   telescope: '<svg viewBox="0 0 48 48"><path d="M24 29 13 45M24 29 35 45M24 29V45" stroke="#a0774a" stroke-width="2.4" stroke-linecap="round"/><g transform="rotate(-38 24 26)"><rect x="7" y="21.5" width="31" height="9" rx="2" fill="#1b3166" stroke="#c9a64f" stroke-width="1.4"/><rect x="33" y="19.5" width="7" height="13" rx="1.6" fill="#58c4ff" stroke="#c9a64f" stroke-width="1"/><path d="M17 21.5v9M25 21.5v9" stroke="#c9a64f" stroke-width="1.6"/></g><circle cx="24" cy="29" r="2.6" fill="#c9a64f"/></svg>',
   blaster: '<svg viewBox="0 0 48 48"><path d="M4 27h9l3-4h14v6H16l-3 4H6z" fill="#2a2f38" stroke="#59616e" stroke-width="1"/><rect x="22" y="22.5" width="13" height="5" rx="2" fill="#ffab45"/><path d="M35 25h9" stroke="#59616e" stroke-width="2.6" stroke-linecap="round"/><rect x="15" y="17" width="13" height="3.6" rx="1.6" fill="#23272e" stroke="#39d8ff" stroke-width="0.9"/><path d="M17 29l-2 8h4l2-7" fill="#23272e"/><path d="M20 30q3 4 6 0" fill="none" stroke="#39d8ff" stroke-width="1.3"/></svg>'
 };
 // The WHUD has separate six-slot weapon and utility pages. Existing inventory.wheel saves remain the weapon page.
-const UTILITY_WHEEL_ITEMS = new Set(['life_seed', 'telescope', 'workstation', 'guitar']);
+const UTILITY_WHEEL_ITEMS = new Set(['life_seed', 'telescope', 'workstation', 'guitar', 'astralboard']);
 let whudPage = inventory.whudPage === 'utilities' ? 'utilities' : 'weapons';
 function syncWheel() {
   const carried = inventory.owned.filter(k => !UTILITY_WHEEL_ITEMS.has(k));
-  const utilityOwned = [...new Set([...inventory.owned.filter(k => UTILITY_WHEEL_ITEMS.has(k) && (k !== 'life_seed' || (inventory.items?.life_seed || 0) > 0)), ...(storage.count('ZYCUBE', 'guitar') > 0 ? ['guitar'] : [])])];
+  const utilityOwned = [...new Set([...inventory.owned.filter(k => UTILITY_WHEEL_ITEMS.has(k) && (k !== 'life_seed' || (inventory.items?.life_seed || 0) > 0)), ...(['guitar','astralboard'].filter(k => storage.count('ZYCUBE', k) > 0))])];
   // Migrate utilities previously auto-inserted in the old shared wheel into the new utility page.
   const old = Array.isArray(inventory.wheel) ? inventory.wheel.slice(0, 6) : null;
   let u = Array.isArray(inventory.utilityWheel) ? inventory.utilityWheel.slice(0, 6) : [];
@@ -2420,6 +2429,7 @@ const seerHooks = {
     // every blow that actually touches a stone, a tree or a bush hurts it, by what the blow is worth (no lock needed)
     const handStrike = ['punch', 'runpunch'].includes(at?.kind);
     if (!handStrike || segment.part?.endsWith('Hand')) world.nature?.userData?.breakables?.strike(segment, damage, hitKey);
+    if (!handStrike || segment.part?.endsWith('Hand')) commonChests?.hitSegment(segment, damage, hitKey);
     if (!handStrike || segment.part?.endsWith('Hand')) treehouses?.strike(segment, damage, hitKey);
   },
   onLanded: (h, kind) => {
@@ -2637,7 +2647,7 @@ function update(dt, t, realDt = dt) {
   if (!menu && homeMode && indoor.treehouse) dep?.showPrompt('RIZER’S TREEHOUSE','○ / E manage · R lock / □ move furniture');
   else if (!menu && homeMode && indoor !== homeInterior) { const st = indoor.stationAt(rizer); if (st) dep?.showPrompt(st.name, 'SHOP · ○ / E'); }
   else if (!menu && homeMode && !pcUse) { const sp = seating?.prompt(); if (sp) dep?.showPrompt(sp[0], sp[1]); else if (!seating?.active) { const st = homeInterior?.stationAt(rizer); if (st) { if (st.id === 'homepc') dep?.showPrompt('NEBULADOCK CHAIR', 'SIT · ○ / E'); else dep?.showPrompt(st.name, st.id === 'n3000' ? 'PLAY · ○ / E' : st.id === 'tv' ? 'WATCH TV · ○ / E' : st.id.startsWith('floor-guitar-') || st.pickup ? 'PICK UP · ○ / E' : undefined); } } }
-  if (!menu) dep?.update(); // the placement ghost
+  if (!menu) dep?.update(dt); // workstation unfolds from its carried case as it is deployed
   const kx = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
   const kz = (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0);
   const analog = pad && (pad.x || pad.z);
@@ -2796,8 +2806,10 @@ function update(dt, t, realDt = dt) {
       runningKickHold = { t: 0, fired: false }; kickConsumed = true;
     }
     if (!kickConsumed && !rizer.flying && !ufoTriangle && !busTriangle && !boardTriangle && kickPressed) {
-      const downed = nearestGroundedStompTarget();
-      if (!downed || !rizer.stomp(downed)) rizer.strike('kick');
+      // Stomp is an explicit lock action. A corpse beside a living target can
+      // never steal the kick input, and only small props can be stomped.
+      const stompTarget = lockedStompTarget();
+      if (!stompTarget || !rizer.stomp(stompTarget)) rizer.strike('kick');
     }
     // ○ is contextual: a place in front → interact · otherwise → Astral Blast (bonding is lock on + D-pad ↓, below)
     const circle = padAct?.interact, lk = astral.lock;
@@ -2928,6 +2940,14 @@ function update(dt, t, realDt = dt) {
   else if (!menu) { if (westLakeBus?.driving) westLakeBus.update(dt, busInput, rizer); else if (ufoPilot) updateUfo(dt, inp, cam.yaw); else if (astralboard?.active) astralboard.update(dt, inp, cam.yaw, rizer); else { rizer.update(dt, inp, homeMode ? indoor.roomWorld : westLakeBus?.playerWorld || world, cam.yaw); if (!homeMode) westLakeBus?.resolvePlayer(rizer); } }
   if (menu && seating?.active) rizer.update(dt, inp, homeInterior.roomWorld, cam.yaw); // seated at the PC: only his animation runs
   if (rizer.god && rizer.hp > 0) { rizer.hp = rizer.maxHp; rizer.stamina = rizer.maxStamina; rizer.astralEnergy = rizer.maxAstralEnergy; } // dev god mode: HP, STM and AE never drop
+  if (stompHeal.active) {
+    const cap = rizer.maxHp * 0.5, rate = rizer.maxHp / 30 + Math.max(0, stompHeal.stomps - 1) * 1.5;
+    const heal = Math.min(cap - stompHeal.gained, rate * dt, rizer.maxHp - rizer.hp);
+    if (heal > 0) { rizer.hp += heal; stompHeal.gained += heal; }
+    stompHeal.fx -= dt;
+    if (stompHeal.fx <= 0 && stompHeal.gained < cap && rizer.hp < rizer.maxHp) { stompHeal.fx = 0.18; const p = rizer.position; fx.emit(p.x, p.y + 0.25, p.z, 4, { color: '#75d77b', speed: 0.45, up: 0.65, size: 0.22, life: 0.8, g: -0.15 }); }
+    if (stompHeal.gained >= cap || rizer.hp >= rizer.maxHp) { stompHeal.active = false; stompHeal.stomps = 0; }
+  }
   if (!menu && !westLakeBus?.driving) updateBow(dt, rizer.weapon === 'bow' && (keys.has('KeyJ') || mousePunchHeld || !!padAct?.punchHeld));
   if (!menu && !westLakeBus?.driving && held) updateBlaster(dt, act && rizer.weapon === 'blaster' && (keys.has('KeyJ') || mousePunchHeld || !!padAct?.punchHeld));
   if (!menu && !westLakeBus?.driving) { const mv = Math.hypot(inp.x || 0, inp.z || 0) > 0.3 || !!inp.jumpPressed; updateJam(dt, mv); updateScope(dt, mv); }
@@ -3036,7 +3056,10 @@ function update(dt, t, realDt = dt) {
     if (e === 'land' || e === 'landHard') sfx.play('land', e === 'landHard' ? 1.15 : 0.9);
     if (e === 'slide') sfx.play('slide');
     if (e === 'treeSpin') { sfx.play('whoosh', 0.6, 0.9); tutorialMark('basics', 'treeSpin'); }
-    if (e === 'stomp') { sfx.play('heavy', 0.9, 0.72); cam.kick(0.45); const q = rizer.position, target = rizer.stompTarget; rizer.stompTarget = null; fx.emit(q.x, q.y + 0.08, q.z, 10, { color: '#d8c49b', speed: 1.9, up: 0.6, size: 0.24, life: 0.32 }); if (target && !target.salvaged && (target.isPenumbra || scanobots?.bots?.includes(target) || novas?.list?.includes(target))) { const extra = target.isPenumbra ? 4 : novas?.list?.includes(target) ? 3 : 2; resources?.wreckBonus(target, extra); showToast(`STOMP SALVAGE · Scrap Metal ×${extra}`); } }
+    if (e === 'stomp') { sfx.play('heavy', 0.9, 0.72); cam.kick(0.45); const q = rizer.position, target = rizer.stompTarget; rizer.stompTarget = null; fx.emit(q.x, q.y + 0.08, q.z, 10, { color: '#d8c49b', speed: 1.9, up: 0.6, size: 0.24, life: 0.32 });
+      if (target?.T?.key === 'crept') { seers?.stompCrept?.(target); stompHeal.stomps++; stompHeal.active = true; }
+      if (target?.kind === 'rock' || target?.kind === 'bush') world.nature?.userData?.breakables?.damageTarget?.(target, 1, `stomp-${elapsed}`);
+      if (target && !target.salvaged && (target.isPenumbra || scanobots?.bots?.includes(target) || novas?.list?.includes(target))) { const extra = target.isPenumbra ? 4 : novas?.list?.includes(target) ? 3 : 2; resources?.wreckBonus(target, extra); showToast(`STOMP SALVAGE · Scrap Metal ×${extra}`); } }
     if (e === 'runKickHold') runningKickHoldImpact();
     if (e === 'perfectDodge') perfectDodge();
     if (e === 'dodge' && rizer.isRunning && rizer.speed > 3.4) {

@@ -34,8 +34,9 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onCraft =
       ...c.weapons.filter(w => w.id !== 'fists').map(w => ({ id: w.id, qty: 1, def: w.def, uid: w.uid })),
       ...c.equipment.map(e => ({ id: e.id, qty: 1, def: e.def, uid: e.uid })),
       ...c.stacks.map(s => ({ id: s.id, qty: s.qty, def: s.def }))
-    ].filter(r => t === 'ALL' || r.def.category === t);
-    if (sort === 0) return CATEGORY_ORDER.map(cat => ({ cat, rows: all.filter(r => r.def.category === cat) })).filter(g => g.rows.length);
+    ].map(r => ({ ...r, def: r.def || defOf(r.id) || { id:r.id, name:String(r.id || 'Unknown item'), category:'SPECIAL', color:'#aeb9c9', blurb:'Item definition unavailable.' } }))
+      .filter(r => t === 'ALL' || r.def?.category === t);
+    if (sort === 0) return CATEGORY_ORDER.map(cat => ({ cat, rows: all.filter(r => r.def?.category === cat) })).filter(g => g.rows.length);
     const rows = all.slice().sort(sort === 1 ? (a, b) => a.def.name.localeCompare(b.def.name) : (a, b) => b.qty - a.qty || a.def.name.localeCompare(b.def.name));
     return rows.length ? [{ cat: null, rows }] : [];
   }

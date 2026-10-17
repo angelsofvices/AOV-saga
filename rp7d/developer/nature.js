@@ -165,8 +165,12 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     if (check(segment.a, segment.b)) return true;
     // A fast limb can pass through the stone between frames. Sweep its prior
     // capsule endpoints as well, with the same visible surface contact rule.
-    return !!(segment.pa && segment.pb &&
-      (check(segment.pa, segment.a) || check(segment.pb, segment.b)));
+    if (segment.pa && segment.pb && (check(segment.pa, segment.a) || check(segment.pb, segment.b))) return true;
+    // Angular facets on low-poly stones can leave hairline gaps between the
+    // rendered face triangles. Keep a conservative body envelope as a fallback.
+    const ax = segment.a.x - stone.x, az = segment.a.z - stone.z, bx = segment.b.x - stone.x, bz = segment.b.z - stone.z;
+    const closest = (x, z) => { const dx = bx - ax, dz = bz - az, l = dx * dx + dz * dz, t = l ? Math.max(0, Math.min(1, -(ax * dx + az * dz) / l)) : 0; return Math.hypot(ax + dx * t, az + dz * t); };
+    return closest(0, 0) <= stone.radius * 1.18 + radius && Math.max(segment.a.y, segment.b.y) >= stone.y - radius && Math.min(segment.a.y, segment.b.y) <= stone.y + stone.h + radius;
   }
   let disableStoneInstance = () => {};
   let disableTreeInstance = () => {};
@@ -318,6 +322,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   }
   function updateShards(dt) {
     for (const stone of shaking) {
+      if (stone.stormAt > performance.now()) continue;
       stone.shake -= dt; const k = Math.max(0, stone.shake / STONE.shake), base = baseOf(stone);
       if (stone.broken) { shaking.delete(stone); continue; }
       if (k <= 0) { stone.mesh.setMatrixAt(stone.index, base); placeCracks(stone, base); shaking.delete(stone); }
@@ -515,6 +520,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
   }
   function updateGreenery(dt) {
     for (const e of swaying) {
+      if (e.stormAt > performance.now()) continue;
       e.shake -= dt;
       if (e.kind === 'bush') { // rustle: it squashes and springs back
         const k = Math.max(0, e.shake / GREEN.bush.shake), w = Math.sin(k * 16) * 0.1 * k * (e.amp || 1);
@@ -577,12 +583,45 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
       }
       return false;
     }
-    bA.set(e.x, e.gy, e.z); bB.set(e.x, e.gy + e.trunkH, e.z); // a tree is struck on its trunk
-    return segSeg(seg.a, seg.b, bA, bB, edgeA, edgeB) <= e.hitR + r || (!!seg.pa && segSeg(seg.pa, seg.a, bA, bB, edgeA, edgeB) <= e.hitR + r);
+    // Test the trunk plus the broad leaf crown. Triangle pines have slender
+    // trunks, so trunk-only contact made otherwise visible hits miss entirely.
+    bA.set(e.x, e.gy, e.z); bB.set(e.x, e.gy + e.trunkH, e.z);
+    if (segSeg(seg.a, seg.b, bA, bB, edgeA, edgeB) <= Math.max(e.hitR, e.trunkR * 1.35) + r || (!!seg.pa && segSeg(seg.pa, seg.a, bA, bB, edgeA, edgeB) <= e.hitR + r)) return true;
+    const K = GREEN.kinds[e.kind] || GREEN.kinds.broadleaf;
+    bA.set(e.x, e.gy + K.crown[0] * e.scale, e.z);
+    return segPoint(seg.a, seg.b, bA) <= K.crownR * e.scale * 0.88 + r && Math.max(seg.a.y, seg.b.y) >= e.gy + K.crown[0] * e.scale - r && Math.min(seg.a.y, seg.b.y) <= e.gy + K.crown[1] * e.scale + r;
   }
   const breakables = {
     get stones() { return stones; }, get trees() { return trees; }, get bushes() { return bushes; }, get gates() { return gates; },
     get pickups() { return [...(rockDebris?.list || []).filter(q => q.ever), ...(woodDebris?.list || []).filter(q => q.wood || q.lifeSeed)]; },
+    sizeClass(e) { const h = e?.kind === 'rock' ? e.h : e?.kind === 'bush' ? e.h : e?.kind === 'woodGate' ? 1.1 : (e?.trunkH || 0) + (e?.kind ? (GREEN.kinds[e.kind]?.crown?.[1] || 0) : 0); return h <= 0.62 ? 'small' : h <= 1.05 ? 'medium' : 'big'; },
+    topHeight(e) { return (e?.gy ?? e?.y ?? 0) + (e?.kind === 'rock' ? e.h : e?.kind === 'bush' ? e.h : (e?.trunkH || 0) + (e?.kind ? (GREEN.kinds[e.kind]?.crown?.[1] || 0) * (e.scale || 1) : 0)); },
+    damageTarget(e, amount = 1, key = `stomp-${performance.now()}`) { return !!e && !e.broken && damageEntry(e, amount, key, e, null); },
+    finishSpin(e, key = `spin-finish-${performance.now()}`) { if (!e || e.broken) return false; if (e.stormBase) { setInstance(e, e.stormBase); if (e.kind === 'rock') placeCracks(e, e.stormBase); e.stormBase = null; } return damageEntry(e, e.hp || 1, key, e, null, 1.5); },
+    spin(center, radius, dt, key = `spin-${Math.floor(performance.now()/250)}`, finish = false) {
+      const picked = nearby(center.x, center.z, radius).filter(e => Math.hypot(e.x-center.x,e.z-center.z) < radius + (e.radius || 0.5));
+      for (const e of picked) {
+        if (finish) {
+          if (e.stormBase) { setInstance(e, e.stormBase); if (e.kind === 'rock') placeCracks(e, e.stormBase); e.stormBase = null; }
+          damageEntry(e, e.hp || 1, key, center, null, 1.5);
+        } else {
+          if (!e.stormBase) { e.stormBase = e.kind === 'rock' ? baseOf(e).clone() : (e.base ? e.base.clone() : new THREE.Matrix4()); if (e.kind !== 'rock' && !e.base) { e.mesh.getMatrixAt(e.index, e.stormBase); e.base = e.stormBase.clone(); } }
+          const a = performance.now() * 0.006 + (e.index || 0), lift = 0.35 + (Math.sin(a * 1.7) + 1) * 0.3;
+          sM2.makeRotationY(a); sM.makeTranslation(e.x, e.gy + lift, e.z).multiply(sM2).multiply(sM3.makeTranslation(-e.x, -e.gy, -e.z)).multiply(e.stormBase); setInstance(e, sM);
+          if (e.kind === 'rock') placeCracks(e, sM);
+          e.stormAt = performance.now() + 380;
+          damageEntry(e, Math.min(2, e.hp), key, center, null, 0.8);
+        }
+      }
+      const F = group.userData.fruits;
+      if (F) for (const f of F.list) if (!f.gone && Math.hypot(f.x-center.x,f.z-center.z) < radius) {
+        const a = Math.atan2(f.x-center.x, f.z-center.z) + 1.3, d = radius + 1.2 + Math.random() * 1.4;
+        f.x = center.x + Math.sin(a) * d; f.z = center.z + Math.cos(a) * d; f.y = T.heightAt(f.x,f.z) + 0.14;
+        const o = new THREE.Object3D(); o.position.set(f.x,f.y,f.z); o.scale.setScalar(0.9 + Math.random()*0.3); o.updateMatrix(); F.inst.setMatrixAt(f.i,o.matrix); F.inst.instanceMatrix.needsUpdate = true;
+        F.revision = (F.revision || 0) + 1;
+      }
+      return picked;
+    },
     setHitEffect(fn) { natureFX = fn; }, // fn(kind 'tree' | 'bush', event 'hit' | 'fall' | 'crash' | 'break' | 'rustle', x, y, z, entry, extra)
     // A blow, a blade, a bolt, an arrow: damages whatever it actually touches. Returns how many things it hit.
     // only: restrict to one entry (a locked stone) · first: stop at the first thing hit (projectiles).
@@ -891,7 +930,7 @@ export function createNature(W, T, shared, obstacles, interactables = []) {
     }
     inst.count = n; inst.userData.noCollide = true; group.add(inst); // fruit: walk-through
     inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    group.userData.fruits = { inst, list, pick(f) { const m = new THREE.Matrix4().makeScale(0, 0, 0); inst.setMatrixAt(f.i, m); inst.instanceMatrix.needsUpdate = true; f.gone = true; } };
+    group.userData.fruits = { inst, list, revision: 0, pick(f) { const m = new THREE.Matrix4().makeScale(0, 0, 0); inst.setMatrixAt(f.i, m); inst.instanceMatrix.needsUpdate = true; f.gone = true; } };
   }
 
   // Five individually shaped tiny fae travel together as one catchable cluster.

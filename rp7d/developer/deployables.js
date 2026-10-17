@@ -11,18 +11,24 @@ const box = (g, w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.Box
 
 // Field Workstation: a sturdy folding bench with a lit work panel and a tool rack. Emissive only: no real lights are added.
 export function buildFieldWorkstation() {
-  const g = new THREE.Group(), steel = mat('#4b5764', { m: 0.5, r: 0.5 }), top = mat('#8a6a46'), dark = mat('#2c333b'), glow = mat('#7fd6ff', { e: '#4fc3ff', ei: 1.3, r: 0.3 }), amber = mat('#ffb347', { e: '#ff9a1f', ei: 0.9 });
-  box(g, 2.3, 0.1, 1.0, top, 0, 0.95, 0);                               // bench top
-  box(g, 2.34, 0.06, 1.04, steel, 0, 0.88, 0);                          // frame lip
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(g, 0.12, 0.88, 0.12, steel, sx * 1.04, 0.44, sz * 0.4); // legs
-  box(g, 2.0, 0.07, 0.8, dark, 0, 0.3, 0);                              // lower shelf
-  box(g, 0.5, 0.28, 0.4, mat('#566270'), -0.7, 0.47, 0);                // parts case
-  box(g, 0.34, 0.2, 0.3, amber, 0.55, 0.43, 0.05);                      // canister
-  box(g, 2.2, 0.9, 0.08, dark, 0, 1.45, -0.46);                         // back panel
-  box(g, 1.1, 0.5, 0.04, glow, -0.35, 1.5, -0.4);                       // work screen
-  for (let i = 0; i < 4; i++) box(g, 0.1, 0.34 + (i % 2) * 0.1, 0.05, steel, 0.55 + i * 0.16, 1.55, -0.4); // hung tools
-  box(g, 0.24, 0.12, 0.24, steel, 0.9, 1.07, 0.2);                      // vise
-  box(g, 0.08, 0.08, 0.5, glow, -1.12, 0.96, 0.1);                      // status strip
+  const g = new THREE.Group(), bench = new THREE.Group(), steel = mat('#4b5764', { m: 0.5, r: 0.5 }), top = mat('#8a6a46'), dark = mat('#2c333b'), glow = mat('#7fd6ff', { e: '#4fc3ff', ei: 1.3, r: 0.3 }), amber = mat('#ffb347', { e: '#ff9a1f', ei: 0.9 });
+  g.add(bench);
+  box(bench, 2.3, 0.1, 1.0, top, 0, 0.95, 0);                               // bench top
+  box(bench, 2.34, 0.06, 1.04, steel, 0, 0.88, 0);                          // frame lip
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(bench, 0.12, 0.88, 0.12, steel, sx * 1.04, 0.44, sz * 0.4); // legs
+  box(bench, 2.0, 0.07, 0.8, dark, 0, 0.3, 0);                              // lower shelf
+  box(bench, 0.5, 0.28, 0.4, mat('#566270'), -0.7, 0.47, 0);                // parts case
+  box(bench, 0.34, 0.2, 0.3, amber, 0.55, 0.43, 0.05);                      // canister
+  box(bench, 2.2, 0.9, 0.08, dark, 0, 1.45, -0.46);                         // back panel
+  box(bench, 1.1, 0.5, 0.04, glow, -0.35, 1.5, -0.4);                       // work screen
+  for (let i = 0; i < 4; i++) box(bench, 0.1, 0.34 + (i % 2) * 0.1, 0.05, steel, 0.55 + i * 0.16, 1.55, -0.4); // hung tools
+  box(bench, 0.24, 0.12, 0.24, steel, 0.9, 1.07, 0.2);                      // vise
+  box(bench, 0.08, 0.08, 0.5, glow, -1.12, 0.96, 0.1);                      // status strip
+  const caseMat = mat('#313943', { m: 0.48, r: 0.48 }), caseGlow = mat('#70d9ff', { e: '#39bfff', ei: 1.0 });
+  const briefcase = new THREE.Group(); g.add(briefcase); box(briefcase, 0.9, 0.24, 0.62, caseMat, 0, 0.13, 0); box(briefcase, 0.22, 0.1, 0.08, steel, 0, 0.29, 0.3); box(briefcase, 0.48, 0.035, 0.035, caseGlow, 0, 0.16, 0.314);
+  const lid = new THREE.Group(); lid.position.set(0,0.24,-0.3); briefcase.add(lid); box(lid,0.9,0.22,0.32,caseMat,0,0.1,-0.16); box(lid,0.35,0.035,0.025,caseGlow,0,0.1,-0.31);
+  bench.scale.y = 0.035; bench.visible = false;
+  g.userData.openParts = { bench, briefcase, lid, t: 0, opening: false };
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;
 }
@@ -68,6 +74,7 @@ export function createDeployables({ scene, world, getRizer, isBlocked, occupants
       live.set(e.uid, { mesh: { position: new THREE.Vector3(e.at.x, e.at.y, e.at.z) }, obs: null, type: e.type, y: e.at.y, ride: true }); return;
     }
     const fp = FIELD_EQUIPMENT[e.type].footprint, mesh = BUILDERS[e.type]();
+    if (e.type === 'field_workstation' && mesh.userData.openParts) { mesh.userData.openParts.opening = true; mesh.userData.openParts.t = 0; }
     const y = world.groundAt(e.at.x, e.at.z, e.at.y + 1);
     mesh.position.set(e.at.x, y, e.at.z); mesh.rotation.y = e.at.yaw || 0; scene.add(mesh);
     const obs = { type: 'box', x: e.at.x, z: e.at.z, hw: fp.hw, hd: fp.hd, rot: e.at.yaw || 0, top: y + 1.1, active: true };
@@ -108,7 +115,12 @@ export function createDeployables({ scene, world, getRizer, isBlocked, occupants
     if (!r.ok) { toast(r.message || 'Could not deploy'); return r; }
     const name = defOf(placing.type).name, deployed = { ...e, at: { x: s.x, y: v.y, z: s.z, yaw: s.yaw } }; cancel(true); sync(); onDeployed(deployed); toast(`${name} deployed`); return { ok: true };
   }
-  function update() {
+  function update(dt = 0) {
+    for (const d of live.values()) if (d.type === 'field_workstation' && d.mesh?.userData?.openParts?.opening) {
+      const a = d.mesh.userData.openParts; a.t = Math.min(0.8, a.t + dt); const k = Math.min(1, a.t / 0.72), ease = k * k * (3 - 2*k);
+      a.briefcase.visible = k < 0.72; a.lid.rotation.x = -1.65 * ease; a.bench.visible = k > 0.18; a.bench.scale.y = 0.035 + 0.965 * ease;
+      if (k >= 1) a.opening = false;
+    }
     if (!placing) return;
     const s = spot(), v = validate(placing.type, s.x, s.z, s.yaw); lastCheck = v;
     ghost.position.set(s.x, v.y + 0.02, s.z); ghost.rotation.y = s.yaw;

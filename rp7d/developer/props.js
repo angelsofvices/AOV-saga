@@ -469,20 +469,23 @@ export const RECIPES = {
 
   bridge(p, s, ctx) {
     const span = s.span || 12, hw = 1.9, wood = M('#6b5139', 0.9), dark = M('#4d3a28', 0.95);
-    const deckY = s.deckY;
+    const deckStartY = Number.isFinite(s.deckStartY) ? s.deckStartY : s.deckY;
+    const deckEndY = Number.isFinite(s.deckEndY) ? s.deckEndY : s.deckY;
+    const deckAt = t => deckStartY + (deckEndY - deckStartY) * t;
+    const archAt = t => Math.sin(t * Math.PI) * 0.35;
     for (let i = 0; i < Math.floor(span / 0.55); i++) {
-      const z = -span / 2 + 0.27 + i * 0.55, arch = Math.sin((z / span + 0.5) * Math.PI) * 0.45;
-      box(p, hw * 2 + (i % 3 ? 0 : 0.25), 0.2, 0.48, i % 2 ? wood : dark, 0, deckY + arch, z);
+      const z = -span / 2 + 0.27 + i * 0.55, t = (z + span / 2) / span;
+      box(p, hw * 2 + (i % 3 ? 0 : 0.25), 0.2, 0.48, i % 2 ? wood : dark, 0, deckAt(t) + archAt(t), z);
     }
     for (const x of [-hw, hw]) {
-      for (let i = 0; i <= 5; i++) { const z = -span / 2 + i * span / 5, arch = Math.sin((z / span + 0.5) * Math.PI) * 0.45; box(p, 0.24, 1.9 + 1.6, 0.24, dark, x, deckY + arch - 0.4, z); }
-      const rail = new THREE.CatmullRomCurve3([...Array(9)].map((_, i) => { const z = -span / 2 + i * span / 8; return V(x, deckY + 1.15 + Math.sin((z / span + 0.5) * Math.PI) * 0.45, z); }));
+      for (let i = 0; i <= 5; i++) { const z = -span / 2 + i * span / 5, t = i / 5; box(p, 0.24, 1.9 + 1.6, 0.24, dark, x, deckAt(t) + archAt(t) - 0.4, z); }
+      const rail = new THREE.CatmullRomCurve3([...Array(9)].map((_, i) => { const z = -span / 2 + i * span / 8, t = i / 8; return V(x, deckAt(t) + 1.15 + archAt(t), z); }));
       mesh(p, new THREE.TubeGeometry(rail, 16, 0.1, 5, false), wood);
     }
-    for (const z of [-span / 2 + 1.2, span / 2 - 1.2]) box(p, hw * 2 + 1, 0.5, 0.7, dark, 0, deckY - 0.45, z);
+    for (const [z, t] of [[-span / 2 + 0.35, 0.35 / span], [span / 2 - 0.35, 1 - 0.35 / span]]) box(p, hw * 2 + 1, 0.5, 0.7, dark, 0, deckAt(t) + archAt(t) - 0.45, z);
     return {
       colliders: [{ type: 'box', x: -hw - 0.1, z: 0, hw: 0.18, hd: span / 2 - 0.4 }, { type: 'box', x: hw + 0.1, z: 0, hw: 0.18, hd: span / 2 - 0.4 }],
-      surfaces: [{ x: 0, z: 0, hw: hw + 0.2, hd: span / 2 + 0.2, y: deckY, arch: 0.45, span }],
+      surfaces: [{ x: 0, z: 0, hw: hw + 0.2, hd: span / 2 + 0.2, y: deckStartY, endY: deckEndY, arch: 0.35, span }],
       door: V(0, 0, 0)
     };
   },

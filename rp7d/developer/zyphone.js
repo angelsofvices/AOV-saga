@@ -72,7 +72,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   let isOpen = false, tab = 0, focus = 0;
   let fpick = null, axMode = 'attr'; // Focus: the move being placed on a D-pad direction · which side of the page (attributes | moves)
   let carry = null; // Armory: what's being moved — { from: 'slot', i, k } or { from: 'bag', k }
-  let homeEdit = false, homeDrag = null, journalOpen = false, mapPoiDetailOpen = false;
+  let homeEdit = false, homeDrag = null, journalOpen = false, mapPoiDetailOpen = false, itemCategory = 'all';
   let skillCategory = 'combat', skillSelected = 'punch';
   let skinLibrary = [];
   try { const saved = JSON.parse(localStorage.getItem(SKIN_LIBRARY_KEY) || '[]'); if (Array.isArray(saved)) skinLibrary = saved.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string' && s.data?.colors); } catch {}
@@ -414,8 +414,9 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
   }
   function renderUtilities() {
     const wheel = inventory.utilityWheel ||= Array(6).fill(null);
-    const owned = [...new Set([...(inventory.owned || []).filter(k => ['life_seed','telescope','workstation'].includes(k)), ...(storage?.count('ZYCUBE','guitar') ? ['guitar'] : [])])];
-    const defs = { guitar: { name: "Psychosyd's Signed Red Guitar", blurb: 'Instrument utility · rebuilt from its body and neck at the Experiment Table. □ plays; movement or a hit stops the solo.' }, life_seed: { name: 'Life Seed', blurb: 'Plant a treehouse on grass.' }, telescope: { name: 'Stargazer Telescope', blurb: 'Set it up to look into the Aethryx Expanse.' }, workstation: { name: 'Field Workstation', blurb: 'Deploy a portable field crafting station.' } };
+    const boardCarried = !!storage?.equipmentIn('ZYCUBE', 'astralboard').length;
+    const owned = [...new Set([...(inventory.owned || []).filter(k => ['life_seed','telescope','workstation'].includes(k)), ...(storage?.count('ZYCUBE','guitar') ? ['guitar'] : []), ...(boardCarried ? ['astralboard'] : [])])];
+    const defs = { guitar: { name: "Psychosyd's Signed Red Guitar", blurb: 'Instrument utility · rebuilt from its body and neck at the Experiment Table. □ plays; movement or a hit stops the solo.' }, life_seed: { name: 'Life Seed', blurb: 'Plant a treehouse on grass.' }, telescope: { name: 'Stargazer Telescope', blurb: 'Set it up to look into the Aethryx Expanse.' }, workstation: { name: 'Field Workstation', blurb: 'Deploy a portable field crafting station.' }, astralboard: { name: 'Astralboard · Hoverboard', blurb: 'Repaired traversal utility · carry it in the Zycube, then deploy and ride it.' } };
     const esc = v => String(v).replace(/[&<>\"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const slots = wheel.map((k,i) => `<button class="zy-slot${k ? ' filled' : ''}${k === inventory.equipped ? ' current' : ''}" data-item data-utility-slot="${i}" style="--x:${Math.cos(-Math.PI / 2 + i * Math.PI / 3).toFixed(3)};--y:${Math.sin(-Math.PI / 2 + i * Math.PI / 3).toFixed(3)}"><i>${k ? icons[k] || '' : ''}</i><small>${i+1}</small></button>`).join('');
     const rows = owned.map(k => `<button class="zy-item zy-weapon${wheel.includes(k) ? ' current' : ''}" data-item data-utility="${k}"><i class="zy-wicon">${icons[k] || ''}</i><span><b>${esc(defs[k]?.name || k)}</b><em>${esc(defs[k]?.blurb || '')}</em></span><small>${wheel.includes(k) ? 'UTILITY WHUD' : 'IN ZYCUBE'}</small></button>`).join('');
@@ -434,8 +435,11 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     const have = Object.entries(inventory.items || {}).filter(([k, n]) => n > 0 && itemCatalog[k]);
     const total = have.reduce((s, [, n]) => s + n, 0);
     $('#zy-items-lede').textContent = total ? `${total} item${total === 1 ? '' : 's'} carried. Find loot out in the world and press ○ (E) to pick it up.` : 'Nothing carried yet. Find loot out in the world (wild fruit in the grass, what defeated enemies drop) and press ○ (E) to pick it up.';
-    $('#zy-items').innerHTML = ITEM_KINDS.map(([kind, head]) => {
-      const rows = have.filter(([k]) => itemCatalog[k].kind === kind);
+    const categories = [['all','ALL ITEMS'], ...ITEM_KINDS];
+    const categoryBar = `<section class="zy-item-categories"><small>CATEGORIES</small><div>${categories.map(([id,label]) => `<button class="zy-item-category${itemCategory === id ? ' current' : ''}" data-item data-item-category="${id}" aria-pressed="${itemCategory === id}">${label}</button>`).join('')}</div></section>`;
+    const visibleKinds = itemCategory === 'all' ? ITEM_KINDS : ITEM_KINDS.filter(([kind]) => kind === itemCategory);
+    $('#zy-items').innerHTML = categoryBar + visibleKinds.map(([kind, head]) => {
+      const rows = have.filter(([k]) => itemCatalog[k]?.kind === kind);
       return `<small class="zy-head-row">${head}</small>` + (rows.length
         ? rows.map(([k, n]) => { const d = itemCatalog[k]; return `<div class="zy-note zy-itemrow" data-item${d.boost ? ` data-use="${esc(k)}"` : ''}><small><i class="zy-swatch" style="background:${esc(d.color || '#ccc')}"></i>${esc(head.replace(/S$/, ''))} · ×${n}</small><b>${esc(d.name)}</b><p>${esc(d.blurb || '')}${d.boost ? '<em class="zy-use">✕ / Enter to eat</em>' : ''}</p></div>`; }).join('')
         : `<div class="zy-note locked"><small>NONE YET</small><p>${kind === 'key' ? 'Key items come from quests and the people of Malezor.' : kind === 'consumable' ? 'Fruit you pick up while its meter is full is kept here to eat later.' : 'Materials are gathered out in the world.'}</p></div>`);
@@ -447,10 +451,13 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (!storage) return;
     const e2 = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const used = storage.slotsUsed('ZYCUBE'), cap = storage.capacity(), T = storage.tier();
-    const carried = storage.contents('ZYCUBE').equipment.filter(e => e.def.category === 'FIELD_EQUIPMENT'), out = storage.equipmentIn('DEPLOYED').filter(e => e.def.category === 'FIELD_EQUIPMENT');
+    const carried = storage.contents('ZYCUBE').equipment.filter(e => e?.def?.category === 'FIELD_EQUIPMENT'), out = storage.equipmentIn('DEPLOYED').filter(e => e?.def?.category === 'FIELD_EQUIPMENT');
     const rows = ['<div class="zy-note zy-itemrow" data-item><small>OVERWORLD BASE · LIFE SEED</small><b>Rizer’s Treehouse</b><p>Fallen trees have a 10% chance to release a Life Seed. Equip it from the Armory, then press □ on grass. The treehouse grows magically for 8 seconds; climb its ladder when it is ready.</p></div>'].concat(carried.map(e => `<div class="zy-note zy-itemrow" data-item data-deploy="${e2(e.uid)}"><small><i class="zy-swatch" style="background:${e2(e.def.color)}"></i>FIELD EQUIPMENT · ○ DEPLOY</small><b>${e2(e.def.name)}</b><p>${e2(e.def.blurb)}</p></div>`)
       ).concat(out.map(e => `<div class="zy-note zy-itemrow" data-item data-packdep="${e2(e.uid)}"><small>FIELD EQUIPMENT · DEPLOYED · ○ PACK UP</small><b>${e2(defName(e.type))}</b><p>Standing out in the field. Walk back to it, then pack it up here.</p></div>`));
-    $('#zy-items').insertAdjacentHTML('afterbegin', `<div class="zy-capline"><b>ZYCUBE</b><i><span style="width:${Math.min(100, used / cap * 100)}%"></span></i><span>${used} / ${cap} slots · ${e2(T.name)}</span></div><small class="zy-head-row">FIELD EQUIPMENT</small>${rows.join('') || '<div class="zy-note locked"><small>NONE CARRIED</small><p>Craft Field Equipment at your Experiment Table, then carry it here.</p></div>'}`);
+    const categories = $('#zy-items').querySelector('.zy-item-categories');
+    const equipmentBlock = `<div class="zy-capline"><b>ZYCUBE</b><i><span style="width:${Math.min(100, used / cap * 100)}%"></span></i><span>${used} / ${cap} slots · ${e2(T.name)}</span></div><small class="zy-head-row">FIELD EQUIPMENT</small>${rows.join('') || '<div class="zy-note locked"><small>NONE CARRIED</small><p>Craft Field Equipment at your Experiment Table, then carry it here.</p></div>'}`;
+    if (categories) categories.insertAdjacentHTML('afterend', equipmentBlock);
+    else $('#zy-items').insertAdjacentHTML('afterbegin', equipmentBlock);
   }
   const defName = id => itemCatalog[id]?.name || id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   function renderExperiment() {
@@ -554,6 +561,7 @@ export function createZyphone({ W, hud, characters, getState, onTime, onCharacte
     if (el.dataset.mapDistrict) { hud.selectDistrict(el.dataset.mapDistrict); render(); return; }
     if (el.dataset.mapCategory) { hud.setMapCategory(el.dataset.mapCategory); render(); return; }
     if (el.dataset.mapPoi) { hud.selectPoi(el.dataset.mapPoi); mapPoiDetailOpen = true; render(); return; }
+    if (el.dataset.itemCategory) { itemCategory = el.dataset.itemCategory; render(); focus = items().findIndex(x => x.dataset.itemCategory === itemCategory); paintFocus(); return; }
     if (el.dataset.journalOpen != null) { journalOpen = true; render(); return; }
     if (el.dataset.journalBack != null) { journalOpen = false; render(); return; }
     if (el.dataset.controlContext) { controlContext = el.dataset.controlContext; render(); focus = items().findIndex(x => x.dataset.controlContext === controlContext); paintFocus(); return; }

@@ -717,7 +717,7 @@ function itemChest(scene, world, fx, { id, item, ride = false, brokenId = null, 
 }
 
 // ── common wooden chests scattered through Malezor: 1–100 coins each, opened once ──
-export function createCommonChests(scene, world, fx, W, isCore, avoid = [], onPop, onPiles) {
+export function createCommonChests(scene, world, fx, W, isCore, avoid = [], onPop, onPiles, onBreak) {
   const opened = inventory.chests ||= {};
   let seed = ((W.seed || 7) + 9191) >>> 0;
   const r = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -737,7 +737,8 @@ export function createCommonChests(scene, world, fx, W, isCore, avoid = [], onPo
   const chests = list.map(c => {
     const y = world.groundAt(c.x, c.z), C = buildChest('wood'); C.root.position.set(c.x, y, c.z); C.root.rotation.y = c.face; scene.add(C.root);
     chestCollider(world, c.x, c.z, y, c.face, C.root);
-    const ch = { ...c, y, C, state: opened[c.id] ? 'empty' : 'closed', t: 0 };
+    const ch = { ...c, y, C, state: opened[c.id] === 'broken' ? 'broken' : opened[c.id] ? 'empty' : 'closed', t: 0, hp: 3, maxHP: 3, hitKeys: new Set() };
+    if (ch.state === 'broken') C.root.visible = false;
     if (ch.state === 'empty') { C.hinge.rotation.x = -1.9; C.inner.material.emissiveIntensity = 0.2; }
     ch.spot = { id: c.id, kind: 'chest', common: true, chest: ch, discover: false, reach: 3.2, name: 'Open wooden chest', x: c.x, z: c.z, cx: c.x, cz: c.z };
     if (ch.state === 'closed') world.interactables.push(ch.spot);
@@ -756,10 +757,42 @@ export function createCommonChests(scene, world, fx, W, isCore, avoid = [], onPo
     saveInv();
     return piles.length;
   }
+  function damage(ch, amount = 1, hitKey = `chest-hit-${performance.now()}`) {
+    if (!ch || ch.state === 'broken' || !(amount > 0) || ch.hitKeys.has(hitKey)) return false;
+    ch.hitKeys.add(hitKey); if (ch.hitKeys.size > 20) ch.hitKeys.clear();
+    ch.hp = Math.max(0, ch.hp - amount);
+    const ratio = ch.hp / ch.maxHP;
+    ch.C.root.scale.set(1 + (1-ratio)*0.035, 1 - (1-ratio)*0.025, 1 + (1-ratio)*0.035);
+    for (const o of ch.C.root.children) if (o.isMesh && o.material?.color) o.material.color.lerp(new THREE.Color('#6b3826'), 0.12);
+    fx.emit(ch.x, ch.y + 0.28, ch.z, ch.hp ? 5 : 18, { color: '#b67b4b', speed: ch.hp ? 1.2 : 3.2, up: ch.hp ? 0.7 : 1.8, size: ch.hp ? 0.12 : 0.22, life: 0.55, g: 1.2 });
+    if (ch.hp > 0) return true;
+    const wasClosed = ch.state === 'closed';
+    if (wasClosed) {
+      open(ch); // keeps the existing one-time coin roll and persistence rules
+      const piles = ch.piles || []; ch.piles = null; ch.burst = true;
+      if (piles.length) onPiles?.(ch, piles, { x: ch.x, y: ch.y + CHEST.h + 0.2, z: ch.z });
+      ch.state = 'empty'; ch.C.hinge.rotation.x = -1.9; ch.C.inner.material.emissiveIntensity = 0.2;
+    }
+    ch.pendingBreak = true; ch.breakTimer = 0.35;
+    opened[ch.id] = 'broken'; saveInv();
+    onBreak?.(ch, 2);
+    return true;
+  }
+  function hitSegment(seg, amount, hitKey) {
+    let hits = 0;
+    for (const ch of chests) {
+      if (ch.state === 'broken' || Math.abs((seg.a.y + seg.b.y) * 0.5 - (ch.y + CHEST.h * 0.5)) > 1.25) continue;
+      const dx = (seg.a.x + seg.b.x) * 0.5 - ch.x, dz = (seg.a.z + seg.b.z) * 0.5 - ch.z;
+      if (dx * dx + dz * dz > 1.25 * 1.25 + (seg.r || 0.15)) continue;
+      if (damage(ch, amount, hitKey)) hits++;
+    }
+    return hits;
+  }
   let shown = true;
   function update(dt, p) {
     for (const ch of chests) {
-      if (p && shown) ch.C.root.visible = Math.hypot(ch.x - p.x, ch.z - p.z) < 70; // far chests aren't drawn (7 draw calls each)
+      if (p && shown) ch.C.root.visible = ch.state !== 'broken' && Math.hypot(ch.x - p.x, ch.z - p.z) < 70; // far chests aren't drawn (7 draw calls each)
+      if (ch.pendingBreak) { ch.breakTimer -= dt; ch.C.root.rotation.z = Math.sin(ch.breakTimer * 45) * 0.045; if (ch.breakTimer <= 0) { ch.pendingBreak = false; ch.state = 'broken'; ch.C.root.visible = false; opened[ch.id] = 'broken'; saveInv(); } }
       if (ch.state !== 'opening') continue;
       ch.t += dt; const k = Math.min(1, ch.t / 0.5), e = 1 - Math.pow(1 - k, 3), C = ch.C;
       C.hinge.rotation.x = -1.9 * e; C.light.intensity = 6 * Math.sin(k * Math.PI) + 1.5 * e; C.inner.material.emissiveIntensity = 1.2 * e;
@@ -775,11 +808,11 @@ export function createCommonChests(scene, world, fx, W, isCore, avoid = [], onPo
           fx.emit(ch.x, ch.y + CHEST.h + 0.2, ch.z, 26, { color: '#ffd24a', speed: 2.6, up: 3.2, size: 0.3, life: 0.8, g: 6 });
         }
       }
-      if (k >= 1) { ch.state = 'empty'; C.light.intensity = 0; C.inner.material.emissiveIntensity = 0.2; }
+      if (k >= 1) { ch.state = 'empty'; C.light.intensity = 0; C.inner.material.emissiveIntensity = 0.2; if (ch.pendingBreak) ch.breakTimer = Math.min(ch.breakTimer, 0.18); }
     }
   }
   const setVisible = v => { shown = v; for (const ch of chests) ch.C.root.visible = v; };
-  return { chests, open, update, setVisible, front: ch => chestFront(ch.C) };
+  return { chests, open, damage, hitSegment, update, setVisible, front: ch => chestFront(ch.C) };
 }
 
 // ── weapons on Rizer: in his hand when drawn, stowed on his body otherwise, plus the swing trail ──

@@ -1386,7 +1386,12 @@ export class Rizer {
     let blockedMove = false;
     const pass = this.auto?.pass, passing = pass && Math.hypot(p.x - pass.x, p.z - pass.z) < pass.r; // the last step up to a door
     for (let i = 0; i < steps; i++) {
+      const stepX = p.x, stepZ = p.z;
       p.x += this.vel.x * dt / steps; p.z += this.vel.z * dt / steps;
+      const nature = world.nature?.userData?.breakables;
+      const bigNatureWall = !this.flying && !this.usedDouble && !this.vault && !!nature && [...(nature.trees || []), ...(nature.stones || [])].some(e =>
+        !e.broken && nature.sizeClass(e) === 'big' && Math.hypot(p.x - e.x, p.z - e.z) < (e.radius || 0.5) + TUNE.radius + 0.08);
+      if (bigNatureWall) { p.x = stepX; p.z = stepZ; blockedMove = true; continue; } // a tall tree or boulder needs the second jump (or flight) to clear
       const vaulting = this.vault && this.vault.t >= COMBAT.vault.over[0] && this.vault.t < COMBAT.vault.over[1]; // over the obstacle: no collision
       let landedOnSurface = false;
       // A descending foot that has reached a material top lands before the side

@@ -83,8 +83,12 @@ export function createWorld(W, scene, shared) {
     const cos = Math.cos(site.face || 0), sin = Math.sin(site.face || 0);
     const toWorld = (lx, lz) => [site.x + lx * cos + lz * sin, site.z - lx * sin + lz * cos];
     if (site.recipe === 'bridge') {
-      const [ax, az] = toWorld(0, -site.span / 2 - 0.5), [bx, bz] = toWorld(0, site.span / 2 + 0.5);
-      baseY = 0; site.deckY = Math.max(T.heightAt(ax, az), T.heightAt(bx, bz)) + 0.22;
+      // Set both deck ends onto the actual bank elevations. The crossing follows
+      // the land gently instead of using one high, level deck that floats over
+      // the lower bank at one end.
+      const [ax, az] = toWorld(0, -site.span / 2), [bx, bz] = toWorld(0, site.span / 2);
+      baseY = 0; site.deckStartY = T.heightAt(ax, az); site.deckEndY = T.heightAt(bx, bz);
+      site.deckY = (site.deckStartY + site.deckEndY) * 0.5;
     }
     const out = recipe(local, { ...site, ...extra, buildingScale: BUILDING_SCALE[site.recipe] }, { heightAt: T.heightAt });
     // RP7B buildings meet the land at their walls and supports; large floating
@@ -223,7 +227,10 @@ export function createWorld(W, scene, shared) {
         top = s.y + Math.sqrt(Math.max(0, s.radius * s.radius - d2));
       } else {
         if (Math.abs(lx) > s.hw || Math.abs(lz) > s.hd) continue;
-        top = s.y + (s.arch ? Math.sin((lz / s.span + 0.5) * Math.PI) * s.arch : 0);
+        if (Number.isFinite(s.endY) && s.span) {
+          const t = Math.max(0, Math.min(1, lz / s.span + 0.5));
+          top = s.y + (s.endY - s.y) * t + (s.arch ? Math.sin(t * Math.PI) * s.arch : 0);
+        } else top = s.y + (s.arch ? Math.sin((lz / s.span + 0.5) * Math.PI) * s.arch : 0);
       }
       // Only catch a descending player just above the actual surface; this
       // avoids snapping up from below or teleport-like rooftop corrections.

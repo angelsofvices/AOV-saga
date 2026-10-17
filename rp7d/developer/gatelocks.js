@@ -256,8 +256,9 @@ export function createGatelocks(scene, world, W, fx, { toast, sfx, onEvent } = {
       // through the aperture, off the ground: out of another open gatelock, chosen at random
       if (g.state === 'open' && !hidden && d < 6) {
         const th = g.root.rotation.y, sn = Math.sin(th), cs = Math.cos(th), lx = (rp.x - p.x) * cs - (rp.z - p.z) * sn, lz = (rp.x - p.x) * sn + (rp.z - p.z) * cs, T = G.through;
-        const crossed = g.lastLz != null && lz * g.lastLz < 0 && Math.abs(lz) + Math.abs(g.lastLz) < 3 && Math.abs(lx) < T.half && dy > T.lo && dy < T.hi;
-        if (crossed && !rizer.onGround && rizer.hp > 0 && now > (g.tpCool || 0)) {
+        const heightOK = rizer.onGround ? dy > -0.25 && dy < T.hi : dy > T.lo && dy < T.hi;
+        const crossed = g.lastLz != null && lz * g.lastLz < 0 && Math.abs(lz) + Math.abs(g.lastLz) < 3 && Math.abs(lx) < T.half && heightOK;
+        if (crossed && rizer.hp > 0 && now > (g.tpCool || 0)) {
           const others = list.filter(o => o !== g && o.state === 'open');
           if (!others.length) { if ((now - g.lastToast) / 1000 > G.toastEvery) { g.lastToast = now; toast?.('PORTAL GATELOCK · no other gate is open · it leads nowhere yet'); } }
           else {

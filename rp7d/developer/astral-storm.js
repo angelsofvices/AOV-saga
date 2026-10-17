@@ -159,12 +159,13 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
       TORNADO_SPAWN: tl => { // on the ground below him, wherever he is (in the air too)
         const p = rizer.position, gy = ground(p.x, p.z, p.y + 0.5);
         tl.tornado = makeTornado(); tl.tornado.position.set(p.x, gy, p.z); scene.add(tl.tornado);
-        tl.dir = new THREE.Vector3(Math.sin(rizer.facing), 0, Math.cos(rizer.facing)); tl.caught = new Map(); tl.tick = 0;
+        tl.dir = new THREE.Vector3(Math.sin(rizer.facing), 0, Math.cos(rizer.facing)); tl.caught = new Map(); tl.natureCaught = new Set(); tl.tick = 0; tl.envTick = 0; tl.envSerial = 0;
         fx.emit(p.x, gy + 0.3, p.z, 30, { color: '#cfe3ff', speed: 4, up: 0.8, size: 0.4, life: 0.6, g: 1 });
       },
       STORM_ACTIVE: tl => { tl.storm = true; sfx?.play('thunder', 0.5, 1.3); },
       SPIN_RELEASE: tl => { if (rizer.actor?.shot && (rizer.actor.shot.kind === slot)) rizer.actor.release?.(slot, 0.25); },
       STORM_END: tl => { // the tornado dissipates and lets go of everything it holds
+        for (const e of tl.natureCaught || []) world.nature?.userData?.breakables?.finishSpin(e, `astralspin-break-${Math.floor(performance.now())}-${e.index ?? e.id ?? e.kind}`);
         if (tl.tornado) { const c = tl.tornado.position; fx.emit(c.x, c.y + 2, c.z, 40, { color: '#bcd8ff', speed: 4, up: 2, size: 0.4, life: 0.7, g: 1 }); scene.remove(tl.tornado); tl.tornado.traverse(o => { o.geometry?.dispose(); if (o.material) o.material.dispose(); }); tl.tornado = null; }
         for (const [g, o] of tl.caught || []) { releaseCaught(tl, g, o); if (foes.alive(g)) foes.blastBack(g, tl.lastAt || rizer.position, S.endDamage, 0.4, 'astralspin'); }
         tl.storm = false;
@@ -211,6 +212,8 @@ export function createAstralStorm({ scene, world, fx, astral, foes, sfx, cam, on
     if (Math.random() < dt * 14) fx.emit(T.position.x + (Math.random() - 0.5) * 3, T.position.y + Math.random() * S.height * T.scale.y, T.position.z + (Math.random() - 0.5) * 3, 2, { color: '#cfe3ff', speed: 1.2, up: 1.5, size: 0.2, life: 0.4, g: -1 });
     T.userData.ribbons.forEach((m, i) => { m.rotation.y += dt * (4 + i) * acceleration; });
     if (!tl.storm) return;
+    tl.envTick -= dt;
+    if (tl.envTick <= 0) { tl.envTick = 0.32; tl.envSerial++; for (const e of (world.nature?.userData?.breakables?.spin(T.position, S.radius * growth, dt, `astralspin-${tl.envSerial}`) || [])) tl.natureCaught.add(e); }
     // the storm: enemies inside are dragged in, lifted and swirled, and the lightning keeps striking them
     for (const g of foes.grunts) {
       if (!foes.alive(g)) continue;

@@ -737,6 +737,7 @@ export async function createSeers(scene, world, W) {
           if (g.launch) { flyLaunch(g, statusDt); world.resolve(p, g.T.radius); p.y = world.groundAt(p.x, p.z, p.y + 0.5) + (g.launch?.y || 0); } // thrown by the blast that finished them
           // Hold the final death pose indefinitely until the player takes the bag.
           g.fall += statusDt;
+          if (g.T.key === 'crept' && g.looted && g.creptStomped && performance.now() / 1000 >= g.creptStompAt + 30) { g.state = 'sinking'; g.sink = 0; g.fragmentSink = 0; g.timer = g.T.respawn; }
           break;
         case 'sinking':
           g.sink += statusDt; g.timer -= statusDt;
@@ -1001,10 +1002,12 @@ export async function createSeers(scene, world, W) {
       const g = target?.enemy;
       if (!g || g.state !== 'down' || g.looted) return null;
       const eater = feedClaims.get(g); if (eater) { releaseFeed(eater); eater.state = 'return'; eater.wp = nearestWp(eater); }
-      g.looted = true; g.lootBag.visible = false; g.state = 'sinking'; g.sink = 0; g.fragmentSink = 0; g.timer = g.T.respawn;
+      g.looted = true; g.lootBag.visible = false;
+      if (g.T.key !== 'crept' || (g.creptStomped && performance.now() / 1000 >= g.creptStompAt + 30)) { g.state = 'sinking'; g.sink = 0; g.fragmentSink = 0; g.timer = g.T.respawn; }
       const index = world.interactables.indexOf(g.drop); if (index >= 0) world.interactables.splice(index, 1);
       return { currency: 'coins', amount: rollEnemyBag(g.T), gemshards: bagKind(g.T) === 'seer' ? 1 : 0, enemy: g.T.name };
     },
+    stompCrept: target => { const g = target?.enemy || target; if (!g || g.T?.key !== 'crept' || g.state !== 'down') return false; g.creptStomped = true; g.creptStompAt ??= performance.now() / 1000; return true; },
     inCombat: pos => grunts.some(g => alive(g) && ['alert', 'chase', 'windup', 'attack', 'evade', 'stagger', 'dazed', 'surprised', 'astraliftDown', 'gettingUp'].includes(g.state) && Math.hypot(g.pos.x - pos.x, g.pos.z - pos.z) < 18),
     respawnAll: () => grunts.forEach(reset),
     get defeated() { return defeated; }, get total() { return grunts.length; }, set onDefeated(f) { onDefeated = f; },

@@ -5,6 +5,8 @@ import { addFiles as addAnimationFiles, clipFor as retargetAnimation, ready as a
 import { CONTROL_GUIDE } from './zyphone.js';
 
 const SAVE_KEY = 'rp7d.andre.save.v1';
+const CHARACTER_PROFILE_KEY = 'rp7d.character-profile.v1';
+const DEFAULT_ANDRE_SKIN = '#ebab7f';
 const DREAMLAND_CSS = `
 #game.viridia-active{background:#fff;color:#171717}#game.viridia-active>#world{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
 #game.viridia-active>:not(#world):not(#viridia-ui){display:none!important}
@@ -69,7 +71,7 @@ export function createViridiaDreamland(host) {
     </div>
     <section id="viridia-phone" hidden aria-label="Andre's Zyphone">
       <header><span>✦ &nbsp; ASTRADECK</span><small>BOOK OF VIRIDIA · ANDRE HART</small><button type="button" data-phone-close>○ CLOSE</button></header>
-      <nav aria-label="Astradeck pages"><button type="button" data-phone-page="home">HOME</button><button type="button" data-phone-page="controls">CONTROLS</button><button type="button" data-phone-page="animations">ANIMATIONS</button></nav>
+      <nav aria-label="Astradeck pages"><button type="button" data-phone-page="home">HOME</button><button type="button" data-phone-page="character">CHARACTER</button><button type="button" data-phone-page="controls">CONTROLS</button><button type="button" data-phone-page="animations">ANIMATIONS</button></nav>
       <div class="viridia-phone-body" id="viridia-phone-body"></div>
       <footer class="viridia-help"><kbd>TOUCHPAD / Z</kbd> OPEN / CLOSE <i>·</i> <kbd>L1 / R1</kbd> PAGES <i>·</i> <kbd>○</kbd> BACK</footer>
     </section>
@@ -78,6 +80,7 @@ export function createViridiaDreamland(host) {
   const prompt = ui.querySelector('#viridia-prompt'), chapterPanel = ui.querySelector('#viridia-chapters'), chapterList = ui.querySelector('#viridia-chapter-list'), notice = ui.querySelector('#viridia-notice');
   const phone = ui.querySelector('#viridia-phone'), phoneBody = ui.querySelector('#viridia-phone-body');
   let active = false, panelOpen = false, phoneOpen = false, phonePage = 'home', selected = 0, bookFound = false, chapter = null, clock = 0, noticeTimer = 0;
+  const characterProfile = loadCharacterProfile();
   const pos = new THREE.Vector3(), velocity = new THREE.Vector3(), camPos = new THREE.Vector3(), lookAt = new THREE.Vector3(0, 1, 0);
   let yaw = Math.PI, pitch = 0.22, lastPad = [], lastMoveX = 0, lastMoveY = 0, interactWasDown = false, jumpWasDown = false, runningJumpActive = false, saveTimer = 0, selectedAnimSlot = 'idle';
   const actionSlots = SLOTS.filter(s => !['standup','shocked','tornadoWobble','tornadoFloat','dazedWalk','dazedRun','undeadRun','crawl','stunned','bite','feedBody','rifleDeath'].includes(s.key));
@@ -130,11 +133,10 @@ export function createViridiaDreamland(host) {
     root.userData.sigil = sigil; return root;
   }
   function buildFallbackAndre() {
-    const skin = new THREE.MeshStandardMaterial({ color: '#754b36', roughness: 0.82 });
+    const skin = new THREE.MeshStandardMaterial({ color: characterProfile.skin.color, roughness: 0.82 });
     const dark = new THREE.MeshStandardMaterial({ color: '#1a1b20', roughness: 0.76 });
     const cloth = new THREE.MeshStandardMaterial({ color: '#ddd8c9', roughness: 0.9 });
     const blue = new THREE.MeshStandardMaterial({ color: '#243b53', roughness: 0.82 });
-    const gold = new THREE.MeshStandardMaterial({ color: '#b6934e', metalness: 0.32, roughness: 0.56 });
     const part = (geo, mat, parent, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
     const torso = part(new THREE.CapsuleGeometry(0.29, 0.42, 3, 7), cloth, avatar, 0, 1.04, 0);
     const head = part(new THREE.SphereGeometry(0.22, 9, 7), skin, avatar, 0, 1.62, 0);
@@ -148,8 +150,18 @@ export function createViridiaDreamland(host) {
       part(new THREE.CapsuleGeometry(0.11, 0.39, 2, 5), blue, leg, 0, -0.28, 0); part(new THREE.BoxGeometry(0.18, 0.1, 0.32), dark, leg, 0, -0.53, 0.065); legs.push(leg);
     }
     const mantle = part(new THREE.ConeGeometry(0.36, 0.8, 5, 1, true), cloth, avatar, 0, 1.05, -0.19); mantle.rotation.x = Math.PI;
-    const sash = part(new THREE.BoxGeometry(0.12, 0.8, 0.035), gold, avatar, 0.12, 1.05, 0.275); sash.rotation.z = -0.35;
     return { torso, head, arms, legs };
+  }
+  function loadCharacterProfile() {
+    const defaults = { version: 1, characterId: 'andre', stages: ['build', 'skin', 'hairAndFace', 'clothing', 'archetype', 'attributes', 'animations'], build: { preset: 'base' }, skin: { color: DEFAULT_ANDRE_SKIN }, hairAndFace: {}, clothing: {}, archetype: {}, attributes: {}, animations: {} };
+    try {
+      const saved = JSON.parse(localStorage.getItem(CHARACTER_PROFILE_KEY) || 'null');
+      if (!saved || saved.characterId !== 'andre') return defaults;
+      return { ...defaults, ...saved, skin: { ...defaults.skin, ...saved.skin }, build: { ...defaults.build, ...saved.build } };
+    } catch { return defaults; }
+  }
+  function saveCharacterProfile() {
+    try { localStorage.setItem(CHARACTER_PROFILE_KEY, JSON.stringify(characterProfile)); } catch {}
   }
   function recolorAndre(root) {
     root.traverse(o => {
@@ -158,7 +170,8 @@ export function createViridiaDreamland(host) {
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       const changed = mats.map(m => {
         const c = m.clone(); const n = `${o.name} ${m.name}`.toLowerCase();
-        if (/skin|body/.test(n)) c.color.set('#80543b');
+        if (/\bband\b|\bbelt\b/.test(n)) c.visible = false;
+        else if (/skin|body/.test(n)) c.color.set(characterProfile.skin.color);
         else if (/pant|cloth|shirt|torso/.test(n)) c.color.set('#d9d3c1');
         else if (/band|belt|gold|trim/.test(n)) c.color.set('#ad8b4c');
         else if (/eye|mouth/.test(n)) c.color.set('#19191c');
@@ -222,7 +235,20 @@ export function createViridiaDreamland(host) {
   }
   function renderPhone() {
     if (phonePage === 'home') {
-      phoneBody.innerHTML = `<h2>ANDRE'S ASTRADECK</h2><p class="phone-lede">Campaign tools for Andre Hart. Controls are shared with Book of Zyraxis; animation assignments are saved to Andre's campaign only.</p><div class="controls-grid"><div class="control-card"><h3>ANIMATION LAB</h3><p class="phone-lede">Assign and preview FBX clips for generic gameplay actions. Drop a clip into any action slot.</p><button type="button" data-phone-page="animations">OPEN ANIMATIONS</button></div><div class="control-card"><h3>RP7 CONTROLS</h3><p class="phone-lede">Browse the shared keyboard and controller layout.</p><button type="button" data-phone-page="controls">VIEW CONTROLS</button></div><div class="control-card"><h3>BLOODLINE ECHOES</h3><p class="phone-lede">Open the physical Book of Viridia to browse its ten chapters.</p><button type="button" data-phone-close>RETURN TO DREAMLAND</button></div></div>`;
+      phoneBody.innerHTML = `<h2>ANDRE'S ASTRADECK</h2><p class="phone-lede">Campaign tools for Andre Hart. Controls are shared with Book of Zyraxis; animation assignments are saved to Andre's campaign only.</p><div class="controls-grid"><div class="control-card"><h3>CHARACTER SETUP</h3><p class="phone-lede">Build a character in stages, starting from Andre's base model.</p><button type="button" data-phone-page="character">OPEN CHARACTER SETUP</button></div><div class="control-card"><h3>ANIMATION LAB</h3><p class="phone-lede">Assign and preview FBX clips for generic gameplay actions. Drop a clip into any action slot.</p><button type="button" data-phone-page="animations">OPEN ANIMATIONS</button></div><div class="control-card"><h3>RP7 CONTROLS</h3><p class="phone-lede">Browse the shared keyboard and controller layout.</p><button type="button" data-phone-page="controls">VIEW CONTROLS</button></div><div class="control-card"><h3>BLOODLINE ECHOES</h3><p class="phone-lede">Open the physical Book of Viridia to browse its ten chapters.</p><button type="button" data-phone-close>RETURN TO DREAMLAND</button></div></div>`;
+    } else if (phonePage === 'character') {
+      const stages = [['build','01 · BUILD','Base skeletal body'],['skin','02 · SKIN','Skin tone'],['hairAndFace','03 · HAIR & FACE','Hair and facial features'],['clothing','04 · CLOTHING','Clothing and equipment'],['archetype','05 · ARCHETYPE','Character role'],['attributes','06 · ATTRIBUTES','Gameplay attributes'],['animations','07 · ANIMATIONS','Movement and action set']];
+      phoneBody.innerHTML = `<h2>CHARACTER SETUP</h2><p class="phone-lede">A reusable character creation pipeline for Viridia and future online characters. Andre is the starting base; later stages stay ready for confirmed assets.</p><div class="controls-grid"><section class="control-card"><h3>CREATION ORDER</h3>${stages.map(([key, label, desc]) => `<div class="control-row"><b>${label}</b><span>${key === 'build' ? 'BASE MODEL' : key === 'skin' ? 'EDITABLE' : 'NEXT PHASE'} · ${desc}</span></div>`).join('')}</section><section class="control-card"><h3>01 · BASE BODY</h3><p class="phone-lede">Andre's neutral skeletal base. Character details will be layered on after the customization pipeline is confirmed.</p><h3>02 · SKIN</h3><label class="control-row" for="andre-skin-color"><b>Andre's skin tone</b><span><input id="andre-skin-color" type="color" value="${escHtml(characterProfile.skin.color)}" aria-label="Andre skin color"></span></label><p class="phone-lede">Current base tone: ${escHtml(characterProfile.skin.color.toUpperCase())}</p></section></div>`;
+      phoneBody.querySelector('#andre-skin-color')?.addEventListener('input', event => {
+        characterProfile.skin.color = event.target.value.toLowerCase(); saveCharacterProfile();
+        if (actorRig?.model) actorRig.model.traverse(o => {
+          if (!o.isMesh) return;
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          for (const material of mats) if (/skin|body/i.test(`${o.name} ${material.name}`)) material.color.set(characterProfile.skin.color);
+        });
+        else if (bones.head) { bones.head.material.color.set(characterProfile.skin.color); bones.arms.forEach(arm => arm.children.at(-1)?.material.color.set(characterProfile.skin.color)); }
+        const label = phoneBody.querySelector('.phone-lede:last-child'); if (label) label.textContent = `Current base tone: ${characterProfile.skin.color.toUpperCase()}`;
+      });
     } else if (phonePage === 'controls') {
       phoneBody.innerHTML = `<h2>RP7 CONTROL GUIDE</h2><p class="phone-lede">These inputs match the Book of Zyraxis. Move sets and animation assignments remain character-specific.</p><div class="controls-grid">${Object.values(CONTROL_GUIDE).map(group => `<section class="control-card"><h3>${escHtml(group.name).toUpperCase()}</h3>${group.rows.map(([action,keyboard,controller]) => `<div class="control-row"><b>${escHtml(action.replace('Zyphone','Astradeck'))}</b><span>${escHtml(keyboard)} &nbsp; / &nbsp; ${escHtml(controller)}</span></div>`).join('')}</section>`).join('')}</div>`;
     } else {
@@ -277,8 +303,8 @@ export function createViridiaDreamland(host) {
     if (phoneOpen) {
       if (actorRig && previewAction) { actorRig.update(dt, 0, true, 0); previewTimer -= dt; if (previewTimer <= 0) { actorRig.stopPreview(); previewAction = null; } }
       if (pressed.has('Escape') || pressed.has('Backspace') || edge(1)) { closePhone(); }
-      else if (edge(4)) { const pages = ['home','controls','animations']; setPhonePage(pages[(pages.indexOf(phonePage) + pages.length - 1) % pages.length]); }
-      else if (edge(5)) { const pages = ['home','controls','animations']; setPhonePage(pages[(pages.indexOf(phonePage) + 1) % pages.length]); }
+      else if (edge(4)) { const pages = ['home','character','controls','animations']; setPhonePage(pages[(pages.indexOf(phonePage) + pages.length - 1) % pages.length]); }
+      else if (edge(5)) { const pages = ['home','character','controls','animations']; setPhonePage(pages[(pages.indexOf(phonePage) + 1) % pages.length]); }
       else if (pressed.has('Enter') || edge(0)) { document.activeElement?.click?.(); }
       else if (pressed.has('ArrowUp') || pressed.has('ArrowDown') || edge(12) || edge(13)) {
         const cards = [...phoneBody.querySelectorAll('[data-anim-slot], [data-phone-page], [data-anim-preview], [data-anim-import]')];

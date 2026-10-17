@@ -104,7 +104,7 @@ export const MALEZOR = {
     site('malezor-the-first-den', 'firstDen', -42, 180, { name: 'The First Den', kind: 'landmark', note: 'Sanctuary for young Zyrex deciding whether to bond. Sealed for now.', canon: true }),
     site('fallen-titan', 'fallenTitan', -14, 68, { name: 'The Fallen Titan', kind: 'landmark', note: 'A Malezor landmark, kept from the RP7D pass.' }),
     site('malezor-square', 'fountain', 22, 87, { name: 'Malezor Square', kind: 'civic', note: 'The heart of Malezor.' }),
-    site('timber-crossing', 'bridge', 100, 101, { face: Math.PI / 2 + 0.07, span: 18, name: 'Timber Crossing', kind: 'crossing', note: 'A crossing over the East Wetland river.' })
+    site('timber-crossing', 'bridge', 100, 101, { face: Math.PI / 2 + 0.07, span: 26, name: 'Timber Crossing', kind: 'crossing', note: 'A crossing over the East Wetland river.' })
   ],
 
   paddocks: [

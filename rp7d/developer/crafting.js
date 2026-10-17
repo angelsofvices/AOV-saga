@@ -1,4 +1,4 @@
-// RP7D · crafting foundation. Items are CREATED only at the Experiment Table (the Zyphone never crafts).
+// RP7D · crafting foundation. Items are created at configured stations (the Zyphone never crafts).
 // Recipes are data. Adding one is one more entry here: nothing else in the game changes.
 //   { id, name, outputId, outputQuantity, ingredients:[{itemId, quantity}], known, prerequisites:[recipeId], stationType }
 // Reads resources through ZyLink (Home PC + Zycube), spends Home PC stock first, and delivers the output to the Home PC.
@@ -29,7 +29,7 @@ export const RECIPES = [
     { id: 'guitar', name: "Rebuild Psychosyd's Signed Red Guitar", outputId: 'guitar', materials: [['guitar_body',1],['guitar_neck',1],['fresh_wood',14],['scrap_metal',8]] },
     { id: 'telescope', name: 'Stargazer Telescope', outputId: 'telescope', broken: 'broken_telescope', materials: [['scrap_metal',20],['everstone',8],['fresh_wood',6]] },
     { id: 'astralboard', name: 'Astralboard', outputId: 'astralboard', broken: 'broken_astralboard', materials: [['scrap_metal',30],['everstone',14],['fresh_wood',10],['gemshard',3]] }
-  ].flatMap(x => (x.id === 'guitar' ? ['EXPERIMENT_TABLE'] : ['EXPERIMENT_TABLE','FIELD_WORKSTATION']).map(stationType => ({
+  ].flatMap(x => ['EXPERIMENT_TABLE','FIELD_WORKSTATION'].map(stationType => ({
     id: `${x.id === 'guitar' ? 'rebuild' : 'repair'}_${x.id}_${stationType.toLowerCase()}`, name: `${x.id === 'guitar' ? 'Rebuild' : 'Repair'} · ${x.name}`, outputId: x.outputId, outputQuantity: 1,
     ingredients: [...(x.broken ? [{ itemId: x.broken, quantity: 1 }] : []), ...x.materials.map(([itemId, quantity]) => ({ itemId, quantity }))],
     known: true, prerequisites: [], stationType, testRecipe: true,

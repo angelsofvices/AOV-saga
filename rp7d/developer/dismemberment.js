@@ -4,13 +4,15 @@ import * as THREE from 'three';
 // currently posed skinned mesh so they inherit the struck character's colors.
 export function createDismemberment(scene, world) {
   const live = new Set();
-  const clean = list => { for (const f of list || []) { scene.remove(f.mesh); f.mesh.geometry.dispose(); live.delete(f); } };
+  const clean = list => { for (const f of list || []) { scene.remove(f.mesh); f.mesh.geometry?.dispose(); live.delete(f); } };
   function restore(actor) {
     for (const [mesh, original] of actor?.dismemberGeometries || []) {
       if (mesh.geometry !== original) mesh.geometry.dispose();
       mesh.geometry = original;
     }
     actor?.dismemberGeometries?.clear();
+    for (const [object, visible] of actor?.dismemberVisibility || []) object.visible = visible;
+    actor?.dismemberVisibility?.clear();
   }
   const strip = n => n.replace(/^mixamorig[:_]?/, '');
   function split(actor, part, direction = new THREE.Vector3(0, 0, 1), extra = false) {
@@ -28,6 +30,7 @@ export function createDismemberment(scene, world) {
     } else boneNames = ['Spine', 'Hips'];
     if (extra && !/Head|Neck/.test(p)) boneNames.push('Head');
     const wanted = new Set(boneNames), meshes = [];
+    const skellorHead = actor.obliterationHead?.kind === 'skellor' && wanted.has('Head');
     actor.model.traverse(o => { if (o.isSkinnedMesh) meshes.push(o); });
     const made = [];
     for (const source of meshes) {
@@ -52,6 +55,9 @@ export function createDismemberment(scene, world) {
           const cut = affected(ids[0]) + affected(ids[1]) + affected(ids[2]) >= 0.82;
           if (!cut) { kept.push(...ids); continue; }
           removedTriangles++;
+          // Skellor's shared base rig has Mori face geometry. Remove that head
+          // from the body, but use its own authored ivory skull as the fragment.
+          if (skellorHead) continue;
           if (!bucket) { bucket = { positions: [], uvs: [] }; fragmentsByMaterial.set(materialIndex, bucket); }
           for (const id of ids) {
             source.getVertexPosition(id, v); v.applyMatrix4(source.matrixWorld); bucket.positions.push(v.x, v.y, v.z);
@@ -82,6 +88,23 @@ export function createDismemberment(scene, world) {
       if (source.geometry !== original) source.geometry.dispose();
       source.geometry = replacement;
       if (!original.index) g.dispose();
+    }
+    if (skellorHead) {
+      const source = actor.obliterationHead.object;
+      if (source?.visible) {
+        source.updateWorldMatrix(true, true);
+        const fragment = source.clone(true);
+        source.matrixWorld.decompose(fragment.position, fragment.quaternion, fragment.scale);
+        fragment.name = 'Skellor_Obliteration_Skull_Fragment'; fragment.visible = true;
+        fragment.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        scene.add(fragment);
+        actor.dismemberVisibility ||= new Map();
+        if (!actor.dismemberVisibility.has(source)) actor.dismemberVisibility.set(source, source.visible);
+        source.visible = false;
+        const lateral = direction.clone().setY(0).normalize(); if (lateral.lengthSq() < 1e-6) lateral.set(0, 0, 1);
+        const f = { mesh: fragment, kind: 'head', vel: lateral.multiplyScalar(1.1).add(new THREE.Vector3(0, 2.3, 0)), spin: new THREE.Vector3(5, 7, 3.5), bounce: 0, age: 0 };
+        made.push(f); live.add(f);
+      }
     }
     return made;
   }

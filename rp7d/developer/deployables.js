@@ -29,7 +29,7 @@ export function buildFieldWorkstation() {
 const BUILDERS = { field_workstation: buildFieldWorkstation, astralboard: buildAstralboard };
 
 // ride: { spawn(e) → true when handled, despawn(e) } lets a ride (the Astralboard) be its own world object instead of a mesh made here.
-export function createDeployables({ scene, world, getRizer, isBlocked, occupants = () => [], toast = () => {}, onState = () => {}, ride = null }) {
+export function createDeployables({ scene, world, getRizer, isBlocked, occupants = () => [], toast = () => {}, onState = () => {}, onDeployed = () => {}, ride = null }) {
   const live = new Map();           // uid → { mesh, obs, type }
   let ghost = null, placing = null, lastCheck = null;
   const prompt = document.createElement('div'); prompt.id = 'deploy-banner'; prompt.hidden = true; document.body.appendChild(prompt);
@@ -106,7 +106,7 @@ export function createDeployables({ scene, world, getRizer, isBlocked, occupants
     if (!v.ok) { toast(`INVALID · ${v.reasons[0]}`); return { ok: false, message: v.reasons[0] }; }
     const r = storage.deployEquipment(placing.uid, { x: s.x, y: v.y, z: s.z, yaw: s.yaw });
     if (!r.ok) { toast(r.message || 'Could not deploy'); return r; }
-    const name = defOf(placing.type).name; cancel(true); sync(); toast(`${name} deployed`); return { ok: true };
+    const name = defOf(placing.type).name, deployed = { ...e, at: { x: s.x, y: v.y, z: s.z, yaw: s.yaw } }; cancel(true); sync(); onDeployed(deployed); toast(`${name} deployed`); return { ok: true };
   }
   function update() {
     if (!placing) return;

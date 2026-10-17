@@ -25,6 +25,7 @@ export const SLOTS = [
   { key: 'idle', label: 'Idle', kind: 'state' },
   { key: 'walk', label: 'Walk', kind: 'locomotion' },
   { key: 'run', label: 'Run', kind: 'locomotion' },
+  { key: 'runJump', label: 'Running jump (R2 + jump)', kind: 'air' },
   { key: 'tiredRun', label: 'Running tired (zero stamina)', kind: 'locomotion' },
   { key: 'strafeWalkL', label: 'Strafe left · walk', kind: 'locomotion' },
   { key: 'strafeWalkR', label: 'Strafe right · walk', kind: 'locomotion' },
@@ -192,7 +193,7 @@ export const SLOTS = [
   { key: 'descend', label: 'Flight descent (L3)', kind: 'state' },
   { key: 'hover', label: 'Hover (unused yet)', kind: 'state' }
 ];
-const AIR = new Set(['jump', 'rifleJump', 'pistolJump', 'fall', 'doublejump', 'wallflip', 'hover', 'fly', 'descend', 'fastfall', 'bail']); // physics owns height for these
+const AIR = new Set(['jump', 'runJump', 'rifleJump', 'pistolJump', 'fall', 'doublejump', 'wallflip', 'hover', 'fly', 'descend', 'fastfall', 'bail']); // physics owns height for these
 const FIXED_ROOT = new Set(['ledgeGrab', 'ledgeClimb', 'ladderClimb', 'ladderStart', 'ladderTop']); // geometry drives the root; clips supply the body pose
 const DROP = new Set(['bigland', 'fastland']);
 const FLOOR = new Set(['bailImpact', 'airslam']); // physics owns the fall; the body keeps its whole drop to the floor (it ends lying down) // physics owns the fall; keep only the landing's downward give

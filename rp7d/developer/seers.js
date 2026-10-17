@@ -22,7 +22,7 @@ import { rng } from './util.js';
 import { dressCorrupted } from './enemy-skins.js';
 import { dressDaemon } from './daemon-skins.js';
 import { DAEMON_BLACK_SPEC } from './daemons-black.js';
-import { rollEnemyBag } from './coin-piles.js';
+import { rollEnemyBag, bagKind } from './coin-piles.js';
 import { dealt } from './astral-stats.js';
 import { DAEMON_RED_SPEC } from './daemons-red.js';
 import { createDismemberment } from './dismemberment.js';
@@ -155,17 +155,22 @@ export async function createSeers(scene, world, W) {
     const bang = alertTex(); bang.position.y = 3.25; bang.visible = false; root.add(bang); bang.redraw();
     const bar = barTex(); bar.position.y = 2.95; bar.visible = false; root.add(bar);
     const lootBag = new THREE.Group(); lootBag.visible = false; scene.add(lootBag);
-    const coinDrop = true; // every bag holds coins (coin-piles.js · ENEMY_BAG); no enemy drops gems any more
+    const coinDrop = true; // every bag holds coins; Seers also carry one Gemshard (a crafting piece, never a whole Gem)
     const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), lootMat); pouch.scale.set(1, 0.72, 0.8); lootBag.add(pouch);
     const token = new THREE.Mesh(coinDrop ? new THREE.CylinderGeometry(0.11, 0.11, 0.045, 12) : new THREE.OctahedronGeometry(0.13), coinDrop ? goldMat : gemMat);
     token.position.set(0, 0.15, 0); if (coinDrop) token.rotation.x = Math.PI / 2; lootBag.add(token);
+    const gemshardDrop = bagKind(T) === 'seer' ? 1 : 0;
+    if (gemshardDrop) {
+      const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), gemMat);
+      shard.position.set(0.16, 0.22, 0.08); shard.rotation.set(0.25, 0.45, 0.2); lootBag.add(shard);
+    }
     const g = {
       id: route.id, T, pts: route.pts, loop: !!route.loop, root, actor, bang, bar, lootBag, walk: T.walk,
       mode: route.mode || 'wander', level: districtEnemyLevel(W, T, route),
       pos: new THREE.Vector3(), heading: 0, speed: 0, knock: new THREE.Vector3(), rig: new HitRig(actor), side: grunts.length % 2 ? 1 : -1, frame: grunts.length, animAcc: 0, ...extra
     };
     const drop = {
-      id: `loot-${route.id}`, kind: 'enemyLoot', name: `${T.name} ${coinDrop ? 'Coin' : 'Gem'} Bag`,
+      id: `loot-${route.id}`, kind: 'enemyLoot', name: `${T.name} ${coinDrop ? 'Coin' : 'Gem'} Bag`, gemshards: gemshardDrop,
       note: 'Press Circle to collect', reach: 3.2, discover: false, enemy: g,
       get x() { return g.pos.x; }, get z() { return g.pos.z; }, get cx() { return g.pos.x; }, get cz() { return g.pos.z; }
     };
@@ -998,7 +1003,7 @@ export async function createSeers(scene, world, W) {
       const eater = feedClaims.get(g); if (eater) { releaseFeed(eater); eater.state = 'return'; eater.wp = nearestWp(eater); }
       g.looted = true; g.lootBag.visible = false; g.state = 'sinking'; g.sink = 0; g.fragmentSink = 0; g.timer = g.T.respawn;
       const index = world.interactables.indexOf(g.drop); if (index >= 0) world.interactables.splice(index, 1);
-      return { currency: 'coins', amount: rollEnemyBag(g.T), enemy: g.T.name };
+      return { currency: 'coins', amount: rollEnemyBag(g.T), gemshards: bagKind(g.T) === 'seer' ? 1 : 0, enemy: g.T.name };
     },
     inCombat: pos => grunts.some(g => alive(g) && ['alert', 'chase', 'windup', 'attack', 'evade', 'stagger', 'dazed', 'surprised', 'astraliftDown', 'gettingUp'].includes(g.state) && Math.hypot(g.pos.x - pos.x, g.pos.z - pos.z) < 18),
     respawnAll: () => grunts.forEach(reset),

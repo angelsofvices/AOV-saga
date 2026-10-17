@@ -6,6 +6,8 @@
 //   loop    true for cycles (idle, walk, run), false for one-shots
 //   inPlace true strips forward travel (the game moves the character itself)
 export default [
+  { file: 'viridia/Hart_Jump.fbx', name: 'Andre Hart · Jump', loop: false, inPlace: true },
+  { file: 'viridia/Hart_Running_Jump.fbx', name: 'Andre Hart · Running Jump', loop: false, inPlace: true },
   { file: 'rizer/Pistol_Draw.fbx', name: 'Plasmabeam · draw pistol', loop: false, inPlace: true },
   { file: 'rizer/Pistol_Idle.fbx', name: 'Plasmabeam · pistol idle', loop: true, inPlace: true },
   { file: 'rizer/Pistol_Put_Away.fbx', name: 'Plasmabeam · put pistol away', loop: false, inPlace: true },

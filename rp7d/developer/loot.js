@@ -117,7 +117,7 @@ export const ITEMS = {
   'fruit-red': { name: 'Red Fruit', kind: 'consumable', color: '#c8455a', boost: { hp: 6 }, blurb: 'A tart red fruit. Restores a little health.' },
   'fruit-violet': { name: 'Purple Fruit', kind: 'consumable', color: '#8a63c4', boost: { astral: 8 }, blurb: 'A purple fruit that hums faintly with astral energy. Restores a little astral energy.' },
   'fruit-white': { name: 'White Fruit', kind: 'consumable', color: '#efe8dc', boost: { hp: 15, stamina: 15, astral: 15 }, blurb: 'A rare pale fruit. Restores health, stamina and astral energy.' },
-  gemshard: { name: 'Gemshard', kind: 'material', color: '#9fe8ff', blurb: 'A crystalline shard fused from Astralites at the Astralite Station. Used in advanced crafting.' },
+  gemshard: { name: 'Gemshard', kind: 'material', resource: true, color: '#9fe8ff', blurb: 'A piece of gem power. Gemshards are stackable resources used for crafting; a whole Gem remains a separate source of Gemlord power.' },
   compound_ax36: { name: 'AX-36 Compound', kind: 'material', color: '#b8bec8', blurb: 'Physical compound synthesized from one AX-3 and one AX-6 after studying both. Kept separately from permanent Matrix research.' },
   guitar_body: { name: 'Psychosyd Guitar Body', kind: 'material', color: '#b3121c', blurb: 'The cherry-red guitar body. Rebuild it with the matching neck and materials at Rizer’s Experiment Table.' },
   guitar_neck: { name: 'Psychosyd Guitar Neck', kind: 'material', color: '#4a2a17', blurb: 'The guitar neck and headstock. Rebuild it with the matching body and materials at Rizer’s Experiment Table.' },
@@ -577,10 +577,20 @@ function gemlordCaveChestSpots(world) {
 // ── the four Gemlord Mythic weapon chests ─────────────────────────────
 export function createLoot(scene, world, fx, W, { claimPlasma = null } = {}) {
   const gemlord = gemlordCaveChestSpots(world);
-  // Utility item chests join the same saved, scattered overworld layout as tutorial treasure.
-  const utilitySpots = scatteredChestSpots(W, world, 'utility-item-chests-v1', 2), atUtility = (i, o) => utilitySpots[i] ? { ...o, ...utilitySpots[i] } : o;
   const s = W.playerStart; let x = s.x, z = s.z, face = 0, side = 1;
   const clear = (cx, cz, r) => { const probe = new THREE.Vector3(cx, world.groundAt(cx, cz), cz); return !world.resolve(probe, r) && world.waterAt(cx, cz) < world.heightAt(cx, cz) - 0.2 && Math.abs(world.heightAt(cx + 1.5, cz) - world.heightAt(cx - 1.5, cz)) < 0.35 && Math.abs(world.heightAt(cx, cz + 1.5) - world.heightAt(cx, cz - 1.5)) < 0.35; };
+  const utilityLayout = inventory.tutorialChestLayouts ||= {};
+  const nearSite = (layoutKey, siteId) => {
+    const saved = utilityLayout[layoutKey]; if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.z)) return saved;
+    const site = world.interactables.find(q => q.id === siteId); if (!site) return null;
+    for (const r of [7, 10, 13, 16, 20, 24]) for (let k = 0; k < 24; k++) {
+      const a = k * Math.PI / 12, cx = site.cx + Math.sin(a) * r, cz = site.cz + Math.cos(a) * r;
+      if (!clear(cx, cz, 1.8)) continue;
+      const spot = { x: +cx.toFixed(2), z: +cz.toFixed(2), face: Math.atan2(site.cx - cx, site.cz - cz) };
+      utilityLayout[layoutKey] = spot; saveInv(); return spot;
+    }
+    return { x: site.cx, z: site.cz, face: 0 };
+  };
   // Near Rizer's front door, in the first open spot with room for both chests, a few steps off the way he faces at the start.
   search: for (const r of [8.5, 9.5, 11, 12.5, 14]) for (const da of [0.55, -0.55, 0.9, -0.9, 0.25, -0.25, 1.3, -1.3]) {
     const a = s.facing + da, cx = s.x + Math.sin(a) * r, cz = s.z + Math.cos(a) * r, f = Math.atan2(s.x - cx, s.z - cz);
@@ -606,21 +616,12 @@ export function createLoot(scene, world, fx, W, { claimPlasma = null } = {}) {
   }
   const rface = Math.atan2(x - rx, z - rz);
   const rubypaw = itemChest(scene, world, fx, { id: 'rubypaw-chest', item: 'rubypaw', tier: 'mythic', x: gemlord.Rakoron?.x ?? rx, z: gemlord.Rakoron?.z ?? rz, face: gemlord.Rakoron?.face ?? rface, isOpen: () => !!inventory.chests?.['rubypaw-chest'], setOpen: () => { (inventory.chests ||= {})['rubypaw-chest'] = 1; } });
-  // The spot on the west side of Malezor Square's fountain anchors the Astralboard and Telescope chests. (Psychosyd's guitar
-  // used to wait in a chest here; it now lies on the floor of Rizer's room, home-interior.js.)
-  const P = W.plaza; let gx = P.x - (P.r - 3), gz = P.z, gFace = Math.PI / 2;
-  guitarSpot: for (const r of [P.r - 3, P.r - 5, P.r - 1.5]) for (const a of [-Math.PI / 2, -Math.PI / 2 + 0.35, -Math.PI / 2 - 0.35, -Math.PI / 2 + 0.7, -Math.PI / 2 - 0.7, Math.PI, 0]) {
-    const tx = P.x + Math.sin(a) * r, tz = P.z + Math.cos(a) * r;
-    if (clear(tx, tz, 1.8)) { gx = tx; gz = tz; gFace = Math.atan2(P.x - tx, P.z - tz); break guitarSpot; }
-  }
-  // Astralboard chest sits beside that spot in Malezor Square.
-  let qx = gx + Math.cos(gFace) * 3.6, qz = gz - Math.sin(gFace) * 3.6;
-  if (!clear(qx, qz, 1.6)) { qx = gx - Math.cos(gFace) * 3.6; qz = gz + Math.sin(gFace) * 3.6; }
-  const astralboard = itemChest(scene, world, fx, atUtility(0, { id: 'astralboard-chest', item: 'astralboard', brokenId: 'broken_astralboard', tier: 'wood', x: qx, z: qz, face: gFace, isOpen: () => !!inventory.chests?.['astralboard-chest'], setOpen: () => { (inventory.chests ||= {})['astralboard-chest'] = 1; } }));
-  // Stargazer Telescope chest: on the spot's other side from the Astralboard, so the two face each other across it.
-  let sx = 2 * gx - qx, sz = 2 * gz - qz;
-  if (!clear(sx, sz, 1.6)) { sx = qx + (qx - gx); sz = qz + (qz - gz); }
-  const telescope = itemChest(scene, world, fx, atUtility(1, { id: 'stargazer-chest', item: 'telescope', brokenId: 'broken_telescope', tier: 'wood', x: sx, z: sz, face: gFace, isOpen: () => !!inventory.chests?.['stargazer-chest'], setOpen: () => { (inventory.chests ||= {})['stargazer-chest'] = 1; } }));
+  // Repairable field gear is seeded beside its actual exploration landmark: telescope by Rakoron's Cave,
+  // Astralboard by the existing bridge crossing. Guitar parts remain on Rizer's room floor.
+  const telescopeSpot = nearSite('craft-telescope-rakoron-cave-v1', 'rakoron-cave') || { x, z, face };
+  const boardSpot = nearSite('craft-astralboard-lake-bridge-v1', 'timber-crossing') || { x, z, face };
+  const astralboard = itemChest(scene, world, fx, { id: 'astralboard-chest', item: 'astralboard', brokenId: 'broken_astralboard', tier: 'wood', ...boardSpot, isOpen: () => !!inventory.chests?.['astralboard-chest'], setOpen: () => { (inventory.chests ||= {})['astralboard-chest'] = 1; } });
+  const telescope = itemChest(scene, world, fx, { id: 'stargazer-chest', item: 'telescope', brokenId: 'broken_telescope', tier: 'wood', ...telescopeSpot, isOpen: () => !!inventory.chests?.['stargazer-chest'], setOpen: () => { (inventory.chests ||= {})['stargazer-chest'] = 1; } });
   const all = [sword, axe, bow, rubypaw, astralboard, telescope];
   const ufo = W.structures.find(s => s.id === 'auraxion-ufo');
   if (ufo && claimPlasma) {

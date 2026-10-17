@@ -201,7 +201,7 @@ export class Actor {
     }
     const hv = this.heavy && a.heavyRun && !this.rifle ? 'heavyRun' : 'run';
     const W = this.stride('walk'), R = this.stride(hv), S = this.stride('sprint');
-    const hasAir = !!(a.jump || a.fall);
+    const hasAir = !!(a.jump || a.runJump || a.fall);
     this.air = grounded ? Math.max(0, this.air - dt * 8) : Math.min(1, this.air + dt * 10);
     this.airT = grounded ? 0 : this.airT + dt;
     const moving = grounded || hasAir ? smoothstep(0.25, 1.4, speed) : Math.max(this._moving || 0, 0.6); // no air clips: hold mid-stride
@@ -243,7 +243,9 @@ export class Actor {
     const rifleOn = gun ? 1 : 0;
     this.rifleW = clamp((this.rifleW || 0) + (rifleOn - (this.rifleW || 0)) * Math.min(1, dt * 9), 0, 1);
     const rw = this.rifleW, gunSlot = suffix => gunProfile + suffix; let rr = 0;
-    if (rw > 0) {
+    // Keep the last gun profile running at zero weight after it is lowered so
+    // every authored gun pose is explicitly released back to bare-hand motion.
+    if (rw > 0 || gunProfile) {
       const RW = this.stride(a[gunSlot('Walk')] ? gunSlot('Walk') : 'walk'), RR = this.stride(a[gunSlot('Run')] ? gunSlot('Run') : 'run');
       const rwV = RW.dist * this.scale / RW.cycle, rrV = RR.dist * this.scale / RR.cycle;
       rr = a[gunSlot('Run')] ? smoothstep(rwV * 1.2, Math.max(rrV * 0.85, rwV * 1.6), speed) : 0;
@@ -387,8 +389,13 @@ export class Actor {
       } else this._rifleAir = 1;
     } else this._rifleAir = 1;
     if (airW) {
-      const rising = a.jump && (vy > 0 || !a.fall) ? 1 : 0;
-      a.jump?.setEffectiveWeight(airW * base * rising * this._rifleAir);
+      const jumpSlot = this.runningJump && a.runJump ? 'runJump' : 'jump', jumpAction = a[jumpSlot];
+      const rising = jumpAction && (vy > 0 || !a.fall) ? 1 : 0;
+      if (jumpAction) {
+        const m = this.meta[jumpSlot] || {}, end = Math.max(0.05, (m.landT || jumpAction.getClip().duration) - 1e-3);
+        jumpAction.time = Math.min((m.takeoff || 0) + this.airT, end);
+        jumpAction.setEffectiveWeight(airW * base * rising * this._rifleAir);
+      }
       a.fall?.setEffectiveWeight(airW * base * (1 - rising) * this._rifleAir);
     }
     if (this.poseAlignment) {

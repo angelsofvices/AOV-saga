@@ -19,7 +19,7 @@ const PRESETS = [1, 5, 10, 'ALL'];
 const TYPE = { WEAPON: 'Weapon', UTILITY: 'Utility', FIELD_EQUIPMENT: 'Field Equipment', RESOURCE: 'Resource', ITEM: 'Item', SPECIAL: 'Key Item' };
 const PLACE = { ZYCUBE: 'WITH RIZER', HOME_PC: 'HOME STORAGE', DEPLOYED: 'DEPLOYED' };
 
-export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = () => {}, onClose = () => {} } = {}) {
+export function createStationUI({ toast = () => {}, onPack = () => {}, onCraft = () => {}, onOpen = () => {}, onClose = () => {} } = {}) {
   const root = document.createElement('div'); root.id = 'station-ui'; root.hidden = true; document.body.appendChild(root);
   let kind = null, ctx = null, col = 0, focus = [0, 0], notice = '', bad = false, showAll = false;
   let tab = 0, sort = 0, qi = 0, custom = '';
@@ -87,9 +87,9 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
     const e = storage.equipmentByUid(ctx.uid), recipes = crafting.listRecipes('FIELD_WORKSTATION');
     focus[0] = Math.min(focus[0], Math.max(0, recipes.length - 1));
     const cur = recipes[focus[0]], a = cur && crafting.availability(cur);
-    return `<div class="st-head"><small>FIELD WORKSTATION · ZYLINK</small><b>Field maintenance</b><span>Repair found equipment using materials in Rizer’s Zycube. Repaired gear returns to the Zycube.</span></div>
-      <div class="st-cols one"><section class="st-col on"><header><b>REPAIRS</b></header><div class="st-list">${recipes.map((r,i) => { const av = crafting.availability(r); return `<div class="st-row${focus[0] === i ? ' focus' : ''}${av.ok ? '' : ' lock'}" data-i="${i}"><i class="st-sw" style="background:${esc(defOf(r.outputId)?.color || '#ccc')}"></i><b>${esc(r.name)}</b><small>${av.ok ? 'READY' : esc(av.message.toUpperCase())}</small></div>`; }).join('') || '<div class="st-empty">No repair recipes</div>'}</div></section>
-      <section class="st-col detail">${cur ? `<header><b>${esc(cur.name)}</b><small>REPAIR</small></header><div class="st-ings">${a.lines.map(l => `<div class="${l.have >= l.need ? 'ok' : 'bad'}"><span>${esc(l.name)}</span><b>${l.have} / ${l.need}</b></div>`).join('')}</div><button class="st-btn" data-repair ${a.ok ? '' : 'disabled'}>${a.ok ? 'REPAIR' : esc(a.message.toUpperCase())}</button>` : ''}
+    return `<div class="st-head"><small>FIELD WORKSTATION · ZYLINK</small><b>Field repairs & rebuilds</b><span>Use your Zycube materials to repair the telescope and hoverboard or rebuild the guitar from its body and neck. Finished utilities return to the Zycube.</span></div>
+      <div class="st-cols one"><section class="st-col on"><header><b>REPAIRS & REBUILDS</b></header><div class="st-list">${recipes.map((r,i) => { const av = crafting.availability(r); return `<div class="st-row${focus[0] === i ? ' focus' : ''}${av.ok ? '' : ' lock'}" data-i="${i}"><i class="st-sw" style="background:${esc(defOf(r.outputId)?.color || '#ccc')}"></i><b>${esc(r.name)}</b><small>${av.ok ? 'READY' : esc(av.message.toUpperCase())}</small></div>`; }).join('') || '<div class="st-empty">No repair recipes</div>'}</div></section>
+      <section class="st-col detail">${cur ? `<header><b>${esc(cur.name)}</b><small>${cur.id.startsWith('rebuild_') ? 'REBUILD' : 'REPAIR'}</small></header><div class="st-ings">${a.lines.map(l => `<div class="${l.have >= l.need ? 'ok' : 'bad'}"><span>${esc(l.name)}</span><b>${l.have} / ${l.need}</b></div>`).join('')}</div><button class="st-btn" data-repair ${a.ok ? '' : 'disabled'}>${a.ok ? (cur.id.startsWith('rebuild_') ? 'REBUILD' : 'REPAIR') : esc(a.message.toUpperCase())}</button>` : ''}
       <header><b>Pack up</b></header><p>Fold it away and carry it again. It needs room in the Zycube; if there is none it stays standing.</p><button class="st-btn" data-pack ${e?.loc === LOC.DEPLOYED ? '' : 'disabled'}>PACK UP</button></section></div>
       <div class="st-foot"><span>${esc(notice)}</span><em>↑↓ choose · Enter repair · Esc close</em></div>`;
   }
@@ -178,7 +178,7 @@ export function createStationUI({ toast = () => {}, onPack = () => {}, onOpen = 
   }
   function craftNow() {
     const recipes = crafting.listRecipes(kind === 'workstation' ? 'FIELD_WORKSTATION' : 'EXPERIMENT_TABLE'), r = recipes[focus[0]]; if (!r) return;
-    const res = crafting.craft(r.id); notice = res.message; toast(res.message); render();
+    const res = crafting.craft(r.id); notice = res.message; toast(res.message); if (res.ok) onCraft(r, res, kind); render();
   }
   function synth(all) {
     if (astMode === 'study') { const r = studyRows()[focus[0]]; if (r) { const res = studyAstralite(r.id); notice = res.message; bad = !res.ok; toast(res.message); render(); } return; }

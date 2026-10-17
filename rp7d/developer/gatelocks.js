@@ -236,6 +236,7 @@ export function createGatelocks(scene, world, W, fx, { toast, sfx, onEvent } = {
     setState(g, 'activating');
     const p = g.root.position; fx?.emit(p.x, p.y + 1.4, p.z, 30, { color: '#8fc4ff', speed: 3, up: 2.2, size: 0.32, life: 0.7, g: -1 });
     sfx?.play?.('blast', 0.7, 0.7);
+    onEvent?.('activating', g);
     toast?.(`PORTAL GATELOCK · ${G.need} PORTALCHIPS USED · ACTIVATING`);
     return true;
   }
@@ -327,5 +328,18 @@ export function createGatelocks(scene, world, W, fx, { toast, sfx, onEvent } = {
   const label = g => g.state === 'open' ? 'PORTAL GATELOCK · OPEN' : `PORTAL GATELOCK · ${STATE_NAME[g.state]} · PORTALCHIPS ${chips()}/${G.need}`;
 
   const openAll = () => { for (const g of list) if (g.state === 'closed') setState(g, 'open'); }; // dev: open them without chips
-  return { list, update, setVisible, label, relocate, tryActivate, openAll, get chips() { return chips(); } };
+  function saveState() {
+    return list.filter(g => g.state === 'open' || g.state === 'activating').map(g => ({
+      id: g.id, x: g.root.position.x, z: g.root.position.z, rotation: g.root.rotation.y
+    }));
+  }
+  function restoreState(saved = []) {
+    const records = new Map((Array.isArray(saved) ? saved : []).filter(r => r?.id).map(r => [r.id, r]));
+    for (const g of list) {
+      const r = records.get(g.id); if (!r || !Number.isFinite(r.x) || !Number.isFinite(r.z)) continue;
+      place(g, r.x, r.z); g.root.rotation.y = Number.isFinite(r.rotation) ? r.rotation : g.root.rotation.y;
+      g.nextMove = Infinity; g.near = false; g.lastLz = null; setState(g, 'open');
+    }
+  }
+  return { list, update, setVisible, label, relocate, tryActivate, openAll, saveState, restoreState, get chips() { return chips(); } };
 }

@@ -468,8 +468,12 @@ function initStorage() {
     const pad = [...(navigator.getGamepads?.() || [])].find(Boolean); padPrev = pad?.buttons.map(b => b.pressed) || [];
     music.setHostPaused(false); sfx.setHostPaused(false); canvas.focus?.();
   } });
-  stationUI = createStationUI({ toast: showToast, onPack: uid => dep.packUp(uid), onOpen: () => { keys.clear(); if (document.pointerLockElement) document.exitPointerLock(); }, onClose: () => { canvas.focus?.(); if (pcUse && pcUse.phase === 'on') pcUse.phase = 'out'; seating?.pcClosed(); } });
+  stationUI = createStationUI({ toast: showToast, onPack: uid => dep.packUp(uid), onCraft: (r, _result, kind) => {
+    if (r.outputId === 'field_workstation') tutorialMark('crafting', 'workstationCrafted');
+    else if (kind === 'workstation' && ['guitar', 'telescope', 'astralboard'].includes(r.outputId)) tutorialMark('craftingBuilt', r.outputId);
+  }, onOpen: () => { keys.clear(); if (document.pointerLockElement) document.exitPointerLock(); }, onClose: () => { canvas.focus?.(); if (pcUse && pcUse.phase === 'on') pcUse.phase = 'out'; seating?.pcClosed(); } });
   dep = createDeployables({ scene, world, getRizer: () => rizer, isBlocked: deployBlocked, occupants: placementOccupants, toast: showToast,
+    onDeployed: e => { if (e.type === 'field_workstation') tutorialMark('crafting', 'workstationBuilt'); },
     ride: { spawn: e => { if (!astralboard) return false; astralboard.unlock({ x: e.at.x, z: e.at.z }); return true; }, despawn: () => astralboard?.pack() } });
   storage.addGuard((id, from) => id === 'telescope' && from === 'ZYCUBE' && (scopeSet || inventory.scope) ? 'Pack up the Stargazer Telescope first' : null);
   storage.onChange(onStorageChange);
@@ -582,6 +586,24 @@ function nearestGroundedStompTarget() {
   return best && { ...best.pos, ref: best.ref };
 }
 const RUNNING_FRUIT_YIELD = 1.5;
+function collectEnemyBag(target) {
+  const shardCount = target?.gemshards || 0;
+  if (shardCount) {
+    if (inventory.zycube) return showToast('No Zycube · the Gemshard stays in the Seer’s coin bag');
+    const stored = storage.add('ZYCUBE', 'gemshard', shardCount);
+    if (!stored.ok) return showToast(stored.message || 'The Gemshard will stay in the Seer’s coin bag');
+  }
+  const reward = seers?.collectLoot(target);
+  if (!reward) {
+    if (shardCount) storage.remove('ZYCUBE', 'gemshard', shardCount);
+    return;
+  }
+  inventory[reward.currency] = (inventory[reward.currency] || 0) + reward.amount;
+  saveInv(); hud.setWallet(inventory);
+  const shardText = reward.gemshards ? ` · +${reward.gemshards} Gemshard` : '';
+  sfx.play('land', 0.3, 1.5);
+  showToast(`+${reward.amount} ${reward.currency}${shardText} · ${reward.enemy} loot`);
+}
 function collectLoot(L, { running = false } = {}) {
   if (L.kind === 'zycube') return takeZycube();
   if (L.kind === 'weapon') return takeWeaponDrop(L.it);
@@ -627,9 +649,7 @@ function collectLoot(L, { running = false } = {}) {
     showToast(`PORTALCHIP ACQUIRED · ${ITEMS.portalchip.name} ×${got} · ${n} / ${GATELOCK.need}`);
   } else {
     if (inventory.zycube) return showToast('No Zycube · nowhere to carry loot · find your Zycube (AV)');
-    const reward = seers?.collectLoot(L.it); if (!reward) return;
-    inventory[reward.currency] = (inventory[reward.currency] || 0) + reward.amount; saveInv(); hud.setWallet(inventory);
-    sfx.play('land', 0.3, 1.5); showToast(`+${reward.amount} ${reward.currency} · ${reward.enemy} loot`);
+    collectEnemyBag(L.it);
   }
 }
 const boostText = got => Object.entries(got).map(([k, v]) => `+${v} ${k === 'hp' ? 'health' : k === 'astral' ? 'astral energy' : 'stamina'}`).join(' · ');
@@ -785,7 +805,7 @@ function saveGame() {
   const hero = npcs?.npcs.find(n => n.role === 'hero');
   if (hero) { inventory.zorynMet = hero.met; inventory.zorynRecruited = hero.recruited || hero.wasRecruited; inventory.zorynDowned = hero.downed; inventory.zorynHealth = hero.health; saveInv(); }
   const p = rizer.position, at = homeMode ? homeReturn : caveMode && caveReturn ? { x: caveReturn.x, y: world.groundAt(caveReturn.x, caveReturn.z), z: caveReturn.z, facing: caveReturn.face } : { x: p.x, y: p.y, z: p.z, facing: rizer.facing };
-  try { const t = Date.now(); localStorage.setItem(saveKey(), JSON.stringify({ v: 1, t, home: homeMode && indoor === homeInterior, treehouse: homeMode && indoor.treehouse ? indoor.id : null, at, hour, region: hud?.regionOf(p.x, p.z) })); lastSaveAt = t; saveFailed = false; return true; }
+  try { const t = Date.now(); localStorage.setItem(saveKey(), JSON.stringify({ v: 2, t, home: homeMode && indoor === homeInterior, treehouse: homeMode && indoor.treehouse ? indoor.id : null, at, hour, region: hud?.regionOf(p.x, p.z), openPortals: gatelocks?.saveState?.() || [] })); lastSaveAt = t; saveFailed = false; return true; }
   catch (e) { saveFailed = true; return false; }
 }
 function titleButtons() { return [...document.querySelectorAll('#title-menu .title-btn')].filter(b => !b.disabled); }
@@ -817,6 +837,7 @@ function startNewGame() {
 function loadGame() {
   if (selectedCharacter() === 'andre') { startAndreGame(true); return; }
   const sv = readSave(); if (!sv || !world) return;
+  gatelocks?.restoreState?.(sv.openPortals);
   if (typeof sv.hour === 'number') { hour = sv.hour; hourTarget = null; }
   if (!sv.home && sv.at) { homeReturn = { ...sv.at }; leaveHomeInterior(); }
   if (sv.treehouse) { const rec=inventory.treehouses?.find(q => q.id === sv.treehouse && q.cabin === 'built'); if (rec) showInterior(treehouses.interior(rec)); }
@@ -864,6 +885,7 @@ addEventListener('keydown', e => {
     if (gp && $('#game').classList.contains('intro-on') && !menuVisible) {
       // The boot gate, intro movie and story selector are handled by the startup controller.
       // Keep the edge state current so a held confirm cannot leak into the character menu.
+      setPad(true); // show controller prompts while startup owns input on these screens
       prev = Object.fromEntries(gp.buttons.map((x, i) => [i, x.pressed]));
       stickHeld = 0;
     } else if (gp) {
@@ -1159,6 +1181,19 @@ function tutorialProgress() {
   T.basics ||= { jump: false, doubleJump: false, sprint: false, punch: false, kick: false, astralstrike: false };
   for (const id of ['treeDodge', 'farmGateVault', 'treeSpin']) if (!(id in T.basics)) T.basics[id] = false;
   T.focusCollected ||= []; T.focusUsed ||= []; T.weaponsFound ||= []; T.weaponsUsed ||= [];
+  T.crafting ||= { workstationCrafted: false, workstationBuilt: false };
+  T.craftingParts ||= []; T.craftingBuilt ||= []; T.craftingUsed ||= [];
+  if (J.found) {
+    const record = (list, id) => { if (!list.includes(id)) list.push(id); };
+    const has = id => storage.total(id) > 0;
+    if (has('field_workstation')) T.crafting.workstationCrafted = true;
+    if (storage.equipmentIn('DEPLOYED', 'field_workstation').length) T.crafting.workstationBuilt = true;
+    if (has('guitar_body') || has('guitar')) record(T.craftingParts, 'guitar_body');
+    if (has('guitar_neck') || has('guitar')) record(T.craftingParts, 'guitar_neck');
+    if (has('broken_telescope') || has('telescope')) record(T.craftingParts, 'broken_telescope');
+    if (has('broken_astralboard') || has('astralboard') || (inventory.rides || []).includes('astralboard')) record(T.craftingParts, 'broken_astralboard');
+    for (const id of ['guitar','telescope','astralboard']) if (has(id)) record(T.craftingBuilt, id);
+  }
   T.ui ||= { minimized: false, x: null, y: null };
   T.ui.expanded ??= false;
   return T;
@@ -1168,6 +1203,7 @@ function tutorialMark(group, id) {
   const T = tutorialProgress();
   let changed = false;
   if (group === 'basics') { if (id in T.basics && !T.basics[id]) { T.basics[id] = true; changed = true; } }
+  else if (group === 'crafting') { if (id in T.crafting && !T.crafting[id]) { T.crafting[id] = true; changed = true; } }
   else if (Array.isArray(T[group]) && id && !T[group].includes(id)) { T[group].push(id); changed = true; }
   if (changed) { saveInv(); renderTutorialOverlay(); zy?.refresh(); }
 }
@@ -1177,6 +1213,7 @@ function tutorialPhase() {
   if (!Object.values(T.basics).every(Boolean)) return 'basics';
   if (T.focusCollected.length < 6 || T.focusUsed.length < 6) return 'focus';
   if (!GEMLORD_TUTORIAL_IDS.every(id => T.weaponsFound.includes(id) && T.weaponsUsed.includes(id))) return 'weapons';
+  if (!T.crafting.workstationCrafted || !T.crafting.workstationBuilt || !['broken_telescope','broken_astralboard','guitar_body','guitar_neck'].every(id => T.craftingParts.includes(id)) || !['telescope','astralboard','guitar'].every(id => T.craftingBuilt.includes(id) && T.craftingUsed.includes(id))) return 'crafting';
   return 'complete';
 }
 function renderTutorialOverlay() {
@@ -1196,7 +1233,17 @@ function renderTutorialOverlay() {
   } else if (phase === 'weapons') {
     const names = [['rubypaw','Rubypaw Longsword of Rakoron'],['sword','Sapphire Tearsword of Azurel'],['bow','Pearlbow of Ivirium'],['axe','Jaded Axe of Emeralix']], found = GEMLORD_TUTORIAL_IDS.filter(id => T.weaponsFound.includes(id)).length, used = GEMLORD_TUTORIAL_IDS.filter(id => T.weaponsUsed.includes(id)).length;
     content = `<small>RIZER’S JOURNAL · GEMLORD WEAPONS</small><b>Find and try each weapon</b><p>Mythic chest icons mark four Gemlord weapons near their caves. Select an icon on the Zyphone Map and press △ to ping it.</p><ul>${names.map(([id,name]) => row(`${name} · ${T.weaponsFound.includes(id) ? T.weaponsUsed.includes(id) ? 'used' : 'equip and use it' : 'find the chest'}`, T.weaponsUsed.includes(id))).join('')}</ul><em>${found}/4 found · ${used}/4 used</em>`;
-  } else if (phase === 'complete') content = `<small>RIZER’S JOURNAL</small><b>Playtest tutorial complete</b><p>Movement, combat, Focus Moves, and Gemlord weapons checked off. More journal lessons will unlock as you discover named locations.</p>`;
+  } else if (phase === 'crafting') {
+    const partNames = [['guitar_body','Guitar body · Rizer’s room'],['guitar_neck','Guitar neck · Rizer’s room'],['broken_telescope','Broken telescope parts · near Rakoron’s Cave'],['broken_astralboard','Broken hoverboard parts · by the lake bridge']];
+    const steps = [
+      ['Craft a Field Workstation at the Experiment Table', T.crafting.workstationCrafted],
+      ['Move it to your Zycube, equip it, and build it outdoors', T.crafting.workstationBuilt],
+      ...partNames.map(([id,label]) => [label, T.craftingParts.includes(id)]),
+      ['Repair the telescope, hoverboard, and guitar at the Field Workstation', ['telescope','astralboard','guitar'].every(id => T.craftingBuilt.includes(id))],
+      ['Use the telescope, ride the hoverboard, and play the guitar', ['telescope','astralboard','guitar'].every(id => T.craftingUsed.includes(id))]
+    ];
+    content = `<small>RIZER’S JOURNAL · FIELD CRAFTING</small><b>Build, repair, and test your field gear</b><p>Craft a portable Field Workstation at home, carry and place it, then collect the scattered parts and rebuild the telescope, hoverboard, and guitar. Try each finished utility.</p><ul>${steps.map(([label,done]) => row(label,done)).join('')}</ul>`;
+  } else if (phase === 'complete') content = `<small>RIZER’S JOURNAL</small><b>Playtest tutorial complete</b><p>Movement, combat, Focus Moves, Gemlord weapons, and field crafting checked off. More journal lessons will unlock as you discover named locations.</p>`;
   else content = `<small>TRACKED MISSION</small><b>${J.started ? 'INTO MALEZOR SQUARE' : 'No active mission'}</b><p>${J.started ? 'Go to the fountain and collect Rizer’s Journal.' : 'Tracked mission tasks will appear here.'}</p>`;
   details.innerHTML = content;
   details.hidden = !T.ui.expanded;
@@ -1363,7 +1410,12 @@ function build() {
   // Scanobots (drones that drop Portalchips) and the two Portal Gatelocks that take 10 to open. AV marks
   // dropped chips, and always finds both gatelocks with their state and the chips carried.
   scanobots = createScanobots(scene, world, W, fx, { onDefeated: (b, kind) => { awardCombatRXP(b, 'scanobot', kind); resources?.wreck(b, 'scanobot'); }, onChip: c => { c.unreg = av.register({ id: c.id, kind: 'loot', label: chipName(c), tagHeight: 0.8, pos: () => c.root.position, object: () => c.chip, active: () => !c.taken && !homeMode }); } });
-  gatelocks = createGatelocks(scene, world, W, fx, { toast: showToast, sfx, onEvent: (type, g) => { if (type === 'found') awardDiscovery('gatelock', g.id); else if (type === 'open') awardObjective('gatelock-open', g.id); else if (type === 'teleport') portalJump(g); } });
+  gatelocks = createGatelocks(scene, world, W, fx, { toast: showToast, sfx, onEvent: (type, g) => {
+    if (type === 'found') awardDiscovery('gatelock', g.id);
+    else if (type === 'open') { awardObjective('gatelock-open', g.id); saveGame(); }
+    else if (type === 'activating') saveGame();
+    else if (type === 'teleport') portalJump(g);
+  } });
   for (const g of gatelocks.list) av.register({ id: g.id, kind: 'quest', far: true, tagHeight: 4.2, get label() { return gatelocks.label(g); }, pos: () => g.root.position, object: () => g.base, active: () => !homeMode });
   penumbras = createPenumbras(scene, world, W, fx, { dropChip: (x, z, y, v, owner) => scanobots.dropChip(x, z, y, v, owner), onEvent: penumbraEvent });
   bolts = createBolts(scene, world, fx, boltEvent);
@@ -1658,11 +1710,13 @@ function queuePlasmabeam() {
   if(homeMode||rizer.flying||rizer.attack||rizer.pick||rizer.rpick||rizer.swap||rizer.hp<=0||!selectedPlasmabeam())return;
   if (rizer.swordAt !== 'hand' || rizer.handWeapon !== 'plasmabeam') { rizer.drawBlade('plasmabeam'); return; }
   if(plasmaPending||!plasmaSystem?.ready())return;
-  const actor=rizer.actor,clip=actor?.acts?.pistolFire?.getClip(),duration=clip?.duration||0.5;
-  actor?.play('pistolFire',1,{overlay:rizer.speed>.6});
-  // Let the authored hand point first; release the beam just before the clip's
-  // upward recoil rather than at the instant the trigger is pressed.
-  plasmaPending={delay:Math.max(.08,duration*.28)};
+  const moving = rizer.speed > 0.6, actor=rizer.actor,clip=actor?.acts?.pistolFire?.getClip(),duration=clip?.duration||0.5;
+  // Fire pose is a deliberate stationary stance. While moving, leave the locked
+  // pistol walk/run cycle untouched so Rizer keeps his authored momentum.
+  if (!moving) actor?.play('pistolFire',1);
+  // Stationary fire stays synced just before recoil; moving fire is semi-auto
+  // with a short muzzle delay and no full-body shot pose interrupting locomotion.
+  plasmaPending={delay:moving?0.08:Math.max(.08,duration*.28)};
 }
 function firePendingPlasma(dt) {
   if(!plasmaPending)return;
@@ -1714,6 +1768,7 @@ function takeFloorGuitar(part) {
   const id = part === 'body' ? 'guitar_body' : 'guitar_neck';
   if (storage.total(id) > 0) { homeInterior.setGuitarPartTaken(part, true); return; }
   const taken = storage.add('ZYCUBE', id, 1); if (!taken.ok) { showToast(taken.message); return; }
+  tutorialMark('craftingParts', id);
   const g = part === 'body' ? homeInterior.floorGuitarBody : homeInterior.floorGuitarNeck, p = g.getWorldPosition(new THREE.Vector3());
   homeInterior.setGuitarPartTaken(part, true);
   fx.emit(p.x, p.y + 0.3, p.z, 12, { color: part === 'body' ? '#ff3b3b' : '#8b6241', speed: 1.8, up: 1, size: 0.28, life: 0.45, g: 0 });
@@ -1724,6 +1779,7 @@ function startJam() {
   const A = rizer.actor;
   if (rizer.weapon !== 'guitar' || !A?.has('guitarPlay') || rizer.flying || !rizer.onGround || rizer.swimW > 0.5 || rizer.attack || rizer.dodgeT > 0 || rizer.hp <= 0 || rizer.pick || rizer.vault || rizer.ledge) return;
   rizer.finishSwap(0.05); rizer.swordAt = 'hand'; rizer.handWeapon = 'guitar'; rizer.vel.set(0, 0, 0);
+  tutorialMark('craftingUsed', 'guitar');
   A.release('emote'); A.play('guitarPlay', 1, { loop: true });
   sfx.unlock(); const song = sfx.track('solo');
   jam = { t: 0, dur: song?.duration || 35, song };
@@ -1834,6 +1890,7 @@ function updateScope(dt, moving) {
 let astro = null, astroLog = null, scopeView = null; // scopeView: { phase: 'in' | 'open' | 'out', k, eye, look, fov, dark }
 function useScope() {
   const S = scopeSet; if (!S || S.packT != null || scopeView || scopeBuild) return;
+  tutorialMark('craftingUsed', 'telescope');
   const stand = { x: S.x - Math.sin(S.f) * 1.0, z: S.z - Math.cos(S.f) * 1.0 };
   rizer.walkTo(stand, S.f, () => {
     if (scopeSet !== S || S.packT != null || scopeView) return;
@@ -2693,7 +2750,7 @@ function update(dt, t, realDt = dt) {
     const promptTarget = hud.promptTarget;
     if (caveMode && caveSpotShown && (pressed.has('KeyE') || padAct?.interact) && !rizer.flying) { useCaveSpot(caveSpotShown); pressed.delete('KeyE'); if (padAct) padAct.interact = false; }
     const boardTriangle = promptTarget?.id === 'astralboard-ride' && (pressed.has('KeyE') || !!padAct?.kick); // △ on, like every vehicle
-    if (boardTriangle) { astral.clearLock(); astralboard.mount(rizer); }
+    if (boardTriangle) { astral.clearLock(); if (astralboard.mount(rizer)) tutorialMark('craftingUsed', 'astralboard'); }
     const boardStow = !boardTriangle && promptTarget?.id === 'astralboard-ride' && (pressed.has('KeyO') || !!padAct?.interact); // ○ stows it on his back
     if (boardStow) stowBoard();
     const busTriangle = promptTarget?.id === 'west-lake-bus' && (pressed.has('KeyE') || !!padAct?.kick);
@@ -2778,6 +2835,7 @@ function update(dt, t, realDt = dt) {
           if (c.take()) { // it's in his hand now: he lifts it through the rest of the clip, then puts it away
             const W8 = WEAPONS[c.item] || RIDES[c.item];
             if (c.brokenId) {
+              tutorialMark('craftingParts', c.brokenId);
               showToast(`${ITEMS[c.brokenId]?.name || 'Broken equipment'} acquired · repair it at the Experiment Table or a Field Workstation`, 4200);
             } else if (c.spot?.tutorialCategory === 'gemlordWeapon') tutorialMark('weaponsFound', c.item);
             if (c.brokenId) { /* broken keepsakes stay in the Zycube until repaired */ }
@@ -2793,11 +2851,7 @@ function update(dt, t, realDt = dt) {
       } else if (it?.kind === 'scope') { useScope();
       } else if (it?.kind === 'enemyLoot') {
         rizer.pickUp({ x: it.x, y: rizer.position.y + 0.2, z: it.z }, () => {
-          const reward = seers?.collectLoot(it);
-          if (reward) {
-            inventory[reward.currency] = (inventory[reward.currency] || 0) + reward.amount;
-            saveInv(); hud.setWallet(inventory); showToast(`+${reward.amount} ${reward.currency} · ${reward.enemy} loot`);
-          }
+          collectEnemyBag(it);
         }, 'store');
       } else if (it?.kind === 'astraliteGem') {
         if (!(rizer.speed > 4.5 && rizer.actor?.has('runpickup') && rizer.runPick({ x: it.x, y: it.y, z: it.z }, () => collectAstralite(it))))
@@ -2939,7 +2993,10 @@ function update(dt, t, realDt = dt) {
   if (rizer.actor) {
     const A = rizer.actor, v = rizer.vel, sp = v ? Math.hypot(v.x, v.z) : 0, rel = sp > 0.6 ? Math.atan2(v.x, v.z) - rizer.facing : 0;
     A.heavy = rizer.swordAt === 'hand' && (rizer.handWeapon === 'axe' || rizer.handWeapon === 'rubypaw') && inventory.wheel?.includes(rizer.handWeapon) && rizer.swimW < 0.5;
-    A.rifle = rifleClips && rifleOut && !rizer.flying && !jam; A.pistol = drawn === 'plasmabeam' && !swim && !rizer.flying && !jam; A.aiming = rifleUp > 0;
+    A.rifle = rifleClips && rifleOut && !rizer.flying && !jam;
+    // The pistol stays lowered in the ordinary bare-fist locomotion pose until
+    // Rizer has a live focus target. Locking on blends into pistol idle/walk/run.
+    A.pistol = drawn === 'plasmabeam' && !!astral?.lock && !swim && !rizer.flying && !jam; A.aiming = rifleUp > 0;
     A.strafe = (A.rifle || A.pistol ? A.aiming || A.pistol : true) && sp > 0.6 ? Math.sin(rel) * Math.min(1, Math.abs(Math.sin(rel)) * 1.6) : 0; A.backing = A.rifle && A.aiming && sp > 0.6 ? Math.max(0, -Math.cos(rel) * 1.6 - 0.6) : 0;
   }
   held.place(rizer.actor, Object.fromEntries(Object.keys(BLADES).map(k => [k, (!(inventory.owned.includes(k) || (k === 'guitar' && storage.count('ZYCUBE','guitar') > 0)) || !(inventory.wheel?.includes(k) || inventory.utilityWheel?.includes(k))) ? null : k === 'guitar' && jam ? 'play' : k === 'blaster' && k === drawn && rifleK > 0.02 && !swim && !rifleClips ? 'aim' : k === drawn ? (swim ? 'stow' : 'hand') : k === inventory.hip && !drawn ? 'stow' : null])));

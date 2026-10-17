@@ -21,6 +21,8 @@ export const RESOURCES = {
   // Everstone from smashed rocks can be gathered from rubble, or carried as a lasting physical resource pile.
   everstone: { id: 'everstone', name: 'Everstone', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#9a968c',
     blurb: 'Broken stone gathered from the rubble of a smashed rock. Used in crafting and repairs.' },
+  gemshard: { id: 'gemshard', name: 'Gemshard', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#9fe8ff',
+    blurb: 'A piece of gem power used for crafting. Whole Gems remain separate Gemlord power.' },
   life_seed: { id: 'life_seed', name: 'Life Seed', category: 'RESOURCE', stackable: true, pickupable: true, persistent: true, color: '#7ee36b',
     blurb: 'A rare seed released when a living tree falls. Equip it in the Armory and press Square on grassy ground to plant a treehouse.' }
 };

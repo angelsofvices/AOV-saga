@@ -52,13 +52,15 @@ export function dressCorrupted(actor, kind) {
     }
   } else {
     // Full ivory skull with open sockets, teeth, prominent ribs and a travel pack.
-    add(head,new THREE.IcosahedronGeometry(0.17,1),bone,[0,0.085,0.03],[1,1.1,0.92]);
-    add(head,new THREE.BoxGeometry(0.12,0.085,0.085),bone,[0,-0.052,0.13]);
+    const skull = new THREE.Group(); skull.name = 'Skellor_Skull_Head'; head.add(skull);
+    actor.obliterationHead = { kind: 'skellor', object: skull };
+    add(skull,new THREE.IcosahedronGeometry(0.17,1),bone,[0,0.085,0.03],[1,1.1,0.92]);
+    add(skull,new THREE.BoxGeometry(0.12,0.085,0.085),bone,[0,-0.052,0.13]);
     for (const s of [-1,1]) {
-      add(head,new THREE.SphereGeometry(0.063,7,5),dark,[s*0.077,0.07,0.17],[1,1.12,0.34]);
-      for (let i = 0; i < 3; i++) add(head,new THREE.BoxGeometry(0.022,0.033,0.018),shade,[s*(0.015+i*0.031),-0.086,0.18]);
+      add(skull,new THREE.SphereGeometry(0.063,7,5),dark,[s*0.077,0.07,0.17],[1,1.12,0.34]);
+      for (let i = 0; i < 3; i++) add(skull,new THREE.BoxGeometry(0.022,0.033,0.018),shade,[s*(0.015+i*0.031),-0.086,0.18]);
     }
-    add(head,new THREE.ConeGeometry(0.032,0.07,4),dark,[0,0.0,0.19]).rotation.x = Math.PI;
+    add(skull,new THREE.ConeGeometry(0.032,0.07,4),dark,[0,0.0,0.19]).rotation.x = Math.PI;
     for (let i = 0; i < 4; i++) for (const s of [-1,1]) {
       const rib = add(torso,new THREE.CapsuleGeometry(0.017,0.13,2,5),bone,[s*0.12,0.02-i*0.055,0.16]); rib.rotation.z = s*(0.5+i*0.08);
     }

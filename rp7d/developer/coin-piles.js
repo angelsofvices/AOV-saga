@@ -28,7 +28,8 @@ export function rollPile(rnd = Math.random) {
   return { cls, value: randInt(C[cls].value, rnd) };
 }
 // A defeated enemy's coin bag, against a chest's ~45 coins on average (1–3 piles above): Mori-kind (the corrupted
-// family and the Daemons) carry a little less, Seers a little more. Bags hold coins only; enemies no longer drop gems.
+// family and the Daemons) carry a little less, Seers a little more. Seers also carry one crafting Gemshard; a whole Gem
+// remains separate Gemlord power and is not part of enemy coin bags.
 export const ENEMY_BAG = { mori: [25, 45], seer: [50, 80] };
 export const bagKind = T => (T?.key === 'seer' || /^seer/i.test(T?.key || '') ? 'seer' : 'mori');
 export const rollEnemyBag = (T, rnd = Math.random) => randInt(ENEMY_BAG[bagKind(T)], rnd);
